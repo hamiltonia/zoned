@@ -1,0 +1,278 @@
+# Development Quick Reference
+
+**Zone Fancy GNOME Shell Extension - Developer Guide**
+
+This is a quick reference for developers. For detailed information, see [memory/development/setup.md](memory/development/setup.md).
+
+## Fresh Setup (New System)
+
+```bash
+# 1. Clone repository
+cd ~/GitHub
+git clone https://github.com/hamiltonia/zonefancy.git
+cd zonefancy
+
+# 2. Complete development setup
+make dev
+
+# 3. Reload GNOME Shell
+#    Wayland: Log out → Log back in
+#    X11: Alt+F2 → type 'r' → Enter
+```
+
+That's it! The extension is now installed, compiled, and enabled.
+
+## Makefile Commands
+
+### Essential Commands
+| Command | Description |
+|---------|-------------|
+| `make dev` | **Complete setup**: install + compile schema + enable |
+| `make install` | Copy extension files to GNOME extensions directory |
+| `make compile-schema` | Compile GSettings schema (required after install) |
+| `make logs` | Follow extension logs in real-time (Ctrl+C to stop) |
+| `make reload` | Reload GNOME Shell (X11) or show Wayland instructions |
+
+### Additional Commands
+| Command | Description |
+|---------|-------------|
+| `make enable` | Enable the extension |
+| `make disable` | Disable the extension |
+| `make reinstall` | Uninstall + Install + Compile |
+| `make uninstall` | Remove extension from GNOME |
+| `make clean` | Remove build artifacts |
+| `make zip` | Create distribution package |
+| `make help` | Show all available commands |
+
+## Development Workflow
+
+### Quick Iteration Cycle
+
+```bash
+# 1. Edit code in extension/ directory
+
+# 2. Install changes
+make install
+
+# 3. Reload GNOME Shell
+make reload          # X11: instant, Wayland: shows logout instructions
+
+# 4. Watch logs for errors
+make logs
+```
+
+### X11 vs Wayland
+
+**X11 (Recommended for Development):**
+- Fast reload: `Alt+F2` → type `r` → Enter (2 seconds)
+- Switch to X11: Logout → Click gear → "GNOME on Xorg"
+
+**Wayland (Production Testing):**
+- Must log out and log back in after changes
+- Use for final testing before release
+
+## Project Structure
+
+```
+zonefancy/
+├── extension/                  # Source code (edit here)
+│   ├── extension.js           # Entry point
+│   ├── metadata.json          # Extension metadata
+│   ├── keybindingManager.js   # Keyboard shortcuts
+│   ├── profileManager.js      # Profile system
+│   ├── windowManager.js       # Window positioning
+│   ├── ui/                    # UI components
+│   │   ├── panelIndicator.js  # Top panel icon
+│   │   ├── profilePicker.js   # Profile selector
+│   │   ├── conflictDetector.js # Keybinding conflicts
+│   │   ├── notificationManager.js
+│   │   └── zoneOverlay.js
+│   ├── schemas/               # GSettings schema
+│   └── config/                # Default profiles
+├── memory/                     # Documentation
+├── Makefile                   # Build automation
+└── README.md                  # User documentation
+
+# Installed location (don't edit directly):
+~/.local/share/gnome-shell/extensions/zonefancy@hamiltonia/
+```
+
+## Common Tasks
+
+### View Logs
+
+```bash
+# Real-time logs (recommended)
+make logs
+
+# Recent logs
+journalctl -n 100 /usr/bin/gnome-shell | grep -i zonefancy
+
+# All extension activity
+journalctl -b /usr/bin/gnome-shell | grep -i zonefancy
+```
+
+### Test Keybindings
+
+```bash
+# Check current settings
+gsettings list-recursively org.gnome.shell.extensions.zonefancy
+
+# Test specific binding
+gsettings get org.gnome.shell.extensions.zonefancy cycle-zone-left
+
+# Reset all settings
+gsettings reset-recursively org.gnome.shell.extensions.zonefancy
+```
+
+### Debugging
+
+```bash
+# GNOME Looking Glass (interactive JS console)
+Alt+F2 → type 'lg' → Enter
+
+# Check if extension is loaded
+gnome-extensions list --enabled | grep zonefancy
+
+# View extension info
+gnome-extensions info zonefancy@hamiltonia
+
+# Check for GNOME Shell errors
+journalctl -b /usr/bin/gnome-shell | grep -i error
+```
+
+### Conflict Resolution
+
+The extension automatically detects conflicts with GNOME's default keybindings.
+
+**Testing conflict detection:**
+1. Install extension with `make dev`
+2. Check panel indicator (orange = conflicts detected)
+3. Click panel → View conflicts
+4. Click "Auto-Fix Conflicts"
+5. Log out and log back in
+
+**Key alias handling:**
+The conflict detector handles aliases like `grave` ↔ `Above_Tab` (both refer to backtick key).
+
+## Prerequisites
+
+**Required:**
+- GNOME Shell 49+
+- Git
+- GLib (glib-compile-schemas)
+
+**Optional but recommended:**
+```bash
+sudo dnf install dconf-editor          # View/edit GSettings
+sudo dnf install gnome-extensions-app  # GUI for managing extensions
+```
+
+## File Distribution
+
+### Extension Files (Must be installed)
+- All files in `extension/` directory
+- Including `metadata.json`, `schemas/`, etc.
+
+### Build Artifacts (Auto-generated)
+- `schemas/gschemas.compiled` (generated by `make compile-schema`)
+
+### Development-only
+- `memory/` (documentation, not installed)
+- `Makefile` (build automation)
+- `.gitignore`, `.clinerules`
+
+## Testing Checklist
+
+Before committing changes:
+
+- [ ] `make install` - No errors
+- [ ] `make compile-schema` - Schema compiles successfully
+- [ ] `make logs` - No JS errors in output
+- [ ] Test Super+Left/Right - Windows cycle through zones
+- [ ] Test Super+grave - Profile picker opens
+- [ ] Test Super+Up - Maximize/restore works
+- [ ] Test Super+Down - Minimize works
+- [ ] Panel indicator shows status correctly
+- [ ] Conflict detection works
+- [ ] Auto-fix conflicts works
+- [ ] Test on both X11 and Wayland
+
+## Troubleshooting
+
+### Extension won't load
+```bash
+# Check metadata.json shell-version matches your GNOME version
+gnome-shell --version
+
+# Recompile schema
+make compile-schema
+
+# Check for errors
+make logs
+```
+
+### Changes not appearing
+```bash
+# Ensure you've installed (not just edited source)
+make install
+
+# Reload GNOME Shell
+make reload
+
+# Verify installed files
+ls ~/.local/share/gnome-shell/extensions/zonefancy@hamiltonia/
+```
+
+### Keybindings not working
+```bash
+# Check conflict detector
+# Click panel indicator → View conflicts
+
+# Manual conflict check
+gsettings get org.gnome.mutter.keybindings toggle-tiled-left
+gsettings get org.gnome.desktop.wm.keybindings switch-group
+```
+
+## Git Workflow
+
+Per `.clinerules`, always ask for user approval before committing:
+
+```bash
+# After making changes
+git add <files>
+
+# Prepare commit message with attribution
+git commit -m "Description - Modified by Cline"
+
+# Push changes
+git push origin main
+```
+
+## Quick Tips
+
+1. **Faster development**: Use X11 instead of Wayland
+2. **Keep logs open**: Run `make logs` in separate terminal
+3. **Test incrementally**: Install and test after small changes
+4. **Check Looking Glass**: Great for inspecting runtime state
+5. **Use dconf-editor**: Visual GSettings browser
+6. **Read console output**: Extension logs everything with `[ZoneFancy]` prefix
+
+## Resources
+
+- [GNOME Shell Extensions](https://gjs.guide/extensions/)
+- [GJS Guide](https://gjs.guide/)
+- [GNOME API Reference](https://gjs-docs.gnome.org/)
+- [Development Setup (Detailed)](memory/development/setup.md)
+- [Architecture Overview](memory/architecture/overview.md)
+- [Component Design](memory/architecture/component-design.md)
+
+## Support
+
+- 🐛 [Report issues](https://github.com/hamiltonia/zonefancy/issues)
+- 💬 [Discussions](https://github.com/hamiltonia/zonefancy/discussions)
+- 📚 [Full Documentation](memory/)
+
+---
+
+**Last Updated:** 2025-11-21

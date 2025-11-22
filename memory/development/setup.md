@@ -1,6 +1,8 @@
 # Development Environment Setup
 
-Guide for setting up a development environment for ZoneFancy GNOME Shell extension.
+Guide for setting up a development environment for Zone Fancy GNOME Shell extension.
+
+**Quick Start:** Clone repo → `make dev` → Log out/in (Wayland) or Alt+F2→'r' (X11)
 
 ## Prerequisites
 
@@ -109,62 +111,146 @@ gnome-extensions info zonefancy@hamiltonia
 
 ## Development Workflow
 
+### Complete Setup from Scratch
+
+If you're starting fresh on a new system:
+
+```bash
+# 1. Clone the repository
+cd ~/GitHub
+git clone https://github.com/hamiltonia/zonefancy.git
+cd zonefancy
+
+# 2. Run complete development setup
+make dev
+
+# 3. Log out and log back in (Wayland) or reload GNOME Shell (X11)
+#    Wayland: Top-right menu → Power → Log Out → Log back in
+#    X11: Alt+F2 → type 'r' → press Enter
+```
+
+The `make dev` command performs these steps automatically:
+- Installs extension files to `~/.local/share/gnome-shell/extensions/zonefancy@hamiltonia/`
+- Compiles the GSettings schema
+- Enables the extension
+- Provides session-specific reload instructions
+
+### Makefile Commands Reference
+
+#### Installation & Setup
+```bash
+make install          # Copy extension files to GNOME extensions directory
+make compile-schema   # Compile GSettings schema (required after install)
+make enable           # Enable the extension
+make dev              # Full setup: install + compile + enable (recommended)
+```
+
+#### Development Workflow
+```bash
+make logs             # Follow extension logs in real-time (Ctrl+C to stop)
+make reload           # Reload GNOME Shell (X11) or show Wayland instructions
+make reinstall        # Uninstall + Install + Compile (for major changes)
+```
+
+#### Cleanup
+```bash
+make disable          # Disable the extension
+make uninstall        # Remove extension from GNOME extensions directory
+make clean            # Remove build artifacts and compiled schemas
+```
+
+#### Packaging
+```bash
+make zip              # Create distribution package for extensions.gnome.org
+```
+
+#### Help
+```bash
+make help             # Show all available commands with descriptions
+```
+
 ### Reload Extension During Development
 
-**On X11 (easy):**
+**On X11 (fast development):**
 ```bash
-# Restart GNOME Shell
+# Method 1: Use Makefile (recommended)
+make reload
+
+# Method 2: Manual keyboard shortcut
 Alt + F2, type 'r', press Enter
 ```
 
 **On Wayland (requires logout):**
 ```bash
-# Disable and re-enable extension
-gnome-extensions disable zonefancy@hamiltonia
-gnome-extensions enable zonefancy@hamiltonia
-
-# Or logout and login
-```
-
-**Tip:** Develop on X11 for faster iteration, test on Wayland before release.
-
-### Watch for Changes (Development)
-
-Create a script to auto-reload (X11 only):
-```bash
-#!/bin/bash
-# watch-reload.sh
-
-while inotifywait -e modify,create,delete -r ~/GitHub/zonefancy/extension; do
-    echo "Changes detected, reloading extension..."
-    gnome-extensions disable zonefancy@hamiltonia
-    sleep 0.5
-    make install
-    sleep 0.5
-    gnome-extensions enable zonefancy@hamiltonia
-    echo "Extension reloaded!"
-done
-```
-
-Requires: `sudo dnf install inotify-tools`
-
-### Quick Development Commands
-
-```bash
-# Full development cycle
-make install && make enable
-
-# Quick reload (X11)
+# Makefile will show detailed instructions:
 make reload
 
-# View logs
+# Manual process:
+# 1. Log out (top-right menu → Power → Log Out)
+# 2. Log back in
+```
+
+**Development Tip:** For rapid iteration, temporarily switch to X11:
+1. Log out
+2. Click the gear icon at the login screen
+3. Select "GNOME on Xorg"
+4. On X11, Alt+F2 → 'r' reloads in ~2 seconds
+
+### Typical Development Cycle
+
+```bash
+# 1. Make code changes in extension/ directory
+
+# 2. Install updated files
+make install
+
+# 3. Reload GNOME Shell
+make reload          # X11: reloads immediately
+                     # Wayland: shows logout instructions
+
+# 4. Watch logs for errors
 make logs
 
-# Disable extension
-make disable
+# 5. Test your changes
+# Use Super+grave to test profile picker
+# Use Super+Left/Right to test zone cycling
+```
 
-# Uninstall
-make uninstall
+### Watch Logs While Developing
+
+The extension logs all activity with `[ZoneFancy]` prefix:
+
+```bash
+# Follow logs in real-time (best for active development)
+make logs
+
+# View recent logs
+journalctl -n 100 /usr/bin/gnome-shell | grep -i zonefancy
+
+# View logs with timestamps
+journalctl -f /usr/bin/gnome-shell | grep --line-buffered zonefancy
+```
+
+### Automated Watch Script (X11 only)
+
+For automatic reload on file changes:
+
+```bash
+#!/bin/bash
+# save as: watch-and-reload.sh
+# usage: ./watch-and-reload.sh
+
+sudo dnf install inotify-tools  # if not installed
+
+while inotifywait -e modify,create,delete -r ~/GitHub/zonefancy/extension; do
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "Changes detected, reloading extension..."
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    make install
+    sleep 1
+    make reload
+    echo "Extension reloaded at $(date)"
+done
 ```
 
 ## Development Tools

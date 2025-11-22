@@ -8,6 +8,7 @@ A GNOME Shell extension that brings FancyZones-style window management to Linux.
 - ⌨️ **Keyboard-First** - Cycle through zones with simple keyboard shortcuts
 - 💾 **State Persistence** - Remembers your profile and zone across sessions
 - 🎨 **Visual Profile Picker** - Quick profile switching with ASCII previews
+- 🔧 **Auto-Fix Conflicts** - Detects and resolves keyboard shortcut conflicts with GNOME
 - 🖥️ **Multi-Monitor Ready** - Works seamlessly with multiple displays
 - ⚙️ **Customizable** - Define your own zone layouts via JSON
 
@@ -24,15 +25,33 @@ ZoneFancy provides Windows PowerToys FancyZones-like functionality for GNOME. In
 - GNOME Shell 49+
 - Fedora or other Linux distribution with GNOME
 
-### Install from Source
+### Quick Install from Source
 
 ```bash
 # Clone repository
 git clone https://github.com/hamiltonia/zonefancy.git
 cd zonefancy
 
-# Install extension
+# Complete setup: install + compile schema + enable
+make dev
+
+# Log out and log back in (Wayland) or reload GNOME Shell (X11)
+# Wayland: Top-right → Power → Log Out
+# X11: Alt+F2 → type 'r' → Enter
+```
+
+### Manual Install
+
+```bash
+# Clone repository
+git clone https://github.com/hamiltonia/zonefancy.git
+cd zonefancy
+
+# Install extension files
 make install
+
+# Compile GSettings schema (required)
+make compile-schema
 
 # Enable extension
 make enable
@@ -146,12 +165,34 @@ gsettings reset-recursively org.gnome.shell.extensions.zonefancy
 
 ### Keyboard Shortcuts Conflicting
 
-GNOME's default `Super+Left/Right` shortcuts may conflict. Disable them:
+Zone Fancy includes automatic conflict detection and resolution!
+
+**Using the Panel Indicator (Recommended):**
+1. Look for the orange grid icon in your top panel
+2. Click on it to view detected conflicts
+3. Click "Auto-Fix Conflicts" to automatically disable conflicting GNOME shortcuts
+4. Log out and log back in to apply changes
+
+**Manual Fix:**
+
+If you prefer to disable conflicts manually:
 
 ```bash
+# Disable GNOME's default tiling shortcuts
 gsettings set org.gnome.mutter.keybindings toggle-tiled-left "[]"
 gsettings set org.gnome.mutter.keybindings toggle-tiled-right "[]"
+
+# Disable GNOME's switch-group shortcut (for Super+grave)
+gsettings set org.gnome.desktop.wm.keybindings switch-group "[]"
+
+# Disable GNOME's maximize shortcut (optional)
+gsettings set org.gnome.desktop.wm.keybindings maximize "[]"
+
+# Disable GNOME's minimize shortcut (optional)
+gsettings set org.gnome.desktop.wm.keybindings minimize "[]"
 ```
+
+**Note:** The conflict detector handles key name aliases (e.g., `grave` and `Above_Tab` both refer to the backtick key) to ensure accurate detection.
 
 See [Troubleshooting Guide](docs/troubleshooting.md) for more help.
 
