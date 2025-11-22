@@ -5,104 +5,136 @@ EXTENSION_UUID = zonefancy@hamiltonia
 EXTENSION_DIR = extension
 INSTALL_DIR = $(HOME)/.local/share/gnome-shell/extensions/$(EXTENSION_UUID)
 
-# Colors for output
+# Colors for output (use printf for reliable interpretation)
 COLOR_RESET = \033[0m
 COLOR_INFO = \033[36m
 COLOR_SUCCESS = \033[32m
 COLOR_ERROR = \033[31m
+COLOR_WARN = \033[33m
 
 help:
-	@echo "$(COLOR_INFO)ZoneFancy GNOME Shell Extension - Makefile Commands$(COLOR_RESET)"
-	@echo ""
-	@echo "$(COLOR_SUCCESS)Installation:$(COLOR_RESET)"
-	@echo "  make install        - Install extension to local extensions directory"
-	@echo "  make uninstall      - Remove extension from local extensions directory"
-	@echo "  make enable         - Enable the extension"
-	@echo "  make disable        - Disable the extension"
-	@echo ""
-	@echo "$(COLOR_SUCCESS)Development:$(COLOR_RESET)"
-	@echo "  make reload         - Reload GNOME Shell (X11 only)"
-	@echo "  make logs           - Follow extension logs"
-	@echo "  make compile-schema - Compile GSettings schema"
-	@echo "  make test           - Run tests"
-	@echo ""
-	@echo "$(COLOR_SUCCESS)Packaging:$(COLOR_RESET)"
-	@echo "  make zip            - Create extension zip for distribution"
-	@echo "  make clean          - Clean build artifacts"
-	@echo ""
-	@echo "$(COLOR_SUCCESS)All-in-one:$(COLOR_RESET)"
-	@echo "  make dev            - Install, compile schema, and enable"
-	@echo ""
+	@printf "$(COLOR_INFO)ZoneFancy GNOME Shell Extension - Makefile Commands$(COLOR_RESET)\n"
+	@printf "\n"
+	@printf "$(COLOR_SUCCESS)Installation:$(COLOR_RESET)\n"
+	@printf "  make install        - Install extension to local extensions directory\n"
+	@printf "  make uninstall      - Remove extension from local extensions directory\n"
+	@printf "  make enable         - Enable the extension\n"
+	@printf "  make disable        - Disable the extension\n"
+	@printf "\n"
+	@printf "$(COLOR_SUCCESS)Development:$(COLOR_RESET)\n"
+	@printf "  make reload         - Reload extension (note Wayland limitations)\n"
+	@printf "  make logs           - Follow extension logs\n"
+	@printf "  make compile-schema - Compile GSettings schema\n"
+	@printf "  make dev            - Full development setup (install + compile + enable)\n"
+	@printf "  make test           - Run tests\n"
+	@printf "\n"
+	@printf "$(COLOR_SUCCESS)Packaging:$(COLOR_RESET)\n"
+	@printf "  make zip            - Create extension zip for distribution\n"
+	@printf "  make clean          - Clean build artifacts\n"
+	@printf "\n"
 
 install:
-	@echo "$(COLOR_INFO)Installing ZoneFancy extension...$(COLOR_RESET)"
+	@printf "$(COLOR_INFO)Installing Zone Fancy extension...$(COLOR_RESET)\n"
 	@mkdir -p $(INSTALL_DIR)
 	@cp -r $(EXTENSION_DIR)/* $(INSTALL_DIR)/
-	@echo "$(COLOR_SUCCESS)Installation complete: $(INSTALL_DIR)$(COLOR_RESET)"
-	@echo "$(COLOR_INFO)Don't forget to compile the schema: make compile-schema$(COLOR_RESET)"
+	@printf "$(COLOR_SUCCESS)✓ Installation complete: $(INSTALL_DIR)$(COLOR_RESET)\n"
+	@printf "$(COLOR_WARN)⚠ Don't forget to compile the schema: make compile-schema$(COLOR_RESET)\n"
 
 uninstall:
-	@echo "$(COLOR_INFO)Uninstalling ZoneFancy extension...$(COLOR_RESET)"
+	@printf "$(COLOR_INFO)Uninstalling Zone Fancy extension...$(COLOR_RESET)\n"
 	@rm -rf $(INSTALL_DIR)
-	@echo "$(COLOR_SUCCESS)Uninstalled successfully$(COLOR_RESET)"
+	@printf "$(COLOR_SUCCESS)✓ Uninstalled successfully$(COLOR_RESET)\n"
 
 enable:
-	@echo "$(COLOR_INFO)Enabling ZoneFancy extension...$(COLOR_RESET)"
+	@printf "$(COLOR_INFO)Enabling Zone Fancy extension...$(COLOR_RESET)\n"
 	@gnome-extensions enable $(EXTENSION_UUID)
-	@echo "$(COLOR_SUCCESS)Extension enabled$(COLOR_RESET)"
+	@printf "$(COLOR_SUCCESS)✓ Extension enabled$(COLOR_RESET)\n"
 
 disable:
-	@echo "$(COLOR_INFO)Disabling ZoneFancy extension...$(COLOR_RESET)"
+	@printf "$(COLOR_INFO)Disabling Zone Fancy extension...$(COLOR_RESET)\n"
 	@gnome-extensions disable $(EXTENSION_UUID)
-	@echo "$(COLOR_SUCCESS)Extension disabled$(COLOR_RESET)"
+	@printf "$(COLOR_SUCCESS)✓ Extension disabled$(COLOR_RESET)\n"
 
 reload:
-	@echo "$(COLOR_INFO)Reloading GNOME Shell (X11 only)...$(COLOR_RESET)"
+	@printf "$(COLOR_INFO)Attempting to reload extension...$(COLOR_RESET)\n"
 	@if [ "$$XDG_SESSION_TYPE" = "wayland" ]; then \
-		echo "$(COLOR_ERROR)Cannot reload on Wayland. Please log out and log back in.$(COLOR_RESET)"; \
+		printf "$(COLOR_WARN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)\n"; \
+		printf "$(COLOR_WARN)⚠  WAYLAND LIMITATION$(COLOR_RESET)\n"; \
+		printf "$(COLOR_WARN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)\n"; \
+		printf "Wayland does not support reloading GNOME Shell.\n"; \
+		printf "\n"; \
+		printf "$(COLOR_INFO)To test your changes:$(COLOR_RESET)\n"; \
+		printf "  1. Log out (top right menu → Power → Log Out)\n"; \
+		printf "  2. Log back in\n"; \
+		printf "\n"; \
+		printf "$(COLOR_INFO)For faster development:$(COLOR_RESET)\n"; \
+		printf "  • Switch to X11: Logout → Click gear at login → 'GNOME on Xorg'\n"; \
+		printf "  • On X11: Alt+F2 → type 'r' → Enter (2 second reload)\n"; \
+		printf "$(COLOR_WARN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)\n"; \
 		exit 1; \
+	else \
+		printf "$(COLOR_INFO)Detected X11 session - restarting GNOME Shell...$(COLOR_RESET)\n"; \
+		gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval 'Meta.restart("Restarting…")' > /dev/null 2>&1 || \
+			(printf "$(COLOR_ERROR)Failed to reload via D-Bus. Try: Alt+F2 → type 'r' → Enter$(COLOR_RESET)\n" && exit 1); \
+		printf "$(COLOR_SUCCESS)✓ GNOME Shell restarted$(COLOR_RESET)\n"; \
 	fi
-	@busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell Eval s 'Meta.restart("Restarting…")' || \
-		echo "$(COLOR_ERROR)Failed to reload. Try manually: Alt+F2, type 'r', press Enter$(COLOR_RESET)"
-	@echo "$(COLOR_SUCCESS)GNOME Shell reloaded$(COLOR_RESET)"
 
 logs:
-	@echo "$(COLOR_INFO)Following ZoneFancy logs (Ctrl+C to stop)...$(COLOR_RESET)"
-	@journalctl -f -o cat /usr/bin/gnome-shell | grep -i --line-buffered zonefancy
+	@printf "$(COLOR_INFO)Following Zone Fancy logs (Ctrl+C to stop)...$(COLOR_RESET)\n"
+	@printf "$(COLOR_WARN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)\n"
+	@journalctl -f -o cat /usr/bin/gnome-shell 2>/dev/null | grep --line-buffered -i zonefancy || \
+		(printf "$(COLOR_ERROR)Error: Unable to access GNOME Shell logs$(COLOR_RESET)\n" && exit 1)
 
 compile-schema:
-	@echo "$(COLOR_INFO)Compiling GSettings schema...$(COLOR_RESET)"
+	@printf "$(COLOR_INFO)Compiling GSettings schema...$(COLOR_RESET)\n"
 	@if [ -d "$(INSTALL_DIR)/schemas" ]; then \
 		glib-compile-schemas $(INSTALL_DIR)/schemas/; \
-		echo "$(COLOR_SUCCESS)Schema compiled successfully$(COLOR_RESET)"; \
+		printf "$(COLOR_SUCCESS)✓ Schema compiled successfully$(COLOR_RESET)\n"; \
 	else \
-		echo "$(COLOR_ERROR)Extension not installed. Run 'make install' first.$(COLOR_RESET)"; \
+		printf "$(COLOR_ERROR)✗ Extension not installed. Run 'make install' first.$(COLOR_RESET)\n"; \
 		exit 1; \
 	fi
 
 test:
-	@echo "$(COLOR_INFO)Running tests...$(COLOR_RESET)"
-	@echo "$(COLOR_ERROR)No tests implemented yet$(COLOR_RESET)"
+	@printf "$(COLOR_INFO)Running tests...$(COLOR_RESET)\n"
+	@printf "$(COLOR_WARN)⚠ No tests implemented yet$(COLOR_RESET)\n"
 
 clean:
-	@echo "$(COLOR_INFO)Cleaning build artifacts...$(COLOR_RESET)"
+	@printf "$(COLOR_INFO)Cleaning build artifacts...$(COLOR_RESET)\n"
 	@rm -f *.zip
 	@find . -name "*.gschema.compiled" -delete
 	@rm -rf build/ dist/
-	@echo "$(COLOR_SUCCESS)Clean complete$(COLOR_RESET)"
+	@printf "$(COLOR_SUCCESS)✓ Clean complete$(COLOR_RESET)\n"
 
 zip:
-	@echo "$(COLOR_INFO)Creating extension package...$(COLOR_RESET)"
+	@printf "$(COLOR_INFO)Creating extension package...$(COLOR_RESET)\n"
 	@mkdir -p build
 	@cd $(EXTENSION_DIR) && zip -r ../build/$(EXTENSION_UUID).zip . -x "*.git*"
-	@echo "$(COLOR_SUCCESS)Package created: build/$(EXTENSION_UUID).zip$(COLOR_RESET)"
+	@printf "$(COLOR_SUCCESS)✓ Package created: build/$(EXTENSION_UUID).zip$(COLOR_RESET)\n"
 
 # Convenience target for development workflow
 dev: install compile-schema enable
-	@echo "$(COLOR_SUCCESS)Development setup complete!$(COLOR_RESET)"
-	@echo "$(COLOR_INFO)Extension installed, schema compiled, and enabled.$(COLOR_RESET)"
-	@echo "$(COLOR_INFO)You may need to reload GNOME Shell (make reload) or log out/in.$(COLOR_RESET)"
+	@printf "$(COLOR_SUCCESS)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)\n"
+	@printf "$(COLOR_SUCCESS)✓ Development setup complete!$(COLOR_RESET)\n"
+	@printf "$(COLOR_SUCCESS)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)\n"
+	@printf "\n"
+	@printf "$(COLOR_INFO)Extension installed, compiled, and enabled.$(COLOR_RESET)\n"
+	@printf "\n"
+	@if [ "$$XDG_SESSION_TYPE" = "wayland" ]; then \
+		printf "$(COLOR_WARN)⚠  You're on Wayland - You must LOG OUT and LOG BACK IN to test changes.$(COLOR_RESET)\n"; \
+		printf "\n"; \
+		printf "$(COLOR_INFO)Tip:$(COLOR_RESET) For faster development, switch to X11 temporarily:\n"; \
+		printf "  Logout → Click gear at login → Select 'GNOME on Xorg'\n"; \
+	else \
+		printf "$(COLOR_SUCCESS)✓ You're on X11 - Press Alt+F2, type 'r', press Enter to reload.$(COLOR_RESET)\n"; \
+	fi
+	@printf "\n"
+	@printf "$(COLOR_INFO)Useful commands:$(COLOR_RESET)\n"
+	@printf "  make logs    - Watch extension output live\n"
+	@printf "  make reload  - Reload GNOME Shell (X11) or show Wayland workaround\n"
+	@printf "\n"
 
 # Quick reinstall during development
 reinstall: uninstall install compile-schema
-	@echo "$(COLOR_SUCCESS)Extension reinstalled$(COLOR_RESET)"
+	@printf "$(COLOR_SUCCESS)✓ Extension reinstalled$(COLOR_RESET)\n"
+	@printf "$(COLOR_WARN)⚠ Remember to reload GNOME Shell to see changes$(COLOR_RESET)\n"
