@@ -1,0 +1,39 @@
+## Communication Style
+- Provide clear, technical explanations without unnecessary conversational fluff
+- Include macOS context when explaining concepts (e.g., "unlike Windows, macOS uses...")
+- Offer command-line solutions when available
+- Cross-reference related memory bank entries when relevant
+- Be direct and to-the-point while being thorough
+
+## Project Workflow
+- Update memory bank context files when system state changes
+- Document new scripts and configurations
+- Maintain clean, organized file structure
+- Use git for version control and change tracking
+- Prefer automation and reproducible setups
+
+## Code Standards
+- Use consistent markdown formatting in memory bank
+- Include timestamps in documentation
+- Add cross-references between related topics
+- Use descriptive filenames and directory structure
+- Comment shell scripts and configurations clearly
+
+## Git Workflow and Attribution
+- **CRITICAL**: ALWAYS ask for user approval before executing `git commit`
+- **Workflow**:
+  1. After making changes, use `git add` to stage the modified files
+  2. Prepare a descriptive commit message that includes "Created by Cline" or "Modified by Cline"
+  3. Present the staged changes and proposed commit message to the user
+  4. Use `ask_followup_question` to explicitly request approval to commit
+  5. Only execute `git commit` after receiving explicit user approval
+  6. If user declines, leave changes staged for manual handling
+- **Attribution Format**: Include "Created by Cline" or "Modified by Cline" in all commit messages
+- **Example**: "Fix shell configuration - Modified by Cline" or "Add memory bank entry - Created by Cline"
+- **Rationale**: This balances automation (prepared commits with good messages) with user control (review before finalizing)
+
+## Notes
+- Always check existing memory bank entries before creating new ones
+- Update system state documentation after major changes
+- Maintain the balance between comprehensive documentation and usability
+- Remember that this repository serves as both personal configuration and learning resource
