@@ -1,0 +1,83 @@
+{
+  "profiles": [
+    {
+      "id": "center_focus",
+      "name": "Center (60%)",
+      "zones": [
+        {"name": "Left (20%)", "x": 0, "y": 0, "w": 0.2, "h": 1},
+        {"name": "Center (60%)", "x": 0.2, "y": 0, "w": 0.6, "h": 1},
+        {"name": "Right (20%)", "x": 0.8, "y": 0, "w": 0.2, "h": 1}
+      ]
+    },
+    {
+      "id": "balanced_focus",
+      "name": "Balanced (50%)",
+      "zones": [
+        {"name": "Left (25%)", "x": 0, "y": 0, "w": 0.25, "h": 1},
+        {"name": "Center (50%)", "x": 0.25, "y": 0, "w": 0.5, "h": 1},
+        {"name": "Right (25%)", "x": 0.75, "y": 0, "w": 0.25, "h": 1}
+      ]
+    },
+    {
+      "id": "thirds",
+      "name": "Thirds",
+      "zones": [
+        {"name": "Left Third", "x": 0, "y": 0, "w": 0.333, "h": 1},
+        {"name": "Center Third", "x": 0.333, "y": 0, "w": 0.334, "h": 1},
+        {"name": "Right Third", "x": 0.667, "y": 0, "w": 0.333, "h": 1}
+      ]
+    },
+    {
+      "id": "halves",
+      "name": "Halves",
+      "zones": [
+        {"name": "Left Half", "x": 0, "y": 0, "w": 0.5, "h": 1},
+        {"name": "Right Half", "x": 0.5, "y": 0, "w": 0.5, "h": 1}
+      ]
+    },
+    {
+      "id": "quarters",
+      "name": "Quarters",
+      "zones": [
+        {"name": "Top-Left", "x": 0, "y": 0, "w": 0.5, "h": 0.5},
+        {"name": "Top-Right", "x": 0.5, "y": 0, "w": 0.5, "h": 0.5},
+        {"name": "Bottom-Left", "x": 0, "y": 0.5, "w": 0.5, "h": 0.5},
+        {"name": "Bottom-Right", "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5}
+      ]
+    },
+    {
+      "id": "main_side_left",
+      "name": "Main Left",
+      "zones": [
+        {"name": "Main (67%)", "x": 0, "y": 0, "w": 0.67, "h": 1},
+        {"name": "Side (33%)", "x": 0.67, "y": 0, "w": 0.33, "h": 1}
+      ]
+    },
+    {
+      "id": "main_side_right",
+      "name": "Main Right",
+      "zones": [
+        {"name": "Side (33%)", "x": 0, "y": 0, "w": 0.33, "h": 1},
+        {"name": "Main (67%)", "x": 0.33, "y": 0, "w": 0.67, "h": 1}
+      ]
+    },
+    {
+      "id": "balanced_left",
+      "name": "Balanced Left",
+      "zones": [
+        {"name": "Left (40%)", "x": 0, "y": 0, "w": 0.4, "h": 1},
+        {"name": "Center (40%)", "x": 0.4, "y": 0, "w": 0.4, "h": 1},
+        {"name": "Right (20%)", "x": 0.8, "y": 0, "w": 0.2, "h": 1}
+      ]
+    },
+    {
+      "id": "balanced_right",
+      "name": "Balanced Right",
+      "zones": [
+        {"name": "Left (20%)", "x": 0, "y": 0, "w": 0.2, "h": 1},
+        {"name": "Center (40%)", "x": 0.2, "y": 0, "w": 0.4, "h": 1},
+        {"name": "Right (40%)", "x": 0.6, "y": 0, "w": 0.4, "h": 1}
+      ]
+    }
+  ]
+}

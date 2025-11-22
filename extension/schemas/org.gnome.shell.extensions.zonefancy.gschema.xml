@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.zonefancy" path="/org/gnome/shell/extensions/zonefancy/">
+    
+    <!-- State persistence -->
+    <key name="current-profile-id" type="s">
+      <default>"halves"</default>
+      <summary>Current active profile ID</summary>
+      <description>
+        The ID of the currently active window layout profile.
+      </description>
+    </key>
+    
+    <key name="current-zone-index" type="i">
+      <default>0</default>
+      <summary>Current zone index</summary>
+      <description>
+        The index of the currently active zone within the current profile (0-based).
+      </description>
+    </key>
+    
+    <!-- Keybindings -->
+    <key name="cycle-zone-left" type="as">
+      <default>['&lt;Super&gt;Left']</default>
+      <summary>Cycle to previous zone</summary>
+      <description>
+        Move the focused window to the previous zone in the current profile.
+      </description>
+    </key>
+    
+    <key name="cycle-zone-right" type="as">
+      <default>['&lt;Super&gt;Right']</default>
+      <summary>Cycle to next zone</summary>
+      <description>
+        Move the focused window to the next zone in the current profile.
+      </description>
+    </key>
+    
+    <key name="show-profile-picker" type="as">
+      <default>['&lt;Super&gt;grave']</default>
+      <summary>Open profile picker</summary>
+      <description>
+        Display the profile selection dialog.
+      </description>
+    </key>
+    
+    <key name="minimize-window" type="as">
+      <default>['&lt;Super&gt;Down']</default>
+      <summary>Minimize window</summary>
+      <description>
+        Minimize the currently focused window.
+      </description>
+    </key>
+    
+    <key name="maximize-window" type="as">
+      <default>['&lt;Super&gt;Up']</default>
+      <summary>Maximize or restore window</summary>
+      <description>
+        Toggle maximize state of the focused window, or restore a minimized window.
+      </description>
+    </key>
+    
+  </schema>
+</schemalist>
