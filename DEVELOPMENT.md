@@ -1,6 +1,6 @@
 # Development Quick Reference
 
-**Zone Fancy GNOME Shell Extension - Developer Guide**
+**Zoned GNOME Shell Extension - Developer Guide**
 
 This is a quick reference for developers. For detailed information, see [memory/development/setup.md](memory/development/setup.md).
 
@@ -9,8 +9,8 @@ This is a quick reference for developers. For detailed information, see [memory/
 ```bash
 # 1. Clone repository
 cd ~/GitHub
-git clone https://github.com/hamiltonia/zonefancy.git
-cd zonefancy
+git clone https://github.com/hamiltonia/zoned.git
+cd zoned
 
 # 2. Complete development setup
 make dev
@@ -74,7 +74,7 @@ make logs
 ## Project Structure
 
 ```
-zonefancy/
+zoned/
 ├── extension/                  # Source code (edit here)
 │   ├── extension.js           # Entry point
 │   ├── metadata.json          # Extension metadata
@@ -94,7 +94,7 @@ zonefancy/
 └── README.md                  # User documentation
 
 # Installed location (don't edit directly):
-~/.local/share/gnome-shell/extensions/zonefancy@hamiltonia/
+~/.local/share/gnome-shell/extensions/zoned@hamiltonia/
 ```
 
 ## Common Tasks
@@ -106,23 +106,23 @@ zonefancy/
 make logs
 
 # Recent logs
-journalctl -n 100 /usr/bin/gnome-shell | grep -i zonefancy
+journalctl -n 100 /usr/bin/gnome-shell | grep -i zoned
 
 # All extension activity
-journalctl -b /usr/bin/gnome-shell | grep -i zonefancy
+journalctl -b /usr/bin/gnome-shell | grep -i zoned
 ```
 
 ### Test Keybindings
 
 ```bash
 # Check current settings
-gsettings list-recursively org.gnome.shell.extensions.zonefancy
+gsettings list-recursively org.gnome.shell.extensions.zoned
 
 # Test specific binding
-gsettings get org.gnome.shell.extensions.zonefancy cycle-zone-left
+gsettings get org.gnome.shell.extensions.zoned cycle-zone-left
 
 # Reset all settings
-gsettings reset-recursively org.gnome.shell.extensions.zonefancy
+gsettings reset-recursively org.gnome.shell.extensions.zoned
 ```
 
 ### Debugging
@@ -132,10 +132,10 @@ gsettings reset-recursively org.gnome.shell.extensions.zonefancy
 Alt+F2 → type 'lg' → Enter
 
 # Check if extension is loaded
-gnome-extensions list --enabled | grep zonefancy
+gnome-extensions list --enabled | grep zoned
 
 # View extension info
-gnome-extensions info zonefancy@hamiltonia
+gnome-extensions info zoned@hamiltonia
 
 # Check for GNOME Shell errors
 journalctl -b /usr/bin/gnome-shell | grep -i error
@@ -221,7 +221,7 @@ make install
 make reload
 
 # Verify installed files
-ls ~/.local/share/gnome-shell/extensions/zonefancy@hamiltonia/
+ls ~/.local/share/gnome-shell/extensions/zoned@hamiltonia/
 ```
 
 ### Keybindings not working
@@ -256,7 +256,7 @@ git push origin main
 3. **Test incrementally**: Install and test after small changes
 4. **Check Looking Glass**: Great for inspecting runtime state
 5. **Use dconf-editor**: Visual GSettings browser
-6. **Read console output**: Extension logs everything with `[ZoneFancy]` prefix
+6. **Read console output**: Extension logs everything with `[Zoned]` prefix
 
 ## Resources
 
@@ -269,8 +269,8 @@ git push origin main
 
 ## Support
 
-- 🐛 [Report issues](https://github.com/hamiltonia/zonefancy/issues)
-- 💬 [Discussions](https://github.com/hamiltonia/zonefancy/discussions)
+- 🐛 [Report issues](https://github.com/hamiltonia/zoned/issues)
+- 💬 [Discussions](https://github.com/hamiltonia/zoned/discussions)
 - 📚 [Full Documentation](memory/)
 
 ---

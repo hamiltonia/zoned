@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-  <schema id="org.gnome.shell.extensions.zonefancy" path="/org/gnome/shell/extensions/zonefancy/">
+  <schema id="org.gnome.shell.extensions.zoned" path="/org/gnome/shell/extensions/zoned/">
     
     <!-- State persistence -->
     <key name="current-profile-id" type="s">

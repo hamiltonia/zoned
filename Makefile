@@ -1,7 +1,7 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean zip
 
 # Extension details
-EXTENSION_UUID = zonefancy@hamiltonia
+EXTENSION_UUID = zoned@hamiltonia
 EXTENSION_DIR = extension
 INSTALL_DIR = $(HOME)/.local/share/gnome-shell/extensions/$(EXTENSION_UUID)
 
@@ -13,7 +13,7 @@ COLOR_ERROR = \033[31m
 COLOR_WARN = \033[33m
 
 help:
-	@printf "$(COLOR_INFO)ZoneFancy GNOME Shell Extension - Makefile Commands$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)Zoned GNOME Shell Extension - Makefile Commands$(COLOR_RESET)\n"
 	@printf "\n"
 	@printf "$(COLOR_SUCCESS)Installation:$(COLOR_RESET)\n"
 	@printf "  make install        - Install extension to local extensions directory\n"
@@ -34,24 +34,24 @@ help:
 	@printf "\n"
 
 install:
-	@printf "$(COLOR_INFO)Installing Zone Fancy extension...$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)Installing Zoned extension...$(COLOR_RESET)\n"
 	@mkdir -p $(INSTALL_DIR)
 	@cp -r $(EXTENSION_DIR)/* $(INSTALL_DIR)/
 	@printf "$(COLOR_SUCCESS)✓ Installation complete: $(INSTALL_DIR)$(COLOR_RESET)\n"
 	@printf "$(COLOR_WARN)⚠ Don't forget to compile the schema: make compile-schema$(COLOR_RESET)\n"
 
 uninstall:
-	@printf "$(COLOR_INFO)Uninstalling Zone Fancy extension...$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)Uninstalling Zoned extension...$(COLOR_RESET)\n"
 	@rm -rf $(INSTALL_DIR)
 	@printf "$(COLOR_SUCCESS)✓ Uninstalled successfully$(COLOR_RESET)\n"
 
 enable:
-	@printf "$(COLOR_INFO)Enabling Zone Fancy extension...$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)Enabling Zoned extension...$(COLOR_RESET)\n"
 	@gnome-extensions enable $(EXTENSION_UUID)
 	@printf "$(COLOR_SUCCESS)✓ Extension enabled$(COLOR_RESET)\n"
 
 disable:
-	@printf "$(COLOR_INFO)Disabling Zone Fancy extension...$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)Disabling Zoned extension...$(COLOR_RESET)\n"
 	@gnome-extensions disable $(EXTENSION_UUID)
 	@printf "$(COLOR_SUCCESS)✓ Extension disabled$(COLOR_RESET)\n"
 
@@ -80,9 +80,9 @@ reload:
 	fi
 
 logs:
-	@printf "$(COLOR_INFO)Following Zone Fancy logs (Ctrl+C to stop)...$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)Following Zoned logs (Ctrl+C to stop)...$(COLOR_RESET)\n"
 	@printf "$(COLOR_WARN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)\n"
-	@journalctl -f -o cat /usr/bin/gnome-shell 2>/dev/null | grep --line-buffered -i zonefancy || \
+	@journalctl -f -o cat /usr/bin/gnome-shell 2>/dev/null | grep --line-buffered -i zoned || \
 		(printf "$(COLOR_ERROR)Error: Unable to access GNOME Shell logs$(COLOR_RESET)\n" && exit 1)
 
 compile-schema:

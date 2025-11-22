@@ -1,6 +1,8 @@
-# ZoneFancy
+# Zoned
 
 A GNOME Shell extension that brings FancyZones-style window management to Linux. Organize windows into customizable zones with keyboard-driven workflows.
+
+**Inspired by PowerToys Fancy Zones**
 
 ## Features
 
@@ -12,9 +14,9 @@ A GNOME Shell extension that brings FancyZones-style window management to Linux.
 - 🖥️ **Multi-Monitor Ready** - Works seamlessly with multiple displays
 - ⚙️ **Customizable** - Define your own zone layouts via JSON
 
-## What is ZoneFancy?
+## What is Zoned?
 
-ZoneFancy provides Windows PowerToys FancyZones-like functionality for GNOME. Instead of dragging windows to snap them, you use keyboard shortcuts to cycle through predefined zones in your chosen profile.
+Zoned provides Windows PowerToys FancyZones-like functionality for GNOME. Instead of dragging windows to snap them, you use keyboard shortcuts to cycle through predefined zones in your chosen profile.
 
 **Inspiration:** This project brings the profile-based window management workflow I created with Hammerspoon on macOS to Linux/GNOME.
 
@@ -29,8 +31,8 @@ ZoneFancy provides Windows PowerToys FancyZones-like functionality for GNOME. In
 
 ```bash
 # Clone repository
-git clone https://github.com/hamiltonia/zonefancy.git
-cd zonefancy
+git clone https://github.com/hamiltonia/zoned.git
+cd zoned
 
 # Complete setup: install + compile schema + enable
 make dev
@@ -44,8 +46,8 @@ make dev
 
 ```bash
 # Clone repository
-git clone https://github.com/hamiltonia/zonefancy.git
-cd zonefancy
+git clone https://github.com/hamiltonia/zoned.git
+cd zoned
 
 # Install extension files
 make install
@@ -112,7 +114,7 @@ make enable
 ## Custom Profiles
 
 Create your own layouts by editing:
-`~/.config/zonefancy/profiles.json`
+`~/.config/zoned/profiles.json`
 
 Example custom profile:
 
@@ -154,18 +156,18 @@ See [Profile Documentation](docs/customization.md) for details.
 
 ```bash
 # Check if extension is enabled
-gnome-extensions list --enabled | grep zonefancy
+gnome-extensions list --enabled | grep zoned
 
 # View logs for errors
-journalctl -f -o cat /usr/bin/gnome-shell | grep -i zonefancy
+journalctl -f -o cat /usr/bin/gnome-shell | grep -i zoned
 
 # Reset to defaults
-gsettings reset-recursively org.gnome.shell.extensions.zonefancy
+gsettings reset-recursively org.gnome.shell.extensions.zoned
 ```
 
 ### Keyboard Shortcuts Conflicting
 
-Zone Fancy includes automatic conflict detection and resolution!
+Zoned includes automatic conflict detection and resolution!
 
 **Using the Panel Indicator (Recommended):**
 1. Look for the orange grid icon in your top panel
@@ -249,8 +251,8 @@ GNU General Public License v3.0 - see [LICENSE](LICENSE) for details.
 
 ## Support
 
-- 🐛 [Report bugs](https://github.com/hamiltonia/zonefancy/issues)
-- 💬 [Discussions](https://github.com/hamiltonia/zonefancy/discussions)
+- 🐛 [Report bugs](https://github.com/hamiltonia/zoned/issues)
+- 💬 [Discussions](https://github.com/hamiltonia/zoned/discussions)
 - 📧 Contact: [GitHub Profile](https://github.com/hamiltonia)
 
 ---

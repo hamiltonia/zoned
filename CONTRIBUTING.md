@@ -1,6 +1,6 @@
-# Contributing to ZoneFancy
+# Contributing to Zoned
 
-Thank you for your interest in contributing to ZoneFancy! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Zoned! This document provides guidelines and instructions for contributing.
 
 ## Code of Conduct
 
@@ -14,7 +14,7 @@ Thank you for your interest in contributing to ZoneFancy! This document provides
 ### Reporting Bugs
 
 Before creating a bug report:
-1. Check the [existing issues](https://github.com/hamiltonia/zonefancy/issues)
+1. Check the [existing issues](https://github.com/hamiltonia/zoned/issues)
 2. Verify you're using a supported GNOME Shell version (49+)
 3. Try with extension disabled to rule out conflicts
 
@@ -31,7 +31,7 @@ When creating a bug report, include:
 Feature requests are welcome! Please:
 1. Check existing issues/discussions first
 2. Clearly describe the use case
-3. Explain how it fits with ZoneFancy's philosophy
+3. Explain how it fits with Zoned's philosophy
 4. Consider implementation complexity
 
 ### Pull Requests
@@ -49,8 +49,8 @@ Feature requests are welcome! Please:
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR-USERNAME/zonefancy.git
-cd zonefancy
+git clone https://github.com/YOUR-USERNAME/zoned.git
+cd zoned
 
 # Install extension for development
 make install
@@ -277,7 +277,7 @@ ext
 **Log viewing:**
 ```bash
 # Follow logs
-journalctl -f -o cat /usr/bin/gnome-shell | grep -i zonefancy
+journalctl -f -o cat /usr/bin/gnome-shell | grep -i zoned
 
 # Recent errors
 journalctl -b -o cat /usr/bin/gnome-shell | grep -i error
@@ -310,7 +310,7 @@ When modifying components:
 ## Project Structure
 
 ```
-zonefancy/
+zoned/
 ├── extension/          # Extension source code
 │   ├── extension.js
 │   ├── profileManager.js
@@ -345,8 +345,8 @@ zonefancy/
 - [Keybindings API](memory/api-reference/keybindings.md)
 
 ### Community
-- [GitHub Issues](https://github.com/hamiltonia/zonefancy/issues)
-- [GitHub Discussions](https://github.com/hamiltonia/zonefancy/discussions)
+- [GitHub Issues](https://github.com/hamiltonia/zoned/issues)
+- [GitHub Discussions](https://github.com/hamiltonia/zoned/discussions)
 
 ## Release Process
 
@@ -362,8 +362,8 @@ zonefancy/
 
 ## Questions?
 
-- Open a [Discussion](https://github.com/hamiltonia/zonefancy/discussions)
-- Check existing [Issues](https://github.com/hamiltonia/zonefancy/issues)
+- Open a [Discussion](https://github.com/hamiltonia/zoned/discussions)
+- Check existing [Issues](https://github.com/hamiltonia/zoned/issues)
 - Review [Documentation](memory/)
 
 ## License
@@ -372,4 +372,4 @@ By contributing, you agree that your contributions will be licensed under the GN
 
 ---
 
-Thank you for contributing to ZoneFancy! 🎉
+Thank you for contributing to Zoned! 🎉
