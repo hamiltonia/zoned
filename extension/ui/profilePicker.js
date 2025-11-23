@@ -8,6 +8,7 @@
  * - Aspect ratio-aware card dimensions
  * - Keyboard navigation (arrows, 1-9, Enter, Esc)
  * - Mouse selection
+ * - Full-screen zone preview overlay
  */
 
 import Clutter from 'gi://Clutter';
@@ -34,6 +35,7 @@ export class ProfilePicker {
         this._notificationManager = notificationManager;
         this._settings = settings;
         this._dialog = null;
+        this._zoneOverlay = null;
         this._selectedIndex = 0;
         this._profileButtons = [];
     }
@@ -63,6 +65,9 @@ export class ProfilePicker {
 
         this._createDialog(profiles);
         this._connectKeyEvents();
+        
+        // Create zone overlay showing current profile
+        this._createZoneOverlay(currentProfile);
 
         console.log('[Zoned] Profile picker shown');
     }
@@ -71,14 +76,159 @@ export class ProfilePicker {
      * Hide the profile picker dialog
      */
     hide() {
-        if (this._dialog) {
-            console.log('[Zoned] Hiding profile picker');
-            this._disconnectKeyEvents();
-            Main.uiGroup.remove_child(this._dialog);
-            this._dialog.destroy();
-            this._dialog = null;
-            this._profileButtons = [];
-            console.log('[Zoned] Profile picker hidden');
+        console.log('[Zoned] Hide called - dialog exists:', !!this._dialog, 'overlay exists:', !!this._zoneOverlay);
+        
+        // Store dialog reference and immediately clear it to prevent event handlers from triggering
+        const dialog = this._dialog;
+        this._dialog = null;
+        this._profileButtons = [];
+        
+        // Always disconnect key events
+        this._disconnectKeyEvents();
+        
+        // Always try to destroy overlay
+        this._destroyZoneOverlay();
+        
+        // Then destroy dialog if it existed
+        if (dialog) {
+            Main.uiGroup.remove_child(dialog);
+            dialog.destroy();
+        }
+        
+        console.log('[Zoned] Profile picker hidden - overlay:', !!this._zoneOverlay, 'dialog:', !!this._dialog);
+    }
+
+    /**
+     * Draw a rounded rectangle using Cairo
+     * @private
+     */
+    _drawRoundedRect(cr, x, y, width, height, radius) {
+        const degrees = Math.PI / 180.0;
+        
+        cr.newSubPath();
+        cr.arc(x + width - radius, y + radius, radius, -90 * degrees, 0 * degrees);
+        cr.arc(x + width - radius, y + height - radius, radius, 0 * degrees, 90 * degrees);
+        cr.arc(x + radius, y + height - radius, radius, 90 * degrees, 180 * degrees);
+        cr.arc(x + radius, y + radius, radius, 180 * degrees, 270 * degrees);
+        cr.closePath();
+    }
+
+    /**
+     * Create or update the full-screen zone overlay
+     * Shows the zones of the given profile on the current monitor
+     * @private
+     */
+    _createZoneOverlay(profile) {
+        // If overlay already exists, just update it
+        if (this._zoneOverlay) {
+            this._updateZoneOverlay(profile);
+            return;
+        }
+
+        const monitor = Main.layoutManager.currentMonitor;
+        const accentColor = this._getAccentColor();
+        const CORNER_RADIUS = 12;  // GNOME default window corner radius
+        
+        // Create full-screen overlay widget
+        this._zoneOverlay = new St.Widget({
+            style: 'background-color: rgba(0, 0, 0, 0.3);',
+            width: monitor.width,
+            height: monitor.height,
+            x: monitor.x,
+            y: monitor.y,
+            reactive: false  // Don't intercept mouse events
+        });
+        
+        // Create drawing area for zones
+        this._zoneOverlayCanvas = new St.DrawingArea({
+            width: monitor.width,
+            height: monitor.height
+        });
+        
+        // Store current profile for repainting
+        this._overlayProfile = profile;
+        
+        this._zoneOverlayCanvas.connect('repaint', () => {
+            try {
+                const cr = this._zoneOverlayCanvas.get_context();
+                const [w, h] = this._zoneOverlayCanvas.get_surface_size();
+                
+                if (!this._overlayProfile) {
+                    cr.$dispose();
+                    return;
+                }
+                
+                // Draw each zone with rounded corners
+                this._overlayProfile.zones.forEach((zone) => {
+                    const x = zone.x * w;
+                    const y = zone.y * h;
+                    const zoneW = zone.w * w;
+                    const zoneH = zone.h * h;
+                    
+                    // Fill with subtle accent color (20% opacity for overlay)
+                    cr.setSourceRGBA(
+                        accentColor.red,
+                        accentColor.green,
+                        accentColor.blue,
+                        0.2  // 20% opacity - more subtle for full screen
+                    );
+                    this._drawRoundedRect(cr, x, y, zoneW, zoneH, CORNER_RADIUS);
+                    cr.fill();
+                    
+                    // Border with accent (60% opacity for overlay, 4px width)
+                    cr.setSourceRGBA(
+                        accentColor.red,
+                        accentColor.green,
+                        accentColor.blue,
+                        0.6  // 60% opacity - more subtle for full screen
+                    );
+                    cr.setLineWidth(4);  // Increased from 2px to 4px for better visibility
+                    this._drawRoundedRect(cr, x, y, zoneW, zoneH, CORNER_RADIUS);
+                    cr.stroke();
+                });
+                
+                cr.$dispose();
+            } catch (e) {
+                console.error(`[Zoned] Error drawing zone overlay:`, e);
+            }
+        });
+        
+        this._zoneOverlay.add_child(this._zoneOverlayCanvas);
+        
+        // Add to stage BEFORE the dialog (so it appears behind)
+        Main.uiGroup.insert_child_below(this._zoneOverlay, this._dialog);
+        
+        console.log(`[Zoned] Zone overlay created for profile: ${profile.name}`);
+    }
+
+    /**
+     * Update the zone overlay with a new profile
+     * @private
+     */
+    _updateZoneOverlay(profile) {
+        if (!this._zoneOverlay || !this._zoneOverlayCanvas) {
+            this._createZoneOverlay(profile);
+            return;
+        }
+        
+        this._overlayProfile = profile;
+        this._zoneOverlayCanvas.queue_repaint();
+        
+        console.log(`[Zoned] Zone overlay updated to profile: ${profile.name}`);
+    }
+
+    /**
+     * Destroy the zone overlay
+     * @private
+     */
+    _destroyZoneOverlay() {
+        if (this._zoneOverlay) {
+            Main.uiGroup.remove_child(this._zoneOverlay);
+            this._zoneOverlay.destroy();
+            this._zoneOverlay = null;
+            this._zoneOverlayCanvas = null;
+            this._overlayProfile = null;
+            console.log('[Zoned] Zone overlay destroyed');
         }
     }
 
@@ -382,6 +532,7 @@ export class ProfilePicker {
         
         // Store profile info for later reference
         card._profileId = profile.id;
+        card._profile = profile;  // Store full profile for overlay updates
         card._isCurrentProfile = isCurrentProfile;
         card._profileIndex = index;
         card._cardWidth = width;  // Store width for _updateSelection
@@ -439,18 +590,29 @@ export class ProfilePicker {
         
         // Hover effects
         card.connect('enter-event', () => {
+            // Only update if dialog still exists (not being destroyed)
+            if (!this._dialog) return Clutter.EVENT_PROPAGATE;
+            
             if (card._profileIndex !== this._selectedIndex) {
                 card.style = `padding: ${CARD_PADDING}px; width: ${width}px; ` +
                             `border-radius: 8px; ` +
                             `background-color: rgba(74, 144, 217, 0.25); ` +
                             `border: 1px solid #6aa0d9;`;
             }
+            // Update zone overlay to show this profile's zones
+            this._updateZoneOverlay(card._profile);
             return Clutter.EVENT_PROPAGATE;
         });
         
         card.connect('leave-event', () => {
+            // Only update if dialog still exists (not being destroyed)
+            if (!this._dialog) return Clutter.EVENT_PROPAGATE;
+            
             // Restore proper style based on selection state
             this._updateSelection();
+            // Revert zone overlay to current active profile
+            const currentProf = this._profileManager.getCurrentProfile();
+            this._updateZoneOverlay(currentProf);
             return Clutter.EVENT_PROPAGATE;
         });
         
@@ -477,10 +639,13 @@ export class ProfilePicker {
     }
 
     /**
-     * Update selection highlight
+     * Update selection highlight (visual only, does not update overlay)
      * @private
      */
     _updateSelection() {
+        // Don't update if dialog doesn't exist (being destroyed or already destroyed)
+        if (!this._dialog) return;
+        
         console.log(`[Zoned] Updating selection to index: ${this._selectedIndex}`);
         const currentProfile = this._profileManager.getCurrentProfile();
         
@@ -559,6 +724,10 @@ export class ProfilePicker {
                         }
                     }
                     this._updateSelection();
+                    // Update overlay to show newly selected profile
+                    if (this._profileButtons[this._selectedIndex]) {
+                        this._updateZoneOverlay(this._profileButtons[this._selectedIndex]._profile);
+                    }
                     return Clutter.EVENT_STOP;
 
                 case Clutter.KEY_Right:
@@ -573,6 +742,10 @@ export class ProfilePicker {
                         }
                     }
                     this._updateSelection();
+                    // Update overlay to show newly selected profile
+                    if (this._profileButtons[this._selectedIndex]) {
+                        this._updateZoneOverlay(this._profileButtons[this._selectedIndex]._profile);
+                    }
                     return Clutter.EVENT_STOP;
 
                 case Clutter.KEY_Up:
@@ -582,6 +755,10 @@ export class ProfilePicker {
                     if (upIndex >= 0) {
                         this._selectedIndex = upIndex;
                         this._updateSelection();
+                        // Update overlay to show newly selected profile
+                        if (this._profileButtons[this._selectedIndex]) {
+                            this._updateZoneOverlay(this._profileButtons[this._selectedIndex]._profile);
+                        }
                     }
                     return Clutter.EVENT_STOP;
 
@@ -592,6 +769,10 @@ export class ProfilePicker {
                     if (downIndex < profiles.length) {
                         this._selectedIndex = downIndex;
                         this._updateSelection();
+                        // Update overlay to show newly selected profile
+                        if (this._profileButtons[this._selectedIndex]) {
+                            this._updateZoneOverlay(this._profileButtons[this._selectedIndex]._profile);
+                        }
                     }
                     return Clutter.EVENT_STOP;
 

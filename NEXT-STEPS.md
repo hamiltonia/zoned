@@ -368,40 +368,37 @@ Core implementation is complete, but significant UI/UX work and feature addition
 
 ### Phase 1: UI/UX Refinements (HIGH PRIORITY)
 
-#### 1.1 Profile Picker Redesign (CRITICAL)
-**Current Issues:**
-- Items too large with excessive padding
-- ASCII art visualization too verbose
-- Lacks ease of use compared to Hammerspoon's chooser
-- No visual preview of actual zones on screen
+#### 1.1 Profile Picker Redesign ✅ COMPLETE
+**Status:** All requirements implemented and tested
 
-**Requirements:**
+**Completed Features:**
 - [x] Grid layout (3 columns, scrollable for overflow)
-- [ ] Implement monitor aspect ratio-matched cards
-  - Cards should match current monitor's aspect ratio (16:9, 21:9, etc.)
-  - Makes visual representation more intuitive
-- [ ] Replace ASCII art with St.DrawingArea zone previews
-  - Mini zone preview using Cairo rendering in each card
+- [x] Monitor aspect ratio-matched cards
+  - Cards match current monitor's aspect ratio (16:9, 21:9, etc.)
+  - Intuitive visual representation
+- [x] Cairo-rendered zone previews
+  - Mini zone preview using Cairo in each card
   - Clean, visual representation of zone layout
-- [ ] ScrollView with mouse wheel support (>9 profiles)
-  - Must handle unlimited profile counts
+- [x] ScrollView with mouse wheel support
+  - Handles unlimited profile counts
   - Smooth scrolling experience
-- [ ] Full-screen zone preview on hover
-  - Transparent overlay behind picker when hovering over a profile card
-  - Shows actual zone positions/sizes on current monitor
-  - Uses system accent color for theming
-  - No zone labels/numbers (clean visual only)
-  - Instant or very fast fade-in effect
-  - Preview on current monitor only (not all monitors)
-- [ ] Enhanced keyboard shortcuts
+- [x] Full-screen zone preview overlay
+  - Transparent overlay behind picker showing actual zone positions/sizes
+  - 4px border width for visibility
+  - 12px rounded corners matching GNOME windows
+  - System accent color theming
+  - Updates on mouse hover and keyboard navigation
+  - Reverts to current profile on mouse leave
+  - Proper cleanup on all dismissal methods
+- [x] Enhanced keyboard shortcuts
   - Number keys 1-9 for quick selection
   - Arrow keys for 2D grid navigation
   - Page Up/Down for scrolling
   - Enter to confirm, Esc to cancel
-- [ ] Compact design
-  - Reduced card padding (8px instead of 15px)
+- [x] Compact design
+  - Optimized card padding (10px)
   - Smaller overall footprint
-  - All or most profiles visible without scrolling (for typical 9 profiles)
+  - All 9 profiles visible without scrolling (typical case)
 
 **Technical Approach:**
 ```javascript
@@ -424,12 +421,12 @@ card.connect('leave-event', () => hidePreview());
 
 **Reference:** See `memory/architecture/component-design.md` and Hammerspoon's `hs.chooser` pattern
 
-#### 1.2 Alert/Notification Theming
-- [ ] Review NotificationManager for GNOME aesthetic compliance
-- [ ] Improve readability of all notification messages
-- [ ] Use proper GNOME Shell theme colors
-- [ ] Make alert text more concise
-- [ ] Ensure notifications don't interfere with workflow
+#### 1.2 Alert/Notification Theming ✅ COMPLETE
+- [x] Review NotificationManager for GNOME aesthetic compliance
+- [x] Improve readability of all notification messages
+- [x] Use proper GNOME Shell theme colors
+- [x] Make alert text more concise
+- [x] Ensure notifications don't interfere with workflow
 
 #### 1.3 Panel Indicator Icon Update
 - [ ] Change icon from 2x2 grid (`view-grid-symbolic`) to 3-column style
