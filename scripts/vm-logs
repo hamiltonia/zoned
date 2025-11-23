@@ -1,0 +1,54 @@
+#!/bin/bash
+#
+# vm-logs - Watch extension logs from VM
+#
+# Tails GNOME Shell logs from the VM over SSH,
+# filtering for Zoned-related messages.
+#
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+CONFIG_FILE="$HOME/.config/zoned-dev/config"
+
+# Load configuration
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo -e "${RED}✗ Configuration file not found: $CONFIG_FILE${NC}"
+    echo
+    echo "Run 'make vm-init' first to create the configuration."
+    exit 1
+fi
+
+source "$CONFIG_FILE"
+
+# Test SSH connection
+if ! ssh -o ConnectTimeout=5 "$VM_USER@$VM_IP" "exit" 2>/dev/null; then
+    echo -e "${RED}✗ Cannot connect to VM${NC}"
+    echo "Make sure the VM is running and SSH is configured."
+    exit 1
+fi
+
+echo -e "${BLUE}════════════════════════════════════════════════════════════${NC}"
+echo -e "${BLUE}   Watching VM logs (Ctrl+C to stop)${NC}"
+echo -e "${BLUE}════════════════════════════════════════════════════════════${NC}"
+echo -e "${YELLOW}VM: $VM_USER@$VM_IP${NC}"
+echo -e "${YELLOW}Extension: $EXTENSION_UUID${NC}"
+echo -e "${BLUE}════════════════════════════════════════════════════════════${NC}"
+echo
+
+# Determine filter mode
+FILTER_MODE="${1:-zoned}"
+
+if [ "$FILTER_MODE" = "all" ]; then
+    echo -e "${BLUE}Showing ALL GNOME Shell logs...${NC}"
+    echo
+    ssh "$VM_USER@$VM_IP" "journalctl -f -o cat /usr/bin/gnome-shell 2>/dev/null"
+else
+    echo -e "${BLUE}Filtering for 'zoned' messages (use './scripts/vm-logs all' for all logs)...${NC}"
+    echo
+    ssh "$VM_USER@$VM_IP" "journalctl -f -o cat /usr/bin/gnome-shell 2>/dev/null | grep --line-buffered -i zoned"
+fi

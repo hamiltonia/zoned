@@ -1,4 +1,5 @@
-.PHONY: help install uninstall enable disable reload logs compile-schema test clean zip
+.PHONY: help install uninstall enable disable reload logs compile-schema test clean zip \
+        vm-init vm-setup vm-install vm-logs vm-dev
 
 # Extension details
 EXTENSION_UUID = zoned@hamiltonia
@@ -27,6 +28,13 @@ help:
 	@printf "  make compile-schema - Compile GSettings schema\n"
 	@printf "  make dev            - Full development setup (install + compile + enable)\n"
 	@printf "  make test           - Run tests\n"
+	@printf "\n"
+	@printf "$(COLOR_SUCCESS)VM Development:$(COLOR_RESET)\n"
+	@printf "  make vm-init        - Initialize VM configuration (first-time setup)\n"
+	@printf "  make vm-setup       - Configure VM for development (one-time)\n"
+	@printf "  make vm-install     - Install/update extension in VM\n"
+	@printf "  make vm-logs        - Watch extension logs from VM\n"
+	@printf "  make vm-dev         - Quick VM development (install + reload)\n"
 	@printf "\n"
 	@printf "$(COLOR_SUCCESS)Packaging:$(COLOR_RESET)\n"
 	@printf "  make zip            - Create extension zip for distribution\n"
@@ -138,3 +146,29 @@ dev: install compile-schema enable
 reinstall: uninstall install compile-schema
 	@printf "$(COLOR_SUCCESS)✓ Extension reinstalled$(COLOR_RESET)\n"
 	@printf "$(COLOR_WARN)⚠ Remember to reload GNOME Shell to see changes$(COLOR_RESET)\n"
+
+# VM Development targets
+vm-init:
+	@printf "$(COLOR_INFO)Starting VM configuration wizard...$(COLOR_RESET)\n"
+	@./scripts/init-vm-config
+
+vm-setup:
+	@printf "$(COLOR_INFO)Configuring VM for Zoned development...$(COLOR_RESET)\n"
+	@./scripts/vm-setup
+
+vm-install:
+	@printf "$(COLOR_INFO)Installing extension to VM...$(COLOR_RESET)\n"
+	@./scripts/vm-install
+
+vm-logs:
+	@printf "$(COLOR_INFO)Watching VM logs...$(COLOR_RESET)\n"
+	@./scripts/vm-logs
+
+vm-dev: vm-install
+	@printf "$(COLOR_SUCCESS)✓ VM development cycle complete$(COLOR_RESET)\n"
+	@printf "\n"
+	@printf "$(COLOR_INFO)To see changes:$(COLOR_RESET)\n"
+	@printf "  • X11 VM: Press Alt+F2 → type 'r' → Enter\n"
+	@printf "  • Wayland VM: Log out and log back in\n"
+	@printf "\n"
+	@printf "$(COLOR_INFO)To watch logs:$(COLOR_RESET) make vm-logs\n"

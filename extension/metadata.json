@@ -4,6 +4,7 @@
   "description": "FancyZones-style window management for GNOME. Organize windows into customizable zones with keyboard-driven workflows.",
   "version": 1,
   "shell-version": [
+    "48",
     "49"
   ],
   "url": "https://github.com/hamiltonia/zoned",

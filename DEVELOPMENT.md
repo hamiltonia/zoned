@@ -44,7 +44,48 @@ That's it! The extension is now installed, compiled, and enabled.
 | `make zip` | Create distribution package |
 | `make help` | Show all available commands |
 
-## Development Workflow
+## VM Development Workflow (Recommended)
+
+**Problem:** On Fedora 43+ Wayland, GNOME Shell reload requires logout/login (~15-30 seconds per test).
+
+**Solution:** Use a Fedora 42 VM with X11 for fast reload with `Alt+F2 → r` (~2-3 seconds per test).
+
+### Quick Start
+
+```bash
+# One-time setup (30-45 minutes total):
+# 1. Create Fedora 42 VM in GNOME Boxes (see docs/VM-SETUP-GUIDE.md)
+# 2. Configure VM:
+make vm-init    # Interactive: enter VM IP, username
+make vm-setup   # Configures VM environment
+
+# Daily development:
+make vm-logs    # Terminal 1: Watch VM logs
+code .          # Terminal 2: Edit code
+# In VM: Alt+F2 → r → Enter (after each save)
+```
+
+### VM Commands
+
+| Command | Description |
+|---------|-------------|
+| `make vm-init` | **First-time setup**: Create VM configuration |
+| `make vm-setup` | **One-time**: Configure VM for development |
+| `make vm-install` | Install/update extension in VM |
+| `make vm-logs` | Watch extension logs from VM |
+| `make vm-dev` | Quick install + reload in VM |
+
+### Detailed VM Setup
+
+See **[docs/VM-SETUP-GUIDE.md](docs/VM-SETUP-GUIDE.md)** for complete step-by-step VM setup instructions.
+
+For deep troubleshooting and advanced tips, see **[memory/development/vm-workflow.md](memory/development/vm-workflow.md)**.
+
+---
+
+## Local Development Workflow
+
+For local development (without VM), use these commands:
 
 ### Quick Iteration Cycle
 

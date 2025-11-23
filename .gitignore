@@ -1,5 +1,6 @@
 # GNOME Shell Extension
 *.gschema.compiled
+gschemas.compiled
 *.mo
 *.pot~
 
