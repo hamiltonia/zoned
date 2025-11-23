@@ -8,6 +8,9 @@
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import { createLogger } from '../utils/debug.js';
+
+const logger = createLogger('NotificationManager');
 
 export class NotificationManager {
     constructor() {
@@ -65,9 +68,9 @@ export class NotificationManager {
                 }
             }, duration);
 
-            console.log(`[Zoned] Notification shown: ${message}`);
+            logger.debug(`Notification shown: ${message}`);
         } catch (error) {
-            console.error(`[Zoned] Failed to show notification: ${error}`);
+            logger.error(`Failed to show notification: ${error}`);
         }
     }
 

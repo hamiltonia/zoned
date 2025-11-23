@@ -10,6 +10,9 @@
 import GLib from 'gi://GLib';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import { createLogger } from '../utils/debug.js';
+
+const logger = createLogger('ZoneOverlay');
 
 export class ZoneOverlay {
     constructor() {
@@ -76,9 +79,9 @@ export class ZoneOverlay {
                 return GLib.SOURCE_REMOVE;
             });
 
-            console.log(`[Zoned] Overlay shown: ${profileName} - Zone ${zoneIndex + 1}/${totalZones}`);
+            logger.debug(`Overlay shown: ${profileName} - Zone ${zoneIndex + 1}/${totalZones}`);
         } catch (error) {
-            console.error(`[Zoned] Error showing overlay: ${error}`);
+            logger.error(`Error showing overlay: ${error}`);
         }
     }
 

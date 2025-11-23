@@ -10,6 +10,9 @@
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import { createLogger } from './utils/debug.js';
+
+const logger = createLogger('KeybindingManager');
 
 export class KeybindingManager {
     /**
@@ -34,7 +37,7 @@ export class KeybindingManager {
      * Register all keybindings
      */
     registerKeybindings() {
-        console.log('[Zoned] Registering keybindings...');
+        logger.info('Registering keybindings...');
 
         // Zone cycling
         this._registerKeybinding(
@@ -64,7 +67,7 @@ export class KeybindingManager {
             this._onMaximizeWindow.bind(this)
         );
 
-        console.log(`[Zoned] Registered ${this._registeredKeys.length} keybindings`);
+        logger.info(`Registered ${this._registeredKeys.length} keybindings`);
     }
 
     /**
@@ -81,9 +84,9 @@ export class KeybindingManager {
                 handler
             );
             this._registeredKeys.push(name);
-            console.log(`[Zoned] Registered keybinding: ${name}`);
+            logger.debug(`Registered keybinding: ${name}`);
         } catch (error) {
-            console.error(`[Zoned] Failed to register keybinding '${name}': ${error}`);
+            logger.error(`Failed to register keybinding '${name}': ${error}`);
         }
     }
 
@@ -91,14 +94,14 @@ export class KeybindingManager {
      * Unregister all keybindings
      */
     unregisterKeybindings() {
-        console.log('[Zoned] Unregistering keybindings...');
+        logger.info('Unregistering keybindings...');
 
         this._registeredKeys.forEach(name => {
             try {
                 Main.wm.removeKeybinding(name);
-                console.log(`[Zoned] Unregistered keybinding: ${name}`);
+                logger.debug(`Unregistered keybinding: ${name}`);
             } catch (error) {
-                console.error(`[Zoned] Failed to unregister keybinding '${name}': ${error}`);
+                logger.error(`Failed to unregister keybinding '${name}': ${error}`);
             }
         });
 
@@ -110,17 +113,17 @@ export class KeybindingManager {
      * @private
      */
     _onCycleZoneLeft() {
-        console.log('[Zoned] Cycle zone left triggered');
+        logger.debug('Cycle zone left triggered');
 
         const window = this._windowManager.getFocusedWindow();
         if (!window) {
-            console.log('[Zoned] No focused window to move');
+            logger.debug('No focused window to move');
             return;
         }
 
         const zone = this._profileManager.cycleZone(-1);
         if (!zone) {
-            console.warn('[Zoned] Failed to cycle to previous zone');
+            logger.warn('Failed to cycle to previous zone');
             return;
         }
 
@@ -145,17 +148,17 @@ export class KeybindingManager {
      * @private
      */
     _onCycleZoneRight() {
-        console.log('[Zoned] Cycle zone right triggered');
+        logger.debug('Cycle zone right triggered');
 
         const window = this._windowManager.getFocusedWindow();
         if (!window) {
-            console.log('[Zoned] No focused window to move');
+            logger.debug('No focused window to move');
             return;
         }
 
         const zone = this._profileManager.cycleZone(1);
         if (!zone) {
-            console.warn('[Zoned] Failed to cycle to next zone');
+            logger.warn('Failed to cycle to next zone');
             return;
         }
 
@@ -180,12 +183,12 @@ export class KeybindingManager {
      * @private
      */
     _onShowProfilePicker() {
-        console.log('[Zoned] Show profile picker triggered');
+        logger.debug('Show profile picker triggered');
 
         if (this._profilePicker) {
             this._profilePicker.show();
         } else {
-            console.warn('[Zoned] Profile picker not available');
+            logger.warn('Profile picker not available');
         }
     }
 
@@ -194,11 +197,11 @@ export class KeybindingManager {
      * @private
      */
     _onMinimizeWindow() {
-        console.log('[Zoned] Minimize window triggered');
+        logger.debug('Minimize window triggered');
 
         const window = this._windowManager.getFocusedWindow();
         if (!window) {
-            console.log('[Zoned] No focused window to minimize');
+            logger.debug('No focused window to minimize');
             return;
         }
 
@@ -211,7 +214,7 @@ export class KeybindingManager {
      * @private
      */
     _onMaximizeWindow() {
-        console.log('[Zoned] Maximize window triggered');
+        logger.debug('Maximize window triggered');
 
         const window = this._windowManager.getFocusedWindow();
         
@@ -224,7 +227,7 @@ export class KeybindingManager {
         
         // If no minimized window and no focused window, nothing to do
         if (!window) {
-            console.log('[Zoned] No window to maximize or restore');
+            logger.debug('No window to maximize or restore');
             return;
         }
 

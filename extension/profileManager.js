@@ -10,6 +10,9 @@
 
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
+import { createLogger } from './utils/debug.js';
+
+const logger = createLogger('ProfileManager');
 
 export class ProfileManager {
     /**
@@ -43,18 +46,18 @@ export class ProfileManager {
             this._profiles = this._profiles.filter(profile => this._validateProfile(profile));
             
             if (this._profiles.length === 0) {
-                console.error('[Zoned] No valid profiles loaded!');
+                logger.error('No valid profiles loaded!');
                 return false;
             }
             
-            console.log(`[Zoned] Loaded ${this._profiles.length} profiles`);
+            logger.info(`Loaded ${this._profiles.length} profiles`);
             
             // Restore state from GSettings
             this._restoreState();
             
             return true;
         } catch (error) {
-            console.error(`[Zoned] Error loading profiles: ${error}`);
+            logger.error(`Error loading profiles: ${error}`);
             return false;
         }
     }
@@ -69,13 +72,13 @@ export class ProfileManager {
             const file = Gio.File.new_for_path(profilesPath);
             
             if (!file.query_exists(null)) {
-                console.error(`[Zoned] Default profiles file not found: ${profilesPath}`);
+                logger.error(`Default profiles file not found: ${profilesPath}`);
                 return [];
             }
             
             const [success, contents] = file.load_contents(null);
             if (!success) {
-                console.error('[Zoned] Failed to read default profiles file');
+                logger.error('Failed to read default profiles file');
                 return [];
             }
             
@@ -83,10 +86,10 @@ export class ProfileManager {
             const jsonString = decoder.decode(contents);
             const data = JSON.parse(jsonString);
             
-            console.log(`[Zoned] Loaded ${data.profiles.length} default profiles`);
+            logger.info(`Loaded ${data.profiles.length} default profiles`);
             return data.profiles;
         } catch (error) {
-            console.error(`[Zoned] Error loading default profiles: ${error}`);
+            logger.error(`Error loading default profiles: ${error}`);
             return [];
         }
     }
@@ -102,13 +105,13 @@ export class ProfileManager {
             const file = Gio.File.new_for_path(profilesPath);
             
             if (!file.query_exists(null)) {
-                console.log('[Zoned] No user profiles found (this is okay)');
+                logger.info('No user profiles found (this is okay)');
                 return [];
             }
             
             const [success, contents] = file.load_contents(null);
             if (!success) {
-                console.warn('[Zoned] Failed to read user profiles file');
+                logger.warn('Failed to read user profiles file');
                 return [];
             }
             
@@ -116,10 +119,10 @@ export class ProfileManager {
             const jsonString = decoder.decode(contents);
             const data = JSON.parse(jsonString);
             
-            console.log(`[Zoned] Loaded ${data.profiles.length} user profiles`);
+            logger.info(`Loaded ${data.profiles.length} user profiles`);
             return data.profiles;
         } catch (error) {
-            console.warn(`[Zoned] Error loading user profiles: ${error}`);
+            logger.warn(`Error loading user profiles: ${error}`);
             return [];
         }
     }
@@ -137,11 +140,11 @@ export class ProfileManager {
             if (existingIndex >= 0) {
                 // Override existing profile
                 merged[existingIndex] = userProfile;
-                console.log(`[Zoned] User profile '${userProfile.id}' overrides default`);
+                logger.debug(`User profile '${userProfile.id}' overrides default`);
             } else {
                 // Add new user profile
                 merged.push(userProfile);
-                console.log(`[Zoned] Added user profile '${userProfile.id}'`);
+                logger.debug(`Added user profile '${userProfile.id}'`);
             }
         });
         
@@ -154,17 +157,17 @@ export class ProfileManager {
      */
     _validateProfile(profile) {
         if (!profile.id || typeof profile.id !== 'string') {
-            console.warn('[Zoned] Profile missing valid id:', profile);
+            logger.warn('Profile missing valid id:', profile);
             return false;
         }
         
         if (!profile.name || typeof profile.name !== 'string') {
-            console.warn(`[Zoned] Profile '${profile.id}' missing valid name`);
+            logger.warn(`Profile '${profile.id}' missing valid name`);
             return false;
         }
         
         if (!Array.isArray(profile.zones) || profile.zones.length === 0) {
-            console.warn(`[Zoned] Profile '${profile.id}' missing valid zones array`);
+            logger.warn(`Profile '${profile.id}' missing valid zones array`);
             return false;
         }
         
@@ -173,14 +176,14 @@ export class ProfileManager {
             const zone = profile.zones[i];
             if (typeof zone.x !== 'number' || typeof zone.y !== 'number' ||
                 typeof zone.w !== 'number' || typeof zone.h !== 'number') {
-                console.warn(`[Zoned] Profile '${profile.id}' zone ${i} has invalid coordinates`);
+                logger.warn(`Profile '${profile.id}' zone ${i} has invalid coordinates`);
                 return false;
             }
             
             // Check ranges (0-1)
             if (zone.x < 0 || zone.x > 1 || zone.y < 0 || zone.y > 1 ||
                 zone.w < 0 || zone.w > 1 || zone.h < 0 || zone.h > 1) {
-                console.warn(`[Zoned] Profile '${profile.id}' zone ${i} has out-of-range coordinates`);
+                logger.warn(`Profile '${profile.id}' zone ${i} has out-of-range coordinates`);
                 return false;
             }
         }
@@ -225,14 +228,14 @@ export class ProfileManager {
         const profile = this._profiles.find(p => p.id === profileId);
         
         if (!profile) {
-            console.warn(`[Zoned] Profile not found: ${profileId}`);
+            logger.warn(`Profile not found: ${profileId}`);
             return false;
         }
         
         this._currentProfile = profile;
         this._currentZoneIndex = 0; // Reset to first zone when changing profiles
         
-        console.log(`[Zoned] Switched to profile: ${profile.name} (${profile.id})`);
+        logger.info(`Switched to profile: ${profile.name} (${profile.id})`);
         
         this._saveState();
         return true;
@@ -246,29 +249,29 @@ export class ProfileManager {
      * @returns {boolean} True if profile was found and set
      */
     setProfileWithNotification(profileId, notificationManager) {
-        console.log(`[Zoned] setProfileWithNotification called with profileId: ${profileId}, notificationManager: ${notificationManager ? 'present' : 'NULL'}`);
+        logger.debug(`setProfileWithNotification called with profileId: ${profileId}, notificationManager: ${notificationManager ? 'present' : 'NULL'}`);
         
         const profile = this._profiles.find(p => p.id === profileId);
         
         if (!profile) {
-            console.warn(`[Zoned] Profile not found: ${profileId}`);
+            logger.warn(`Profile not found: ${profileId}`);
             return false;
         }
         
         this._currentProfile = profile;
         this._currentZoneIndex = 0; // Reset to first zone when changing profiles
         
-        console.log(`[Zoned] Switched to profile: ${profile.name} (${profile.id})`);
+        logger.info(`Switched to profile: ${profile.name} (${profile.id})`);
         
         this._saveState();
         
         // Show notification using the same system as window snapping
-        console.log(`[Zoned] About to call notificationManager.show() with message: "Switched to: ${profile.name}"`);
+        logger.debug(`About to call notificationManager.show() with message: "Switched to: ${profile.name}"`);
         if (notificationManager) {
             notificationManager.show(`Switched to: ${profile.name}`);
-            console.log(`[Zoned] notificationManager.show() called`);
+            logger.debug('notificationManager.show() called');
         } else {
-            console.error(`[Zoned] notificationManager is NULL - cannot show notification!`);
+            logger.error('notificationManager is NULL - cannot show notification!');
         }
         
         return true;
@@ -281,7 +284,7 @@ export class ProfileManager {
      */
     cycleZone(direction) {
         if (!this._currentProfile || !this._currentProfile.zones) {
-            console.warn('[Zoned] No current profile to cycle zones');
+            logger.warn('No current profile to cycle zones');
             return null;
         }
         
@@ -290,7 +293,7 @@ export class ProfileManager {
         // Calculate new zone index with wraparound
         this._currentZoneIndex = (this._currentZoneIndex + direction + numZones) % numZones;
         
-        console.log(`[Zoned] Cycled to zone ${this._currentZoneIndex + 1}/${numZones}`);
+        logger.info(`Cycled to zone ${this._currentZoneIndex + 1}/${numZones}`);
         
         this._saveState();
         return this.getCurrentZone();
@@ -312,7 +315,7 @@ export class ProfileManager {
         if (this._currentProfile) {
             this._settings.set_string('current-profile-id', this._currentProfile.id);
             this._settings.set_int('current-zone-index', this._currentZoneIndex);
-            console.log(`[Zoned] State saved: ${this._currentProfile.id}, zone ${this._currentZoneIndex}`);
+            logger.debug(`State saved: ${this._currentProfile.id}, zone ${this._currentZoneIndex}`);
         }
     }
 
@@ -330,14 +333,14 @@ export class ProfileManager {
             if (this._currentProfile && savedZoneIndex >= 0 && 
                 savedZoneIndex < this._currentProfile.zones.length) {
                 this._currentZoneIndex = savedZoneIndex;
-                console.log(`[Zoned] Restored state: ${savedProfileId}, zone ${savedZoneIndex}`);
+                logger.info(`Restored state: ${savedProfileId}, zone ${savedZoneIndex}`);
             }
         } else {
             // Fall back to first profile
             if (this._profiles.length > 0) {
                 this._currentProfile = this._profiles[0];
                 this._currentZoneIndex = 0;
-                console.log(`[Zoned] Using default profile: ${this._currentProfile.id}`);
+                logger.info(`Using default profile: ${this._currentProfile.id}`);
                 this._saveState();
             }
         }

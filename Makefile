@@ -42,10 +42,21 @@ help:
 	@printf "\n"
 
 install:
-	@printf "$(COLOR_INFO)Installing Zoned extension...$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)Installing Zoned extension (production mode)...$(COLOR_RESET)\n"
 	@mkdir -p $(INSTALL_DIR)
 	@cp -r $(EXTENSION_DIR)/* $(INSTALL_DIR)/
+	@sed -i 's/^const DEBUG = .*/const DEBUG = false;/' $(INSTALL_DIR)/utils/debug.js
 	@printf "$(COLOR_SUCCESS)✓ Installation complete: $(INSTALL_DIR)$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)  DEBUG logging: disabled$(COLOR_RESET)\n"
+	@printf "$(COLOR_WARN)⚠ Don't forget to compile the schema: make compile-schema$(COLOR_RESET)\n"
+
+install-dev:
+	@printf "$(COLOR_INFO)Installing Zoned extension (development mode)...$(COLOR_RESET)\n"
+	@mkdir -p $(INSTALL_DIR)
+	@cp -r $(EXTENSION_DIR)/* $(INSTALL_DIR)/
+	@sed -i 's/^const DEBUG = .*/const DEBUG = true;/' $(INSTALL_DIR)/utils/debug.js
+	@printf "$(COLOR_SUCCESS)✓ Installation complete: $(INSTALL_DIR)$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)  DEBUG logging: enabled$(COLOR_RESET)\n"
 	@printf "$(COLOR_WARN)⚠ Don't forget to compile the schema: make compile-schema$(COLOR_RESET)\n"
 
 uninstall:
@@ -115,13 +126,16 @@ clean:
 	@printf "$(COLOR_SUCCESS)✓ Clean complete$(COLOR_RESET)\n"
 
 zip:
-	@printf "$(COLOR_INFO)Creating extension package...$(COLOR_RESET)\n"
-	@mkdir -p build
-	@cd $(EXTENSION_DIR) && zip -r ../build/$(EXTENSION_UUID).zip . -x "*.git*"
+	@printf "$(COLOR_INFO)Creating extension package (production)...$(COLOR_RESET)\n"
+	@mkdir -p build/prod
+	@cp -r $(EXTENSION_DIR)/* build/prod/
+	@sed -i 's/^const DEBUG = .*/const DEBUG = false;/' build/prod/utils/debug.js
+	@cd build/prod && zip -r ../$(EXTENSION_UUID).zip . -x "*.git*"
 	@printf "$(COLOR_SUCCESS)✓ Package created: build/$(EXTENSION_UUID).zip$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)  DEBUG logging: disabled (production build)$(COLOR_RESET)\n"
 
 # Convenience target for development workflow
-dev: install compile-schema enable
+dev: install-dev compile-schema enable
 	@printf "$(COLOR_SUCCESS)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)\n"
 	@printf "$(COLOR_SUCCESS)✓ Development setup complete!$(COLOR_RESET)\n"
 	@printf "$(COLOR_SUCCESS)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)\n"
@@ -143,7 +157,7 @@ dev: install compile-schema enable
 	@printf "\n"
 
 # Quick reinstall during development
-reinstall: uninstall install compile-schema
+reinstall: uninstall install-dev compile-schema
 	@printf "$(COLOR_SUCCESS)✓ Extension reinstalled$(COLOR_RESET)\n"
 	@printf "$(COLOR_WARN)⚠ Remember to reload GNOME Shell to see changes$(COLOR_RESET)\n"
 

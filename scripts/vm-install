@@ -66,6 +66,13 @@ if ! ssh "$VM_USER@$VM_IP" "test -f $ACTUAL_MOUNT/extension/metadata.json" 2>/de
     exit 1
 fi
 
+# Enable DEBUG mode for development
+if ssh "$VM_USER@$VM_IP" "test -f ~/.local/share/gnome-shell/extensions/$EXTENSION_UUID/utils/debug.js" 2>/dev/null; then
+    echo -e "${BLUE}Enabling DEBUG logging (development mode)...${NC}"
+    ssh "$VM_USER@$VM_IP" "sed -i 's/^const DEBUG = .*/const DEBUG = true;/' ~/.local/share/gnome-shell/extensions/$EXTENSION_UUID/utils/debug.js"
+    echo -e "${GREEN}✓ DEBUG logging enabled${NC}"
+fi
+
 # Compile schema if it exists
 if ssh "$VM_USER@$VM_IP" "test -d ~/.local/share/gnome-shell/extensions/$EXTENSION_UUID/schemas" 2>/dev/null; then
     echo -e "${BLUE}Compiling GSettings schema...${NC}"

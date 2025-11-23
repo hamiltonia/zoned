@@ -24,6 +24,9 @@ import {ProfilePicker} from './ui/profilePicker.js';
 import {ZoneOverlay} from './ui/zoneOverlay.js';
 import {ConflictDetector} from './ui/conflictDetector.js';
 import {PanelIndicator} from './ui/panelIndicator.js';
+import {createLogger} from './utils/debug.js';
+
+const logger = createLogger('Extension');
 
 export default class ZonedExtension extends Extension {
     constructor(metadata) {
@@ -40,23 +43,23 @@ export default class ZonedExtension extends Extension {
         this._panelIndicator = null;
         this._keybindingManager = null;
         
-        console.log('[Zoned] Extension constructed');
+        logger.info('Extension constructed');
     }
 
     /**
      * Enable the extension - called when extension is loaded
      */
     enable() {
-        console.log('[Zoned] Enabling extension...');
+        logger.info('Enabling extension...');
 
         try {
             // Initialize GSettings
             this._settings = this.getSettings('org.gnome.shell.extensions.zoned');
-            console.log('[Zoned] GSettings initialized');
+            logger.debug('GSettings initialized');
 
             // Initialize WindowManager
             this._windowManager = new WindowManager();
-            console.log('[Zoned] WindowManager initialized');
+            logger.debug('WindowManager initialized');
 
             // Initialize ProfileManager and load profiles
             this._profileManager = new ProfileManager(this._settings, this.path);
@@ -65,20 +68,20 @@ export default class ZonedExtension extends Extension {
             if (!profilesLoaded) {
                 throw new Error('Failed to load profiles');
             }
-            console.log('[Zoned] ProfileManager initialized');
+            logger.debug('ProfileManager initialized');
 
             // Initialize ConflictDetector
             this._conflictDetector = new ConflictDetector(this._settings);
             const conflicts = this._conflictDetector.detectConflicts();
-            console.log('[Zoned] ConflictDetector initialized');
+            logger.debug('ConflictDetector initialized');
 
             // Initialize NotificationManager
             this._notificationManager = new NotificationManager();
-            console.log('[Zoned] NotificationManager initialized');
+            logger.debug('NotificationManager initialized');
 
             // Initialize ZoneOverlay
             this._zoneOverlay = new ZoneOverlay();
-            console.log('[Zoned] ZoneOverlay initialized');
+            logger.debug('ZoneOverlay initialized');
 
             // Initialize ProfilePicker (simple, no callbacks needed)
             this._profilePicker = new ProfilePicker(
@@ -86,7 +89,7 @@ export default class ZonedExtension extends Extension {
                 this._notificationManager,
                 this._settings
             );
-            console.log('[Zoned] ProfilePicker initialized');
+            logger.debug('ProfilePicker initialized');
 
             // Initialize PanelIndicator
             this._panelIndicator = new PanelIndicator(
@@ -99,7 +102,7 @@ export default class ZonedExtension extends Extension {
             
             // Set conflict status in panel
             this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
-            console.log('[Zoned] PanelIndicator initialized');
+            logger.debug('PanelIndicator initialized');
 
             // Initialize KeybindingManager (with zone overlay)
             this._keybindingManager = new KeybindingManager(
@@ -113,7 +116,7 @@ export default class ZonedExtension extends Extension {
 
             // Register all keybindings
             this._keybindingManager.registerKeybindings();
-            console.log('[Zoned] KeybindingManager initialized');
+            logger.debug('KeybindingManager initialized');
 
             // Show startup notification
             const currentProfile = this._profileManager.getCurrentProfile();
@@ -133,10 +136,10 @@ export default class ZonedExtension extends Extension {
                 );
             }
 
-            console.log('[Zoned] Extension enabled successfully');
+            logger.info('Extension enabled successfully');
         } catch (error) {
-            console.error(`[Zoned] Error enabling extension: ${error}`);
-            console.error(error.stack);
+            logger.error(`Error enabling extension: ${error}`);
+            logger.error(error.stack);
             
             // Clean up on error
             this.disable();
@@ -150,69 +153,69 @@ export default class ZonedExtension extends Extension {
      * Disable the extension - called when extension is unloaded
      */
     disable() {
-        console.log('[Zoned] Disabling extension...');
+        logger.info('Disabling extension...');
 
         try {
             // Unregister keybindings
             if (this._keybindingManager) {
                 this._keybindingManager.destroy();
                 this._keybindingManager = null;
-                console.log('[Zoned] KeybindingManager destroyed');
+                logger.debug('KeybindingManager destroyed');
             }
 
             // Destroy panel indicator
             if (this._panelIndicator) {
                 this._panelIndicator.destroy();
                 this._panelIndicator = null;
-                console.log('[Zoned] PanelIndicator destroyed');
+                logger.debug('PanelIndicator destroyed');
             }
 
             // Destroy UI components
             if (this._profilePicker) {
                 this._profilePicker.destroy();
                 this._profilePicker = null;
-                console.log('[Zoned] ProfilePicker destroyed');
+                logger.debug('ProfilePicker destroyed');
             }
 
             if (this._zoneOverlay) {
                 this._zoneOverlay.destroy();
                 this._zoneOverlay = null;
-                console.log('[Zoned] ZoneOverlay destroyed');
+                logger.debug('ZoneOverlay destroyed');
             }
 
             if (this._notificationManager) {
                 this._notificationManager.destroy();
                 this._notificationManager = null;
-                console.log('[Zoned] NotificationManager destroyed');
+                logger.debug('NotificationManager destroyed');
             }
 
             // Destroy conflict detector
             if (this._conflictDetector) {
                 this._conflictDetector.destroy();
                 this._conflictDetector = null;
-                console.log('[Zoned] ConflictDetector destroyed');
+                logger.debug('ConflictDetector destroyed');
             }
 
             // Destroy managers
             if (this._profileManager) {
                 this._profileManager.destroy();
                 this._profileManager = null;
-                console.log('[Zoned] ProfileManager destroyed');
+                logger.debug('ProfileManager destroyed');
             }
 
             if (this._windowManager) {
                 this._windowManager.destroy();
                 this._windowManager = null;
-                console.log('[Zoned] WindowManager destroyed');
+                logger.debug('WindowManager destroyed');
             }
 
             // Clear settings
             this._settings = null;
 
-            console.log('[Zoned] Extension disabled successfully');
+            logger.info('Extension disabled successfully');
         } catch (error) {
-            console.error(`[Zoned] Error disabling extension: ${error}`);
-            console.error(error.stack);
+            logger.error(`Error disabling extension: ${error}`);
+            logger.error(error.stack);
         }
     }
 }

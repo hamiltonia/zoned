@@ -6,6 +6,9 @@
  */
 
 import Gio from 'gi://Gio';
+import { createLogger } from '../utils/debug.js';
+
+const logger = createLogger('ConflictDetector');
 
 export class ConflictDetector {
     constructor(settings) {
@@ -70,9 +73,9 @@ export class ConflictDetector {
                 }
             ]);
 
-            console.log(`[Zoned] Detected ${this._conflicts.length} keybinding conflicts`);
+            logger.info(`Detected ${this._conflicts.length} keybinding conflicts`);
         } catch (error) {
-            console.error(`[Zoned] Error detecting conflicts: ${error}`);
+            logger.error(`Error detecting conflicts: ${error}`);
         }
 
         return this._conflicts;
@@ -150,10 +153,10 @@ export class ConflictDetector {
                         gnomeBinding: gnomeBindingValue
                     });
 
-                    console.log(`[Zoned] Conflict: ${ourAction} (${ourBindingValue[0]}) conflicts with ${description}`);
+                    logger.info(`Conflict: ${ourAction} (${ourBindingValue[0]}) conflicts with ${description}`);
                 }
             } catch (error) {
-                console.warn(`[Zoned] Could not check binding ${key}: ${error}`);
+                logger.warn(`Could not check binding ${key}: ${error}`);
             }
         });
     }
@@ -202,17 +205,17 @@ export class ConflictDetector {
                         binding: conflict.gnomeBinding
                     });
 
-                    console.log(`[Zoned] Fixed conflict: Disabled ${conflict.gnomeDescription}`);
+                    logger.info(`Fixed conflict: Disabled ${conflict.gnomeDescription}`);
                 } catch (error) {
                     results.failed.push({
                         action: conflict.gnomeDescription,
                         error: error.message
                     });
-                    console.error(`[Zoned] Failed to fix ${conflict.gnomeDescription}: ${error}`);
+                    logger.error(`Failed to fix ${conflict.gnomeDescription}: ${error}`);
                 }
             });
         } catch (error) {
-            console.error(`[Zoned] Error in autoFixConflicts: ${error}`);
+            logger.error(`Error in autoFixConflicts: ${error}`);
         }
 
         return results;
@@ -229,13 +232,13 @@ export class ConflictDetector {
                 try {
                     const schema = new Gio.Settings({schema: schemaId});
                     schema.set_strv(settingKey, value);
-                    console.log(`[Zoned] Restored: ${key}`);
+                    logger.info(`Restored: ${key}`);
                 } catch (error) {
-                    console.error(`[Zoned] Failed to restore ${key}: ${error}`);
+                    logger.error(`Failed to restore ${key}: ${error}`);
                 }
             });
         } catch (error) {
-            console.error(`[Zoned] Error restoring from backup: ${error}`);
+            logger.error(`Error restoring from backup: ${error}`);
         }
     }
 

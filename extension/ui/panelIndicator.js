@@ -13,6 +13,9 @@ import St from 'gi://St';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import { createLogger } from '../utils/debug.js';
+
+const logger = createLogger('PanelIndicator');
 
 export const PanelIndicator = GObject.registerClass(
 class ZonedPanelIndicator extends PanelMenu.Button {
@@ -149,7 +152,7 @@ class ZonedPanelIndicator extends PanelMenu.Button {
      * @private
      */
     _autoFixConflicts() {
-        console.log('[Zoned] Auto-fixing keybinding conflicts...');
+        logger.debug('Auto-fixing keybinding conflicts...');
         
         const results = this._conflictDetector.autoFixConflicts();
         
@@ -165,7 +168,7 @@ class ZonedPanelIndicator extends PanelMenu.Button {
             this._conflictDetector.detectConflicts();
             this.setConflictStatus(this._conflictDetector.hasConflicts());
             
-            console.log(`[Zoned] Fixed ${results.fixed.length} conflicts`);
+            logger.info(`Fixed ${results.fixed.length} conflicts`);
         }
         
         if (results.failed.length > 0) {

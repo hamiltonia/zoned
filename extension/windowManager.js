@@ -10,6 +10,9 @@
 
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import { createLogger } from './utils/debug.js';
+
+const logger = createLogger('WindowManager');
 
 export class WindowManager {
     constructor() {
@@ -36,12 +39,12 @@ export class WindowManager {
      */
     moveWindowToZone(window, zone) {
         if (!window) {
-            console.warn('[Zoned] No window provided to moveWindowToZone');
+            logger.warn('No window provided to moveWindowToZone');
             return;
         }
 
         if (!zone) {
-            console.warn('[Zoned] No zone provided to moveWindowToZone');
+            logger.warn('No zone provided to moveWindowToZone');
             return;
         }
 
@@ -69,7 +72,7 @@ export class WindowManager {
             height
         );
 
-        console.log(`[Zoned] Moved window to zone: x=${x}, y=${y}, w=${width}, h=${height}`);
+        logger.debug(`Moved window to zone: x=${x}, y=${y}, w=${width}, h=${height}`);
     }
 
     /**
@@ -78,13 +81,13 @@ export class WindowManager {
      */
     minimizeWindow(window) {
         if (!window) {
-            console.warn('[Zoned] No window provided to minimizeWindow');
+            logger.warn('No window provided to minimizeWindow');
             return;
         }
 
         if (!window.minimized) {
             window.minimize();
-            console.log('[Zoned] Window minimized');
+            logger.debug('Window minimized');
         }
     }
 
@@ -98,22 +101,22 @@ export class WindowManager {
      */
     maximizeWindow(window) {
         if (!window) {
-            console.warn('[Zoned] No window provided to maximizeWindow');
+            logger.warn('No window provided to maximizeWindow');
             return;
         }
 
         if (window.minimized) {
             // Restore minimized window
             window.unminimize();
-            console.log('[Zoned] Window restored from minimized');
+            logger.debug('Window restored from minimized');
         } else if (window.maximized_horizontally || window.maximized_vertically) {
             // Unmaximize if currently maximized
             window.unmaximize(Meta.MaximizeFlags.BOTH);
-            console.log('[Zoned] Window unmaximized');
+            logger.debug('Window unmaximized');
         } else {
             // Maximize if not currently maximized
             window.maximize(Meta.MaximizeFlags.BOTH);
-            console.log('[Zoned] Window maximized');
+            logger.debug('Window maximized');
         }
     }
 
@@ -131,12 +134,12 @@ export class WindowManager {
             if (window.minimized) {
                 window.unminimize();
                 window.activate(global.get_current_time());
-                console.log('[Zoned] Restored minimized window');
+                logger.debug('Restored minimized window');
                 return true;
             }
         }
 
-        console.log('[Zoned] No minimized window to restore');
+        logger.debug('No minimized window to restore');
         return false;
     }
 

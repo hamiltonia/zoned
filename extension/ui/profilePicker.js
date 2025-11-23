@@ -15,7 +15,9 @@ import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import Gio from 'gi://Gio';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import { createLogger } from '../utils/debug.js';
 
+const logger = createLogger('ProfilePicker');
 const COLUMNS = 3;
 const CARD_PADDING = 10;
 const CARD_SPACING = 10;
@@ -52,7 +54,7 @@ export class ProfilePicker {
 
         const profiles = this._profileManager.getAllProfiles();
         if (!profiles || profiles.length === 0) {
-            console.warn('[Zoned] No profiles available to display');
+            logger.warn('No profiles available to display');
             return;
         }
 
@@ -69,14 +71,14 @@ export class ProfilePicker {
         // Create zone overlay showing current profile
         this._createZoneOverlay(currentProfile);
 
-        console.log('[Zoned] Profile picker shown');
+        logger.info('Profile picker shown');
     }
 
     /**
      * Hide the profile picker dialog
      */
     hide() {
-        console.log('[Zoned] Hide called - dialog exists:', !!this._dialog, 'overlay exists:', !!this._zoneOverlay);
+        logger.debug('Hide called - dialog exists:', !!this._dialog, 'overlay exists:', !!this._zoneOverlay);
         
         // Store dialog reference and immediately clear it to prevent event handlers from triggering
         const dialog = this._dialog;
@@ -95,7 +97,7 @@ export class ProfilePicker {
             dialog.destroy();
         }
         
-        console.log('[Zoned] Profile picker hidden - overlay:', !!this._zoneOverlay, 'dialog:', !!this._dialog);
+        logger.debug('Profile picker hidden - overlay:', !!this._zoneOverlay, 'dialog:', !!this._dialog);
     }
 
     /**
@@ -189,7 +191,7 @@ export class ProfilePicker {
                 
                 cr.$dispose();
             } catch (e) {
-                console.error(`[Zoned] Error drawing zone overlay:`, e);
+                logger.error('Error drawing zone overlay:', e);
             }
         });
         
@@ -198,7 +200,7 @@ export class ProfilePicker {
         // Add to stage BEFORE the dialog (so it appears behind)
         Main.uiGroup.insert_child_below(this._zoneOverlay, this._dialog);
         
-        console.log(`[Zoned] Zone overlay created for profile: ${profile.name}`);
+        logger.debug(`Zone overlay created for profile: ${profile.name}`);
     }
 
     /**
@@ -214,7 +216,7 @@ export class ProfilePicker {
         this._overlayProfile = profile;
         this._zoneOverlayCanvas.queue_repaint();
         
-        console.log(`[Zoned] Zone overlay updated to profile: ${profile.name}`);
+        logger.debug(`Zone overlay updated to profile: ${profile.name}`);
     }
 
     /**
@@ -228,7 +230,7 @@ export class ProfilePicker {
             this._zoneOverlay = null;
             this._zoneOverlayCanvas = null;
             this._overlayProfile = null;
-            console.log('[Zoned] Zone overlay destroyed');
+            logger.debug('Zone overlay destroyed');
         }
     }
 
@@ -271,8 +273,8 @@ export class ProfilePicker {
         
         const spacing = Math.floor(cardWidth * 0.15);
         
-        console.log(`[Zoned] Available space: ${availableWidth}x${availableHeight}`);
-        console.log(`[Zoned] Card size: ${cardWidth}x${cardHeight}, spacing: ${spacing}`);
+        logger.debug(`Available space: ${availableWidth}x${availableHeight}`);
+        logger.debug(`Card size: ${cardWidth}x${cardHeight}, spacing: ${spacing}`);
         
         return { width: cardWidth, height: cardHeight, spacing: spacing };
     }
@@ -304,7 +306,7 @@ export class ProfilePicker {
             
             return accentColors[accentColorName] || accentColors['blue'];
         } catch (e) {
-            console.warn('[Zoned] Failed to get accent color, using default blue:', e);
+            logger.warn('Failed to get accent color, using default blue:', e);
             return {red: 0.29, green: 0.56, blue: 0.85};
         }
     }
@@ -358,7 +360,7 @@ export class ProfilePicker {
                 
                 cr.$dispose();
             } catch (e) {
-                console.error(`[Zoned] Error drawing zone preview for ${profile.name}:`, e);
+                logger.error(`Error drawing zone preview for ${profile.name}:`, e);
             }
         });
         
@@ -410,8 +412,8 @@ export class ProfilePicker {
             dialogWidth = Math.floor(dialogHeight * aspectRatio);
         }
         
-        console.log(`[Zoned] Monitor: ${monitor.width}x${monitor.height} (${aspectRatio.toFixed(2)}:1), Portrait: ${isPortrait}`);
-        console.log(`[Zoned] Dialog size (${(dialogSizeFraction * 100).toFixed(0)}%): ${dialogWidth}x${dialogHeight}`);
+        logger.debug(`Monitor: ${monitor.width}x${monitor.height} (${aspectRatio.toFixed(2)}:1), Portrait: ${isPortrait}`);
+        logger.debug(`Dialog size (${(dialogSizeFraction * 100).toFixed(0)}%): ${dialogWidth}x${dialogHeight}`);
 
         // Container for profile grid with explicit sizing
         const containerStyle = 'background-color: rgba(40, 40, 40, 0.95); ' +
@@ -458,8 +460,8 @@ export class ProfilePicker {
             style: `spacing: ${dimensions.spacing}px;`
         });
         
-        console.log(`[Zoned] Card dimensions: ${dimensions.width}x${dimensions.height}`);
-        console.log(`[Zoned] Creating cards for ${profiles.length} profiles`);
+        logger.debug(`Card dimensions: ${dimensions.width}x${dimensions.height}`);
+        logger.debug(`Creating cards for ${profiles.length} profiles`);
 
         // Create rows
         let currentRow = null;
@@ -480,7 +482,7 @@ export class ProfilePicker {
             this._profileButtons.push(card);
         });
         
-        console.log(`[Zoned] Created ${this._profileButtons.length} profile cards`);
+        logger.debug(`Created ${this._profileButtons.length} profile cards`);
 
         scrollView.add_child(gridContainer);
         container.add_child(scrollView);
@@ -504,7 +506,7 @@ export class ProfilePicker {
         // Grab keyboard focus so key events work
         this._dialog.grab_key_focus();
         
-        console.log('[Zoned] Dialog created and added to stage with focus');
+        logger.debug('Dialog created and added to stage with focus');
 
         // Update selection highlight
         this._updateSelection();
@@ -629,7 +631,7 @@ export class ProfilePicker {
      * @private
      */
     _onProfileSelected(profileId) {
-        console.log(`[Zoned] Profile selection triggered: ${profileId}`);
+        logger.info(`Profile selection triggered: ${profileId}`);
         
         // Use shared helper that handles both profile switching and notification
         this._profileManager.setProfileWithNotification(profileId, this._notificationManager);
@@ -646,7 +648,7 @@ export class ProfilePicker {
         // Don't update if dialog doesn't exist (being destroyed or already destroyed)
         if (!this._dialog) return;
         
-        console.log(`[Zoned] Updating selection to index: ${this._selectedIndex}`);
+        logger.debug(`Updating selection to index: ${this._selectedIndex}`);
         const currentProfile = this._profileManager.getCurrentProfile();
         
         this._profileButtons.forEach((button, index) => {
@@ -660,7 +662,7 @@ export class ProfilePicker {
                               `border-radius: 8px; ` +
                               `background-color: rgba(74, 144, 217, 0.5); ` +
                               `border: 3px solid #4a90d9;`;
-                console.log(`[Zoned] Card ${index} is selected`);
+                logger.debug(`Card ${index} is selected`);
             } else if (isCurrentProfile) {
                 // Current profile - medium blue with medium border
                 button.style = `padding: ${CARD_PADDING}px; width: ${width}px; ` +
