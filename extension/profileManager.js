@@ -239,6 +239,42 @@ export class ProfileManager {
     }
 
     /**
+     * Set the active profile by ID with notification
+     * This is the preferred method for UI-triggered profile changes
+     * @param {string} profileId - The profile ID to activate
+     * @param {NotificationManager} notificationManager - Notification manager instance
+     * @returns {boolean} True if profile was found and set
+     */
+    setProfileWithNotification(profileId, notificationManager) {
+        console.log(`[ZoneFancy] setProfileWithNotification called with profileId: ${profileId}, notificationManager: ${notificationManager ? 'present' : 'NULL'}`);
+        
+        const profile = this._profiles.find(p => p.id === profileId);
+        
+        if (!profile) {
+            console.warn(`[ZoneFancy] Profile not found: ${profileId}`);
+            return false;
+        }
+        
+        this._currentProfile = profile;
+        this._currentZoneIndex = 0; // Reset to first zone when changing profiles
+        
+        console.log(`[ZoneFancy] Switched to profile: ${profile.name} (${profile.id})`);
+        
+        this._saveState();
+        
+        // Show notification using the same system as window snapping
+        console.log(`[ZoneFancy] About to call notificationManager.show() with message: "Switched to: ${profile.name}"`);
+        if (notificationManager) {
+            notificationManager.show(`Switched to: ${profile.name}`);
+            console.log(`[ZoneFancy] notificationManager.show() called`);
+        } else {
+            console.error(`[ZoneFancy] notificationManager is NULL - cannot show notification!`);
+        }
+        
+        return true;
+    }
+
+    /**
      * Cycle to the next or previous zone
      * @param {number} direction - 1 for next, -1 for previous
      * @returns {Object|null} The new current zone

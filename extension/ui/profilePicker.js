@@ -2,35 +2,49 @@
  * ProfilePicker - Visual profile selection dialog
  * 
  * Displays a centered dialog showing all available profiles with:
- * - ASCII visualizations of zones
- * - Current profile indicator
- * - Keyboard navigation (arrows, Enter, Esc)
+ * - 3-column grid layout with visual zone previews
+ * - Cairo-rendered zone visualizations (replaces ASCII art)
+ * - System accent color theming
+ * - Aspect ratio-aware card dimensions
+ * - Keyboard navigation (arrows, 1-9, Enter, Esc)
  * - Mouse selection
  */
 
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
+import Gio from 'gi://Gio';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+
+const COLUMNS = 3;
+const CARD_PADDING = 10;
+const CARD_SPACING = 10;
+const CONTAINER_PADDING = 40;
+const TITLE_HEIGHT = 50;  // Approximate height of title + spacing
+const INSTRUCTIONS_HEIGHT = 30;  // Approximate height of instructions + spacing
+const HEADER_SECTION_HEIGHT = 0;  // Reserved for future: explanation text, settings toggles
 
 export class ProfilePicker {
     /**
      * @param {ProfileManager} profileManager - Profile manager instance
      * @param {NotificationManager} notificationManager - Notification manager instance
+     * @param {Gio.Settings} settings - GSettings instance
      */
-    constructor(profileManager, notificationManager) {
+    constructor(profileManager, notificationManager, settings) {
         this._profileManager = profileManager;
         this._notificationManager = notificationManager;
+        this._settings = settings;
         this._dialog = null;
         this._selectedIndex = 0;
         this._profileButtons = [];
     }
 
     /**
-     * Show the profile picker dialog
+     * Show the profile picker dialog (or hide if already showing - toggle behavior)
      */
     show() {
         if (this._dialog) {
-            // Already showing, just ensure it's visible
+            // Already showing - hide it (toggle behavior)
+            this.hide();
             return;
         }
 
@@ -58,6 +72,7 @@ export class ProfilePicker {
      */
     hide() {
         if (this._dialog) {
+            console.log('[ZoneFancy] Hiding profile picker');
             this._disconnectKeyEvents();
             Main.uiGroup.remove_child(this._dialog);
             this._dialog.destroy();
@@ -68,183 +83,383 @@ export class ProfilePicker {
     }
 
     /**
-     * Create the dialog UI
+     * Calculate card dimensions dynamically to fill available space
+     * Constrains by both width AND height to ensure 3x3 grid fits
+     * @private
+     */
+    _getCardDimensions(dialogWidth, dialogHeight) {
+        const monitor = Main.layoutManager.currentMonitor;
+        const aspectRatio = monitor.width / monitor.height;
+        const ROWS = 3;
+        
+        // Calculate available space for cards
+        const availableWidth = dialogWidth - (CONTAINER_PADDING * 2);
+        const availableHeight = dialogHeight - (CONTAINER_PADDING * 2) - TITLE_HEIGHT - INSTRUCTIONS_HEIGHT;
+        
+        // Calculate card spacing as 15% of card width
+        // If cardWidth = W, spacing = 0.15W
+        // For 3 columns: availableWidth = 3W + 2(0.15W) = 3.3W
+        // Therefore: W = availableWidth / 3.3
+        
+        // Calculate from width constraint
+        const cardWidthFromHorizontal = Math.floor(availableWidth / 3.3);  // 3 cards + 0.3 width spacing
+        const cardHeightFromWidth = Math.floor(cardWidthFromHorizontal / aspectRatio);
+        
+        // Calculate from height constraint  
+        const cardHeightFromVertical = Math.floor(availableHeight / 3.3);  // 3 rows + 0.3 height spacing
+        const cardWidthFromHeight = Math.floor(cardHeightFromVertical * aspectRatio);
+        
+        // Use whichever is smaller to ensure both dimensions fit
+        let cardWidth, cardHeight;
+        if (cardHeightFromWidth <= cardHeightFromVertical) {
+            cardWidth = cardWidthFromHorizontal;
+            cardHeight = cardHeightFromWidth;
+        } else {
+            cardWidth = cardWidthFromHeight;
+            cardHeight = cardHeightFromVertical;
+        }
+        
+        const spacing = Math.floor(cardWidth * 0.15);
+        
+        console.log(`[ZoneFancy] Available space: ${availableWidth}x${availableHeight}`);
+        console.log(`[ZoneFancy] Card size: ${cardWidth}x${cardHeight}, spacing: ${spacing}`);
+        
+        return { width: cardWidth, height: cardHeight, spacing: spacing };
+    }
+
+    /**
+     * Get GNOME system accent color
+     * @private
+     */
+    _getAccentColor() {
+        try {
+            const interfaceSettings = new Gio.Settings({
+                schema: 'org.gnome.desktop.interface'
+            });
+            
+            const accentColorName = interfaceSettings.get_string('accent-color');
+            
+            // Map accent color names to RGB values (0-1 range for Cairo)
+            const accentColors = {
+                'blue': {red: 0.29, green: 0.56, blue: 0.85},
+                'teal': {red: 0.18, green: 0.65, blue: 0.65},
+                'green': {red: 0.20, green: 0.65, blue: 0.42},
+                'yellow': {red: 0.96, green: 0.76, blue: 0.13},
+                'orange': {red: 0.96, green: 0.47, blue: 0.00},
+                'red': {red: 0.75, green: 0.22, blue: 0.17},
+                'pink': {red: 0.87, green: 0.33, blue: 0.61},
+                'purple': {red: 0.61, green: 0.29, blue: 0.85},
+                'slate': {red: 0.44, green: 0.50, blue: 0.56}
+            };
+            
+            return accentColors[accentColorName] || accentColors['blue'];
+        } catch (e) {
+            console.warn('[ZoneFancy] Failed to get accent color, using default blue:', e);
+            return {red: 0.29, green: 0.56, blue: 0.85};
+        }
+    }
+
+    /**
+     * Create visual zone preview using Cairo
+     * @private
+     */
+    _createZonePreview(profile, width, height) {
+        const canvas = new St.DrawingArea({
+            width: width,
+            height: height,
+            style: 'border: 1px solid #444; background-color: #1a1a1a;'
+        });
+        
+        const accentColor = this._getAccentColor();
+        
+        canvas.connect('repaint', () => {
+            try {
+                const cr = canvas.get_context();
+                const [w, h] = canvas.get_surface_size();
+                
+                // Draw each zone
+                profile.zones.forEach((zone) => {
+                    const x = zone.x * w;
+                    const y = zone.y * h;
+                    const zoneW = zone.w * w;
+                    const zoneH = zone.h * h;
+                    
+                    // Fill with subtle accent color
+                    cr.setSourceRGBA(
+                        accentColor.red,
+                        accentColor.green,
+                        accentColor.blue,
+                        0.3  // 30% opacity
+                    );
+                    cr.rectangle(x, y, zoneW, zoneH);
+                    cr.fill();
+                    
+                    // Border with brighter accent
+                    cr.setSourceRGBA(
+                        accentColor.red,
+                        accentColor.green,
+                        accentColor.blue,
+                        0.8  // 80% opacity
+                    );
+                    cr.setLineWidth(1);
+                    cr.rectangle(x, y, zoneW, zoneH);
+                    cr.stroke();
+                });
+                
+                cr.$dispose();
+            } catch (e) {
+                console.error(`[ZoneFancy] Error drawing zone preview for ${profile.name}:`, e);
+            }
+        });
+        
+        return canvas;
+    }
+
+    /**
+     * Create the dialog UI with grid layout
      * @private
      */
     _createDialog(profiles) {
-        // Background overlay
-        this._dialog = new St.BoxLayout({
+        // Background overlay - fully transparent, centered content, click to close
+        this._dialog = new St.Bin({
             style_class: 'modal-dialog',
-            vertical: true,
             reactive: true,
-            style: 'background-color: rgba(0, 0, 0, 0.8); padding: 40px;'
+            can_focus: true,
+            style: 'background-color: rgba(0, 0, 0, 0);',  // Fully transparent
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        
+        // Click outside to close
+        this._dialog.connect('button-press-event', (actor, event) => {
+            // Only close if clicking on the background, not the container
+            if (event.get_source() === this._dialog) {
+                this.hide();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
         });
 
-        // Container for profile list
+        // Calculate size based on monitor orientation and settings
+        const monitor = Main.layoutManager.currentMonitor;
+        const aspectRatio = monitor.width / monitor.height;
+        const isPortrait = monitor.height > monitor.width;
+        
+        // Read size from settings (default 0.6 = 60%)
+        const dialogSizeFraction = this._settings.get_double('profile-picker-size');
+        
+        let dialogWidth, dialogHeight;
+        
+        if (isPortrait) {
+            // Portrait: width = X% of screen width, height = same as width (square-ish)
+            dialogWidth = Math.floor(monitor.width * dialogSizeFraction);
+            dialogHeight = dialogWidth;
+        } else {
+            // Landscape: height = X% of screen height, width mirrors aspect ratio
+            dialogHeight = Math.floor(monitor.height * dialogSizeFraction);
+            dialogWidth = Math.floor(dialogHeight * aspectRatio);
+        }
+        
+        console.log(`[ZoneFancy] Monitor: ${monitor.width}x${monitor.height} (${aspectRatio.toFixed(2)}:1), Portrait: ${isPortrait}`);
+        console.log(`[ZoneFancy] Dialog size (${(dialogSizeFraction * 100).toFixed(0)}%): ${dialogWidth}x${dialogHeight}`);
+
+        // Container for profile grid with explicit sizing
+        const containerStyle = 'background-color: rgba(40, 40, 40, 0.95); ' +
+                   'border-radius: 16px; ' +
+                   'padding: 40px; ' +
+                   'spacing: 24px;';
+        
         const container = new St.BoxLayout({
             vertical: true,
-            style: 'background-color: rgba(40, 40, 40, 0.95); ' +
-                   'border-radius: 12px; ' +
-                   'padding: 30px; ' +
-                   'spacing: 15px;'
+            style: `${containerStyle} width: ${dialogWidth}px; height: ${dialogHeight}px;`
+        });
+        
+        // Prevent clicks on container from closing dialog
+        container.connect('button-press-event', () => {
+            return Clutter.EVENT_STOP;  // Stop propagation to parent
         });
 
         // Title
         const title = new St.Label({
             text: 'Select Profile',
-            style: 'font-size: 24px; ' +
+            style: 'font-size: 28px; ' +
                    'font-weight: bold; ' +
                    'color: #ffffff; ' +
-                   'margin-bottom: 20px;'
+                   'text-align: center;'
         });
         container.add_child(title);
 
-        // ScrollView for profiles
+        // ScrollView for grid - let it expand to fill container
         const scrollView = new St.ScrollView({
-            style: 'max-height: 600px;',
-            overlay_scrollbars: true
+            style: 'flex: 1;',  // Expand to fill available space
+            overlay_scrollbars: true,
+            hscrollbar_policy: St.PolicyType.NEVER,
+            vscrollbar_policy: St.PolicyType.AUTOMATIC,
+            x_expand: true,
+            y_expand: true
         });
 
-        const profileList = new St.BoxLayout({
+        const dimensions = this._getCardDimensions(dialogWidth, dialogHeight);
+        
+        // Grid container - use BoxLayout with wrapping instead of GridLayout
+        const gridContainer = new St.BoxLayout({
             vertical: true,
-            style: 'spacing: 10px;'
+            x_align: Clutter.ActorAlign.CENTER,
+            style: `spacing: ${dimensions.spacing}px;`
         });
+        
+        console.log(`[ZoneFancy] Card dimensions: ${dimensions.width}x${dimensions.height}`);
+        console.log(`[ZoneFancy] Creating cards for ${profiles.length} profiles`);
 
-        // Create profile items
+        // Create rows
+        let currentRow = null;
         profiles.forEach((profile, index) => {
-            const profileItem = this._createProfileItem(profile, index);
-            profileList.add_child(profileItem);
-            this._profileButtons.push(profileItem);
+            const col = index % COLUMNS;
+            
+            // Start new row every COLUMNS items
+            if (col === 0) {
+                currentRow = new St.BoxLayout({
+                    vertical: false,
+                    style: `spacing: ${dimensions.spacing}px;`
+                });
+                gridContainer.add_child(currentRow);
+            }
+            
+            const card = this._createProfileCard(profile, index, dimensions.width, dimensions.height);
+            currentRow.add_child(card);
+            this._profileButtons.push(card);
         });
+        
+        console.log(`[ZoneFancy] Created ${this._profileButtons.length} profile cards`);
 
-        scrollView.add_child(profileList);
+        scrollView.add_child(gridContainer);
         container.add_child(scrollView);
 
         // Instructions
         const instructions = new St.Label({
-            text: '↑↓: Navigate  Enter: Select  Esc: Cancel',
-            style: 'font-size: 14px; ' +
+            text: '1-9: Quick Select  Arrows: Navigate  Enter: Confirm  Esc: Cancel',
+            style: 'font-size: 24px; ' +
                    'color: #aaaaaa; ' +
-                   'margin-top: 20px;'
+                   'text-align: center;'
         });
         container.add_child(instructions);
 
-        this._dialog.add_child(container);
+        this._dialog.set_child(container);
 
-        // Center the dialog
+        // Add to stage - fill screen for proper centering
         Main.uiGroup.add_child(this._dialog);
-        this._dialog.set_position(
-            Math.floor((global.screen_width - this._dialog.width) / 2),
-            Math.floor((global.screen_height - this._dialog.height) / 2)
-        );
+        this._dialog.set_position(0, 0);
+        this._dialog.set_size(global.screen_width, global.screen_height);
+        
+        // Grab keyboard focus so key events work
+        this._dialog.grab_key_focus();
+        
+        console.log('[ZoneFancy] Dialog created and added to stage with focus');
 
         // Update selection highlight
         this._updateSelection();
     }
 
     /**
-     * Create a single profile list item
+     * Create a single profile card
      * @private
      */
-    _createProfileItem(profile, index) {
-        const button = new St.Button({
-            reactive: true,
-            can_focus: true,
-            track_hover: true,
-            style: 'padding: 15px; ' +
-                   'border-radius: 8px; ' +
-                   'background-color: rgba(60, 60, 60, 0.5);'
-        });
-
-        const content = new St.BoxLayout({
-            vertical: false,
-            style: 'spacing: 20px;'
-        });
-
-        // Current profile indicator
+    _createProfileCard(profile, index, width, height) {
         const currentProfile = this._profileManager.getCurrentProfile();
-        const indicator = new St.Label({
-            text: profile.id === currentProfile.id ? '●' : ' ',
-            style: 'font-size: 20px; ' +
-                   'color: #4a90d9; ' +
-                   'width: 20px;'
+        const isCurrentProfile = profile.id === currentProfile.id;
+        
+        const card = new St.Button({
+            style_class: 'profile-card',
+            style: `padding: ${CARD_PADDING}px; width: ${width}px; ` +
+                   `border-radius: 8px; ` +
+                   `background-color: ${isCurrentProfile ? 
+                       'rgba(74, 144, 217, 0.3)' : 'rgba(60, 60, 60, 0.5)'};` +
+                   `border: ${isCurrentProfile ? '2px solid #4a90d9' : '1px solid #444'};`,
+            reactive: true,
+            track_hover: true,
+            can_focus: true
         });
-        content.add_child(indicator);
-
-        // Profile info
-        const infoBox = new St.BoxLayout({
+        
+        // Store profile info for later reference
+        card._profileId = profile.id;
+        card._isCurrentProfile = isCurrentProfile;
+        card._profileIndex = index;
+        card._cardWidth = width;  // Store width for _updateSelection
+        
+        const box = new St.BoxLayout({
             vertical: true,
-            style: 'spacing: 8px;'
+            style: 'spacing: 6px;'
         });
-
-        const nameLabel = new St.Label({
+        
+        // Zone preview with overlaid number
+        const previewWidth = width - (CARD_PADDING * 2);
+        const previewHeight = height - 70; // Leave room for name + indicator + spacing below
+        
+        const previewContainer = new St.Widget({
+            layout_manager: new Clutter.BinLayout(),
+            width: previewWidth,
+            height: previewHeight
+        });
+        
+        const preview = this._createZonePreview(profile, previewWidth, previewHeight);
+        previewContainer.add_child(preview);
+        
+        // Large number overlay (if index < 9)
+        if (index < 9) {
+            const numberOverlay = new St.Label({
+                text: `${index + 1}`,
+                style: 'font-size: 64px; color: rgba(255, 255, 255, 0.3); font-weight: bold;',
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+                x_expand: true,
+                y_expand: true
+            });
+            previewContainer.add_child(numberOverlay);
+        }
+        
+        box.add_child(previewContainer);
+        
+        // Profile name
+        const name = new St.Label({
             text: profile.name,
-            style: 'font-size: 18px; ' +
-                   'font-weight: bold; ' +
-                   'color: #ffffff;'
+            style: 'font-size: 16px; text-align: center; font-weight: bold;'
         });
-        infoBox.add_child(nameLabel);
-
-        // ASCII visualization
-        const visual = this._generateVisual(profile);
-        const visualLabel = new St.Label({
-            text: visual,
-            style: 'font-family: monospace; ' +
-                   'font-size: 12px; ' +
-                   'color: #cccccc;'
+        box.add_child(name);
+        
+        // Current profile indicator
+        if (isCurrentProfile) {
+            const indicator = new St.Label({
+                text: '●',
+                style: 'font-size: 12px; color: #4a90d9; text-align: center;'
+            });
+            box.add_child(indicator);
+        }
+        
+        card.set_child(box);
+        
+        // Hover effects
+        card.connect('enter-event', () => {
+            if (card._profileIndex !== this._selectedIndex) {
+                card.style = `padding: ${CARD_PADDING}px; width: ${width}px; ` +
+                            `border-radius: 8px; ` +
+                            `background-color: rgba(74, 144, 217, 0.25); ` +
+                            `border: 1px solid #6aa0d9;`;
+            }
+            return Clutter.EVENT_PROPAGATE;
         });
-        infoBox.add_child(visualLabel);
-
-        // Zone count
-        const zoneInfo = new St.Label({
-            text: `${profile.zones.length} zone${profile.zones.length !== 1 ? 's' : ''}`,
-            style: 'font-size: 14px; ' +
-                   'color: #999999;'
+        
+        card.connect('leave-event', () => {
+            // Restore proper style based on selection state
+            this._updateSelection();
+            return Clutter.EVENT_PROPAGATE;
         });
-        infoBox.add_child(zoneInfo);
-
-        content.add_child(infoBox);
-        button.set_child(content);
-
+        
         // Click handler
-        button.connect('clicked', () => {
+        card.connect('clicked', () => {
             this._onProfileSelected(profile.id);
         });
-
-        return button;
-    }
-
-    /**
-     * Generate ASCII visualization for a profile
-     * @private
-     */
-    _generateVisual(profile) {
-        const width = 40;
-        const height = 8;
-        const grid = Array(height).fill(null).map(() => Array(width).fill(' '));
-
-        // Draw each zone
-        profile.zones.forEach((zone, index) => {
-            const zoneChar = String.fromCharCode(65 + index); // A, B, C, etc.
-            
-            const x1 = Math.floor(zone.x * width);
-            const y1 = Math.floor(zone.y * height);
-            const x2 = Math.min(Math.floor((zone.x + zone.w) * width), width - 1);
-            const y2 = Math.min(Math.floor((zone.y + zone.h) * height), height - 1);
-
-            // Fill zone
-            for (let y = y1; y <= y2; y++) {
-                for (let x = x1; x <= x2; x++) {
-                    if (y === y1 || y === y2 || x === x1 || x === x2) {
-                        grid[y][x] = '█'; // Border
-                    } else if (grid[y][x] === ' ') {
-                        grid[y][x] = zoneChar;
-                    }
-                }
-            }
-        });
-
-        return grid.map(row => row.join('')).join('\n');
+        
+        return card;
     }
 
     /**
@@ -252,14 +467,12 @@ export class ProfilePicker {
      * @private
      */
     _onProfileSelected(profileId) {
-        const profile = this._profileManager.getAllProfiles().find(p => p.id === profileId);
+        console.log(`[ZoneFancy] Profile selection triggered: ${profileId}`);
         
-        if (profile) {
-            this._profileManager.setProfile(profileId);
-            this._notificationManager.show(`Switched to: ${profile.name}`);
-            console.log(`[ZoneFancy] Profile selected: ${profile.name}`);
-        }
-
+        // Use shared helper that handles both profile switching and notification
+        this._profileManager.setProfileWithNotification(profileId, this._notificationManager);
+        
+        // Hide dialog
         this.hide();
     }
 
@@ -268,16 +481,33 @@ export class ProfilePicker {
      * @private
      */
     _updateSelection() {
+        console.log(`[ZoneFancy] Updating selection to index: ${this._selectedIndex}`);
+        const currentProfile = this._profileManager.getCurrentProfile();
+        
         this._profileButtons.forEach((button, index) => {
-            if (index === this._selectedIndex) {
-                button.style = 'padding: 15px; ' +
-                              'border-radius: 8px; ' +
-                              'background-color: rgba(74, 144, 217, 0.4); ' +
-                              'border: 2px solid #4a90d9;';
+            const isCurrentProfile = button._profileId === currentProfile.id;
+            const isSelected = index === this._selectedIndex;
+            const width = button._cardWidth || 200;  // Use stored width or fallback
+            
+            if (isSelected) {
+                // Selected card - bright blue with thick border
+                button.style = `padding: ${CARD_PADDING}px; width: ${width}px; ` +
+                              `border-radius: 8px; ` +
+                              `background-color: rgba(74, 144, 217, 0.5); ` +
+                              `border: 3px solid #4a90d9;`;
+                console.log(`[ZoneFancy] Card ${index} is selected`);
+            } else if (isCurrentProfile) {
+                // Current profile - medium blue with medium border
+                button.style = `padding: ${CARD_PADDING}px; width: ${width}px; ` +
+                              `border-radius: 8px; ` +
+                              `background-color: rgba(74, 144, 217, 0.3); ` +
+                              `border: 2px solid #4a90d9;`;
             } else {
-                button.style = 'padding: 15px; ' +
-                              'border-radius: 8px; ' +
-                              'background-color: rgba(60, 60, 60, 0.5);';
+                // Normal card - gray
+                button.style = `padding: ${CARD_PADDING}px; width: ${width}px; ` +
+                              `border-radius: 8px; ` +
+                              `background-color: rgba(60, 60, 60, 0.5); ` +
+                              `border: 1px solid #444;`;
             }
         });
     }
@@ -289,6 +519,21 @@ export class ProfilePicker {
     _connectKeyEvents() {
         this._keyPressId = global.stage.connect('key-press-event', (actor, event) => {
             const symbol = event.get_key_symbol();
+            const profiles = this._profileManager.getAllProfiles();
+
+            // Number keys 1-9 for quick select
+            if (symbol >= Clutter.KEY_1 && symbol <= Clutter.KEY_9) {
+                const index = symbol - Clutter.KEY_1;
+                if (index < profiles.length) {
+                    this._onProfileSelected(profiles[index].id);
+                    return Clutter.EVENT_STOP;
+                }
+            }
+
+            // 2D Grid navigation
+            const currentRow = Math.floor(this._selectedIndex / COLUMNS);
+            const currentCol = this._selectedIndex % COLUMNS;
+            const totalRows = Math.ceil(profiles.length / COLUMNS);
 
             switch (symbol) {
                 case Clutter.KEY_Escape:
@@ -297,24 +542,65 @@ export class ProfilePicker {
 
                 case Clutter.KEY_Return:
                 case Clutter.KEY_KP_Enter:
-                    const profiles = this._profileManager.getAllProfiles();
                     if (profiles[this._selectedIndex]) {
                         this._onProfileSelected(profiles[this._selectedIndex].id);
                     }
                     return Clutter.EVENT_STOP;
 
+                case Clutter.KEY_Left:
+                case Clutter.KEY_KP_Left:
+                    // Move left, wrap to previous row's end
+                    if (currentCol > 0) {
+                        this._selectedIndex--;
+                    } else if (currentRow > 0) {
+                        this._selectedIndex = (currentRow - 1) * COLUMNS + (COLUMNS - 1);
+                        if (this._selectedIndex >= profiles.length) {
+                            this._selectedIndex = profiles.length - 1;
+                        }
+                    }
+                    this._updateSelection();
+                    return Clutter.EVENT_STOP;
+
+                case Clutter.KEY_Right:
+                case Clutter.KEY_KP_Right:
+                    // Move right, wrap to next row's start
+                    if (currentCol < COLUMNS - 1 && this._selectedIndex < profiles.length - 1) {
+                        this._selectedIndex++;
+                    } else if (currentRow < totalRows - 1) {
+                        this._selectedIndex = (currentRow + 1) * COLUMNS;
+                        if (this._selectedIndex >= profiles.length) {
+                            this._selectedIndex = profiles.length - 1;
+                        }
+                    }
+                    this._updateSelection();
+                    return Clutter.EVENT_STOP;
+
                 case Clutter.KEY_Up:
                 case Clutter.KEY_KP_Up:
-                    this._selectedIndex = Math.max(0, this._selectedIndex - 1);
-                    this._updateSelection();
+                    // Move up one row
+                    const upIndex = this._selectedIndex - COLUMNS;
+                    if (upIndex >= 0) {
+                        this._selectedIndex = upIndex;
+                        this._updateSelection();
+                    }
                     return Clutter.EVENT_STOP;
 
                 case Clutter.KEY_Down:
                 case Clutter.KEY_KP_Down:
-                    const maxIndex = this._profileManager.getAllProfiles().length - 1;
-                    this._selectedIndex = Math.min(maxIndex, this._selectedIndex + 1);
-                    this._updateSelection();
+                    // Move down one row
+                    const downIndex = this._selectedIndex + COLUMNS;
+                    if (downIndex < profiles.length) {
+                        this._selectedIndex = downIndex;
+                        this._updateSelection();
+                    }
                     return Clutter.EVENT_STOP;
+
+                case Clutter.KEY_Page_Up:
+                case Clutter.KEY_KP_Page_Up:
+                case Clutter.KEY_Page_Down:
+                case Clutter.KEY_KP_Page_Down:
+                    // Allow ScrollView to handle these
+                    return Clutter.EVENT_PROPAGATE;
             }
 
             return Clutter.EVENT_PROPAGATE;

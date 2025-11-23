@@ -20,9 +20,11 @@
   - PanelIndicator - Top bar integration with menu
   - ZoneOverlay - Visual zone feedback when cycling
 
-📋 **Current Phase: Testing, Documentation & Refinement**
+📋 **Current Phase: UI/UX Refinement & Core Features**
 
 This document now serves as a reference for the implementation and checklist for remaining tasks.
+
+**Note:** Testing and documentation phases are postponed until core UI/UX refinements and feature additions are complete.
 
 ## ✅ Implementation Complete
 
@@ -360,44 +362,175 @@ The implementation is complete when:
 7. ✅ No errors in GNOME Shell logs
 8. ✅ User documentation is complete
 
-## Next Steps
+## Next Steps (Revised Priority Order)
 
-Now that implementation is complete, focus on:
+Core implementation is complete, but significant UI/UX work and feature additions are needed before testing.
 
-### 1. Testing & Bug Fixes
-- [ ] Run through complete testing checklist above
-- [ ] Test on different GNOME Shell versions (45, 46, 47)
+### Phase 1: UI/UX Refinements (HIGH PRIORITY)
+
+#### 1.1 Profile Picker Redesign (CRITICAL)
+**Current Issues:**
+- Items too large with excessive padding
+- ASCII art visualization too verbose
+- Lacks ease of use compared to Hammerspoon's chooser
+- No visual preview of actual zones on screen
+
+**Requirements:**
+- [x] Grid layout (3 columns, scrollable for overflow)
+- [ ] Implement monitor aspect ratio-matched cards
+  - Cards should match current monitor's aspect ratio (16:9, 21:9, etc.)
+  - Makes visual representation more intuitive
+- [ ] Replace ASCII art with St.DrawingArea zone previews
+  - Mini zone preview using Cairo rendering in each card
+  - Clean, visual representation of zone layout
+- [ ] ScrollView with mouse wheel support (>9 profiles)
+  - Must handle unlimited profile counts
+  - Smooth scrolling experience
+- [ ] Full-screen zone preview on hover
+  - Transparent overlay behind picker when hovering over a profile card
+  - Shows actual zone positions/sizes on current monitor
+  - Uses system accent color for theming
+  - No zone labels/numbers (clean visual only)
+  - Instant or very fast fade-in effect
+  - Preview on current monitor only (not all monitors)
+- [ ] Enhanced keyboard shortcuts
+  - Number keys 1-9 for quick selection
+  - Arrow keys for 2D grid navigation
+  - Page Up/Down for scrolling
+  - Enter to confirm, Esc to cancel
+- [ ] Compact design
+  - Reduced card padding (8px instead of 15px)
+  - Smaller overall footprint
+  - All or most profiles visible without scrolling (for typical 9 profiles)
+
+**Technical Approach:**
+```javascript
+// Monitor aspect ratio detection
+const monitor = global.display.get_monitor_geometry(monitorIndex);
+const aspectRatio = monitor.width / monitor.height;
+const cardHeight = cardWidth / aspectRatio;
+
+// Zone preview using St.DrawingArea + Cairo
+const canvas = new St.DrawingArea({width, height});
+canvas.connect('repaint', () => {
+    const cr = canvas.get_context();
+    // Draw zones with system accent color
+});
+
+// Full-screen hover preview
+card.connect('enter-event', () => showFullScreenPreview(profile));
+card.connect('leave-event', () => hidePreview());
+```
+
+**Reference:** See `memory/architecture/component-design.md` and Hammerspoon's `hs.chooser` pattern
+
+#### 1.2 Alert/Notification Theming
+- [ ] Review NotificationManager for GNOME aesthetic compliance
+- [ ] Improve readability of all notification messages
+- [ ] Use proper GNOME Shell theme colors
+- [ ] Make alert text more concise
+- [ ] Ensure notifications don't interfere with workflow
+
+#### 1.3 Panel Indicator Icon Update
+- [ ] Change icon from 2x2 grid (`view-grid-symbolic`) to 3-column style
+  - Current icon looks too much like Windows
+  - Need icon representing column-based layouts
+  - Consider custom icon or find better symbolic icon
+
+#### 1.4 Settings Integration
+- [ ] Add "Settings" or "Preferences" menu item to PanelIndicator
+- [ ] Settings should be accessible from top bar menu
+- [ ] Create settings/preferences dialog framework
+
+### Phase 2: Core Feature Additions (HIGH PRIORITY)
+
+#### 2.1 Multi-Desktop & Multi-Monitor Support
+**Approach:** Per-Workspace (Option C)
+- [ ] Implement per-workspace profile state management
+  - Different profile on each workspace/desktop
+  - Same profile applies to all monitors within a workspace
+- [ ] Add workspace change detection
+- [ ] Persist workspace-to-profile mapping in GSettings
+- [ ] Handle workspace add/remove events
+- [ ] UI: Show current workspace's profile in panel indicator
+- [ ] UI: Profile picker should set profile for current workspace only
+
+**Future Enhancement (Option D):** Per-monitor-per-workspace can be added later if needed
+
+**Technical Details:**
+```javascript
+// State structure
+state = {
+    workspace0: "halves",
+    workspace1: "thirds",
+    workspace2: "columns"
+    // Each workspace has one profile (applies to all monitors)
+}
+
+// GSettings schema addition
+<key name="workspace-profiles" type="s">
+    <default>'{}'</default>
+    <summary>Workspace to profile mapping (JSON)</summary>
+</key>
+```
+
+#### 2.2 Profile Editor UI
+- [ ] Visual editor for creating/modifying profiles
+- [ ] Add/remove/resize zones interactively
+- [ ] Save custom profiles to `~/.config/zonefancy/profiles.json`
+- [ ] Zone preview while editing (not just ASCII)
+- [ ] Profile import/export functionality
+- [ ] Validate zone layouts (no overlaps, full coverage, etc.)
+
+#### 2.3 Keyboard Shortcut Editor UI
+- [ ] UI for customizing all keybindings
+- [ ] Show current bindings in table/list
+- [ ] Conflict detection when changing shortcuts
+- [ ] Integration with ConflictDetector
+- [ ] Save to GSettings
+- [ ] Reset to defaults option
+
+### Phase 3: Testing & Validation (AFTER PHASE 1 & 2)
+
+**Only proceed to testing after UI/UX refinements and core features are complete.**
+
+- [ ] Basic functionality testing (see checklist below)
+- [ ] Window management testing
+- [ ] Profile system testing
+- [ ] Keyboard shortcuts testing
+- [ ] UI components testing
+- [ ] Multi-workspace testing
+- [ ] Edge case testing
+- [ ] Test on GNOME Shell versions (45, 46, 47)
 - [ ] Test on Wayland and X11 sessions
-- [ ] Address any bugs discovered
 - [ ] Test with different monitor configurations
 
-### 2. Documentation
+### Phase 4: Documentation & Polish (AFTER PHASE 3)
+
 - [ ] Create user documentation in `docs/`
 - [ ] Add screenshots/GIFs to README
 - [ ] Document custom profile creation
 - [ ] Create troubleshooting guide
-- [ ] Update CONTRIBUTING.md if needed
-
-### 3. Polish & Refinement
-- [ ] Review all console.log statements (convert to proper logging)
-- [ ] Add more comprehensive error handling
+- [ ] Review all console.log statements
+- [ ] Add comprehensive error handling
 - [ ] Performance testing and optimization
 - [ ] Code review and cleanup
-- [ ] Ensure consistent code style
 
-### 4. Packaging & Distribution
+### Phase 5: Packaging & Distribution (FINAL)
+
 - [ ] Test packaging with `make pack`
 - [ ] Validate metadata.json
 - [ ] Prepare for extensions.gnome.org submission
 - [ ] Create release notes
 - [ ] Tag release version
 
-### 5. Future Enhancements (Optional)
-- [ ] Custom keybinding configuration UI
-- [ ] Profile import/export functionality
+### Future Enhancements (Post-Release)
+
+- [ ] Per-monitor-per-workspace profiles (Option D)
 - [ ] Window resize animations
-- [ ] Zone preview on hover
 - [ ] Integration with window rules/app preferences
+- [ ] Custom zone templates
+- [ ] Zone snapping with drag-and-drop
 
 ---
 

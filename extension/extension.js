@@ -80,10 +80,11 @@ export default class ZonedExtension extends Extension {
             this._zoneOverlay = new ZoneOverlay();
             console.log('[Zoned] ZoneOverlay initialized');
 
-            // Initialize ProfilePicker
+            // Initialize ProfilePicker (simple, no callbacks needed)
             this._profilePicker = new ProfilePicker(
                 this._profileManager,
-                this._notificationManager
+                this._notificationManager,
+                this._settings
             );
             console.log('[Zoned] ProfilePicker initialized');
 
@@ -91,7 +92,8 @@ export default class ZonedExtension extends Extension {
             this._panelIndicator = new PanelIndicator(
                 this._profileManager,
                 this._conflictDetector,
-                this._profilePicker
+                this._profilePicker,
+                this._notificationManager
             );
             Main.panel.addToStatusArea('zoned-indicator', this._panelIndicator);
             

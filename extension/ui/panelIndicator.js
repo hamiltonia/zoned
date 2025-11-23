@@ -16,12 +16,13 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 export const PanelIndicator = GObject.registerClass(
 class ZoneFancyPanelIndicator extends PanelMenu.Button {
-    _init(profileManager, conflictDetector, profilePicker) {
+    _init(profileManager, conflictDetector, profilePicker, notificationManager) {
         super._init(0.0, 'Zone Fancy Indicator', false);
 
         this._profileManager = profileManager;
         this._conflictDetector = conflictDetector;
         this._profilePicker = profilePicker;
+        this._notificationManager = notificationManager;
         this._hasConflicts = false;
 
         // Create icon with reduced padding
@@ -138,15 +139,9 @@ class ZoneFancyPanelIndicator extends PanelMenu.Button {
      * @private
      */
     _onProfileSelected(profileId) {
-        const profile = this._profileManager.getAllProfiles().find(p => p.id === profileId);
-        
-        if (profile) {
-            this._profileManager.setProfile(profileId);
-            this.updateMenu();
-            
-            Main.notify('Zone Fancy', `Switched to: ${profile.name}`);
-            console.log(`[ZoneFancy] Profile changed via menu: ${profile.name}`);
-        }
+        // Use shared helper that handles both profile switching and notification
+        this._profileManager.setProfileWithNotification(profileId, this._notificationManager);
+        this.updateMenu();
     }
 
     /**
