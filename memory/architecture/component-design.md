@@ -1,6 +1,6 @@
 # Component Design Details
 
-Detailed implementation specifications for each component in the ZoneFancy GNOME Shell extension.
+Detailed implementation specifications for each component in the Zoned GNOME Shell extension.
 
 ## 1. ProfileManager
 
@@ -38,7 +38,7 @@ loadProfiles() {
     // 1. Load default profiles from extension/config/default-profiles.json
     const defaultProfiles = this._loadJsonFile(this._defaultProfilesPath);
     
-    // 2. Check for user profiles at ~/.config/zonefancy/profiles.json
+    // 2. Check for user profiles at ~/.config/zoned/profiles.json
     const userProfiles = this._loadJsonFile(this._userProfilesPath);
     
     // 3. Merge: user profiles override defaults by matching 'id'
@@ -362,7 +362,7 @@ show() {
     // Build dialog
     this._dialog = new St.BoxLayout({
         vertical: true,
-        style_class: 'zonefancy-picker-dialog',
+        style_class: 'zoned-picker-dialog',
         reactive: true
     });
     
@@ -394,7 +394,7 @@ show() {
 ```javascript
 _createProfileItem(profile, isCurrent) {
     const button = new St.Button({
-        style_class: 'zonefancy-profile-item',
+        style_class: 'zoned-profile-item',
         reactive: true,
         can_focus: true,
         track_hover: true
@@ -477,14 +477,14 @@ show(message, duration = 750) {
     
     // Create source if needed
     if (!this._source) {
-        this._source = new MessageTray.Source('ZoneFancy', 'preferences-system');
+        this._source = new MessageTray.Source('Zoned', 'preferences-system');
         Main.messageTray.add(this._source);
     }
     
     // Create notification
     const notification = new MessageTray.Notification(
         this._source,
-        'ZoneFancy',
+        'Zoned',
         message
     );
     
@@ -526,7 +526,7 @@ destroy() {
 import GObject from 'gi://GObject';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-export default class ZoneFancyExtension {
+export default class ZonedExtension {
     constructor() {
         this._profileManager = null;
         this._windowManager = null;

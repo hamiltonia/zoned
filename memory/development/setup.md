@@ -1,6 +1,6 @@
 # Development Environment Setup
 
-Guide for setting up a development environment for Zone Fancy GNOME Shell extension.
+Guide for setting up a development environment for Zoned GNOME Shell extension.
 
 **Quick Start:** Clone repo → `make dev` → Log out/in (Wayland) or Alt+F2→'r' (X11)
 
@@ -34,13 +34,13 @@ sudo dnf install dconf-editor                 # For viewing GSettings
 ### 1. Clone Repository
 ```bash
 cd ~/GitHub
-git clone https://github.com/hamiltonia/zonefancy.git
-cd zonefancy
+git clone https://github.com/hamiltonia/zoned.git
+cd zoned
 ```
 
 ### 2. Directory Structure
 ```
-zonefancy/
+zoned/
 ├── memory/              # This documentation
 ├── extension/           # Extension source code
 ├── docs/                # User documentation
@@ -54,7 +54,7 @@ zonefancy/
 
 The extension needs to be installed to:
 ```
-~/.local/share/gnome-shell/extensions/zonefancy@hamiltonia/
+~/.local/share/gnome-shell/extensions/zoned@hamiltonia.me/
 ```
 
 **Option A: Use Makefile (recommended)**
@@ -64,13 +64,13 @@ make install
 
 **Option B: Manual Symlink**
 ```bash
-ln -s ~/GitHub/zonefancy/extension ~/.local/share/gnome-shell/extensions/zonefancy@hamiltonia
+ln -s ~/GitHub/zoned/extension ~/.local/share/gnome-shell/extensions/zoned@hamiltonia.me
 ```
 
 **Option C: Manual Copy**
 ```bash
-mkdir -p ~/.local/share/gnome-shell/extensions/zonefancy@hamiltonia
-cp -r extension/* ~/.local/share/gnome-shell/extensions/zonefancy@hamiltonia/
+mkdir -p ~/.local/share/gnome-shell/extensions/zoned@hamiltonia.me
+cp -r extension/* ~/.local/share/gnome-shell/extensions/zoned@hamiltonia.me/
 ```
 
 ### 4. Compile GSettings Schema
@@ -79,7 +79,7 @@ GSettings schemas must be compiled after installation:
 
 ```bash
 # Navigate to extension directory
-cd ~/.local/share/gnome-shell/extensions/zonefancy@hamiltonia
+cd ~/.local/share/gnome-shell/extensions/zoned@hamiltonia.me
 
 # Compile schema
 glib-compile-schemas schemas/
@@ -94,19 +94,19 @@ make compile-schema
 
 **Via GUI:**
 1. Open GNOME Extensions app
-2. Find "ZoneFancy"
+2. Find "Zoned"
 3. Toggle switch to ON
 
 **Via CLI:**
 ```bash
-gnome-extensions enable zonefancy@hamiltonia
+gnome-extensions enable zoned@hamiltonia.me
 ```
 
 ### 6. Verify Installation
 
 ```bash
 gnome-extensions list
-gnome-extensions info zonefancy@hamiltonia
+gnome-extensions info zoned@hamiltonia.me
 ```
 
 ## Development Workflow
@@ -118,8 +118,8 @@ If you're starting fresh on a new system:
 ```bash
 # 1. Clone the repository
 cd ~/GitHub
-git clone https://github.com/hamiltonia/zonefancy.git
-cd zonefancy
+git clone https://github.com/hamiltonia/zoned.git
+cd zoned
 
 # 2. Run complete development setup
 make dev
@@ -130,7 +130,7 @@ make dev
 ```
 
 The `make dev` command performs these steps automatically:
-- Installs extension files to `~/.local/share/gnome-shell/extensions/zonefancy@hamiltonia/`
+- Installs extension files to `~/.local/share/gnome-shell/extensions/zoned@hamiltonia.me/`
 - Compiles the GSettings schema
 - Enables the extension
 - Provides session-specific reload instructions
@@ -218,17 +218,17 @@ make logs
 
 ### Watch Logs While Developing
 
-The extension logs all activity with `[ZoneFancy]` prefix:
+The extension logs all activity with `[Zoned]` prefix:
 
 ```bash
 # Follow logs in real-time (best for active development)
 make logs
 
 # View recent logs
-journalctl -n 100 /usr/bin/gnome-shell | grep -i zonefancy
+journalctl -n 100 /usr/bin/gnome-shell | grep -i zoned
 
 # View logs with timestamps
-journalctl -f /usr/bin/gnome-shell | grep --line-buffered zonefancy
+journalctl -f /usr/bin/gnome-shell | grep --line-buffered zoned
 ```
 
 ### Automated Watch Script (X11 only)
@@ -242,7 +242,7 @@ For automatic reload on file changes:
 
 sudo dnf install inotify-tools  # if not installed
 
-while inotifywait -e modify,create,delete -r ~/GitHub/zonefancy/extension; do
+while inotifywait -e modify,create,delete -r ~/GitHub/zoned/extension; do
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "Changes detected, reloading extension..."
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -273,8 +273,8 @@ Commands in Looking Glass:
 # Follow GNOME Shell logs
 journalctl -f -o cat /usr/bin/gnome-shell
 
-# Filter for ZoneFancy
-journalctl -f -o cat /usr/bin/gnome-shell | grep -i zonefancy
+# Filter for Zoned
+journalctl -f -o cat /usr/bin/gnome-shell | grep -i zoned
 
 # View last 100 lines
 journalctl -n 100 /usr/bin/gnome-shell
@@ -286,7 +286,7 @@ journalctl -n 100 /usr/bin/gnome-shell
 dconf-editor
 
 # Navigate to:
-# /org/gnome/shell/extensions/zonefancy/
+# /org/gnome/shell/extensions/zoned/
 ```
 
 ### Code Editor Setup
@@ -294,7 +294,7 @@ dconf-editor
 **VS Code Integration:**
 ```bash
 # Open project
-code ~/GitHub/zonefancy
+code ~/GitHub/zoned
 
 # Recommended extensions:
 # - ESLint
@@ -354,10 +354,10 @@ EOF
 
 ```bash
 # Create user config directory
-mkdir -p ~/.config/zonefancy
+mkdir -p ~/.config/zoned
 
 # Create test profiles
-cat > ~/.config/zonefancy/profiles.json << 'EOF'
+cat > ~/.config/zoned/profiles.json << 'EOF'
 {
   "profiles": [
     {
@@ -377,7 +377,7 @@ EOF
 
 ```bash
 # Check JSON syntax
-jq . ~/.config/zonefancy/profiles.json
+jq . ~/.config/zoned/profiles.json
 
 # Reload extension to test
 make reload
@@ -398,11 +398,11 @@ make reload
 
 ```bash
 # Recompile schema
-cd ~/.local/share/gnome-shell/extensions/zonefancy@hamiltonia
+cd ~/.local/share/gnome-shell/extensions/zoned@hamiltonia.me
 glib-compile-schemas schemas/
 
 # Reset settings to defaults
-dconf reset -f /org/gnome/shell/extensions/zonefancy/
+dconf reset -f /org/gnome/shell/extensions/zoned/
 ```
 
 ### Keyboard Shortcuts Not Working

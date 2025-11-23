@@ -1,6 +1,6 @@
 # Keyboard Shortcuts Reference
 
-Complete reference for ZoneFancy keyboard shortcuts and keybinding customization.
+Complete reference for Zoned keyboard shortcuts and keybinding customization.
 
 ## Default Keybindings
 
@@ -96,7 +96,7 @@ Zone 1 (Left) →[Super+Right]→ Zone 2 (Right) →[Super+Right]→ Zone 1 (Lef
 Keybindings are defined in the GSettings schema and can be customized.
 
 **Schema location:**
-`~/.local/share/gnome-shell/extensions/zonefancy@hamiltonia/schemas/org.gnome.shell.extensions.zonefancy.gschema.xml`
+`~/.local/share/gnome-shell/extensions/zoned@hamiltonia.me/schemas/org.gnome.shell.extensions.zoned.gschema.xml`
 
 **Default schema:**
 ```xml
@@ -130,24 +130,24 @@ Keybindings are defined in the GSettings schema and can be customized.
 
 ```bash
 # View current keybindings
-gsettings get org.gnome.shell.extensions.zonefancy cycle-zone-left
-gsettings get org.gnome.shell.extensions.zonefancy cycle-zone-right
+gsettings get org.gnome.shell.extensions.zoned cycle-zone-left
+gsettings get org.gnome.shell.extensions.zoned cycle-zone-right
 
 # Change keybinding
-gsettings set org.gnome.shell.extensions.zonefancy cycle-zone-left "['<Super><Shift>Left']"
+gsettings set org.gnome.shell.extensions.zoned cycle-zone-left "['<Super><Shift>Left']"
 
 # Reset to default
-gsettings reset org.gnome.shell.extensions.zonefancy cycle-zone-left
+gsettings reset org.gnome.shell.extensions.zoned cycle-zone-left
 
 # View all extension settings
-gsettings list-keys org.gnome.shell.extensions.zonefancy
+gsettings list-keys org.gnome.shell.extensions.zoned
 ```
 
 ### Using dconf-editor
 
 1. Install: `sudo dnf install dconf-editor`
 2. Launch: `dconf-editor`
-3. Navigate to: `/org/gnome/shell/extensions/zonefancy/`
+3. Navigate to: `/org/gnome/shell/extensions/zoned/`
 4. Click on keybinding to edit
 5. Enter new key combination
 
@@ -155,18 +155,18 @@ gsettings list-keys org.gnome.shell.extensions.zonefancy
 
 **Alternative zone cycling (Ctrl+Alt instead of Super):**
 ```bash
-gsettings set org.gnome.shell.extensions.zonefancy cycle-zone-left "['<Ctrl><Alt>Left']"
-gsettings set org.gnome.shell.extensions.zonefancy cycle-zone-right "['<Ctrl><Alt>Right']"
+gsettings set org.gnome.shell.extensions.zoned cycle-zone-left "['<Ctrl><Alt>Left']"
+gsettings set org.gnome.shell.extensions.zoned cycle-zone-right "['<Ctrl><Alt>Right']"
 ```
 
 **Profile picker with F-key:**
 ```bash
-gsettings set org.gnome.shell.extensions.zonefancy show-profile-picker "['<Super>F12']"
+gsettings set org.gnome.shell.extensions.zoned show-profile-picker "['<Super>F12']"
 ```
 
 **Multiple keybindings for one action:**
 ```bash
-gsettings set org.gnome.shell.extensions.zonefancy cycle-zone-right "['<Super>Right', '<Super><Shift>period']"
+gsettings set org.gnome.shell.extensions.zoned cycle-zone-right "['<Super>Right', '<Super><Shift>period']"
 ```
 
 ## Keybinding Modifiers
@@ -231,7 +231,7 @@ gsettings set org.gnome.mutter.keybindings toggle-tiled-right "[]"
 
 **Super+Up:**
 - Default GNOME: Maximize window
-- ZoneFancy: Also maximizes (similar behavior)
+- Zoned: Also maximizes (similar behavior)
 - Usually not a conflict
 
 **Super+Down:**
@@ -242,7 +242,7 @@ gsettings set org.gnome.mutter.keybindings toggle-tiled-right "[]"
 
 ### How It Works (Internal)
 
-ZoneFancy registers keybindings in `keybindingManager.js`:
+Zoned registers keybindings in `keybindingManager.js`:
 
 ```javascript
 Main.wm.addKeybinding(
@@ -259,7 +259,7 @@ Main.wm.addKeybinding(
 - `OVERVIEW`: Activities overview mode
 - `ALL`: All modes
 
-ZoneFancy uses `NORMAL` mode only (active when managing windows).
+Zoned uses `NORMAL` mode only (active when managing windows).
 
 ### Keybinding Lifecycle
 
@@ -271,7 +271,7 @@ ZoneFancy uses `NORMAL` mode only (active when managing windows).
 2. **Runtime:**
    - User presses key combination
    - GNOME Shell checks for matching keybinding
-   - Calls ZoneFancy handler if matched
+   - Calls Zoned handler if matched
    - Handler performs action
 
 3. **Disable:**
@@ -285,7 +285,7 @@ ZoneFancy uses `NORMAL` mode only (active when managing windows).
 
 **1. Check if extension is enabled:**
 ```bash
-gnome-extensions list --enabled | grep zonefancy
+gnome-extensions list --enabled | grep zoned
 ```
 
 **2. Check keybinding registration:**
@@ -297,12 +297,12 @@ Main.wm._allowedKeybindings
 
 **3. Check for errors in logs:**
 ```bash
-journalctl -f -o cat /usr/bin/gnome-shell | grep -i zonefancy
+journalctl -f -o cat /usr/bin/gnome-shell | grep -i zoned
 ```
 
 **4. Reset to defaults:**
 ```bash
-gsettings reset-recursively org.gnome.shell.extensions.zonefancy
+gsettings reset-recursively org.gnome.shell.extensions.zoned
 ```
 
 **5. Restart GNOME Shell:**
@@ -322,10 +322,10 @@ gsettings reset-recursively org.gnome.shell.extensions.zonefancy
 **Test keybinding syntax:**
 ```bash
 # Valid
-gsettings set org.gnome.shell.extensions.zonefancy cycle-zone-left "['<Super>Left']"
+gsettings set org.gnome.shell.extensions.zoned cycle-zone-left "['<Super>Left']"
 
 # Invalid (missing quotes, brackets)
-gsettings set org.gnome.shell.extensions.zonefancy cycle-zone-left <Super>Left
+gsettings set org.gnome.shell.extensions.zoned cycle-zone-left <Super>Left
 ```
 
 ### Profile Picker Won't Open
@@ -337,7 +337,7 @@ Some keyboard layouts have backtick on different keys.
 **Alternatives:**
 ```bash
 # Use a different key
-gsettings set org.gnome.shell.extensions.zonefancy show-profile-picker "['<Super>space']"
+gsettings set org.gnome.shell.extensions.zoned show-profile-picker "['<Super>space']"
 ```
 
 ## Best Practices

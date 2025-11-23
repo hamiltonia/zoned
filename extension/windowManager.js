@@ -36,12 +36,12 @@ export class WindowManager {
      */
     moveWindowToZone(window, zone) {
         if (!window) {
-            console.warn('[ZoneFancy] No window provided to moveWindowToZone');
+            console.warn('[Zoned] No window provided to moveWindowToZone');
             return;
         }
 
         if (!zone) {
-            console.warn('[ZoneFancy] No zone provided to moveWindowToZone');
+            console.warn('[Zoned] No zone provided to moveWindowToZone');
             return;
         }
 
@@ -69,7 +69,7 @@ export class WindowManager {
             height
         );
 
-        console.log(`[ZoneFancy] Moved window to zone: x=${x}, y=${y}, w=${width}, h=${height}`);
+        console.log(`[Zoned] Moved window to zone: x=${x}, y=${y}, w=${width}, h=${height}`);
     }
 
     /**
@@ -78,13 +78,13 @@ export class WindowManager {
      */
     minimizeWindow(window) {
         if (!window) {
-            console.warn('[ZoneFancy] No window provided to minimizeWindow');
+            console.warn('[Zoned] No window provided to minimizeWindow');
             return;
         }
 
         if (!window.minimized) {
             window.minimize();
-            console.log('[ZoneFancy] Window minimized');
+            console.log('[Zoned] Window minimized');
         }
     }
 
@@ -98,22 +98,22 @@ export class WindowManager {
      */
     maximizeWindow(window) {
         if (!window) {
-            console.warn('[ZoneFancy] No window provided to maximizeWindow');
+            console.warn('[Zoned] No window provided to maximizeWindow');
             return;
         }
 
         if (window.minimized) {
             // Restore minimized window
             window.unminimize();
-            console.log('[ZoneFancy] Window restored from minimized');
+            console.log('[Zoned] Window restored from minimized');
         } else if (window.maximized_horizontally || window.maximized_vertically) {
             // Unmaximize if currently maximized
             window.unmaximize(Meta.MaximizeFlags.BOTH);
-            console.log('[ZoneFancy] Window unmaximized');
+            console.log('[Zoned] Window unmaximized');
         } else {
             // Maximize if not currently maximized
             window.maximize(Meta.MaximizeFlags.BOTH);
-            console.log('[ZoneFancy] Window maximized');
+            console.log('[Zoned] Window maximized');
         }
     }
 
@@ -131,12 +131,12 @@ export class WindowManager {
             if (window.minimized) {
                 window.unminimize();
                 window.activate(global.get_current_time());
-                console.log('[ZoneFancy] Restored minimized window');
+                console.log('[Zoned] Restored minimized window');
                 return true;
             }
         }
 
-        console.log('[ZoneFancy] No minimized window to restore');
+        console.log('[Zoned] No minimized window to restore');
         return false;
     }
 

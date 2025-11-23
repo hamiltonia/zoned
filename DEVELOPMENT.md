@@ -135,7 +135,7 @@ zoned/
 └── README.md                  # User documentation
 
 # Installed location (don't edit directly):
-~/.local/share/gnome-shell/extensions/zoned@hamiltonia/
+~/.local/share/gnome-shell/extensions/zoned@hamiltonia.me/
 ```
 
 ## Common Tasks
@@ -176,7 +176,7 @@ Alt+F2 → type 'lg' → Enter
 gnome-extensions list --enabled | grep zoned
 
 # View extension info
-gnome-extensions info zoned@hamiltonia
+gnome-extensions info zoned@hamiltonia.me
 
 # Check for GNOME Shell errors
 journalctl -b /usr/bin/gnome-shell | grep -i error
@@ -262,7 +262,7 @@ make install
 make reload
 
 # Verify installed files
-ls ~/.local/share/gnome-shell/extensions/zoned@hamiltonia/
+ls ~/.local/share/gnome-shell/extensions/zoned@hamiltonia.me/
 ```
 
 ### Keybindings not working

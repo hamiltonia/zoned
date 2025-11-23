@@ -1,8 +1,8 @@
 # Reference Implementation Mapping
 
-This document maps concepts and APIs from the reference Hammerspoon implementation to GNOME Shell equivalents. The Hammerspoon code (`dotfiles/hammerspoon/.hammerspoon/init.lua`) implements a FancyZones-style window management system on macOS. ZoneFancy brings the same profile-based zone management workflow to Linux/GNOME.
+This document maps concepts and APIs from the reference Hammerspoon implementation to GNOME Shell equivalents. The Hammerspoon code (`dotfiles/hammerspoon/.hammerspoon/init.lua`) implements a FancyZones-style window management system on macOS. Zoned brings the same profile-based zone management workflow to Linux/GNOME.
 
-**Note:** This is not a port of Hammerspoon to Linux. Hammerspoon is a macOS automation tool that was used to create a FancyZones-like system. ZoneFancy is a native GNOME Shell extension that implements the same window management concepts using GNOME's APIs.
+**Note:** This is not a port of Hammerspoon to Linux. Hammerspoon is a macOS automation tool that was used to create a FancyZones-like system. Zoned is a native GNOME Shell extension that implements the same window management concepts using GNOME's APIs.
 
 ## Core Concept Mappings
 
@@ -235,12 +235,12 @@ if (currentNotification) {
     currentNotification.destroy();
 }
 
-const source = new MessageTray.Source('ZoneFancy', 'preferences-system');
+const source = new MessageTray.Source('Zoned', 'preferences-system');
 Main.messageTray.add(source);
 
 const notification = new MessageTray.Notification(
     source,
-    'ZoneFancy',
+    'Zoned',
     `${profile.name} | ${zone.name}`
 );
 
@@ -294,7 +294,7 @@ profileChooser:show()
 // Custom St-based dialog
 const dialog = new St.BoxLayout({
     vertical: true,
-    style_class: 'zonefancy-picker'
+    style_class: 'zoned-picker'
 });
 
 const scrollView = new St.ScrollView();
@@ -401,8 +401,8 @@ class Extension {
 }
 
 // Manual reload: Alt+F2, type 'r', Enter
-// Or: gnome-extensions disable zonefancy@hamiltonia
-//     gnome-extensions enable zonefancy@hamiltonia
+// Or: gnome-extensions disable zoned@hamiltonia.me
+//     gnome-extensions enable zoned@hamiltonia.me
 ```
 
 **Changes:**

@@ -112,7 +112,7 @@ HOST_PROJECT_DIR="/home/yourusername/GitHub/zoned"
 VM_SPICE_MOUNT="/run/user/1000/spice-client-folder"
 
 # Extension details
-EXTENSION_UUID="zoned@hamiltonia"
+EXTENSION_UUID="zoned@hamiltonia.me"
 ```
 
 This file is created by `init-vm-config` and can be edited manually if needed.

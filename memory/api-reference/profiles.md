@@ -1,6 +1,6 @@
 # Profile System API Reference
 
-Complete specification for the ZoneFancy profile system.
+Complete specification for the Zoned profile system.
 
 ## Profile Structure
 
@@ -113,7 +113,7 @@ Center 60%:
 
 ## Default Profiles
 
-ZoneFancy ships with 9 default profiles covering common layouts.
+Zoned ships with 9 default profiles covering common layouts.
 
 ### 1. Center Focus (60%)
 **ID:** `center_focus`
@@ -259,7 +259,7 @@ profileManager.loadProfiles();
 
 **Process:**
 1. Load default profiles from `extension/config/default-profiles.json`
-2. Load user profiles from `~/.config/zonefancy/profiles.json` (if exists)
+2. Load user profiles from `~/.config/zoned/profiles.json` (if exists)
 3. Merge by `id` (user overrides default)
 4. Validate all profiles
 5. Restore last used profile from GSettings
@@ -366,7 +366,7 @@ profileManager._restoreState();
 ## Custom Profiles
 
 Users can create custom profiles by creating:
-`~/.config/zonefancy/profiles.json`
+`~/.config/zoned/profiles.json`
 
 ### Creating Custom Profiles
 

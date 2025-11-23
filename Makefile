@@ -2,7 +2,7 @@
         vm-init vm-setup vm-install vm-logs vm-dev
 
 # Extension details
-EXTENSION_UUID = zoned@hamiltonia
+EXTENSION_UUID = zoned@hamiltonia.me
 EXTENSION_DIR = extension
 INSTALL_DIR = $(HOME)/.local/share/gnome-shell/extensions/$(EXTENSION_UUID)
 

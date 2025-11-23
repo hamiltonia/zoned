@@ -61,7 +61,7 @@ if [[ ! $VM_IP =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 
 # Extension UUID
-EXTENSION_UUID="zoned@hamiltonia"
+EXTENSION_UUID="zoned@hamiltonia.me"
 
 # Project directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

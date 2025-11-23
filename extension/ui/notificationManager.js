@@ -65,9 +65,9 @@ export class NotificationManager {
                 }
             }, duration);
 
-            console.log(`[ZoneFancy] Notification shown: ${message}`);
+            console.log(`[Zoned] Notification shown: ${message}`);
         } catch (error) {
-            console.error(`[ZoneFancy] Failed to show notification: ${error}`);
+            console.error(`[Zoned] Failed to show notification: ${error}`);
         }
     }
 

@@ -1,8 +1,8 @@
-# ZoneFancy Architecture Overview
+# Zoned Architecture Overview
 
 ## Project Vision
 
-ZoneFancy is a GNOME Shell extension that brings FancyZones-style window management to Linux. It provides profile-based window layouts with keyboard-driven zone cycling, inspired by Windows PowerToys FancyZones and macOS Hammerspoon.
+Zoned is a GNOME Shell extension that brings FancyZones-style window management to Linux. It provides profile-based window layouts with keyboard-driven zone cycling, inspired by Windows PowerToys FancyZones and macOS Hammerspoon.
 
 ## High-Level Architecture
 
@@ -42,7 +42,7 @@ ZoneFancy is a GNOME Shell extension that brings FancyZones-style window managem
 ### 1. Profile Manager (`profileManager.js`)
 **Responsibilities:**
 - Load default profiles from bundled JSON
-- Load user custom profiles from `~/.config/zonefancy/profiles.json`
+- Load user custom profiles from `~/.config/zoned/profiles.json`
 - Merge and validate profile definitions
 - Provide profile query/selection API
 - Track current profile and zone state
@@ -184,7 +184,7 @@ Contains 9 profiles:
 9. Balanced Right (20/40/40)
 
 ### User Profiles
-Optional file: `~/.config/zonefancy/profiles.json`
+Optional file: `~/.config/zoned/profiles.json`
 
 Users can:
 - Override default profiles (by matching `id`)

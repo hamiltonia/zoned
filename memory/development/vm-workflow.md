@@ -102,7 +102,7 @@ The rest of this guide explains the details and troubleshooting.
 │  │       └─ symlinked to ─┐                               │ │
 │  │                         ▼                              │ │
 │  │  ~/.local/share/gnome-shell/extensions/                │ │
-│  │    └── zoned@hamiltonia/  (symlink to .../extension)  │ │
+│  │    └── zoned@hamiltonia.me/  (symlink to .../extension)  │ │
 │  │                                                        │ │
 │  │  Alt+F2 → 'r' → 2-3 second reload                      │ │
 │  │  SSH server running (logs accessible from host)        │ │
@@ -280,7 +280,7 @@ make vm-setup
 
 This script will:
 - ✅ Detect the GVFS mount path (works with WebDAV shared folders)
-- ✅ Create symlink: `~/.local/share/gnome-shell/extensions/zoned@hamiltonia` → shared folder
+- ✅ Create symlink: `~/.local/share/gnome-shell/extensions/zoned@hamiltonia.me` → shared folder
 - ✅ Enable the extension
 - ✅ Compile GSettings schema
 - ✅ Display next steps
@@ -407,20 +407,20 @@ systemctl --user restart spice-webdavd
 **Check symlink**:
 ```bash
 # In VM
-ls -la ~/.local/share/gnome-shell/extensions/zoned@hamiltonia
+ls -la ~/.local/share/gnome-shell/extensions/zoned@hamiltonia.me
 # Should show symlink to GVFS mount
 ```
 
 **Check extension files**:
 ```bash
 # In VM - verify files are accessible
-cat ~/.local/share/gnome-shell/extensions/zoned@hamiltonia/metadata.json
+cat ~/.local/share/gnome-shell/extensions/zoned@hamiltonia.me/metadata.json
 ```
 
 **Enable and reload**:
 ```bash
 # In VM
-gnome-extensions enable zoned@hamiltonia
+gnome-extensions enable zoned@hamiltonia.me
 # Then: Alt+F2 → r
 ```
 
@@ -469,7 +469,7 @@ echo $XDG_SESSION_TYPE
 echo "test" > ~/GitHub/zoned/extension/test.txt
 
 # In VM - check if it appears
-cat ~/.local/share/gnome-shell/extensions/zoned@hamiltonia/test.txt
+cat ~/.local/share/gnome-shell/extensions/zoned@hamiltonia.me/test.txt
 # Should show "test"
 ```
 
@@ -579,7 +579,7 @@ Host: ~/GitHub/zoned/
 └── Makefile                ← make vm-* commands
 
 VM: ~/.local/share/gnome-shell/extensions/
-└── zoned@hamiltonia/       ← Symlink to shared folder
+└── zoned@hamiltonia.me/       ← Symlink to shared folder
     └── (points to GVFS mount of ~/GitHub/zoned/extension/)
 ```
 

@@ -1,7 +1,7 @@
 /**
  * ConflictDetector - Detects keybinding conflicts with GNOME Shell
  * 
- * Checks if ZoneFancy's keybindings conflict with default GNOME bindings
+ * Checks if Zoned's keybindings conflict with default GNOME bindings
  * and provides methods to resolve conflicts.
  */
 
@@ -29,7 +29,7 @@ export class ConflictDetector {
                 schema: 'org.gnome.desktop.wm.keybindings'
             });
 
-            // Check each ZoneFancy keybinding
+            // Check each Zoned keybinding
             this._checkBinding('cycle-zone-left', '<Super>Left', [
                 {
                     schema: mutterSettings,
@@ -70,9 +70,9 @@ export class ConflictDetector {
                 }
             ]);
 
-            console.log(`[ZoneFancy] Detected ${this._conflicts.length} keybinding conflicts`);
+            console.log(`[Zoned] Detected ${this._conflicts.length} keybinding conflicts`);
         } catch (error) {
-            console.error(`[ZoneFancy] Error detecting conflicts: ${error}`);
+            console.error(`[Zoned] Error detecting conflicts: ${error}`);
         }
 
         return this._conflicts;
@@ -142,18 +142,18 @@ export class ConflictDetector {
 
                 if (hasConflict) {
                     this._conflicts.push({
-                        zonefancyAction: ourAction,
-                        zonefancyBinding: ourBindingValue[0],
+                        zonedAction: ourAction,
+                        zonedBinding: ourBindingValue[0],
                         gnomeSchema: schema.schema_id,
                         gnomeKey: key,
                         gnomeDescription: description,
                         gnomeBinding: gnomeBindingValue
                     });
 
-                    console.log(`[ZoneFancy] Conflict: ${ourAction} (${ourBindingValue[0]}) conflicts with ${description}`);
+                    console.log(`[Zoned] Conflict: ${ourAction} (${ourBindingValue[0]}) conflicts with ${description}`);
                 }
             } catch (error) {
-                console.warn(`[ZoneFancy] Could not check binding ${key}: ${error}`);
+                console.warn(`[Zoned] Could not check binding ${key}: ${error}`);
             }
         });
     }
@@ -202,17 +202,17 @@ export class ConflictDetector {
                         binding: conflict.gnomeBinding
                     });
 
-                    console.log(`[ZoneFancy] Fixed conflict: Disabled ${conflict.gnomeDescription}`);
+                    console.log(`[Zoned] Fixed conflict: Disabled ${conflict.gnomeDescription}`);
                 } catch (error) {
                     results.failed.push({
                         action: conflict.gnomeDescription,
                         error: error.message
                     });
-                    console.error(`[ZoneFancy] Failed to fix ${conflict.gnomeDescription}: ${error}`);
+                    console.error(`[Zoned] Failed to fix ${conflict.gnomeDescription}: ${error}`);
                 }
             });
         } catch (error) {
-            console.error(`[ZoneFancy] Error in autoFixConflicts: ${error}`);
+            console.error(`[Zoned] Error in autoFixConflicts: ${error}`);
         }
 
         return results;
@@ -229,13 +229,13 @@ export class ConflictDetector {
                 try {
                     const schema = new Gio.Settings({schema: schemaId});
                     schema.set_strv(settingKey, value);
-                    console.log(`[ZoneFancy] Restored: ${key}`);
+                    console.log(`[Zoned] Restored: ${key}`);
                 } catch (error) {
-                    console.error(`[ZoneFancy] Failed to restore ${key}: ${error}`);
+                    console.error(`[Zoned] Failed to restore ${key}: ${error}`);
                 }
             });
         } catch (error) {
-            console.error(`[ZoneFancy] Error restoring from backup: ${error}`);
+            console.error(`[Zoned] Error restoring from backup: ${error}`);
         }
     }
 
@@ -251,8 +251,8 @@ export class ConflictDetector {
         let summary = `${this._conflicts.length} keybinding conflict${this._conflicts.length !== 1 ? 's' : ''} detected:\n\n`;
         
         this._conflicts.forEach((conflict, index) => {
-            summary += `${index + 1}. ${conflict.zonefancyBinding}\n`;
-            summary += `   ZoneFancy: ${conflict.zonefancyAction}\n`;
+            summary += `${index + 1}. ${conflict.zonedBinding}\n`;
+            summary += `   Zoned: ${conflict.zonedAction}\n`;
             summary += `   ${conflict.gnomeDescription}\n\n`;
         });
 

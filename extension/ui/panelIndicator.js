@@ -1,5 +1,5 @@
 /**
- * PanelIndicator - Top bar menu for Zone Fancy
+ * PanelIndicator - Top bar menu for Zoned
  * 
  * Displays an icon in the GNOME Shell top bar with a dropdown menu:
  * - Current profile indicator
@@ -15,9 +15,9 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 export const PanelIndicator = GObject.registerClass(
-class ZoneFancyPanelIndicator extends PanelMenu.Button {
+class ZonedPanelIndicator extends PanelMenu.Button {
     _init(profileManager, conflictDetector, profilePicker, notificationManager) {
-        super._init(0.0, 'Zone Fancy Indicator', false);
+        super._init(0.0, 'Zoned Indicator', false);
 
         this._profileManager = profileManager;
         this._conflictDetector = conflictDetector;
@@ -100,7 +100,7 @@ class ZoneFancyPanelIndicator extends PanelMenu.Button {
         }
 
         // About item
-        const aboutItem = new PopupMenu.PopupMenuItem('About Zone Fancy');
+        const aboutItem = new PopupMenu.PopupMenuItem('About Zoned');
         aboutItem.connect('activate', () => {
             this._showAbout();
         });
@@ -149,7 +149,7 @@ class ZoneFancyPanelIndicator extends PanelMenu.Button {
      * @private
      */
     _autoFixConflicts() {
-        console.log('[ZoneFancy] Auto-fixing keybinding conflicts...');
+        console.log('[Zoned] Auto-fixing keybinding conflicts...');
         
         const results = this._conflictDetector.autoFixConflicts();
         
@@ -159,13 +159,13 @@ class ZoneFancyPanelIndicator extends PanelMenu.Button {
                 message += `✓ Disabled: ${item.action}\n`;
             });
             
-            Main.notify('Zone Fancy - Conflicts Fixed', message);
+            Main.notify('Zoned - Conflicts Fixed', message);
             
             // Re-detect conflicts and update UI
             this._conflictDetector.detectConflicts();
             this.setConflictStatus(this._conflictDetector.hasConflicts());
             
-            console.log(`[ZoneFancy] Fixed ${results.fixed.length} conflicts`);
+            console.log(`[Zoned] Fixed ${results.fixed.length} conflicts`);
         }
         
         if (results.failed.length > 0) {
@@ -174,7 +174,7 @@ class ZoneFancyPanelIndicator extends PanelMenu.Button {
                 message += `✗ ${item.action}: ${item.error}\n`;
             });
             
-            Main.notifyError('Zone Fancy - Error', message);
+            Main.notifyError('Zoned - Error', message);
         }
     }
 
@@ -186,20 +186,20 @@ class ZoneFancyPanelIndicator extends PanelMenu.Button {
         const conflicts = this._conflictDetector.getConflicts();
         
         if (conflicts.length === 0) {
-            Main.notify('Zone Fancy', 'No conflicts detected.');
+            Main.notify('Zoned', 'No conflicts detected.');
             return;
         }
 
         let message = `${conflicts.length} keybinding conflict${conflicts.length !== 1 ? 's' : ''} detected:\n\n`;
         
         conflicts.forEach((conflict, index) => {
-            message += `${index + 1}. ${conflict.zonefancyBinding}\n`;
+            message += `${index + 1}. ${conflict.zonedBinding}\n`;
             message += `   ${conflict.gnomeDescription}\n`;
         });
         
         message += '\n\nClick "Fix Conflicts Automatically" to resolve.';
         
-        Main.notify('Zone Fancy - Keybinding Conflicts', message);
+        Main.notify('Zoned - Keybinding Conflicts', message);
     }
 
     /**
@@ -207,16 +207,16 @@ class ZoneFancyPanelIndicator extends PanelMenu.Button {
      * @private
      */
     _showAbout() {
-        const message = 'Zone Fancy - Advanced Window Zone Management\n\n' +
+        const message = 'Zoned - Advanced Window Zone Management\n\n' +
                        'Version: 1.0\n' +
                        'Keyboard Shortcuts:\n' +
                        '  Super+Left/Right - Cycle zones\n' +
                        '  Super+` - Profile picker\n' +
                        '  Super+Up - Maximize/Restore\n' +
                        '  Super+Down - Minimize\n\n' +
-                       'https://github.com/hamiltonia/zonefancy';
+                       'https://github.com/hamiltonia/zoned';
         
-        Main.notify('Zone Fancy', message);
+        Main.notify('Zoned', message);
     }
 
     /**

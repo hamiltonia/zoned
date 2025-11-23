@@ -50,7 +50,7 @@ export class ProfilePicker {
 
         const profiles = this._profileManager.getAllProfiles();
         if (!profiles || profiles.length === 0) {
-            console.warn('[ZoneFancy] No profiles available to display');
+            console.warn('[Zoned] No profiles available to display');
             return;
         }
 
@@ -64,7 +64,7 @@ export class ProfilePicker {
         this._createDialog(profiles);
         this._connectKeyEvents();
 
-        console.log('[ZoneFancy] Profile picker shown');
+        console.log('[Zoned] Profile picker shown');
     }
 
     /**
@@ -72,13 +72,13 @@ export class ProfilePicker {
      */
     hide() {
         if (this._dialog) {
-            console.log('[ZoneFancy] Hiding profile picker');
+            console.log('[Zoned] Hiding profile picker');
             this._disconnectKeyEvents();
             Main.uiGroup.remove_child(this._dialog);
             this._dialog.destroy();
             this._dialog = null;
             this._profileButtons = [];
-            console.log('[ZoneFancy] Profile picker hidden');
+            console.log('[Zoned] Profile picker hidden');
         }
     }
 
@@ -121,8 +121,8 @@ export class ProfilePicker {
         
         const spacing = Math.floor(cardWidth * 0.15);
         
-        console.log(`[ZoneFancy] Available space: ${availableWidth}x${availableHeight}`);
-        console.log(`[ZoneFancy] Card size: ${cardWidth}x${cardHeight}, spacing: ${spacing}`);
+        console.log(`[Zoned] Available space: ${availableWidth}x${availableHeight}`);
+        console.log(`[Zoned] Card size: ${cardWidth}x${cardHeight}, spacing: ${spacing}`);
         
         return { width: cardWidth, height: cardHeight, spacing: spacing };
     }
@@ -154,7 +154,7 @@ export class ProfilePicker {
             
             return accentColors[accentColorName] || accentColors['blue'];
         } catch (e) {
-            console.warn('[ZoneFancy] Failed to get accent color, using default blue:', e);
+            console.warn('[Zoned] Failed to get accent color, using default blue:', e);
             return {red: 0.29, green: 0.56, blue: 0.85};
         }
     }
@@ -208,7 +208,7 @@ export class ProfilePicker {
                 
                 cr.$dispose();
             } catch (e) {
-                console.error(`[ZoneFancy] Error drawing zone preview for ${profile.name}:`, e);
+                console.error(`[Zoned] Error drawing zone preview for ${profile.name}:`, e);
             }
         });
         
@@ -260,8 +260,8 @@ export class ProfilePicker {
             dialogWidth = Math.floor(dialogHeight * aspectRatio);
         }
         
-        console.log(`[ZoneFancy] Monitor: ${monitor.width}x${monitor.height} (${aspectRatio.toFixed(2)}:1), Portrait: ${isPortrait}`);
-        console.log(`[ZoneFancy] Dialog size (${(dialogSizeFraction * 100).toFixed(0)}%): ${dialogWidth}x${dialogHeight}`);
+        console.log(`[Zoned] Monitor: ${monitor.width}x${monitor.height} (${aspectRatio.toFixed(2)}:1), Portrait: ${isPortrait}`);
+        console.log(`[Zoned] Dialog size (${(dialogSizeFraction * 100).toFixed(0)}%): ${dialogWidth}x${dialogHeight}`);
 
         // Container for profile grid with explicit sizing
         const containerStyle = 'background-color: rgba(40, 40, 40, 0.95); ' +
@@ -308,8 +308,8 @@ export class ProfilePicker {
             style: `spacing: ${dimensions.spacing}px;`
         });
         
-        console.log(`[ZoneFancy] Card dimensions: ${dimensions.width}x${dimensions.height}`);
-        console.log(`[ZoneFancy] Creating cards for ${profiles.length} profiles`);
+        console.log(`[Zoned] Card dimensions: ${dimensions.width}x${dimensions.height}`);
+        console.log(`[Zoned] Creating cards for ${profiles.length} profiles`);
 
         // Create rows
         let currentRow = null;
@@ -330,7 +330,7 @@ export class ProfilePicker {
             this._profileButtons.push(card);
         });
         
-        console.log(`[ZoneFancy] Created ${this._profileButtons.length} profile cards`);
+        console.log(`[Zoned] Created ${this._profileButtons.length} profile cards`);
 
         scrollView.add_child(gridContainer);
         container.add_child(scrollView);
@@ -354,7 +354,7 @@ export class ProfilePicker {
         // Grab keyboard focus so key events work
         this._dialog.grab_key_focus();
         
-        console.log('[ZoneFancy] Dialog created and added to stage with focus');
+        console.log('[Zoned] Dialog created and added to stage with focus');
 
         // Update selection highlight
         this._updateSelection();
@@ -467,7 +467,7 @@ export class ProfilePicker {
      * @private
      */
     _onProfileSelected(profileId) {
-        console.log(`[ZoneFancy] Profile selection triggered: ${profileId}`);
+        console.log(`[Zoned] Profile selection triggered: ${profileId}`);
         
         // Use shared helper that handles both profile switching and notification
         this._profileManager.setProfileWithNotification(profileId, this._notificationManager);
@@ -481,7 +481,7 @@ export class ProfilePicker {
      * @private
      */
     _updateSelection() {
-        console.log(`[ZoneFancy] Updating selection to index: ${this._selectedIndex}`);
+        console.log(`[Zoned] Updating selection to index: ${this._selectedIndex}`);
         const currentProfile = this._profileManager.getCurrentProfile();
         
         this._profileButtons.forEach((button, index) => {
@@ -495,7 +495,7 @@ export class ProfilePicker {
                               `border-radius: 8px; ` +
                               `background-color: rgba(74, 144, 217, 0.5); ` +
                               `border: 3px solid #4a90d9;`;
-                console.log(`[ZoneFancy] Card ${index} is selected`);
+                console.log(`[Zoned] Card ${index} is selected`);
             } else if (isCurrentProfile) {
                 // Current profile - medium blue with medium border
                 button.style = `padding: ${CARD_PADDING}px; width: ${width}px; ` +

@@ -34,7 +34,7 @@ export class KeybindingManager {
      * Register all keybindings
      */
     registerKeybindings() {
-        console.log('[ZoneFancy] Registering keybindings...');
+        console.log('[Zoned] Registering keybindings...');
 
         // Zone cycling
         this._registerKeybinding(
@@ -64,7 +64,7 @@ export class KeybindingManager {
             this._onMaximizeWindow.bind(this)
         );
 
-        console.log(`[ZoneFancy] Registered ${this._registeredKeys.length} keybindings`);
+        console.log(`[Zoned] Registered ${this._registeredKeys.length} keybindings`);
     }
 
     /**
@@ -81,9 +81,9 @@ export class KeybindingManager {
                 handler
             );
             this._registeredKeys.push(name);
-            console.log(`[ZoneFancy] Registered keybinding: ${name}`);
+            console.log(`[Zoned] Registered keybinding: ${name}`);
         } catch (error) {
-            console.error(`[ZoneFancy] Failed to register keybinding '${name}': ${error}`);
+            console.error(`[Zoned] Failed to register keybinding '${name}': ${error}`);
         }
     }
 
@@ -91,14 +91,14 @@ export class KeybindingManager {
      * Unregister all keybindings
      */
     unregisterKeybindings() {
-        console.log('[ZoneFancy] Unregistering keybindings...');
+        console.log('[Zoned] Unregistering keybindings...');
 
         this._registeredKeys.forEach(name => {
             try {
                 Main.wm.removeKeybinding(name);
-                console.log(`[ZoneFancy] Unregistered keybinding: ${name}`);
+                console.log(`[Zoned] Unregistered keybinding: ${name}`);
             } catch (error) {
-                console.error(`[ZoneFancy] Failed to unregister keybinding '${name}': ${error}`);
+                console.error(`[Zoned] Failed to unregister keybinding '${name}': ${error}`);
             }
         });
 
@@ -110,17 +110,17 @@ export class KeybindingManager {
      * @private
      */
     _onCycleZoneLeft() {
-        console.log('[ZoneFancy] Cycle zone left triggered');
+        console.log('[Zoned] Cycle zone left triggered');
 
         const window = this._windowManager.getFocusedWindow();
         if (!window) {
-            console.log('[ZoneFancy] No focused window to move');
+            console.log('[Zoned] No focused window to move');
             return;
         }
 
         const zone = this._profileManager.cycleZone(-1);
         if (!zone) {
-            console.warn('[ZoneFancy] Failed to cycle to previous zone');
+            console.warn('[Zoned] Failed to cycle to previous zone');
             return;
         }
 
@@ -145,17 +145,17 @@ export class KeybindingManager {
      * @private
      */
     _onCycleZoneRight() {
-        console.log('[ZoneFancy] Cycle zone right triggered');
+        console.log('[Zoned] Cycle zone right triggered');
 
         const window = this._windowManager.getFocusedWindow();
         if (!window) {
-            console.log('[ZoneFancy] No focused window to move');
+            console.log('[Zoned] No focused window to move');
             return;
         }
 
         const zone = this._profileManager.cycleZone(1);
         if (!zone) {
-            console.warn('[ZoneFancy] Failed to cycle to next zone');
+            console.warn('[Zoned] Failed to cycle to next zone');
             return;
         }
 
@@ -180,12 +180,12 @@ export class KeybindingManager {
      * @private
      */
     _onShowProfilePicker() {
-        console.log('[ZoneFancy] Show profile picker triggered');
+        console.log('[Zoned] Show profile picker triggered');
 
         if (this._profilePicker) {
             this._profilePicker.show();
         } else {
-            console.warn('[ZoneFancy] Profile picker not available');
+            console.warn('[Zoned] Profile picker not available');
         }
     }
 
@@ -194,11 +194,11 @@ export class KeybindingManager {
      * @private
      */
     _onMinimizeWindow() {
-        console.log('[ZoneFancy] Minimize window triggered');
+        console.log('[Zoned] Minimize window triggered');
 
         const window = this._windowManager.getFocusedWindow();
         if (!window) {
-            console.log('[ZoneFancy] No focused window to minimize');
+            console.log('[Zoned] No focused window to minimize');
             return;
         }
 
@@ -211,7 +211,7 @@ export class KeybindingManager {
      * @private
      */
     _onMaximizeWindow() {
-        console.log('[ZoneFancy] Maximize window triggered');
+        console.log('[Zoned] Maximize window triggered');
 
         const window = this._windowManager.getFocusedWindow();
         
@@ -224,7 +224,7 @@ export class KeybindingManager {
         
         // If no minimized window and no focused window, nothing to do
         if (!window) {
-            console.log('[ZoneFancy] No window to maximize or restore');
+            console.log('[Zoned] No window to maximize or restore');
             return;
         }
 

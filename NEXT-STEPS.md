@@ -1,4 +1,4 @@
-# ZoneFancy - Next Steps for Implementation
+# Zoned - Next Steps for Implementation
 
 ## Current Status
 
@@ -76,7 +76,7 @@ class ProfileManager {
 
 **Key implementation details:**
 - Load `extension/config/default-profiles.json` using GJS file I/O
-- Check for user profiles at `~/.config/zonefancy/profiles.json`
+- Check for user profiles at `~/.config/zoned/profiles.json`
 - Merge user profiles (override by matching `id`)
 - Validate all profiles on load
 - Use GSettings for state persistence
@@ -167,7 +167,7 @@ class ProfilePicker {
 import GObject from 'gi://GObject';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-export default class ZoneFancyExtension {
+export default class ZonedExtension {
     constructor() {
         // Initialize properties
     }
@@ -346,7 +346,7 @@ make dev
 
 5. **File Paths**
    - Use `import.meta.url` or extension directories
-   - User config: `~/.config/zonefancy/profiles.json`
+   - User config: `~/.config/zoned/profiles.json`
    - Bundled config: `{extension_dir}/config/default-profiles.json`
 
 ## Success Criteria
@@ -477,7 +477,7 @@ state = {
 #### 2.2 Profile Editor UI
 - [ ] Visual editor for creating/modifying profiles
 - [ ] Add/remove/resize zones interactively
-- [ ] Save custom profiles to `~/.config/zonefancy/profiles.json`
+- [ ] Save custom profiles to `~/.config/zoned/profiles.json`
 - [ ] Zone preview while editing (not just ASCII)
 - [ ] Profile import/export functionality
 - [ ] Validate zone layouts (no overlaps, full coverage, etc.)

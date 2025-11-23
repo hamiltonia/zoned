@@ -76,9 +76,9 @@ export class ZoneOverlay {
                 return GLib.SOURCE_REMOVE;
             });
 
-            console.log(`[ZoneFancy] Overlay shown: ${profileName} - Zone ${zoneIndex + 1}/${totalZones}`);
+            console.log(`[Zoned] Overlay shown: ${profileName} - Zone ${zoneIndex + 1}/${totalZones}`);
         } catch (error) {
-            console.error(`[ZoneFancy] Error showing overlay: ${error}`);
+            console.error(`[Zoned] Error showing overlay: ${error}`);
         }
     }
 

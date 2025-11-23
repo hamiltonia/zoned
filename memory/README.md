@@ -1,6 +1,6 @@
-# ZoneFancy Memory Bank
+# Zoned Memory Bank
 
-Documentation and knowledge base for the ZoneFancy GNOME Shell Extension project.
+Documentation and knowledge base for the Zoned GNOME Shell Extension project.
 
 ## Purpose
 

@@ -332,7 +332,7 @@ SSH allows you to view logs and control the VM from your host terminal.
 - [ ] Verify extension is running in VM:
   ```bash
   # On host, check extension status via SSH:
-  ssh fedora-vm "gnome-extensions info zoned@hamiltonia"
+  ssh fedora-vm "gnome-extensions info zoned@hamiltonia.me"
   # Should show: State: ENABLED
   ```
 
@@ -428,13 +428,13 @@ make vm-logs
 
 - [ ] Check extension status in VM:
   ```bash
-  gnome-extensions info zoned@hamiltonia
+  gnome-extensions info zoned@hamiltonia.me
   ```
 
 - [ ] Verify symlink in VM:
   ```bash
   ls -la ~/.local/share/gnome-shell/extensions/
-  # Should show: zoned@hamiltonia -> /run/user/1000/spice-client-folder/extension
+  # Should show: zoned@hamiltonia.me -> /run/user/1000/spice-client-folder/extension
   ```
 
 - [ ] Check for errors in VM:
