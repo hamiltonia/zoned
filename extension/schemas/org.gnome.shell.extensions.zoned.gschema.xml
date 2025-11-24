@@ -62,11 +62,11 @@
     
     <!-- Profile Picker Settings -->
     <key name="profile-picker-size" type="d">
-      <default>0.6</default>
+      <default>0.8</default>
       <range min="0.3" max="0.9"/>
       <summary>Profile picker dialog size</summary>
       <description>
-        Size of the profile picker dialog as a fraction of screen size (0.3-0.9). Default is 0.6 (60%).
+        Size of the profile picker dialog as a fraction of screen size (0.3-0.9). Default is 0.8 (80%).
       </description>
     </key>
     

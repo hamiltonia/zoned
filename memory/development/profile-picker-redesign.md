@@ -29,11 +29,16 @@
 
 **Technical Details:**
 - Card sizing constrains by BOTH width and height to ensure 3x3 grid fits cleanly
-- 15% spacing between cards (reduced from initial 25%)
+- **Fixed 24px spacing** between cards (changed from 15% dynamic on 2025-11-23)
+  - Dynamic percentage spacing caused issues on ultrawide displays (5120x1440)
+  - 15% of card width = ~114px gaps, consuming 228px for 3 rows
+  - Fixed 24px spacing works consistently across all aspect ratios
+  - Provides more space for actual cards while maintaining clean layout
 - 70px reserve space below preview for name+indicator (prevents clipping)
 - Profile name: 16px bold
 - Title: 28px bold
 - Instructions: 24px (no bold, readable)
+- Dialog size default increased from 60% to 80% (2025-11-23)
 
 ### Phase 2: Keyboard Navigation ✓
 **Implemented:**

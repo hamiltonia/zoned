@@ -237,28 +237,31 @@ export class ProfilePicker {
     /**
      * Calculate card dimensions dynamically to fill available space
      * Constrains by both width AND height to ensure 3x3 grid fits
+     * Uses fixed pixel spacing for consistent layout across displays
      * @private
      */
     _getCardDimensions(dialogWidth, dialogHeight) {
         const monitor = Main.layoutManager.currentMonitor;
         const aspectRatio = monitor.width / monitor.height;
         const ROWS = 3;
+        const FIXED_SPACING = 24;  // Fixed spacing in pixels
         
         // Calculate available space for cards
         const availableWidth = dialogWidth - (CONTAINER_PADDING * 2);
         const availableHeight = dialogHeight - (CONTAINER_PADDING * 2) - TITLE_HEIGHT - INSTRUCTIONS_HEIGHT;
         
-        // Calculate card spacing as 15% of card width
-        // If cardWidth = W, spacing = 0.15W
-        // For 3 columns: availableWidth = 3W + 2(0.15W) = 3.3W
-        // Therefore: W = availableWidth / 3.3
+        // Calculate with fixed spacing
+        // For 3 columns: availableWidth = 3W + 2(spacing)
+        // Therefore: W = (availableWidth - 2*spacing) / 3
         
         // Calculate from width constraint
-        const cardWidthFromHorizontal = Math.floor(availableWidth / 3.3);  // 3 cards + 0.3 width spacing
+        const cardWidthFromHorizontal = Math.floor((availableWidth - (2 * FIXED_SPACING)) / COLUMNS);
         const cardHeightFromWidth = Math.floor(cardWidthFromHorizontal / aspectRatio);
         
         // Calculate from height constraint  
-        const cardHeightFromVertical = Math.floor(availableHeight / 3.3);  // 3 rows + 0.3 height spacing
+        // For 3 rows: availableHeight = 3H + 2(spacing)
+        // Therefore: H = (availableHeight - 2*spacing) / 3
+        const cardHeightFromVertical = Math.floor((availableHeight - (2 * FIXED_SPACING)) / ROWS);
         const cardWidthFromHeight = Math.floor(cardHeightFromVertical * aspectRatio);
         
         // Use whichever is smaller to ensure both dimensions fit
@@ -271,12 +274,10 @@ export class ProfilePicker {
             cardHeight = cardHeightFromVertical;
         }
         
-        const spacing = Math.floor(cardWidth * 0.15);
-        
         logger.debug(`Available space: ${availableWidth}x${availableHeight}`);
-        logger.debug(`Card size: ${cardWidth}x${cardHeight}, spacing: ${spacing}`);
+        logger.debug(`Card size: ${cardWidth}x${cardHeight}, spacing: ${FIXED_SPACING}px`);
         
-        return { width: cardWidth, height: cardHeight, spacing: spacing };
+        return { width: cardWidth, height: cardHeight, spacing: FIXED_SPACING };
     }
 
     /**
