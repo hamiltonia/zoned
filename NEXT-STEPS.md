@@ -434,12 +434,31 @@ card.connect('leave-event', () => hidePreview());
   - Need icon representing column-based layouts
   - Consider custom icon or find better symbolic icon
 
-#### 1.4 Settings Integration
+#### 1.4 Replace System Alerts with Custom MessageDialog
+**Status:** Planning complete - see `memory/development/message-dialog-spec.md`
+
+**Problem:** Currently using 7 instances of `Main.notify()` and `Main.notifyError()` system notifications
+- 2 in `extension/extension.js` (startup warnings, errors)
+- 5 in `extension/ui/panelIndicator.js` (conflict messages, about dialog)
+
+**Solution:** Create custom MessageDialog component for consistent, branded UI
+
+**Implementation Steps:**
+- [ ] Create `extension/ui/messageDialog.js` (see spec for full implementation)
+- [ ] Support three message types: info, warning, error
+- [ ] Modal dialog with fade animations
+- [ ] Multiple dismissal methods (OK button, Esc key, click outside)
+- [ ] Replace all 7 system notification calls
+- [ ] Test all dialog types and dismissal methods
+
+**Reference:** `memory/development/message-dialog-spec.md`
+
+#### 1.5 Settings Integration
 - [ ] Add "Settings" or "Preferences" menu item to PanelIndicator
 - [ ] Settings should be accessible from top bar menu
 - [ ] Create settings/preferences dialog framework
 
-### Phase 2: Core Feature Additions (HIGH PRIORITY)
+### Phase 2: Core Feature Additions (HIGH PRIORITY - AFTER PHASE 1)
 
 #### 2.1 Multi-Desktop & Multi-Monitor Support
 **Approach:** Per-Workspace (Option C)
