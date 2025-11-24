@@ -133,17 +133,34 @@ Complete step-by-step guide to set up VM-based development for Zoned GNOME Shell
   - **Online Accounts:** Skip or configure (your choice)
   - **Ready to Go:** Click "Start Using Fedora"
 
-- [ ] **Important:** Log in and verify you're using X11:
+### Install X11 Support
+
+- [ ] Open terminal in VM
+
+- [ ] Install X11 session package:
+  ```bash
+  sudo dnf install -y gnome-session-xsession
+  ```
+
+- [ ] Reboot VM:
+  ```bash
+  sudo reboot
+  ```
+
+### Verify X11 Session
+
+- [ ] After reboot, log in and verify you're using X11:
   ```bash
   # In VM terminal:
   echo $XDG_SESSION_TYPE
   # Should output: x11
   ```
 
-  - If it shows `wayland`, log out
-  - At login screen, click the **gear icon** at bottom right
-  - Select **"GNOME on Xorg"**
-  - Log back in
+  - If it shows `wayland`, you need to switch to X11:
+    - Log out
+    - At login screen, click the **gear icon** at bottom right
+    - Select **"GNOME on Xorg"** (this option appears after installing gnome-session-xsession)
+    - Log back in
 
 - [ ] Verify Alt+F2 works:
   - Press `Alt+F2` in the VM
@@ -222,8 +239,11 @@ Complete step-by-step guide to set up VM-based development for Zoned GNOME Shell
 - [ ] Verify the shared folder contains your Zoned extension:
   ```bash
   # In VM terminal:
-  ls -la /run/user/1000/spice-client-folder/extension/
+  # The shared folder mounts under gvfs with a URL-encoded path
+  ls -la /run/user/1000/gvfs/dav+sd\:host\=Spice%2520client%2520folder._webdav._tcp.local/zoned/extension/
   # Should show: extension.js, metadata.json, etc.
+  
+  # Tip: You can also access it via the Files app navigation to avoid typing the long path
   ```
 
 ---
@@ -263,7 +283,18 @@ SSH allows you to view logs and control the VM from your host terminal.
   exit
   ```
 
-- [ ] Set up passwordless SSH (recommended):
+- [ ] Generate SSH key on host (if you don't have one):
+  ```bash
+  # Check if you already have an SSH key:
+  ls -la ~/.ssh/id_*.pub
+  
+  # If no key exists, generate one (press Enter to accept defaults):
+  ssh-keygen -t ed25519 -C "your_email@example.com"
+  # Or use RSA if ed25519 isn't supported:
+  # ssh-keygen -t rsa -b 4096 -C "your_email@example.com"
+  ```
+
+- [ ] Copy SSH key to VM for passwordless authentication:
   ```bash
   ssh-copy-id yourusername@192.168.122.100
   # Enter VM password one last time
@@ -434,7 +465,7 @@ make vm-logs
 - [ ] Verify symlink in VM:
   ```bash
   ls -la ~/.local/share/gnome-shell/extensions/
-  # Should show: zoned@hamiltonia.me -> /run/user/1000/spice-client-folder/extension
+  # Should show: zoned@hamiltonia.me -> /run/user/1000/gvfs/dav+sd:host=Spice%20client%20folder._webdav._tcp.local/zoned/extension
   ```
 
 - [ ] Check for errors in VM:
@@ -525,7 +556,9 @@ For convenience, automatically pipe logs to shared folder:
 **In VM:**
 ```bash
 # Copy the watcher script (it's in shared folder):
-cp /run/user/1000/spice-client-folder/scripts/vm-guest/auto-log-watcher.sh ~/
+# First, find the gvfs mount point (easier via Files app: Other Locations → Networks → Spice client folder)
+# Or use the full gvfs path:
+cp /run/user/1000/gvfs/dav+sd\:host\=Spice%2520client%2520folder._webdav._tcp.local/zoned/scripts/vm-guest/auto-log-watcher.sh ~/
 
 # Make executable:
 chmod +x ~/auto-log-watcher.sh
