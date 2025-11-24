@@ -4,6 +4,9 @@ gschemas.compiled
 *.mo
 *.pot~
 
+# FUSE temporary files (from shared folders/VM workflow)
+.fuse_hidden*
+
 # Node/NPM (if using for development tools)
 node_modules/
 package-lock.json

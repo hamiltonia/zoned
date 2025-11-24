@@ -10,6 +10,7 @@
 
 import GObject from 'gi://GObject';
 import St from 'gi://St';
+import Gio from 'gi://Gio';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -28,9 +29,11 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         this._notificationManager = notificationManager;
         this._hasConflicts = false;
 
-        // Create icon with reduced padding
+        // Create icon with reduced padding - using custom SVG
+        this._extensionPath = import.meta.url.replace('file://', '').replace('/ui/panelIndicator.js', '');
+        const iconPath = `${this._extensionPath}/icons/zoned-symbolic.svg`;
         this._icon = new St.Icon({
-            icon_name: 'view-grid-symbolic',
+            gicon: Gio.icon_new_for_string(iconPath),
             style_class: 'system-status-icon',
             icon_size: 16
         });
@@ -126,11 +129,15 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         if (this._hasConflicts !== hasConflicts) {
             this._hasConflicts = hasConflicts;
             
-            // Update icon color if conflicts exist
+            // Swap icon file when conflicts exist
             if (hasConflicts) {
-                this._icon.style = 'color: #f57900;'; // Orange warning color
+                const warningIconPath = `${this._extensionPath}/icons/zoned-warning.svg`;
+                this._icon.gicon = Gio.icon_new_for_string(warningIconPath);
+                logger.debug('Switching to warning icon (conflicts detected)');
             } else {
-                this._icon.style = '';
+                const normalIconPath = `${this._extensionPath}/icons/zoned-symbolic.svg`;
+                this._icon.gicon = Gio.icon_new_for_string(normalIconPath);
+                logger.debug('Switching to normal icon (no conflicts)');
             }
             
             this.updateMenu();
