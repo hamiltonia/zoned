@@ -69,7 +69,7 @@ fi
 # Enable DEBUG mode for development
 if ssh "$VM_USER@$VM_IP" "test -f ~/.local/share/gnome-shell/extensions/$EXTENSION_UUID/utils/debug.js" 2>/dev/null; then
     echo -e "${BLUE}Enabling DEBUG logging (development mode)...${NC}"
-    ssh "$VM_USER@$VM_IP" "sed -i 's/^const DEBUG = .*/const DEBUG = true;/' ~/.local/share/gnome-shell/extensions/$EXTENSION_UUID/utils/debug.js"
+    ssh "$VM_USER@$VM_IP" "sed -i 's/^const DEBUG = .*/const DEBUG = true;/' ~/.local/share/gnome-shell/extensions/$EXTENSION_UUID/utils/debug.js" 2>/dev/null
     echo -e "${GREEN}✓ DEBUG logging enabled${NC}"
 fi
 
