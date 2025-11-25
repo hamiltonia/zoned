@@ -13,14 +13,13 @@ import St from 'gi://St';
 import Gio from 'gi://Gio';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
-import { MessageDialog } from './messageDialog.js';
 import { createLogger } from '../utils/debug.js';
 
 const logger = createLogger('PanelIndicator');
 
 export const PanelIndicator = GObject.registerClass(
 class ZonedPanelIndicator extends PanelMenu.Button {
-    _init(profileManager, conflictDetector, profilePicker, notificationManager, zoneOverlay, profileSettings) {
+    _init(profileManager, conflictDetector, profilePicker, notificationManager, zoneOverlay) {
         super._init(0.0, 'Zoned Indicator', false);
 
         this._profileManager = profileManager;
@@ -28,7 +27,6 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         this._profilePicker = profilePicker;
         this._notificationManager = notificationManager;
         this._zoneOverlay = zoneOverlay;
-        this._profileSettings = profileSettings;
         this._hasConflicts = false;
 
         // Create icon with reduced padding - using custom SVG
@@ -83,15 +81,6 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         });
         
         this.menu.addMenuItem(profilesSubmenu);
-        
-        // Profile Settings menu item
-        if (this._profileSettings) {
-            const settingsItem = new PopupMenu.PopupMenuItem('Profile Settings...');
-            settingsItem.connect('activate', () => {
-                this._profileSettings.show();
-            });
-            this.menu.addMenuItem(settingsItem);
-        }
         
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
@@ -190,17 +179,12 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         }
         
         if (results.failed.length > 0) {
-            let message = `Failed to fix ${results.failed.length} conflict${results.failed.length !== 1 ? 's' : ''}:\n\n`;
-            results.failed.forEach(item => {
-                message += `✗ ${item.action}: ${item.error}\n`;
-            });
-            
-            const dialog = new MessageDialog({
-                title: 'Zoned - Error',
-                message: message,
-                type: 'error'
-            });
-            dialog.show();
+            // Show error notification (MessageDialog removed)
+            this._notificationManager.show(
+                `Failed to fix ${results.failed.length} conflict${results.failed.length !== 1 ? 's' : ''}`,
+                3000
+            );
+            logger.error(`Failed to fix conflicts: ${JSON.stringify(results.failed)}`);
         }
     }
 
@@ -212,30 +196,20 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         const conflicts = this._conflictDetector.getConflicts();
         
         if (conflicts.length === 0) {
-            const dialog = new MessageDialog({
-                title: 'Zoned - No Conflicts',
-                message: 'No keybinding conflicts detected.',
-                type: 'info'
-            });
-            dialog.show();
+            this._notificationManager.show('No keybinding conflicts detected', 2000);
             return;
         }
 
-        let message = `${conflicts.length} keybinding conflict${conflicts.length !== 1 ? 's' : ''} detected:\n\n`;
-        
+        // Log conflicts (dialog removed - will add proper UI in future sprint)
+        logger.info(`${conflicts.length} keybinding conflict(s) detected:`);
         conflicts.forEach((conflict, index) => {
-            message += `${index + 1}. ${conflict.zonedBinding}\n`;
-            message += `   ${conflict.gnomeDescription}\n`;
+            logger.info(`  ${index + 1}. ${conflict.zonedBinding} - ${conflict.gnomeDescription}`);
         });
         
-        message += '\n\nClick "Fix Conflicts Automatically" to resolve.';
-        
-        const dialog = new MessageDialog({
-            title: 'Zoned - Keybinding Conflicts',
-            message: message,
-            type: 'warning'
-        });
-        dialog.show();
+        this._notificationManager.show(
+            `${conflicts.length} conflict${conflicts.length !== 1 ? 's' : ''} detected. Use "Fix Conflicts" to resolve.`,
+            3000
+        );
     }
 
     /**
@@ -243,21 +217,9 @@ class ZonedPanelIndicator extends PanelMenu.Button {
      * @private
      */
     _showAbout() {
-        const message = 'Advanced Window Zone Management\n\n' +
-                       'Version: 1.0\n' +
-                       'Keyboard Shortcuts:\n' +
-                       '  Super+Left/Right - Cycle zones\n' +
-                       '  Super+` - Profile picker\n' +
-                       '  Super+Up - Maximize/Restore\n' +
-                       '  Super+Down - Minimize\n\n' +
-                       'https://github.com/hamiltonia/zoned';
-        
-        const dialog = new MessageDialog({
-            title: 'Zoned - About This Extension',
-            message: message,
-            type: 'info'
-        });
-        dialog.show();
+        // Simple notification (dialog removed - will add proper about UI in future sprint)
+        this._notificationManager.show('Zoned v1.0 - github.com/hamiltonia/zoned', 3000);
+        logger.info('About: Zoned v1.0 - Advanced Window Zone Management');
     }
 
     /**
