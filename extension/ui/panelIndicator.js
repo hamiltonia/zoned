@@ -13,20 +13,21 @@ import St from 'gi://St';
 import Gio from 'gi://Gio';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
-import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import { MessageDialog } from './messageDialog.js';
 import { createLogger } from '../utils/debug.js';
 
 const logger = createLogger('PanelIndicator');
 
 export const PanelIndicator = GObject.registerClass(
 class ZonedPanelIndicator extends PanelMenu.Button {
-    _init(profileManager, conflictDetector, profilePicker, notificationManager) {
+    _init(profileManager, conflictDetector, profilePicker, notificationManager, zoneOverlay) {
         super._init(0.0, 'Zoned Indicator', false);
 
         this._profileManager = profileManager;
         this._conflictDetector = conflictDetector;
         this._profilePicker = profilePicker;
         this._notificationManager = notificationManager;
+        this._zoneOverlay = zoneOverlay;
         this._hasConflicts = false;
 
         // Create icon with reduced padding - using custom SVG
@@ -149,8 +150,8 @@ class ZonedPanelIndicator extends PanelMenu.Button {
      * @private
      */
     _onProfileSelected(profileId) {
-        // Use shared helper that handles both profile switching and notification
-        this._profileManager.setProfileWithNotification(profileId, this._notificationManager);
+        // Use shared helper that handles both profile switching and notification (center-screen for user action)
+        this._profileManager.setProfileWithNotification(profileId, this._zoneOverlay);
         this.updateMenu();
     }
 
@@ -164,12 +165,11 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         const results = this._conflictDetector.autoFixConflicts();
         
         if (results.fixed.length > 0) {
-            let message = `Fixed ${results.fixed.length} conflict${results.fixed.length !== 1 ? 's' : ''}:\n\n`;
-            results.fixed.forEach(item => {
-                message += `✓ Disabled: ${item.action}\n`;
-            });
-            
-            Main.notify('Zoned - Conflicts Fixed', message);
+            // Show success notification at top (system message)
+            this._notificationManager.show(
+                `✓ Fixed ${results.fixed.length} conflict${results.fixed.length !== 1 ? 's' : ''}`,
+                2000
+            );
             
             // Re-detect conflicts and update UI
             this._conflictDetector.detectConflicts();
@@ -184,7 +184,12 @@ class ZonedPanelIndicator extends PanelMenu.Button {
                 message += `✗ ${item.action}: ${item.error}\n`;
             });
             
-            Main.notifyError('Zoned - Error', message);
+            const dialog = new MessageDialog({
+                title: 'Zoned - Error',
+                message: message,
+                type: 'error'
+            });
+            dialog.show();
         }
     }
 
@@ -196,7 +201,12 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         const conflicts = this._conflictDetector.getConflicts();
         
         if (conflicts.length === 0) {
-            Main.notify('Zoned', 'No conflicts detected.');
+            const dialog = new MessageDialog({
+                title: 'Zoned - No Conflicts',
+                message: 'No keybinding conflicts detected.',
+                type: 'info'
+            });
+            dialog.show();
             return;
         }
 
@@ -209,7 +219,12 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         
         message += '\n\nClick "Fix Conflicts Automatically" to resolve.';
         
-        Main.notify('Zoned - Keybinding Conflicts', message);
+        const dialog = new MessageDialog({
+            title: 'Zoned - Keybinding Conflicts',
+            message: message,
+            type: 'warning'
+        });
+        dialog.show();
     }
 
     /**
@@ -217,7 +232,7 @@ class ZonedPanelIndicator extends PanelMenu.Button {
      * @private
      */
     _showAbout() {
-        const message = 'Zoned - Advanced Window Zone Management\n\n' +
+        const message = 'Advanced Window Zone Management\n\n' +
                        'Version: 1.0\n' +
                        'Keyboard Shortcuts:\n' +
                        '  Super+Left/Right - Cycle zones\n' +
@@ -226,7 +241,12 @@ class ZonedPanelIndicator extends PanelMenu.Button {
                        '  Super+Down - Minimize\n\n' +
                        'https://github.com/hamiltonia/zoned';
         
-        Main.notify('Zoned', message);
+        const dialog = new MessageDialog({
+            title: 'Zoned - About This Extension',
+            message: message,
+            type: 'info'
+        });
+        dialog.show();
     }
 
     /**

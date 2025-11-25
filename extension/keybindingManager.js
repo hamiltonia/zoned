@@ -133,13 +133,9 @@ export class KeybindingManager {
         const zoneIndex = this._profileManager.getCurrentZoneIndex();
         const totalZones = profile.zones.length;
 
-        // Show zone overlay if available, otherwise fall back to notification
+        // Show zone overlay (center-screen notification for user action)
         if (this._zoneOverlay) {
             this._zoneOverlay.show(profile.name, zoneIndex, totalZones);
-        } else {
-            this._notificationManager.show(
-                `${profile.name}: Zone ${zoneIndex + 1}/${totalZones}`
-            );
         }
     }
 
@@ -168,13 +164,9 @@ export class KeybindingManager {
         const zoneIndex = this._profileManager.getCurrentZoneIndex();
         const totalZones = profile.zones.length;
 
-        // Show zone overlay if available, otherwise fall back to notification
+        // Show zone overlay (center-screen notification for user action)
         if (this._zoneOverlay) {
             this._zoneOverlay.show(profile.name, zoneIndex, totalZones);
-        } else {
-            this._notificationManager.show(
-                `${profile.name}: Zone ${zoneIndex + 1}/${totalZones}`
-            );
         }
     }
 
@@ -206,7 +198,11 @@ export class KeybindingManager {
         }
 
         this._windowManager.minimizeWindow(window);
-        this._notificationManager.show('Minimized');
+        
+        // Show center-screen notification for user action
+        if (this._zoneOverlay) {
+            this._zoneOverlay.showMessage('Minimized');
+        }
     }
 
     /**
@@ -221,7 +217,10 @@ export class KeybindingManager {
         // First, try to restore any minimized window
         const restored = this._windowManager.restoreMinimizedWindow();
         if (restored) {
-            this._notificationManager.show('Restored');
+            // Show center-screen notification for user action
+            if (this._zoneOverlay) {
+                this._zoneOverlay.showMessage('Restored');
+            }
             return;
         }
         
@@ -236,10 +235,13 @@ export class KeybindingManager {
 
         this._windowManager.maximizeWindow(window);
 
-        if (wasMaximized) {
-            this._notificationManager.show('Unmaximized');
-        } else {
-            this._notificationManager.show('Maximized');
+        // Show center-screen notification for user action
+        if (this._zoneOverlay) {
+            if (wasMaximized) {
+                this._zoneOverlay.showMessage('Unmaximized');
+            } else {
+                this._zoneOverlay.showMessage('Maximized');
+            }
         }
     }
 

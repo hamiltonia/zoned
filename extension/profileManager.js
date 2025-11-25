@@ -245,11 +245,11 @@ export class ProfileManager {
      * Set the active profile by ID with notification
      * This is the preferred method for UI-triggered profile changes
      * @param {string} profileId - The profile ID to activate
-     * @param {NotificationManager} notificationManager - Notification manager instance
+     * @param {ZoneOverlay} zoneOverlay - Zone overlay instance for center-screen notification
      * @returns {boolean} True if profile was found and set
      */
-    setProfileWithNotification(profileId, notificationManager) {
-        logger.debug(`setProfileWithNotification called with profileId: ${profileId}, notificationManager: ${notificationManager ? 'present' : 'NULL'}`);
+    setProfileWithNotification(profileId, zoneOverlay) {
+        logger.debug(`setProfileWithNotification called with profileId: ${profileId}, zoneOverlay: ${zoneOverlay ? 'present' : 'NULL'}`);
         
         const profile = this._profiles.find(p => p.id === profileId);
         
@@ -265,13 +265,13 @@ export class ProfileManager {
         
         this._saveState();
         
-        // Show notification using the same system as window snapping
-        logger.debug(`About to call notificationManager.show() with message: "Switched to: ${profile.name}"`);
-        if (notificationManager) {
-            notificationManager.show(`Switched to: ${profile.name}`);
-            logger.debug('notificationManager.show() called');
+        // Show center-screen notification for user action
+        logger.debug(`About to show zone overlay with message: "Switched to: ${profile.name}"`);
+        if (zoneOverlay) {
+            zoneOverlay.showMessage(`Switched to: ${profile.name}`);
+            logger.debug('zoneOverlay.showMessage() called');
         } else {
-            logger.error('notificationManager is NULL - cannot show notification!');
+            logger.error('zoneOverlay is NULL - cannot show notification!');
         }
         
         return true;

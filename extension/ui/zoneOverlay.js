@@ -8,14 +8,18 @@
  */
 
 import GLib from 'gi://GLib';
+import Gio from 'gi://Gio';
 import St from 'gi://St';
+import Clutter from 'gi://Clutter';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { createLogger } from '../utils/debug.js';
 
 const logger = createLogger('ZoneOverlay');
 
 export class ZoneOverlay {
-    constructor() {
+    constructor(extension) {
+        this._extension = extension;
         this._overlay = null;
         this._timeoutId = null;
     }
@@ -29,39 +33,96 @@ export class ZoneOverlay {
      * @param {number} duration - Duration to show overlay in milliseconds (default: 1000)
      */
     show(profileName, zoneIndex, totalZones, duration = 1000) {
+        const profileText = profileName;
+        const messageText = `Zone ${zoneIndex + 1} of ${totalZones}`;
+        this._showNotification(profileText, messageText, duration);
+    }
+
+    /**
+     * Show a generic message notification (center-screen)
+     * 
+     * @param {string} message - Message to display
+     * @param {number} duration - Duration to show overlay in milliseconds (default: 1000)
+     */
+    showMessage(message, duration = 1000) {
+        this._showNotification(null, message, duration);
+    }
+
+    /**
+     * Internal method to display the notification
+     * @private
+     */
+    _showNotification(titleText, messageText, duration) {
         // Remove existing overlay first
         this._hide();
 
         try {
-            // Create overlay container
-            this._overlay = new St.BoxLayout({
-                style_class: 'zone-overlay',
+            // Create main container with BinLayout for proper stacking
+            const container = new St.Widget({
+                style_class: 'zone-overlay-container',
+                layout_manager: new Clutter.BinLayout(),
+                width: 512,
+                height: 512
+            });
+
+            // Add icon as full background (first child = back layer)
+            try {
+                const iconPath = this._extension.path + '/icons/zoned-watermark.svg';
+                const iconFile = Gio.File.new_for_path(iconPath);
+                
+                if (iconFile.query_exists(null)) {
+                    const backgroundIcon = new St.Icon({
+                        gicon: Gio.icon_new_for_string(iconPath),
+                        icon_size: 512,
+                        opacity: 80,  // Semi-transparent icon background
+                        x_align: Clutter.ActorAlign.CENTER,
+                        y_align: Clutter.ActorAlign.CENTER,
+                        x_expand: true,
+                        y_expand: true
+                    });
+                    
+                    container.add_child(backgroundIcon);
+                    logger.debug('Background icon added to overlay');
+                }
+            } catch (iconError) {
+                logger.debug(`Background icon not loaded: ${iconError}`);
+            }
+
+            // Add content box on top of icon (second child = front layer)
+            const contentBox = new St.BoxLayout({
                 vertical: true,
-                style: 'background-color: rgba(40, 40, 40, 0.9); ' +
-                       'border-radius: 12px; ' +
-                       'padding: 20px 30px; ' +
-                       'spacing: 8px;'
+                style: 'spacing: 8px; padding: 30px 40px;',
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+                x_expand: true,
+                y_expand: true
             });
 
-            // Profile name label
-            const profileLabel = new St.Label({
-                text: profileName,
-                style: 'font-size: 18px; ' +
-                       'font-weight: bold; ' +
-                       'color: #ffffff; ' +
-                       'text-align: center;'
-            });
-            this._overlay.add_child(profileLabel);
+            // Add title if provided (for zone cycling)
+            if (titleText) {
+                const titleLabel = new St.Label({
+                    text: titleText,
+                    style: 'font-weight: bold; ' +
+                           'color: #ffffff; ' +
+                           'text-align: center; ' +
+                           'text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);'
+                });
+                contentBox.add_child(titleLabel);
+            }
 
-            // Zone info label
-            const zoneLabel = new St.Label({
-                text: `Zone ${zoneIndex + 1} of ${totalZones}`,
-                style: 'font-size: 24px; ' +
-                       'font-weight: normal; ' +
+            // Add message text
+            const messageLabel = new St.Label({
+                text: messageText,
+                style: 'font-weight: normal; ' +
                        'color: #4a90d9; ' +
-                       'text-align: center;'
+                       'text-align: center; ' +
+                       'text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);'
             });
-            this._overlay.add_child(zoneLabel);
+            contentBox.add_child(messageLabel);
+
+            container.add_child(contentBox);
+
+            this._overlay = container;
 
             // Add to UI
             Main.uiGroup.add_child(this._overlay);
@@ -79,7 +140,7 @@ export class ZoneOverlay {
                 return GLib.SOURCE_REMOVE;
             });
 
-            logger.debug(`Overlay shown: ${profileName} - Zone ${zoneIndex + 1}/${totalZones}`);
+            logger.debug(`Overlay shown: ${titleText ? titleText + ' - ' : ''}${messageText}`);
         } catch (error) {
             logger.error(`Error showing overlay: ${error}`);
         }

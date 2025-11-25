@@ -421,12 +421,41 @@ card.connect('leave-event', () => hidePreview());
 
 **Reference:** See `memory/architecture/component-design.md` and Hammerspoon's `hs.chooser` pattern
 
-#### 1.2 Alert/Notification Theming ✅ COMPLETE
-- [x] Review NotificationManager for GNOME aesthetic compliance
-- [x] Improve readability of all notification messages
-- [x] Use proper GNOME Shell theme colors
-- [x] Make alert text more concise
-- [x] Ensure notifications don't interfere with workflow
+#### 1.2 Alert/Notification System Redesign ✅ COMPLETE
+**Status:** Fully implemented with dual-notification system
+
+**Completed Features:**
+- [x] Redesigned notification system with two distinct types:
+  - **Center-screen notifications (ZoneOverlay)**: User-initiated actions
+    - 512x512px container with full colorful SVG icon background
+    - Text overlaid with shadow effects for readability
+    - Used for: window snap, profile switch, minimize/maximize
+  - **Top-bar notifications (NotificationManager)**: System messages
+    - [Icon] | Message layout with 36px colorful icon
+    - Positioned below panel (proper allocation timing)
+    - Used for: startup, conflicts, auto-fix results
+- [x] Switched from symbolic to colorful branded icons throughout
+- [x] Fixed positioning issues (no overlap with panel)
+- [x] Optimized assets (SVG only, ~7KB total for all icons)
+- [x] Created comprehensive documentation in `memory/development/notification-strategy.md`
+
+**Technical Implementation:**
+```javascript
+// Center notification (ZoneOverlay)
+container = new St.Widget({
+    layout_manager: new Clutter.BinLayout(),
+    width: 512, height: 512
+});
+// Watermark icon as background, text overlaid
+
+// Top notification (NotificationManager)  
+notification = new St.BoxLayout({
+    vertical: false  // Horizontal [Icon] | Message layout
+});
+// 36px icon, separator, message text
+```
+
+**Reference:** `memory/development/notification-strategy.md`
 
 #### 1.3 Panel Indicator Icon Update
 - [ ] Change icon from 2x2 grid (`view-grid-symbolic`) to 3-column style
@@ -434,8 +463,8 @@ card.connect('leave-event', () => hidePreview());
   - Need icon representing column-based layouts
   - Consider custom icon or find better symbolic icon
 
-#### 1.4 Replace System Alerts with Custom MessageDialog
-**Status:** Planning complete - see `memory/development/message-dialog-spec.md`
+#### 1.4 Replace System Alerts with Custom MessageDialog ✅ COMPLETE
+**Status:** Fully implemented and integrated
 
 **Problem:** Currently using 7 instances of `Main.notify()` and `Main.notifyError()` system notifications
 - 2 in `extension/extension.js` (startup warnings, errors)
@@ -444,12 +473,12 @@ card.connect('leave-event', () => hidePreview());
 **Solution:** Create custom MessageDialog component for consistent, branded UI
 
 **Implementation Steps:**
-- [ ] Create `extension/ui/messageDialog.js` (see spec for full implementation)
-- [ ] Support three message types: info, warning, error
-- [ ] Modal dialog with fade animations
-- [ ] Multiple dismissal methods (OK button, Esc key, click outside)
-- [ ] Replace all 7 system notification calls
-- [ ] Test all dialog types and dismissal methods
+- [x] Create `extension/ui/messageDialog.js` (see spec for full implementation)
+- [x] Support three message types: info, warning, error
+- [x] Modal dialog with fade animations
+- [x] Multiple dismissal methods (OK button, Esc key, click outside)
+- [x] Replace all 7 system notification calls
+- [x] Test all dialog types and dismissal methods
 
 **Reference:** `memory/development/message-dialog-spec.md`
 

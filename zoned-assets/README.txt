@@ -1,8 +1,10 @@
-Zoned - Complete Asset Package
-================================
+Zoned - Complete Asset Package (Full-Bleed Icons)
+==================================================
+
+UPDATED: Icons now fill the entire canvas with minimal padding.
 
 Structure:
-  icons/       - PNG icons (48px to 512px)
+  icons/       - PNG icons (48px to 512px) - FULL-BLEED
   panel/       - GNOME Shell panel indicator (symbolic SVG)
   wordmarks/   - Dark and light theme wordmarks (PNG)
   github/      - README banner and social preview (PNG)
@@ -17,4 +19,4 @@ Quick Start:
 - GitHub README: Use github/github-banner.png
 - Website: Use favicon/favicon.ico
 
-All SVG sources are scalable to any size needed.
+All icons now maximize canvas space for better visibility.

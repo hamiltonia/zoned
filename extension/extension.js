@@ -24,6 +24,7 @@ import {ProfilePicker} from './ui/profilePicker.js';
 import {ZoneOverlay} from './ui/zoneOverlay.js';
 import {ConflictDetector} from './ui/conflictDetector.js';
 import {PanelIndicator} from './ui/panelIndicator.js';
+import {MessageDialog} from './ui/messageDialog.js';
 import {createLogger} from './utils/debug.js';
 
 const logger = createLogger('Extension');
@@ -76,17 +77,17 @@ export default class ZonedExtension extends Extension {
             logger.debug('ConflictDetector initialized');
 
             // Initialize NotificationManager
-            this._notificationManager = new NotificationManager();
+            this._notificationManager = new NotificationManager(this);
             logger.debug('NotificationManager initialized');
 
             // Initialize ZoneOverlay
-            this._zoneOverlay = new ZoneOverlay();
+            this._zoneOverlay = new ZoneOverlay(this);
             logger.debug('ZoneOverlay initialized');
 
             // Initialize ProfilePicker (simple, no callbacks needed)
             this._profilePicker = new ProfilePicker(
                 this._profileManager,
-                this._notificationManager,
+                this._zoneOverlay,
                 this._settings
             );
             logger.debug('ProfilePicker initialized');
@@ -96,7 +97,8 @@ export default class ZonedExtension extends Extension {
                 this._profileManager,
                 this._conflictDetector,
                 this._profilePicker,
-                this._notificationManager
+                this._notificationManager,
+                this._zoneOverlay
             );
             Main.panel.addToStatusArea('zoned-indicator', this._panelIndicator);
             
@@ -122,7 +124,7 @@ export default class ZonedExtension extends Extension {
             const currentProfile = this._profileManager.getCurrentProfile();
             if (currentProfile) {
                 this._notificationManager.show(
-                    `Zoned enabled: ${currentProfile.name}`,
+                    `Enabled: ${currentProfile.name}`,
                     1500
                 );
             }
@@ -130,9 +132,9 @@ export default class ZonedExtension extends Extension {
             // Warn if conflicts detected
             if (this._conflictDetector.hasConflicts()) {
                 const conflictCount = conflicts.length;
-                Main.notify(
-                    'Zoned',
-                    `⚠️ ${conflictCount} keybinding conflict${conflictCount !== 1 ? 's' : ''} detected. Click the Zoned icon in the top bar for details.`
+                this._notificationManager.show(
+                    `⚠️ ${conflictCount} keybinding conflict${conflictCount !== 1 ? 's' : ''} detected. Click icon for details.`,
+                    3000
                 );
             }
 
@@ -144,8 +146,13 @@ export default class ZonedExtension extends Extension {
             // Clean up on error
             this.disable();
             
-            // Show error notification
-            Main.notifyError('Zoned Error', `Failed to enable: ${error.message}`);
+            // Show error dialog
+            const dialog = new MessageDialog({
+                title: 'Zoned - Error',
+                message: `Failed to enable Zoned extension:\n\n${error.message}`,
+                type: 'error'
+            });
+            dialog.show();
         }
     }
 

@@ -29,15 +29,15 @@ const HEADER_SECTION_HEIGHT = 0;  // Reserved for future: explanation text, sett
 export class ProfilePicker {
     /**
      * @param {ProfileManager} profileManager - Profile manager instance
-     * @param {NotificationManager} notificationManager - Notification manager instance
+     * @param {ZoneOverlay} zoneOverlay - Zone overlay instance for notifications
      * @param {Gio.Settings} settings - GSettings instance
      */
-    constructor(profileManager, notificationManager, settings) {
+    constructor(profileManager, zoneOverlay, settings) {
         this._profileManager = profileManager;
-        this._notificationManager = notificationManager;
+        this._zoneOverlay = zoneOverlay;
         this._settings = settings;
         this._dialog = null;
-        this._zoneOverlay = null;
+        this._fullScreenOverlay = null;
         this._selectedIndex = 0;
         this._profileButtons = [];
     }
@@ -122,7 +122,7 @@ export class ProfilePicker {
      */
     _createZoneOverlay(profile) {
         // If overlay already exists, just update it
-        if (this._zoneOverlay) {
+        if (this._fullScreenOverlay) {
             this._updateZoneOverlay(profile);
             return;
         }
@@ -132,7 +132,7 @@ export class ProfilePicker {
         const CORNER_RADIUS = 12;  // GNOME default window corner radius
         
         // Create full-screen overlay widget
-        this._zoneOverlay = new St.Widget({
+        this._fullScreenOverlay = new St.Widget({
             style: 'background-color: rgba(0, 0, 0, 0.3);',
             width: monitor.width,
             height: monitor.height,
@@ -142,7 +142,7 @@ export class ProfilePicker {
         });
         
         // Create drawing area for zones
-        this._zoneOverlayCanvas = new St.DrawingArea({
+        this._fullScreenOverlayCanvas = new St.DrawingArea({
             width: monitor.width,
             height: monitor.height
         });
@@ -150,10 +150,10 @@ export class ProfilePicker {
         // Store current profile for repainting
         this._overlayProfile = profile;
         
-        this._zoneOverlayCanvas.connect('repaint', () => {
+        this._fullScreenOverlayCanvas.connect('repaint', () => {
             try {
-                const cr = this._zoneOverlayCanvas.get_context();
-                const [w, h] = this._zoneOverlayCanvas.get_surface_size();
+                const cr = this._fullScreenOverlayCanvas.get_context();
+                const [w, h] = this._fullScreenOverlayCanvas.get_surface_size();
                 
                 if (!this._overlayProfile) {
                     cr.$dispose();
@@ -195,10 +195,10 @@ export class ProfilePicker {
             }
         });
         
-        this._zoneOverlay.add_child(this._zoneOverlayCanvas);
+        this._fullScreenOverlay.add_child(this._fullScreenOverlayCanvas);
         
         // Add to stage BEFORE the dialog (so it appears behind)
-        Main.uiGroup.insert_child_below(this._zoneOverlay, this._dialog);
+        Main.uiGroup.insert_child_below(this._fullScreenOverlay, this._dialog);
         
         logger.debug(`Zone overlay created for profile: ${profile.name}`);
     }
@@ -208,13 +208,13 @@ export class ProfilePicker {
      * @private
      */
     _updateZoneOverlay(profile) {
-        if (!this._zoneOverlay || !this._zoneOverlayCanvas) {
+        if (!this._fullScreenOverlay || !this._fullScreenOverlayCanvas) {
             this._createZoneOverlay(profile);
             return;
         }
         
         this._overlayProfile = profile;
-        this._zoneOverlayCanvas.queue_repaint();
+        this._fullScreenOverlayCanvas.queue_repaint();
         
         logger.debug(`Zone overlay updated to profile: ${profile.name}`);
     }
@@ -224,11 +224,11 @@ export class ProfilePicker {
      * @private
      */
     _destroyZoneOverlay() {
-        if (this._zoneOverlay) {
-            Main.uiGroup.remove_child(this._zoneOverlay);
-            this._zoneOverlay.destroy();
-            this._zoneOverlay = null;
-            this._zoneOverlayCanvas = null;
+        if (this._fullScreenOverlay) {
+            Main.uiGroup.remove_child(this._fullScreenOverlay);
+            this._fullScreenOverlay.destroy();
+            this._fullScreenOverlay = null;
+            this._fullScreenOverlayCanvas = null;
             this._overlayProfile = null;
             logger.debug('Zone overlay destroyed');
         }
@@ -435,8 +435,7 @@ export class ProfilePicker {
         // Title
         const title = new St.Label({
             text: 'Select Profile',
-            style: 'font-size: 28px; ' +
-                   'font-weight: bold; ' +
+            style: 'font-weight: bold; ' +
                    'color: #ffffff; ' +
                    'text-align: center;'
         });
@@ -491,8 +490,7 @@ export class ProfilePicker {
         // Instructions
         const instructions = new St.Label({
             text: '1-9: Quick Select  Arrows: Navigate  Enter: Confirm  Esc: Cancel',
-            style: 'font-size: 24px; ' +
-                   'color: #aaaaaa; ' +
+            style: 'color: #aaaaaa; ' +
                    'text-align: center;'
         });
         container.add_child(instructions);
@@ -562,7 +560,7 @@ export class ProfilePicker {
         if (index < 9) {
             const numberOverlay = new St.Label({
                 text: `${index + 1}`,
-                style: 'font-size: 64px; color: rgba(255, 255, 255, 0.3); font-weight: bold;',
+                style: 'color: rgba(255, 255, 255, 0.3); font-weight: bold;',
                 x_align: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER,
                 x_expand: true,
@@ -576,7 +574,7 @@ export class ProfilePicker {
         // Profile name
         const name = new St.Label({
             text: profile.name,
-            style: 'font-size: 16px; text-align: center; font-weight: bold;'
+            style: 'text-align: center; font-weight: bold;'
         });
         box.add_child(name);
         
@@ -584,7 +582,7 @@ export class ProfilePicker {
         if (isCurrentProfile) {
             const indicator = new St.Label({
                 text: '●',
-                style: 'font-size: 12px; color: #4a90d9; text-align: center;'
+                style: 'color: #4a90d9; text-align: center;'
             });
             box.add_child(indicator);
         }
@@ -635,7 +633,7 @@ export class ProfilePicker {
         logger.info(`Profile selection triggered: ${profileId}`);
         
         // Use shared helper that handles both profile switching and notification
-        this._profileManager.setProfileWithNotification(profileId, this._notificationManager);
+        this._profileManager.setProfileWithNotification(profileId, this._zoneOverlay);
         
         // Hide dialog
         this.hide();
