@@ -24,6 +24,8 @@ import {ProfilePicker} from './ui/profilePicker.js';
 import {ZoneOverlay} from './ui/zoneOverlay.js';
 import {ConflictDetector} from './ui/conflictDetector.js';
 import {PanelIndicator} from './ui/panelIndicator.js';
+import {ProfileSettings} from './ui/profileSettings.js';
+import {ProfileEditor} from './ui/profileEditor.js';
 import {MessageDialog} from './ui/messageDialog.js';
 import {createLogger} from './utils/debug.js';
 
@@ -39,6 +41,7 @@ export default class ZonedExtension extends Extension {
         this._profileManager = null;
         this._notificationManager = null;
         this._profilePicker = null;
+        this._profileSettings = null;
         this._zoneOverlay = null;
         this._conflictDetector = null;
         this._panelIndicator = null;
@@ -92,13 +95,23 @@ export default class ZonedExtension extends Extension {
             );
             logger.debug('ProfilePicker initialized');
 
+            // Initialize ProfileSettings (with ProfileEditor class reference)
+            this._profileSettings = new ProfileSettings(
+                this._profileManager,
+                this._settings,
+                this.path,
+                ProfileEditor
+            );
+            logger.debug('ProfileSettings initialized');
+
             // Initialize PanelIndicator
             this._panelIndicator = new PanelIndicator(
                 this._profileManager,
                 this._conflictDetector,
                 this._profilePicker,
                 this._notificationManager,
-                this._zoneOverlay
+                this._zoneOverlay,
+                this._profileSettings
             );
             Main.panel.addToStatusArea('zoned-indicator', this._panelIndicator);
             
@@ -178,6 +191,12 @@ export default class ZonedExtension extends Extension {
             }
 
             // Destroy UI components
+            if (this._profileSettings) {
+                this._profileSettings.destroy();
+                this._profileSettings = null;
+                logger.debug('ProfileSettings destroyed');
+            }
+
             if (this._profilePicker) {
                 this._profilePicker.destroy();
                 this._profilePicker = null;

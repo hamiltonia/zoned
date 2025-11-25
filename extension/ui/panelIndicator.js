@@ -20,7 +20,7 @@ const logger = createLogger('PanelIndicator');
 
 export const PanelIndicator = GObject.registerClass(
 class ZonedPanelIndicator extends PanelMenu.Button {
-    _init(profileManager, conflictDetector, profilePicker, notificationManager, zoneOverlay) {
+    _init(profileManager, conflictDetector, profilePicker, notificationManager, zoneOverlay, profileSettings) {
         super._init(0.0, 'Zoned Indicator', false);
 
         this._profileManager = profileManager;
@@ -28,6 +28,7 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         this._profilePicker = profilePicker;
         this._notificationManager = notificationManager;
         this._zoneOverlay = zoneOverlay;
+        this._profileSettings = profileSettings;
         this._hasConflicts = false;
 
         // Create icon with reduced padding - using custom SVG
@@ -82,6 +83,16 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         });
         
         this.menu.addMenuItem(profilesSubmenu);
+        
+        // Profile Settings menu item
+        if (this._profileSettings) {
+            const settingsItem = new PopupMenu.PopupMenuItem('Profile Settings...');
+            settingsItem.connect('activate', () => {
+                this._profileSettings.show();
+            });
+            this.menu.addMenuItem(settingsItem);
+        }
+        
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         // Conflict warning and fix option (if applicable)

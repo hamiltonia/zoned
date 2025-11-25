@@ -13,6 +13,7 @@
 
 import GObject from 'gi://GObject';
 import St from 'gi://St';
+import Shell from 'gi://Shell';
 import Clutter from 'gi://Clutter';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { createLogger } from '../utils/debug.js';
@@ -35,6 +36,8 @@ export class MessageDialog {
         this._backgroundActor = null;
         this._dialogBox = null;
         this._keyPressId = null;
+        this._buttons = [];
+        this._buttonBox = null;
         
         this._buildUI();
     }
@@ -44,11 +47,15 @@ export class MessageDialog {
      * @private
      */
     _buildUI() {
+        logger.debug(`Building UI for dialog: "${this._title}"`);
+        
         // Modal background (semi-transparent overlay)
         this._backgroundActor = new St.Bin({
             style_class: 'zoned-modal-background',
             style: 'background-color: rgba(0, 0, 0, 0.4);',
             reactive: true,
+            track_hover: true,
+            can_focus: true,
             x_expand: true,
             y_expand: true,
             x_align: Clutter.ActorAlign.CENTER,
@@ -112,24 +119,29 @@ export class MessageDialog {
         this._dialogBox.add_child(scrollView);
         
         // Button container
-        const buttonBox = new St.BoxLayout({
+        this._buttonBox = new St.BoxLayout({
             style: 'margin-top: 20px;',
-            x_align: Clutter.ActorAlign.END
+            x_align: Clutter.ActorAlign.END,
+            spacing: 10
         });
         
+        // Add default OK button (will be replaced if setButtons is called)
         const okButton = new St.Button({
             label: 'OK',
             style_class: 'button',
-            style: 'padding: 8px 24px; border-radius: 6px;',
+            style: 'padding: 8px 24px; border-radius: 6px; font-weight: bold;',
             reactive: true
         });
         okButton.connect('clicked', () => this.hide());
-        buttonBox.add_child(okButton);
+        this._buttonBox.add_child(okButton);
+        this._buttons.push(okButton);
         
-        this._dialogBox.add_child(buttonBox);
+        this._dialogBox.add_child(this._buttonBox);
         
         // Add dialog to background
         this._backgroundActor.add_child(this._dialogBox);
+        
+        logger.debug('UI build complete');
         
         // Click outside to close
         this._backgroundActor.connect('button-press-event', (actor, event) => {
@@ -140,6 +152,45 @@ export class MessageDialog {
             }
             return Clutter.EVENT_PROPAGATE;
         });
+    }
+    
+    /**
+     * Set custom buttons for the dialog
+     * @param {Array} buttons - Array of button configurations
+     *   Each button: { label: string, action: function, default?: boolean }
+     */
+    setButtons(buttons) {
+        if (!this._buttonBox) {
+            logger.error('Cannot set buttons: button box not initialized');
+            return;
+        }
+        
+        // Clear existing buttons
+        this._buttonBox.destroy_all_children();
+        this._buttons = [];
+        
+        // Add custom buttons
+        buttons.forEach((btnConfig, index) => {
+            const isDefault = btnConfig.default || index === 0;
+            
+            const button = new St.Button({
+                label: btnConfig.label,
+                style_class: 'button',
+                style: `padding: 8px 24px; border-radius: 6px;${isDefault ? ' font-weight: bold;' : ''}`,
+                reactive: true
+            });
+            
+            button.connect('clicked', () => {
+                if (btnConfig.action) {
+                    btnConfig.action();
+                }
+            });
+            
+            this._buttonBox.add_child(button);
+            this._buttons.push(button);
+        });
+        
+        logger.debug(`Set ${buttons.length} custom buttons`);
     }
     
     /**
@@ -178,43 +229,87 @@ export class MessageDialog {
      * Show the dialog with fade-in animation
      */
     show() {
-        if (!this._backgroundActor) {
-            logger.error('Cannot show dialog: UI not built');
-            return;
-        }
-        
-        // Add to main chrome
-        Main.layoutManager.addChrome(this._backgroundActor, {
-            affectsStruts: false,
-            affectsInputRegion: true
-        });
-        
-        // Position to cover entire screen
-        const monitor = Main.layoutManager.primaryMonitor;
-        this._backgroundActor.set_position(0, 0);
-        this._backgroundActor.set_size(monitor.width, monitor.height);
-        
-        // Fade in animation
-        this._backgroundActor.opacity = 0;
-        this._backgroundActor.ease({
-            opacity: 255,
-            duration: 200,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD
-        });
-        
-        // Handle Esc key to close
-        this._keyPressId = this._backgroundActor.connect('key-press-event', 
-            (actor, event) => {
-                const symbol = event.get_key_symbol();
-                if (symbol === Clutter.KEY_Escape) {
-                    this.hide();
-                    return Clutter.EVENT_STOP;
-                }
-                return Clutter.EVENT_PROPAGATE;
+        try {
+            logger.debug(`[SHOW] Step 1: Starting show() for dialog: "${this._title}"`);
+            
+            if (!this._backgroundActor) {
+                logger.error('[SHOW] Step 1 FAILED: UI not built');
+                return;
             }
-        );
-        
-        logger.debug(`Showing ${this._type} dialog: "${this._title}"`);
+            logger.debug('[SHOW] Step 1 OK: Background actor exists');
+            
+            logger.debug('[SHOW] Step 2: Getting monitor...');
+            // Use currentMonitor with fallback to primaryMonitor
+            const monitor = Main.layoutManager.currentMonitor || Main.layoutManager.primaryMonitor;
+            
+            if (!monitor) {
+                logger.error('[SHOW] Step 2 FAILED: No monitor available');
+                return;
+            }
+            logger.debug(`[SHOW] Step 2 OK: Monitor found (${monitor.width}x${monitor.height})`);
+            
+            logger.debug('[SHOW] Step 3: Adding to UI group...');
+            try {
+                Main.uiGroup.add_child(this._backgroundActor);
+                logger.debug('[SHOW] Step 3 OK: Added to UI group');
+            } catch (e) {
+                logger.error(`[SHOW] Step 3 FAILED: Could not add to UI group: ${e.message}`);
+                throw e;
+            }
+            
+            logger.debug('[SHOW] Step 4: Setting position and size...');
+            this._backgroundActor.set_position(0, 0);
+            this._backgroundActor.set_size(monitor.width, monitor.height);
+            logger.debug(`[SHOW] Step 4 OK: Positioned at 0,0 with size ${monitor.width}x${monitor.height}`);
+            
+            logger.debug('[SHOW] Step 5: Attempting to grab modal...');
+            try {
+                const grabbed = Main.pushModal(this._backgroundActor, {
+                    actionMode: Shell.ActionMode.NORMAL
+                });
+                
+                if (!grabbed) {
+                    logger.error('[SHOW] Step 5 WARNING: Failed to grab modal - another modal may be active');
+                } else {
+                    logger.debug('[SHOW] Step 5 OK: Modal grabbed successfully');
+                }
+            } catch (e) {
+                logger.error(`[SHOW] Step 5 ERROR: Exception during modal grab: ${e.message}`);
+                // Continue anyway - dialog may still be usable
+            }
+            
+            logger.debug('[SHOW] Step 6: Setting up fade-in animation...');
+            this._backgroundActor.opacity = 0;
+            this._backgroundActor.ease({
+                opacity: 255,
+                duration: 200,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD
+            });
+            logger.debug('[SHOW] Step 6 OK: Animation started');
+            
+            logger.debug('[SHOW] Step 7: Connecting key-press handler...');
+            this._keyPressId = this._backgroundActor.connect('key-press-event', 
+                (actor, event) => {
+                    const symbol = event.get_key_symbol();
+                    if (symbol === Clutter.KEY_Escape) {
+                        this.hide();
+                        return Clutter.EVENT_STOP;
+                    }
+                    return Clutter.EVENT_PROPAGATE;
+                }
+            );
+            logger.debug('[SHOW] Step 7 OK: Key handler connected');
+            
+            logger.info(`[SHOW] SUCCESS: Dialog "${this._title}" shown with ${this._buttons.length} button(s)`);
+        } catch (error) {
+            logger.error(`[SHOW] FATAL ERROR in show() for "${this._title}": ${error.message}`);
+            logger.error(`[SHOW] Stack trace: ${error.stack}`);
+            
+            // Clean up on error
+            if (this._backgroundActor && this._backgroundActor.get_parent()) {
+                this._backgroundActor.get_parent().remove_child(this._backgroundActor);
+            }
+        }
     }
     
     /**
@@ -224,6 +319,9 @@ export class MessageDialog {
         if (!this._backgroundActor) return;
         
         logger.debug(`Hiding dialog: "${this._title}"`);
+        
+        // Release modal input grab
+        Main.popModal(this._backgroundActor);
         
         // Fade out animation, then destroy
         this._backgroundActor.ease({
@@ -253,8 +351,10 @@ export class MessageDialog {
             this._keyPressId = null;
         }
         
-        // Remove from chrome and destroy actors
-        Main.layoutManager.removeChrome(this._backgroundActor);
+        // Remove from UI group and destroy actors
+        if (this._backgroundActor.get_parent()) {
+            this._backgroundActor.get_parent().remove_child(this._backgroundActor);
+        }
         this._backgroundActor.destroy();
         this._backgroundActor = null;
         this._dialogBox = null;

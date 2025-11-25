@@ -70,5 +70,14 @@
       </description>
     </key>
     
+    <!-- Profile Management Settings -->
+    <key name="profile-order" type="as">
+      <default>[]</default>
+      <summary>Custom profile order</summary>
+      <description>
+        Array of profile IDs in custom display order. Empty array means use natural order.
+      </description>
+    </key>
+    
   </schema>
 </schemalist>

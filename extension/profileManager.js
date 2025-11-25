@@ -33,6 +33,9 @@ export class ProfileManager {
      */
     loadProfiles() {
         try {
+            // First-run setup: copy defaults to user config if needed
+            this._ensureUserProfilesExist();
+            
             // Load default profiles from extension
             const defaultProfiles = this._loadDefaultProfiles();
             
@@ -49,6 +52,9 @@ export class ProfileManager {
                 logger.error('No valid profiles loaded!');
                 return false;
             }
+            
+            // Apply custom ordering if set
+            this._applyProfileOrder();
             
             logger.info(`Loaded ${this._profiles.length} profiles`);
             
@@ -344,6 +350,392 @@ export class ProfileManager {
                 this._saveState();
             }
         }
+    }
+
+    /**
+     * Ensure user profiles directory and file exist (first-run setup)
+     * @private
+     */
+    _ensureUserProfilesExist() {
+        try {
+            const configDir = GLib.get_user_config_dir();
+            const zonedDir = `${configDir}/zoned`;
+            const profilesPath = `${zonedDir}/profiles.json`;
+            
+            // Check if profiles.json already exists
+            const file = Gio.File.new_for_path(profilesPath);
+            if (file.query_exists(null)) {
+                logger.debug('User profiles already exist');
+                return;
+            }
+            
+            // Create zoned directory if needed
+            const dir = Gio.File.new_for_path(zonedDir);
+            if (!dir.query_exists(null)) {
+                dir.make_directory_with_parents(null);
+                logger.info('Created user config directory');
+            }
+            
+            // Copy default profiles to user config
+            const defaultProfiles = this._loadDefaultProfiles();
+            const data = {
+                profiles: defaultProfiles,
+                profile_order: []
+            };
+            
+            const encoder = new TextEncoder();
+            const jsonString = JSON.stringify(data, null, 2);
+            const contents = encoder.encode(jsonString);
+            
+            file.replace_contents(
+                contents,
+                null,
+                false,
+                Gio.FileCreateFlags.REPLACE_DESTINATION,
+                null
+            );
+            
+            logger.info('First-run: Copied default profiles to user config');
+        } catch (error) {
+            logger.error(`Error ensuring user profiles exist: ${error}`);
+        }
+    }
+
+    /**
+     * Apply custom profile ordering from GSettings
+     * @private
+     */
+    _applyProfileOrder() {
+        const customOrder = this._settings.get_strv('profile-order');
+        
+        if (!customOrder || customOrder.length === 0) {
+            logger.debug('No custom profile order set');
+            return;
+        }
+        
+        // Reorder profiles based on custom order
+        const ordered = [];
+        const remaining = [...this._profiles];
+        
+        customOrder.forEach(id => {
+            const index = remaining.findIndex(p => p.id === id);
+            if (index >= 0) {
+                ordered.push(remaining[index]);
+                remaining.splice(index, 1);
+            }
+        });
+        
+        // Append any profiles not in order list
+        this._profiles = [...ordered, ...remaining];
+        
+        logger.debug(`Applied custom profile order (${customOrder.length} ordered)`);
+    }
+
+    /**
+     * Get user profiles file path
+     * @private
+     */
+    _getUserProfilesPath() {
+        const configDir = GLib.get_user_config_dir();
+        return `${configDir}/zoned/profiles.json`;
+    }
+
+    /**
+     * Load user profiles data structure (with profile_order)
+     * @private
+     */
+    _loadUserProfilesData() {
+        try {
+            const profilesPath = this._getUserProfilesPath();
+            const file = Gio.File.new_for_path(profilesPath);
+            
+            if (!file.query_exists(null)) {
+                return { profiles: [], profile_order: [] };
+            }
+            
+            const [success, contents] = file.load_contents(null);
+            if (!success) {
+                return { profiles: [], profile_order: [] };
+            }
+            
+            const decoder = new TextDecoder('utf-8');
+            const jsonString = decoder.decode(contents);
+            return JSON.parse(jsonString);
+        } catch (error) {
+            logger.error(`Error loading user profiles data: ${error}`);
+            return { profiles: [], profile_order: [] };
+        }
+    }
+
+    /**
+     * Save user profiles to disk
+     * @private
+     */
+    _saveUserProfiles(profiles, profileOrder = null) {
+        try {
+            const profilesPath = this._getUserProfilesPath();
+            const file = Gio.File.new_for_path(profilesPath);
+            
+            // Use provided order or get from GSettings
+            const order = profileOrder !== null ? profileOrder : this._settings.get_strv('profile-order');
+            
+            const data = {
+                profiles: profiles,
+                profile_order: order
+            };
+            
+            const encoder = new TextEncoder();
+            const jsonString = JSON.stringify(data, null, 2);
+            const contents = encoder.encode(jsonString);
+            
+            file.replace_contents(
+                contents,
+                null,
+                false,
+                Gio.FileCreateFlags.REPLACE_DESTINATION,
+                null
+            );
+            
+            logger.info(`Saved ${profiles.length} user profiles`);
+            return true;
+        } catch (error) {
+            logger.error(`Error saving user profiles: ${error}`);
+            return false;
+        }
+    }
+
+    /**
+     * Create backup of user profiles
+     * @private
+     */
+    _backupUserProfiles() {
+        try {
+            const profilesPath = this._getUserProfilesPath();
+            const backupPath = `${profilesPath}.backup`;
+            
+            const sourceFile = Gio.File.new_for_path(profilesPath);
+            const destFile = Gio.File.new_for_path(backupPath);
+            
+            if (sourceFile.query_exists(null)) {
+                sourceFile.copy(destFile, Gio.FileCopyFlags.OVERWRITE, null, null);
+                logger.info('Created backup of user profiles');
+                return true;
+            }
+            
+            return false;
+        } catch (error) {
+            logger.error(`Error backing up user profiles: ${error}`);
+            return false;
+        }
+    }
+
+    /**
+     * Generate a unique profile ID
+     * @private
+     */
+    _generateUniqueId() {
+        const timestamp = Date.now();
+        return `profile-${timestamp}`;
+    }
+
+    /**
+     * Save a profile to user config
+     * @param {Object} profile - The profile to save
+     * @returns {boolean} True if saved successfully
+     */
+    saveProfile(profile) {
+        try {
+            // Validate profile structure
+            if (!this._validateProfile(profile)) {
+                logger.error('Cannot save invalid profile');
+                return false;
+            }
+            
+            // Load current user profiles
+            const data = this._loadUserProfilesData();
+            
+            // Find if profile already exists
+            const existingIndex = data.profiles.findIndex(p => p.id === profile.id);
+            
+            if (existingIndex >= 0) {
+                // Update existing profile
+                data.profiles[existingIndex] = profile;
+                logger.info(`Updated profile '${profile.id}'`);
+            } else {
+                // Add new profile
+                data.profiles.push(profile);
+                logger.info(`Added new profile '${profile.id}'`);
+            }
+            
+            // Save to disk
+            if (this._saveUserProfiles(data.profiles, data.profile_order)) {
+                // Reload profiles to refresh in-memory state
+                this.loadProfiles();
+                return true;
+            }
+            
+            return false;
+        } catch (error) {
+            logger.error(`Error in saveProfile: ${error}`);
+            return false;
+        }
+    }
+
+    /**
+     * Delete a profile from user config
+     * @param {string} profileId - The profile ID to delete
+     * @returns {boolean} True if deleted successfully
+     */
+    deleteProfile(profileId) {
+        try {
+            // Create backup first
+            this._backupUserProfiles();
+            
+            // Load current user profiles
+            const data = this._loadUserProfilesData();
+            
+            // Find profile
+            const index = data.profiles.findIndex(p => p.id === profileId);
+            
+            if (index < 0) {
+                logger.warn(`Profile '${profileId}' not found in user profiles`);
+                return false;
+            }
+            
+            // Remove profile
+            data.profiles.splice(index, 1);
+            
+            // Remove from order if present
+            const orderIndex = data.profile_order.indexOf(profileId);
+            if (orderIndex >= 0) {
+                data.profile_order.splice(orderIndex, 1);
+            }
+            
+            // Save to disk
+            if (this._saveUserProfiles(data.profiles, data.profile_order)) {
+                logger.info(`Deleted profile '${profileId}'`);
+                
+                // Update GSettings order
+                this._settings.set_strv('profile-order', data.profile_order);
+                
+                // Reload profiles
+                this.loadProfiles();
+                return true;
+            }
+            
+            return false;
+        } catch (error) {
+            logger.error(`Error in deleteProfile: ${error}`);
+            return false;
+        }
+    }
+
+    /**
+     * Duplicate a profile
+     * @param {string} profileId - The profile ID to duplicate
+     * @param {string} newName - Name for the new profile
+     * @returns {Object|null} The new profile if successful, null otherwise
+     */
+    duplicateProfile(profileId, newName) {
+        try {
+            // Find source profile
+            const sourceProfile = this._profiles.find(p => p.id === profileId);
+            
+            if (!sourceProfile) {
+                logger.error(`Profile '${profileId}' not found`);
+                return null;
+            }
+            
+            // Create copy with new ID and name
+            const newProfile = {
+                id: this._generateUniqueId(),
+                name: newName,
+                zones: JSON.parse(JSON.stringify(sourceProfile.zones)) // Deep copy
+            };
+            
+            // Save the new profile
+            if (this.saveProfile(newProfile)) {
+                logger.info(`Duplicated profile '${profileId}' as '${newProfile.id}'`);
+                return newProfile;
+            }
+            
+            return null;
+        } catch (error) {
+            logger.error(`Error in duplicateProfile: ${error}`);
+            return null;
+        }
+    }
+
+    /**
+     * Reset all profiles to extension defaults
+     * @returns {boolean} True if reset successfully
+     */
+    resetToDefaults() {
+        try {
+            // Create backup first
+            this._backupUserProfiles();
+            
+            // Load default profiles
+            const defaultProfiles = this._loadDefaultProfiles();
+            
+            // Save as user profiles with empty order
+            if (this._saveUserProfiles(defaultProfiles, [])) {
+                // Clear custom order in GSettings
+                this._settings.set_strv('profile-order', []);
+                
+                logger.info('Reset all profiles to defaults');
+                
+                // Reload profiles
+                this.loadProfiles();
+                return true;
+            }
+            
+            return false;
+        } catch (error) {
+            logger.error(`Error in resetToDefaults: ${error}`);
+            return false;
+        }
+    }
+
+    /**
+     * Get custom profile order
+     * @returns {Array} Array of profile IDs in custom order
+     */
+    getProfileOrder() {
+        return this._settings.get_strv('profile-order');
+    }
+
+    /**
+     * Set custom profile order
+     * @param {Array} orderedIds - Array of profile IDs in desired order
+     * @returns {boolean} True if saved successfully
+     */
+    setProfileOrder(orderedIds) {
+        try {
+            // Update GSettings
+            this._settings.set_strv('profile-order', orderedIds);
+            
+            // Also update user profiles file
+            const data = this._loadUserProfilesData();
+            this._saveUserProfiles(data.profiles, orderedIds);
+            
+            // Reload to apply new order
+            this.loadProfiles();
+            
+            logger.info('Updated profile order');
+            return true;
+        } catch (error) {
+            logger.error(`Error setting profile order: ${error}`);
+            return false;
+        }
+    }
+
+    /**
+     * Get all profiles in custom order
+     * @returns {Array} Profiles sorted by custom order
+     */
+    getAllProfilesOrdered() {
+        return this._profiles; // Already ordered by _applyProfileOrder()
     }
 
     /**
