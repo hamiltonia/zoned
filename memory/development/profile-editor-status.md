@@ -19,6 +19,81 @@ The current profile editor implementation has fundamental issues:
 
 **Decision**: Ignore current implementation and prepare for complete rewrite
 
+## Core Architectural Problem: Modal Dialog Implementation
+
+### The Issue
+The current implementation attempts to create custom modal dialogs from scratch using low-level St/Clutter widgets, rather than using GNOME Shell's built-in `ModalDialog.ModalDialog` class.
+
+**Current Approach (WRONG):**
+```javascript
+// ProfileSettings and ProfileEditor manually implement modality:
+this._dialog = new St.Bin({...});  // Custom container
+Main.uiGroup.add_child(this._dialog);  // Manual UI management
+Main.pushModal(this._backgroundActor);  // Manual modal grab
+```
+
+**Problems with Custom Implementation:**
+1. **Modal Stack Management**: Manually managing modal grabs is error-prone
+   - Child dialogs (MessageDialog) compete for modal focus
+   - No proper modal stack depth handling
+   - Keyboard focus gets confused between parent/child dialogs
+
+2. **Lifecycle Issues**: Manual widget management leads to:
+   - Memory leaks from improper cleanup
+   - Signal handlers not properly disconnected
+   - Widget lifecycle not properly managed
+
+3. **Missing Functionality**: Built-in ModalDialog provides:
+   - Proper animation handling
+   - Standard button layouts
+   - Keyboard navigation (Tab, Esc, Enter)
+   - Accessibility support
+   - Theme integration
+
+4. **Complexity**: ~700 lines of custom dialog code vs. ~50 lines using ModalDialog
+
+### The Solution (For Rewrite)
+Use GNOME Shell's `ModalDialog.ModalDialog` class as the foundation:
+
+```javascript
+import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
+
+class ProfileEditorDialog extends ModalDialog.ModalDialog {
+    _init(params) {
+        super._init({ styleClass: 'zoned-profile-editor' });
+        
+        // Add content to this.contentLayout
+        this.contentLayout.add_child(...);
+        
+        // Add buttons via addButton()
+        this.addButton({
+            label: 'Cancel',
+            action: () => this.close(),
+            key: Clutter.KEY_Escape
+        });
+    }
+}
+```
+
+**Benefits:**
+- Proper modal stack management (can open MessageDialog on top)
+- Standard lifecycle (open(), close(), destroy())
+- Built-in keyboard handling
+- Proper focus management
+- Animation support
+- Much less code to maintain
+
+### Lessons Learned
+1. **Use framework primitives**: Don't reinvent modal dialogs
+2. **Study existing extensions**: Look at how GNOME extensions use ModalDialog
+3. **Test modal nesting early**: Parent dialogs must support child dialogs
+4. **Follow GNOME patterns**: The Shell provides good abstractions for a reason
+
+**References:**
+- GNOME Shell ModalDialog: `/usr/share/gnome-shell/js/ui/modalDialog.js`
+- Good example: `EndSessionDialog` in GNOME Shell
+- Bad example: Our current implementation (custom modals from scratch)
+
 ---
 
 ## Historical Context (Earlier Fixes)
