@@ -731,6 +731,53 @@ export class ProfileManager {
     }
 
     /**
+     * Update current profile's layout with new zones
+     * Used by LayoutPicker to apply templates to the active profile
+     * @param {Object} layout - Layout object with zones array
+     * @returns {boolean} True if updated successfully
+     */
+    updateCurrentLayout(layout) {
+        try {
+            if (!this._currentProfile) {
+                logger.error('No current profile to update');
+                return false;
+            }
+
+            // Update current profile's zones
+            const updatedProfile = {
+                id: this._currentProfile.id,
+                name: layout.name || this._currentProfile.name,
+                zones: layout.zones
+            };
+
+            // Validate the updated profile
+            if (!this._validateProfile(updatedProfile)) {
+                logger.error('Invalid layout structure');
+                return false;
+            }
+
+            // Save the updated profile
+            if (this.saveProfile(updatedProfile)) {
+                logger.info(`Updated layout for profile '${this._currentProfile.id}'`);
+                
+                // Update in-memory current profile reference
+                this._currentProfile = this._profiles.find(p => p.id === this._currentProfile.id);
+                
+                // Reset zone index to first zone
+                this._currentZoneIndex = 0;
+                this._saveState();
+                
+                return true;
+            }
+
+            return false;
+        } catch (error) {
+            logger.error(`Error in updateCurrentLayout: ${error}`);
+            return false;
+        }
+    }
+
+    /**
      * Get all profiles in custom order
      * @returns {Array} Profiles sorted by custom order
      */

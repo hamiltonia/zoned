@@ -19,7 +19,7 @@ const logger = createLogger('PanelIndicator');
 
 export const PanelIndicator = GObject.registerClass(
 class ZonedPanelIndicator extends PanelMenu.Button {
-    _init(profileManager, conflictDetector, profilePicker, notificationManager, zoneOverlay) {
+    _init(profileManager, conflictDetector, profilePicker, notificationManager, zoneOverlay, layoutPicker) {
         super._init(0.0, 'Zoned Indicator', false);
 
         this._profileManager = profileManager;
@@ -27,6 +27,7 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         this._profilePicker = profilePicker;
         this._notificationManager = notificationManager;
         this._zoneOverlay = zoneOverlay;
+        this._layoutPicker = layoutPicker;
         this._hasConflicts = false;
 
         // Create icon with reduced padding - using custom SVG
@@ -81,6 +82,15 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         });
         
         this.menu.addMenuItem(profilesSubmenu);
+        
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        // Layout picker menu item
+        const layoutPickerItem = new PopupMenu.PopupMenuItem('Choose Layout...');
+        layoutPickerItem.connect('activate', () => {
+            this._openLayoutPicker();
+        });
+        this.menu.addMenuItem(layoutPickerItem);
         
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
@@ -142,6 +152,21 @@ class ZonedPanelIndicator extends PanelMenu.Button {
             }
             
             this.updateMenu();
+        }
+    }
+
+    /**
+     * Open the layout picker dialog
+     * @private
+     */
+    _openLayoutPicker() {
+        logger.debug('Opening LayoutPicker...');
+        
+        if (this._layoutPicker) {
+            this._layoutPicker.open();
+        } else {
+            logger.error('LayoutPicker not available');
+            this._notificationManager.show('Layout picker not available', 2000);
         }
     }
 

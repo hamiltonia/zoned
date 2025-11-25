@@ -18,9 +18,11 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {WindowManager} from './windowManager.js';
 import {ProfileManager} from './profileManager.js';
+import {TemplateManager} from './templateManager.js';
 import {KeybindingManager} from './keybindingManager.js';
 import {NotificationManager} from './ui/notificationManager.js';
 import {ProfilePicker} from './ui/profilePicker.js';
+import {LayoutPicker} from './ui/layoutPicker.js';
 import {ZoneOverlay} from './ui/zoneOverlay.js';
 import {ConflictDetector} from './ui/conflictDetector.js';
 import {PanelIndicator} from './ui/panelIndicator.js';
@@ -36,8 +38,10 @@ export default class ZonedExtension extends Extension {
         this._settings = null;
         this._windowManager = null;
         this._profileManager = null;
+        this._templateManager = null;
         this._notificationManager = null;
         this._profilePicker = null;
+        this._layoutPicker = null;
         this._zoneOverlay = null;
         this._conflictDetector = null;
         this._panelIndicator = null;
@@ -83,6 +87,17 @@ export default class ZonedExtension extends Extension {
             this._zoneOverlay = new ZoneOverlay(this);
             logger.debug('ZoneOverlay initialized');
 
+            // Initialize TemplateManager
+            this._templateManager = new TemplateManager();
+            logger.debug('TemplateManager initialized');
+
+            // Initialize LayoutPicker
+            this._layoutPicker = new LayoutPicker(
+                this._profileManager,
+                this._templateManager
+            );
+            logger.debug('LayoutPicker initialized');
+
             // Initialize ProfilePicker (simple, no callbacks needed)
             this._profilePicker = new ProfilePicker(
                 this._profileManager,
@@ -97,7 +112,8 @@ export default class ZonedExtension extends Extension {
                 this._conflictDetector,
                 this._profilePicker,
                 this._notificationManager,
-                this._zoneOverlay
+                this._zoneOverlay,
+                this._layoutPicker
             );
             Main.panel.addToStatusArea('zoned-indicator', this._panelIndicator);
             
@@ -172,11 +188,20 @@ export default class ZonedExtension extends Extension {
             }
 
             // Destroy UI components
+            if (this._layoutPicker) {
+                this._layoutPicker.destroy();
+                this._layoutPicker = null;
+                logger.debug('LayoutPicker destroyed');
+            }
+
             if (this._profilePicker) {
                 this._profilePicker.destroy();
                 this._profilePicker = null;
                 logger.debug('ProfilePicker destroyed');
             }
+
+            // TemplateManager has no destroy method (no cleanup needed)
+            this._templateManager = null;
 
             if (this._zoneOverlay) {
                 this._zoneOverlay.destroy();
