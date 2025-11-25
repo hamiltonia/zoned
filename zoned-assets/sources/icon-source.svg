@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 16 16">
+  <defs>
+    <!-- Dark gradient for columns -->
+    <linearGradient id="dark-column" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#475569;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1e293b;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Cyan neon for Z -->
+    <linearGradient id="neon-cyan" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#22d3ee;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Grid pattern -->
+    <pattern id="grid" width="2" height="2" patternUnits="userSpaceOnUse">
+      <path d="M 2 0 L 0 0 0 2" fill="none" stroke="#1e293b" stroke-width="0.05" opacity="0.3"/>
+    </pattern>
+    
+    <radialGradient id="bg-dark" cx="50%" cy="40%">
+      <stop offset="0%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
+    </radialGradient>
+    
+    <!-- Neon glow effect -->
+    <filter id="neon-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.15" result="blur"/>
+      <feColorMatrix in="blur" mode="matrix" 
+                     values="0 0 0 0 0.133
+                             0 0 0 0 0.714
+                             0 0 0 0 0.831
+                             0 0 0 0.8 0" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Edge highlight -->
+    <linearGradient id="edge-light" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#64748b;stop-opacity:0" />
+      <stop offset="50%" style="stop-color:#cbd5e1;stop-opacity:0.6" />
+      <stop offset="100%" style="stop-color:#64748b;stop-opacity:0" />
+    </linearGradient>
+    
+    <filter id="dark-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="0.1"/>
+      <feOffset dx="0" dy="0.15" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.5"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="16" height="16" fill="url(#bg-dark)" rx="2"/>
+  <rect width="16" height="16" fill="url(#grid)" rx="2" opacity="0.4"/>
+  
+  <!-- FULL-BLEED LAYOUT: Fills almost entire space with minimal padding -->
+  <!-- Left column (full height) - starts at 0.8, ends at 15.2 (14.4 units tall) -->
+  <rect x="0.8" y="0.8" width="4.2" height="14.4" rx="0.4" fill="url(#dark-column)" filter="url(#dark-shadow)"/>
+  <rect x="0.8" y="0.8" width="4.2" height="0.2" rx="0.4" fill="url(#edge-light)"/>
+  
+  <!-- Middle column (full height) -->
+  <rect x="5.8" y="0.8" width="4.2" height="14.4" rx="0.4" fill="url(#dark-column)" filter="url(#dark-shadow)"/>
+  <rect x="5.8" y="0.8" width="4.2" height="0.2" rx="0.4" fill="url(#edge-light)"/>
+  
+  <!-- Right: Z on top (much larger) -->
+  <path d="M 11 0.8
+           L 15 0.8
+           C 15.15 0.8, 15.3 0.95, 15.3 1.1
+           L 15.3 1.6
+           C 15.3 1.85, 15.15 2.1, 14.9 2.35
+           L 12 5.25
+           C 11.75 5.5, 11.75 5.75, 12 5.75
+           L 15 5.75
+           C 15.15 5.75, 15.3 5.9, 15.3 6.05
+           L 15.3 6.7
+           C 15.3 6.95, 15.15 7.2, 15 7.2
+           L 11 7.2
+           C 10.85 7.2, 10.7 6.95, 10.7 6.7
+           L 10.7 6.05
+           C 10.7 5.9, 10.85 5.65, 11.1 5.4
+           L 14 2.5
+           C 14.25 2.25, 14.25 2, 14 2
+           L 11 2
+           C 10.85 2, 10.7 1.85, 10.7 1.7
+           L 10.7 1.1
+           C 10.7 0.95, 10.85 0.8, 11 0.8 Z"
+        fill="url(#neon-cyan)" 
+        filter="url(#neon-glow)"/>
+  <path d="M 11 0.8
+           L 15 0.8
+           C 15.15 0.8, 15.3 0.95, 15.3 1.1
+           L 15.3 0.95
+           L 10.7 0.95
+           L 10.7 1.1
+           C 10.7 0.95, 10.85 0.8, 11 0.8 Z"
+        fill="#ffffff" 
+        opacity="0.7"/>
+  
+  <!-- Right: window below (larger) -->
+  <rect x="10.8" y="8.4" width="4.4" height="6.8" rx="0.4" fill="url(#dark-column)" filter="url(#dark-shadow)"/>
+  <rect x="10.8" y="8.4" width="4.4" height="0.2" rx="0.4" fill="url(#edge-light)"/>
+</svg>
