@@ -58,6 +58,11 @@ export class GridEditor {
         // Minimum region size (10% of screen dimension)
         this.MIN_REGION_SIZE = 0.1;
         
+        // Visual settings
+        // TODO: Make this user-configurable in settings
+        // When false, uses single accent color; when true, uses 4-color map diagnostic
+        this.USE_MAP_COLORS = false;
+        
         logger.debug('GridEditor created (edge-based)');
         logger.debug(`Initial state: ${this._edgeLayout.regions.length} regions, ${this._edgeLayout.edges.length} edges`);
         this._logLayoutState('CONSTRUCTOR');
@@ -270,14 +275,26 @@ export class GridEditor {
                 height: (bottom.position - top.position) * monitor.height
             });
             
-            // 4-color map diagnostic - helps identify duplicate/overlapping regions visually
-            const colors = [
-                { bg: 'rgba(28, 113, 216, 0.3)', border: 'rgb(28, 113, 216)', name: 'Blue' },
-                { bg: 'rgba(38, 162, 105, 0.3)', border: 'rgb(38, 162, 105)', name: 'Green' },
-                { bg: 'rgba(192, 97, 203, 0.3)', border: 'rgb(192, 97, 203)', name: 'Purple' },
-                { bg: 'rgba(230, 97, 0, 0.3)', border: 'rgb(230, 97, 0)', name: 'Orange' }
-            ];
-            const colorScheme = colors[index % colors.length];
+            // Choose color scheme based on setting
+            let colorScheme;
+            if (this.USE_MAP_COLORS) {
+                // 4-color map diagnostic - helps identify duplicate/overlapping regions visually
+                const colors = [
+                    { bg: 'rgba(28, 113, 216, 0.3)', border: 'rgb(28, 113, 216)', name: 'Blue' },
+                    { bg: 'rgba(38, 162, 105, 0.3)', border: 'rgb(38, 162, 105)', name: 'Green' },
+                    { bg: 'rgba(192, 97, 203, 0.3)', border: 'rgb(192, 97, 203)', name: 'Purple' },
+                    { bg: 'rgba(230, 97, 0, 0.3)', border: 'rgb(230, 97, 0)', name: 'Orange' }
+                ];
+                colorScheme = colors[index % colors.length];
+            } else {
+                // Single system accent color for all regions
+                // Use the theme's accent color (respects user's GNOME appearance settings)
+                colorScheme = {
+                    bg: 'rgba(53, 132, 228, 0.3)',  // Default to libadwaita blue if theme doesn't define
+                    border: 'rgb(53, 132, 228)',
+                    name: 'Accent'
+                };
+            }
             
             actor.style = `
                 background-color: ${colorScheme.bg};
