@@ -126,6 +126,18 @@ Let's build up a layout step-by-step to understand edge naming:
 
 **Note:** Region 4 references either h0 or h1 for its top (they're at same position). Convention: use the leftmost segment.
 
+**Edge Deletion Status:**
+- ✅ **v0**: Deletable (standard 2-region merge)
+- ✅ **v1**: Deletable (borders 2 regions: 2 & 3)
+- ✅ **h0 + h1**: Deletable as colinear group (see below)
+
+**Colinear Edge Group:** h0 and h1 are both at y=0.5, forming a logical horizontal divider:
+- h0 spans x=[0.0, 0.5], borders regions 1 (above) ↔ 4 (below)
+- h1 spans x=[0.5, 1.0], borders regions 2, 3 (above) ↔ 4 (below)
+- **Together** they form a complete boundary spanning the full width
+- Deleting this group extends regions 1, 2, 3 all the way down to the bottom
+- ✅ **Allowed:** Vertical edges align perfectly (v0 at x=0.5 on both sides)
+
 ---
 
 #### TUTORIAL-STEP-4: Complex Layout with Undeletable Edges
@@ -147,31 +159,39 @@ Let's build up a layout step-by-step to understand edge naming:
 - Region 4: left=left, right=v2, top=h0, bottom=bottom
 - Region 5: left=v2, right=right, top=h0 (or h1?), bottom=bottom
 
-**Critical Problem:** Region 5's top boundary!
-- Region 5 spans x=[0.25, 1.0]
-- At y=0.5, we have:
-  - h0 spans x=[0.0, 0.5] (doesn't fully cover Region 5)
-  - h1 spans x=[0.5, 1.0] (doesn't fully cover Region 5)
-- Region 5 needs BOTH h0 and h1 for its top boundary!
-- **This violates the "exactly 4 edges per region" constraint**
-
 **Edge Deletion Status:**
-- ✅ **v0**: Deletable (borders 4 regions, but simple merge works)
-- ✅ **v1**: Deletable (borders 2 regions: 2 & 3)
-- ✅ **v2**: Deletable (borders 2 regions: 4 & 5)
-- ❌ **h0**: UNDELETABLE! Region 5 depends on it for partial boundary
-- ❌ **h1**: UNDELETABLE! Region 5 depends on it for partial boundary
+- ✅ **v0**: Deletable (borders regions 1 & 2)
+- ✅ **v1**: Deletable (borders regions 2 & 3)
+- ✅ **v2**: Deletable (borders regions 4 & 5)
+- ❌ **h0 + h1 (colinear group)**: UNDELETABLE!
 
-**Explanation:**
-- If h0 is deleted, Region 5 would have no valid top edge for x=[0.25, 0.5]
-- If h1 is deleted, Region 5 would have no valid top edge for x=[0.5, 1.0]
-- These edges participate in a complex boundary that cannot be safely removed
+**Critical Problem - Misaligned Vertical Boundaries:**
+
+The colinear edge group h0 + h1 at y=0.5 would normally be deletable, but:
+
+**Above the divider (top half):**
+- Vertical edges at: left (x=0.0), v0 (x=0.5), v1 (x=0.75), right (x=1.0)
+
+**Below the divider (bottom half):**
+- Vertical edges at: left (x=0.0), v2 (x=0.25), right (x=1.0)
+
+**Conflict:** The vertical boundaries don't align!
+- Region 1 extends to x=0.5 (bounded by v0)
+- But below, region 4 only extends to x=0.25 (bounded by v2)
+- If we delete h0+h1, where would region 1 extend to? It can't merge with both regions 4 and 5
+- The vertical structure changes across the horizontal divider
+
+**Why It's Blocked:**
+- Deleting h0+h1 requires extending regions 1, 2, 3 downward
+- But the vertical divisions below (at x=0.25) don't match those above (at x=0.5, 0.75)
+- This creates structural ambiguity that cannot be resolved cleanly
+- Algorithm detects: `!verticalEdgesAlign(aboveRegions, belowRegions)`
 
 **User Experience:**
-- Attempting to Ctrl+Click h0 or h1 shows: "Cannot delete: edge borders complex layout"
+- Attempting to Ctrl+Click h0 or h1 shows: "Cannot delete: regions misaligned"
 - These edges appear as dashed lines with different color
-- User can delete v2 to simplify, or cancel and start over
-- Most users won't create this complex layout in practice
+- User can delete v2 first to align the structure, then h0+h1 becomes deletable
+- Or cancel and start over with a simpler layout
 
 ---
 
@@ -520,56 +540,137 @@ Regions 2 & 4 not affected (reference h1, not h0)
 
 **Important:** Not all edges can be safely deleted. Before allowing deletion, the system must verify that all affected regions can form valid merged results.
 
-**Deletion Constraints:**
+#### Colinear Edge Groups
 
-An edge **CAN** be deleted if:
-- It borders exactly 2 regions (simple case), OR
-- All regions referencing it can merge cleanly without creating gaps or invalid boundaries
+Multiple edge segments at the same position form a **colinear edge group** that should be treated as a single logical divider:
 
-An edge **CANNOT** be deleted if:
-- Deletion would leave a region without a valid boundary edge
-- Merged regions would create gaps in coverage
-- Merged regions would violate the coverage invariant
+**Example:**
+```
+┌─────────┬────┬────┐
+│    1    │ 2  │ 3  │  h0: x=[0.0, 0.5], y=0.5
+├─────────┴────┴────┤  h1: x=[0.5, 1.0], y=0.5
+│         4         │  Together: complete horizontal divider
+└───────────────────┘
+```
 
-**Algorithm:**
+**Detection:** When user clicks to delete an edge, check if other edges exist at the same position:
 
 ```javascript
-canDeleteEdge(edge) {
-    if (edge.fixed) return false;  // Never delete boundaries
-    
-    // Find all regions using this edge
-    const regions = findRegionsReferencingEdge(edge);
-    
-    // Simple case: edge borders exactly 2 regions → always deletable
-    if (regions.length === 2) return true;
-    
-    // Complex case: edge borders > 2 regions
-    // Check if regions can merge properly
-    const { leftRegions, rightRegions } = groupRegionsBySide(edge, regions);
-    
-    // Verify each side can form a valid merged region
-    return canFormValidMergedRegion(leftRegions) && 
-           canFormValidMergedRegion(rightRegions);
-}
-
-canFormValidMergedRegion(regions) {
-    // Check if all regions share compatible boundaries
-    // and overlapping edges for the merged result
-    // Return false if any conflicts or gaps would occur
-    // This is implementation-specific
+function getColinearEdgeGroup(edge) {
+    return edges.filter(e => 
+        e.type === edge.type && 
+        e.position === edge.position &&
+        !e.fixed
+    );
 }
 ```
 
-**Visual Feedback:**
+**Deletion:** All colinear edges are deleted together atomically.
+
+#### Deletion Constraints
+
+An edge or edge group **CAN** be deleted if:
+- Single edge borders exactly 2 regions (simple case), OR
+- Colinear edge group borders regions with **aligned boundaries**
+
+An edge or edge group **CANNOT** be deleted if:
+- It's a fixed boundary edge
+- Colinear group has **misaligned vertical/horizontal boundaries** on opposite sides
+
+#### Algorithm
+
+```javascript
+canDeleteEdge(edgeId) {
+    const edge = findEdge(edgeId);
+    if (edge.fixed) return false;  // Never delete boundaries
+    
+    // Find colinear edge group
+    const colinearGroup = getColinearEdgeGroup(edge);
+    
+    if (colinearGroup.length === 1) {
+        // Single edge: simple 2-region check
+        const regions = findRegionsReferencingEdge(edge);
+        return regions.length === 2;
+    } else {
+        // Multiple colinear edges: check boundary alignment
+        return canDeleteColinearGroup(colinearGroup);
+    }
+}
+
+canDeleteColinearGroup(edgeGroup) {
+    // Partition regions on either side of the edge group
+    const { aboveRegions, belowRegions } = partitionRegionsByEdgeGroup(edgeGroup);
+    
+    // Get vertical boundaries (for horizontal edge group) or
+    // horizontal boundaries (for vertical edge group)
+    if (edgeGroup[0].type === "horizontal") {
+        const aboveVEdges = getVerticalBoundariesOfRegions(aboveRegions);
+        const belowVEdges = getVerticalBoundariesOfRegions(belowRegions);
+        
+        // Check if vertical edges align across the divider
+        return verticalEdgesAlign(aboveVEdges, belowVEdges);
+    } else {
+        const leftHEdges = getHorizontalBoundariesOfRegions(leftRegions);
+        const rightHEdges = getHorizontalBoundariesOfRegions(rightRegions);
+        
+        // Check if horizontal edges align across the divider
+        return horizontalEdgesAlign(leftHEdges, rightHEdges);
+    }
+}
+
+verticalEdgesAlign(edges1, edges2) {
+    // Extract unique x-positions from both sets
+    const positions1 = [...new Set(edges1.map(e => e.position))].sort();
+    const positions2 = [...new Set(edges2.map(e => e.position))].sort();
+    
+    // They align if they have the same set of x-positions
+    if (positions1.length !== positions2.length) return false;
+    
+    return positions1.every((pos, i) => 
+        Math.abs(pos - positions2[i]) < 0.001  // Floating point tolerance
+    );
+}
+```
+
+**Examples:**
+
+✅ **TUTORIAL-STEP-3** (deletable):
+- h0 + h1 at y=0.5
+- Above: regions have verticals at x=[0, 0.5, 0.75, 1.0]
+- Below: regions have verticals at x=[0, 0.5, 0.75, 1.0] (same as above, from inherited v0)
+- Actually, below has NO internal verticals, only boundaries [0, 1.0]
+- Wait, need to reconsider this...
+
+Actually, for STEP-3:
+- Above: v0 (x=0.5), v1 (x=0.75) 
+- Below: None (region 4 spans full width)
+- This is a special case: **full-width merge is always allowed**
+
+✅ **TUTORIAL-STEP-3** (revised check):
+- Below has single region spanning full width → always allows merge
+- Check: `belowRegions.length === 1 && belowRegions[0] spans full width`
+
+❌ **TUTORIAL-STEP-4** (blocked):
+- h0 + h1 at y=0.5
+- Above: verticals at x=[0.5, 0.75]
+- Below: verticals at x=[0.25] 
+- Misaligned! → Cannot delete
+
+#### Visual Feedback
 
 - **Deletable edges**: Solid white line, 30% opacity → 70% on hover
+  - If part of colinear group: all segments highlight together
 - **Undeletable edges**: Dashed red/orange line, 20% opacity, no delete interaction
-- **Hover tooltip**: "Cannot delete: edge borders complex layout"
+- **Hover tooltip**: 
+  - Deletable: "Delete horizontal edge at 50% (2 segments)"
+  - Blocked: "Cannot delete: regions misaligned"
 
-**User Experience:**
-- Attempting to delete an undeletable edge shows a brief notification
-- User can always cancel and start over with a simpler layout
+#### User Experience
+
+- Clicking any edge in a colinear group deletes the entire group
+- All segments highlight together on hover
 - Most common layouts (2×2, 3 columns, etc.) have all deletable edges
+- Complex misaligned layouts correctly block deletion with clear feedback
 
 ---
 

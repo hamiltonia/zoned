@@ -270,10 +270,18 @@ export class GridEditor {
                 height: (bottom.position - top.position) * monitor.height
             });
             
-            // Region styling - blue with semi-transparent fill
+            // 4-color map diagnostic - helps identify duplicate/overlapping regions visually
+            const colors = [
+                { bg: 'rgba(28, 113, 216, 0.3)', border: 'rgb(28, 113, 216)', name: 'Blue' },
+                { bg: 'rgba(38, 162, 105, 0.3)', border: 'rgb(38, 162, 105)', name: 'Green' },
+                { bg: 'rgba(192, 97, 203, 0.3)', border: 'rgb(192, 97, 203)', name: 'Purple' },
+                { bg: 'rgba(230, 97, 0, 0.3)', border: 'rgb(230, 97, 0)', name: 'Orange' }
+            ];
+            const colorScheme = colors[index % colors.length];
+            
             actor.style = `
-                background-color: rgba(28, 113, 216, 0.3);
-                border: 3px solid rgb(28, 113, 216);
+                background-color: ${colorScheme.bg};
+                border: 3px solid ${colorScheme.border};
                 border-radius: 4px;
             `;
             
@@ -289,19 +297,22 @@ export class GridEditor {
                 return this._onRegionClicked(index, event);
             });
             
-            // Hover effect
+            // Hover effect - brighten the current color
             actor.connect('enter-event', () => {
+                // Increase opacity for hover effect
+                const hoverBg = colorScheme.bg.replace('0.3', '0.5');
                 actor.style = `
-                    background-color: rgba(28, 113, 216, 0.5);
-                    border: 3px solid rgb(53, 132, 228);
+                    background-color: ${hoverBg};
+                    border: 3px solid ${colorScheme.border};
                     border-radius: 4px;
                 `;
             });
             
             actor.connect('leave-event', () => {
+                // Return to original opacity
                 actor.style = `
-                    background-color: rgba(28, 113, 216, 0.3);
-                    border: 3px solid rgb(28, 113, 216);
+                    background-color: ${colorScheme.bg};
+                    border: 3px solid ${colorScheme.border};
                     border-radius: 4px;
                 `;
             });
@@ -871,35 +882,58 @@ export class GridEditor {
             }
         });
         
-        // Check if atleast one region per side can be merged
-        // (shares the same perpendicular bounds with a region on the other side)
-        let hasMatch = false;
+        // Must have regions on both sides
+        if (leftOrTopRegions.length === 0 || rightOrBottomRegions.length === 0) {
+            logger.warn(`[EDGE-DELETE] Edge ${edge.id} only has regions on one side`);
+            return false;
+        }
+        
+        // Check if ANY region from one side OVERLAPS with ANY region from the other side
+        // in the perpendicular direction (uses position-based overlap, not exact edge ID matching)
+        const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
+        let hasOverlap = false;
         
         if (edge.type === 'vertical') {
-            // For vertical edges: check if any left region matches any right region vertically
+            // For vertical edges: check perpendicular (vertical/Y-axis) overlap
             for (const leftReg of leftOrTopRegions) {
+                const leftTop = edgeMap.get(leftReg.top).position;
+                const leftBottom = edgeMap.get(leftReg.bottom).position;
+                
                 for (const rightReg of rightOrBottomRegions) {
-                    if (leftReg.top === rightReg.top && leftReg.bottom === rightReg.bottom) {
-                        hasMatch = true;
+                    const rightTop = edgeMap.get(rightReg.top).position;
+                    const rightBottom = edgeMap.get(rightReg.bottom).position;
+                    
+                    // Overlap: leftTop < rightBottom AND leftBottom > rightTop
+                    if (leftTop < rightBottom && leftBottom > rightTop) {
+                        hasOverlap = true;
                         break;
                     }
                 }
-                if (hasMatch) break;
+                if (hasOverlap) break;
             }
         } else {
-            // For horizontal edges: check if any top region matches any bottom region horizontally
+            // For horizontal edges: check perpendicular (horizontal/X-axis) overlap
             for (const topReg of leftOrTopRegions) {
+                const topLeft = edgeMap.get(topReg.left).position;
+                const topRight = edgeMap.get(topReg.right).position;
+                
                 for (const bottomReg of rightOrBottomRegions) {
-                    if (topReg.left === bottomReg.left && topReg.right === bottomReg.right) {
-                        hasMatch = true;
+                    const bottomLeft = edgeMap.get(bottomReg.left).position;
+                    const bottomRight = edgeMap.get(bottomReg.right).position;
+                    
+                    // Overlap: topLeft < bottomRight AND topRight > bottomLeft
+                    if (topLeft < bottomRight && topRight > bottomLeft) {
+                        hasOverlap = true;
                         break;
                     }
                 }
-                if (hasMatch) break;
+                if (hasOverlap) break;
             }
         }
         
-        return hasMatch;
+        logger.debug(`[EDGE-DELETE] Edge ${edge.id}: leftOrTop=${leftOrTopRegions.length}, rightOrBottom=${rightOrBottomRegions.length}, hasOverlap=${hasOverlap}`);
+        
+        return hasOverlap;
     }
 
     /**
@@ -952,80 +986,182 @@ export class GridEditor {
         logger.info(`[EDGE-DELETE] Left/Top side: ${leftOrTopRegions.length}, Right/Bottom side: ${rightOrBottomRegions.length}`);
         
         // Merge regions that overlap in the perpendicular direction
+        // Strategy: Process whichever side has MORE regions (to preserve maximum granularity)
+        // Example: 1 left + 2 right → process 2 right regions → 2 merged regions
+        // Example: 3 top + 1 bottom → process 3 top regions → 3 merged regions
         const newRegions = [];
         const processed = new Set();
         
+        // Determine which side to process (the one with more regions)
+        let primaryRegions, secondaryRegions;
+        let processPrimary; // function to process each primary region
+        
         if (edge.type === 'vertical') {
-            // For vertical edge: match regions with overlapping vertical (top/bottom) ranges
-            leftOrTopRegions.forEach(leftReg => {
-                if (processed.has(leftReg)) return;
+            // For vertical edges
+            if (leftOrTopRegions.length >= rightOrBottomRegions.length) {
+                // More regions on left → process LEFT regions
+                primaryRegions = leftOrTopRegions;
+                secondaryRegions = rightOrBottomRegions;
                 
-                const leftTop = edgeMap.get(leftReg.top);
-                const leftBottom = edgeMap.get(leftReg.bottom);
+                processPrimary = (leftReg) => {
+                    const leftTop = edgeMap.get(leftReg.top).position;
+                    const leftBottom = edgeMap.get(leftReg.bottom).position;
+                    
+                    logger.debug(`[EDGE-DELETE] Processing left region: top=${leftTop.toFixed(3)}, bottom=${leftBottom.toFixed(3)}`);
+                    
+                    // Find all right regions that overlap with this left region vertically
+                    const matchingRightRegions = secondaryRegions.filter(rightReg => {
+                        const rightTop = edgeMap.get(rightReg.top).position;
+                        const rightBottom = edgeMap.get(rightReg.bottom).position;
+                        
+                        const overlaps = leftTop < rightBottom && leftBottom > rightTop;
+                        logger.debug(`[EDGE-DELETE]   Right region: top=${rightTop.toFixed(3)}, bottom=${rightBottom.toFixed(3)}, overlaps=${overlaps}`);
+                        
+                        return overlaps;
+                    });
+                    
+                    logger.debug(`[EDGE-DELETE] Found ${matchingRightRegions.length} matching right regions`);
+                    
+                    if (matchingRightRegions.length > 0) {
+                        // Merge: keep left region's vertical bounds, expand right to include right side
+                        const merged = {
+                            name: leftReg.name,
+                            left: leftReg.left,                  // Keep left edge from left region
+                            right: matchingRightRegions[0].right, // Use right edge from right region
+                            top: leftReg.top,                    // Keep left region's vertical bounds
+                            bottom: leftReg.bottom
+                        };
+                        
+                        logger.info(`[EDGE-DELETE] Merged vertical (L-first): [L:${merged.left}, R:${merged.right}, T:${merged.top}, B:${merged.bottom}] from ${1 + matchingRightRegions.length} regions`);
+                        newRegions.push(merged);
+                    }
+                };
+            } else {
+                // More regions on right → process RIGHT regions
+                primaryRegions = rightOrBottomRegions;
+                secondaryRegions = leftOrTopRegions;
                 
-                // Find all right regions that overlap with this left region vertically
-                const matchingRightRegions = rightOrBottomRegions.filter(rightReg => {
-                    if (processed.has(rightReg)) return false;
+                processPrimary = (rightReg) => {
+                    const rightTop = edgeMap.get(rightReg.top).position;
+                    const rightBottom = edgeMap.get(rightReg.bottom).position;
                     
-                    const rightTop = edgeMap.get(rightReg.top);
-                    const rightBottom = edgeMap.get(rightReg.bottom);
+                    logger.debug(`[EDGE-DELETE] Processing right region: top=${rightTop.toFixed(3)}, bottom=${rightBottom.toFixed(3)}`);
                     
-                    // Check if they share the same vertical bounds
-                    return leftReg.top === rightReg.top && leftReg.bottom === rightReg.bottom;
-                });
-                
-                if (matchingRightRegions.length > 0) {
-                    // Merge this left region with matching right region(s)
-                    const allToMerge = [leftReg, ...matchingRightRegions];
-                    const leftEdge = edgeMap.get(leftReg.left);
-                    const rightEdge = edgeMap.get(matchingRightRegions[0].right);
+                    // Find all left regions that overlap with this right region vertically
+                    const matchingLeftRegions = secondaryRegions.filter(leftReg => {
+                        const leftTop = edgeMap.get(leftReg.top).position;
+                        const leftBottom = edgeMap.get(leftReg.bottom).position;
+                        
+                        const overlaps = leftTop < rightBottom && leftBottom > rightTop;
+                        logger.debug(`[EDGE-DELETE]   Left region: top=${leftTop.toFixed(3)}, bottom=${leftBottom.toFixed(3)}, overlaps=${overlaps}`);
+                        
+                        return overlaps;
+                    });
                     
-                    const merged = {
-                        name: leftReg.name,
-                        left: leftReg.left,
-                        right: matchingRightRegions[0].right,
-                        top: leftReg.top,
-                        bottom: leftReg.bottom
-                    };
+                    logger.debug(`[EDGE-DELETE] Found ${matchingLeftRegions.length} matching left regions`);
                     
-                    logger.info(`[EDGE-DELETE] Merged vertical: [L:${merged.left}, R:${merged.right}, T:${merged.top}, B:${merged.bottom}]`);
-                    newRegions.push(merged);
-                    
-                    processed.add(leftReg);
-                    matchingRightRegions.forEach(r => processed.add(r));
-                }
-            });
+                    if (matchingLeftRegions.length > 0) {
+                        // Merge: keep right region's vertical bounds, expand left to include left side
+                        const merged = {
+                            name: rightReg.name,
+                            left: matchingLeftRegions[0].left,  // Use left edge from left region
+                            right: rightReg.right,              // Keep right edge from right region
+                            top: rightReg.top,                  // Keep right region's vertical bounds
+                            bottom: rightReg.bottom
+                        };
+                        
+                        logger.info(`[EDGE-DELETE] Merged vertical (R-first): [L:${merged.left}, R:${merged.right}, T:${merged.top}, B:${merged.bottom}] from ${1 + matchingLeftRegions.length} regions`);
+                        newRegions.push(merged);
+                    }
+                };
+            }
         } else {
-            // For horizontal edge: match regions with overlapping horizontal (left/right) ranges
-            leftOrTopRegions.forEach(topReg => {
-                if (processed.has(topReg)) return;
+            // For horizontal edges
+            if (leftOrTopRegions.length >= rightOrBottomRegions.length) {
+                // More regions on top → process TOP regions
+                primaryRegions = leftOrTopRegions;
+                secondaryRegions = rightOrBottomRegions;
                 
-                // Find all bottom regions that overlap with this top region horizontally
-                const matchingBottomRegions = rightOrBottomRegions.filter(bottomReg => {
-                    if (processed.has(bottomReg)) return false;
+                processPrimary = (topReg) => {
+                    const topLeft = edgeMap.get(topReg.left).position;
+                    const topRight = edgeMap.get(topReg.right).position;
                     
-                    // Check if they share the same horizontal bounds
-                    return topReg.left === bottomReg.left && topReg.right === bottomReg.right;
-                });
+                    logger.debug(`[EDGE-DELETE] Processing top region: left=${topLeft.toFixed(3)}, right=${topRight.toFixed(3)}`);
+                    
+                    // Find all bottom regions that overlap with this top region horizontally
+                    const matchingBottomRegions = secondaryRegions.filter(bottomReg => {
+                        const bottomLeft = edgeMap.get(bottomReg.left).position;
+                        const bottomRight = edgeMap.get(bottomReg.right).position;
+                        
+                        const overlaps = topLeft < bottomRight && topRight > bottomLeft;
+                        logger.debug(`[EDGE-DELETE]   Bottom region: left=${bottomLeft.toFixed(3)}, right=${bottomRight.toFixed(3)}, overlaps=${overlaps}`);
+                        
+                        return overlaps;
+                    });
+                    
+                    logger.debug(`[EDGE-DELETE] Found ${matchingBottomRegions.length} matching bottom regions`);
+                    
+                    if (matchingBottomRegions.length > 0) {
+                        // Merge: keep top region's horizontal bounds, expand down to include bottom side
+                        const merged = {
+                            name: topReg.name,
+                            left: topReg.left,                      // Keep top region's horizontal bounds
+                            right: topReg.right,
+                            top: topReg.top,                        // Keep top edge from top region
+                            bottom: matchingBottomRegions[0].bottom // Use bottom edge from bottom region
+                        };
+                        
+                        logger.info(`[EDGE-DELETE] Merged horizontal (T-first): [L:${merged.left}, R:${merged.right}, T:${merged.top}, B:${merged.bottom}] from ${1 + matchingBottomRegions.length} regions`);
+                        newRegions.push(merged);
+                    }
+                };
+            } else {
+                // More regions on bottom → process BOTTOM regions
+                primaryRegions = rightOrBottomRegions;
+                secondaryRegions = leftOrTopRegions;
                 
-                if (matchingBottomRegions.length > 0) {
-                    // Merge this top region with matching bottom region(s)
-                    const merged = {
-                        name: topReg.name,
-                        left: topReg.left,
-                        right: topReg.right,
-                        top: topReg.top,
-                        bottom: matchingBottomRegions[0].bottom
-                    };
+                processPrimary = (bottomReg) => {
+                    const bottomLeft = edgeMap.get(bottomReg.left).position;
+                    const bottomRight = edgeMap.get(bottomReg.right).position;
                     
-                    logger.info(`[EDGE-DELETE] Merged horizontal: [L:${merged.left}, R:${merged.right}, T:${merged.top}, B:${merged.bottom}]`);
-                    newRegions.push(merged);
+                    logger.debug(`[EDGE-DELETE] Processing bottom region: left=${bottomLeft.toFixed(3)}, right=${bottomRight.toFixed(3)}`);
                     
-                    processed.add(topReg);
-                    matchingBottomRegions.forEach(r => processed.add(r));
-                }
-            });
+                    // Find all top regions that overlap with this bottom region horizontally
+                    const matchingTopRegions = secondaryRegions.filter(topReg => {
+                        const topLeft = edgeMap.get(topReg.left).position;
+                        const topRight = edgeMap.get(topReg.right).position;
+                        
+                        const overlaps = topLeft < bottomRight && topRight > bottomLeft;
+                        logger.debug(`[EDGE-DELETE]   Top region: left=${topLeft.toFixed(3)}, right=${topRight.toFixed(3)}, overlaps=${overlaps}`);
+                        
+                        return overlaps;
+                    });
+                    
+                    logger.debug(`[EDGE-DELETE] Found ${matchingTopRegions.length} matching top regions`);
+                    
+                    if (matchingTopRegions.length > 0) {
+                        // Merge: keep bottom region's horizontal bounds, expand up to include top side
+                        const merged = {
+                            name: bottomReg.name,
+                            left: bottomReg.left,               // Keep bottom region's horizontal bounds
+                            right: bottomReg.right,
+                            top: matchingTopRegions[0].top,     // Use top edge from top region
+                            bottom: bottomReg.bottom            // Keep bottom edge from bottom region
+                        };
+                        
+                        logger.info(`[EDGE-DELETE] Merged horizontal (B-first): [L:${merged.left}, R:${merged.right}, T:${merged.top}, B:${merged.bottom}] from ${1 + matchingTopRegions.length} regions`);
+                        newRegions.push(merged);
+                    }
+                };
+            }
         }
+        
+        // Now process all primary regions
+        primaryRegions.forEach(reg => {
+            if (processed.has(reg)) return;
+            processPrimary(reg);
+            processed.add(reg);
+        });
         
         logger.info(`[EDGE-DELETE] Created ${newRegions.length} merged regions from ${regions.length} original regions`);
         
@@ -1151,9 +1287,14 @@ export class GridEditor {
      * @private
      */
     _refreshDisplay() {
-        logger.debug('Refreshing display');
+        logger.info('[REFRESH] Starting display refresh');
+        logger.info(`[REFRESH] Current state: ${this._regionActors.length} region actors, ${this._edgeActors.length} edge actors`);
+        logger.info(`[REFRESH] Data state: ${this._edgeLayout.regions.length} regions, ${this._edgeLayout.edges.length} edges`);
         
         // Remove old actors (but keep help text and toolbar)
+        const oldRegionCount = this._regionActors.length;
+        const oldEdgeCount = this._edgeActors.length;
+        
         this._regionActors.forEach(actor => {
             this._overlay.remove_child(actor);
             actor.destroy();
@@ -1168,6 +1309,9 @@ export class GridEditor {
             edgeObj.handleActor.destroy();
         });
         this._edgeActors = [];
+        
+        logger.info(`[REFRESH] Cleanup complete: removed ${oldRegionCount} region actors, ${oldEdgeCount} edge actors`);
+        logger.info(`[REFRESH] Creating new actors for ${this._edgeLayout.regions.length} regions, ${this._edgeLayout.edges.filter(e => !e.fixed).length} edges`);
         
         // Recreate regions and edges
         this._createRegions();
@@ -1281,6 +1425,35 @@ export class GridEditor {
         }
         
         return Clutter.EVENT_STOP;
+    }
+
+    /**
+     * Handle save action
+     * @private
+     */
+    _onSave() {
+        logger.info('Saving grid editor layout');
+        
+        // Validate edge layout
+        const validation = validateEdgeLayout(this._edgeLayout);
+        if (!validation.valid) {
+            logger.error(`Layout validation failed: ${validation.errors.join(', ')}`);
+            this._showCenteredNotification('Invalid Layout', validation.errors[0]);
+            return;
+        }
+        
+        // Convert edge-based back to zone-based
+        const zoneLayout = edgesToZones(this._edgeLayout);
+        
+        logger.debug(`Converted to ${zoneLayout.zones.length} zones`);
+        
+        // Hide editor
+        this.hide();
+        
+        // Call save callback with zone-based layout
+        if (this._onSaveCallback) {
+            this._onSaveCallback(zoneLayout);
+        }
     }
 
     /**
