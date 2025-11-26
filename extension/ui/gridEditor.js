@@ -364,14 +364,14 @@ export class GridEditor {
                     monitor.y + edge.start * monitor.height
                 );
                 lineActor.set_size(30, edge.length * monitor.height);
-                lineActor.style = 'background-color: rgba(255, 255, 255, 0.2);';
+                lineActor.style = 'background-color: transparent;';
             } else {
                 lineActor.set_position(
                     monitor.x + edge.start * monitor.width,
                     monitor.y + edge.position * monitor.height - 15
                 );
                 lineActor.set_size(edge.length * monitor.width, 30);
-                lineActor.style = 'background-color: rgba(255, 255, 255, 0.2);';
+                lineActor.style = 'background-color: transparent;';
             }
             
             // Line hover - highlight
@@ -379,10 +379,10 @@ export class GridEditor {
                 lineActor.style = 'background-color: rgba(255, 255, 255, 0.4);';
             });
             
-            // Line leave - dim (unless dragging)
+            // Line leave - hide (unless dragging)
             lineActor.connect('leave-event', () => {
                 if (!this._draggingEdge) {
-                    lineActor.style = 'background-color: rgba(255, 255, 255, 0.2);';
+                    lineActor.style = 'background-color: transparent;';
                 }
             });
             
@@ -463,10 +463,56 @@ export class GridEditor {
         // All regions referencing this edge will automatically reflect the change.
         edge.position = newPosition;
         
+        // DIRECTLY update perpendicular edge bounds during drag (like we do for position)
+        // This is more reliable than _recalculateEdgeBounds() during active dragging
+        const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
+        const affectedRegions = this._findRegionsReferencingEdge(edge.id);
+        
+        // For each perpendicular edge, update its bounds based on the dragged edge's new position
+        this._edgeLayout.edges.forEach(perpEdge => {
+            if (perpEdge.fixed || perpEdge.type === edge.type) return; // Skip same-type and fixed edges
+            
+            // Check if this perpendicular edge is used by any of the affected regions
+            const perpRegions = this._findRegionsReferencingEdge(perpEdge.id);
+            const hasSharedRegion = affectedRegions.some(r => perpRegions.includes(r));
+            
+            if (hasSharedRegion) {
+                // Recalculate bounds for this perpendicular edge
+                if (perpEdge.type === 'vertical') {
+                    let minTop = 1.0;
+                    let maxBottom = 0.0;
+                    perpRegions.forEach(region => {
+                        const top = edgeMap.get(region.top);
+                        const bottom = edgeMap.get(region.bottom);
+                        if (top && bottom) {
+                            minTop = Math.min(minTop, top.position);
+                            maxBottom = Math.max(maxBottom, bottom.position);
+                        }
+                    });
+                    perpEdge.start = minTop;
+                    perpEdge.length = maxBottom - minTop;
+                } else {
+                    let minLeft = 1.0;
+                    let maxRight = 0.0;
+                    perpRegions.forEach(region => {
+                        const left = edgeMap.get(region.left);
+                        const right = edgeMap.get(region.right);
+                        if (left && right) {
+                            minLeft = Math.min(minLeft, left.position);
+                            maxRight = Math.max(maxRight, right.position);
+                        }
+                    });
+                    perpEdge.start = minLeft;
+                    perpEdge.length = maxRight - minLeft;
+                }
+            }
+        });
+        
         logger.debug(`[DRAG] Edge ${edge.id} moved to ${newPosition.toFixed(3)}`);
         
-        // Refresh display
+        // Refresh display with updated bounds
         this._refreshDisplay();
+
     }
 
     /**
@@ -523,7 +569,16 @@ export class GridEditor {
         if (!this._draggingEdge) return;
         
         logger.debug(`Ended dragging edge ${this._draggingEdge.edge.id}`);
+        
+        // Recalculate edge bounds after drag completes
+        // This ensures perpendicular edges update their start/length to match new region extents
+        this._recalculateEdgeBounds();
+        this._logLayoutState('AFTER-EDGE-DRAG');
+        
         this._draggingEdge = null;
+        
+        // Refresh display with updated edge bounds
+        this._refreshDisplay();
     }
 
     /**
@@ -602,6 +657,9 @@ export class GridEditor {
         logger.info(`[SPLIT-H] Left region: [L:${leftRegion.left}, R:${leftRegion.right}, T:${leftRegion.top}, B:${leftRegion.bottom}]`);
         logger.info(`[SPLIT-H] Right region: [L:${rightRegion.left}, R:${rightRegion.right}, T:${rightRegion.top}, B:${rightRegion.bottom}]`);
         
+        // Recalculate edge bounds to ensure perpendicular edges update their start/length
+        this._recalculateEdgeBounds();
+        
         this._logLayoutState('AFTER-SPLIT-HORIZONTAL');
         this._refreshDisplay();
     }
@@ -656,6 +714,9 @@ export class GridEditor {
         logger.info(`[SPLIT-V] Split region ${regionIndex} vertically, created edge ${newEdgeId}`);
         logger.info(`[SPLIT-V] Top region: [L:${topRegion.left}, R:${topRegion.right}, T:${topRegion.top}, B:${topRegion.bottom}]`);
         logger.info(`[SPLIT-V] Bottom region: [L:${bottomRegion.left}, R:${bottomRegion.right}, T:${bottomRegion.top}, B:${bottomRegion.bottom}]`);
+        
+        // Recalculate edge bounds to ensure perpendicular edges update their start/length
+        this._recalculateEdgeBounds();
         
         this._logLayoutState('AFTER-SPLIT-VERTICAL');
         this._refreshDisplay();

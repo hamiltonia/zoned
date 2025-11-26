@@ -766,11 +766,27 @@ Now we have `h2` and `h3` both at y=0.75 but in different columns. Should they b
 - [x] Basic edge-based data structure
 - [x] Zone-to-edge conversion
 - [x] Edge-to-zone conversion
-- [x] Split operations
-- [ ] Delete/merge operation (needs refinement)
-- [ ] Edge dragging (segmented edges cause issues)
-- [ ] Edge segment merging strategy
-- [ ] Comprehensive validation
+- [x] Split operations (horizontal and vertical)
+- [x] Delete/merge operation (edge-based deletion with safety checks)
+- [x] Edge dragging with real-time bounds updates
+- [x] Edge bounds recalculation for perpendicular edges
+- [x] Visual polish: transparent edge handles with hover states
+- [x] 4-color map diagnostic mode (optional, default: system accent color)
+- [ ] Comprehensive validation (basic validation implemented)
+
+### Recent Improvements (2025-11-26)
+
+**Bug Fix: Edge Bounds Update During Drag**
+- Fixed issue where perpendicular edge bounds weren't updating in real-time during drag operations
+- Now directly updates perpendicular edge start/length during `_onEdgeDragMotion()`
+- Ensures visual feedback is accurate and drag handles match actual region extent
+
+**Visual Polish: Transparent Edge Handles**
+- Edge line actors now default to `transparent` instead of `rgba(255, 255, 255, 0.2)`
+- Edges only become visible on hover (40% white opacity)
+- Eliminates visual clutter and unprofessional transparency overlap at edge intersections
+- Maintains 30px-wide hit targets for easy mouse interaction
+- Provides cleaner, more professional interface while preserving full functionality
 
 ## Next Steps
 
