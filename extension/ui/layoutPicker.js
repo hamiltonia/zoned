@@ -7,10 +7,12 @@
  * Part of FancyZones-style implementation (Sprint 2)
  */
 
+import GObject from 'gi://GObject';
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import { createLogger } from '../utils/debug.js';
+import { GridEditor } from './gridEditor.js';
 
 const logger = createLogger('LayoutPicker');
 
@@ -21,7 +23,8 @@ const logger = createLogger('LayoutPicker');
  *   const picker = new LayoutPicker(profileManager, templateManager);
  *   picker.open();
  */
-export class LayoutPicker extends ModalDialog.ModalDialog {
+export const LayoutPicker = GObject.registerClass(
+class ZonedLayoutPicker extends ModalDialog.ModalDialog {
     /**
      * Create a new layout picker dialog
      * @param {ProfileManager} profileManager - Profile manager instance
@@ -233,21 +236,39 @@ export class LayoutPicker extends ModalDialog.ModalDialog {
      * @private
      */
     _openEditor() {
-        logger.info('Opening grid editor (not yet implemented)');
+        logger.info('Opening grid editor');
         
         // Close the picker first
         this.close();
         
-        // TODO: Sprint 3 - GridEditor implementation
-        // const editor = new GridEditor(
-        //     this._profileManager.getCurrentLayout(),
-        //     this._profileManager,
-        //     (layout) => this._profileManager.updateCurrentLayout(layout)
-        // );
-        // editor.show();
+        // Always start with a simple 2-region split (halves)
+        // This ensures we start with a valid edge-based layout
+        const layout = {
+            id: `custom-${Date.now()}`,
+            name: 'Custom Layout',
+            zones: [
+                { name: 'Left Half', x: 0, y: 0, w: 0.5, h: 1 },
+                { name: 'Right Half', x: 0.5, y: 0, w: 0.5, h: 1 }
+            ]
+        };
         
-        // Placeholder notification
-        logger.warn('Grid editor not yet implemented (Sprint 3)');
+        logger.debug('Starting grid editor with simple 2-region split');
+        
+        // Open GridEditor with cancel callback to reopen this picker
+        const editor = new GridEditor(
+            layout,
+            this._profileManager,
+            (editedLayout) => {
+                logger.info('Layout saved from GridEditor');
+                this._profileManager.updateCurrentLayout(editedLayout);
+            },
+            () => {
+                // Cancel callback: reopen the layout picker
+                logger.debug('GridEditor canceled - reopening layout picker');
+                this.open();
+            }
+        );
+        editor.show();
     }
 
     /**
@@ -257,4 +278,4 @@ export class LayoutPicker extends ModalDialog.ModalDialog {
         logger.debug('LayoutPicker destroyed');
         super.destroy();
     }
-}
+});

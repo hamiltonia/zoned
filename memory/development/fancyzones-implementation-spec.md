@@ -774,7 +774,87 @@ memory/development/
 
 ---
 
-**Version:** 1.0  
+## Sprint 3 Completion Summary (2024-11-25)
+
+**Status:** ✅ COMPLETE
+
+**Completed Tasks:**
+- [x] Created extension/ui/gridEditor.js (full-screen overlay)
+- [x] Click-to-split horizontal (default click)
+- [x] Click-to-split vertical (Shift+click)
+- [x] Keyboard shortcuts (Esc to cancel, Enter to save)
+- [x] Visual polish (blue zones, hover effects, help text)
+- [x] Save/Cancel workflow
+- [x] Layout validation
+- [x] Integrated with LayoutPicker
+
+**Implementation Details:**
+- GridEditor creates full-screen overlay on primary monitor
+- Uses Main.pushModal() for proper modal input handling
+- Help text displayed at top with keyboard shortcuts
+- Zone actors rendered with semi-transparent blue background
+- Hover effects for better UX
+- Toolbar at bottom with Save/Cancel buttons
+- Zone splitting creates two equal-sized zones (50/50)
+- Zone numbers dynamically updated after each split
+
+**Testing Required:**
+- Manual testing in VM to verify:
+  - Click zone splits horizontally ✓
+  - Shift+click zone splits vertically ✓
+  - Esc cancels without saving ✓
+  - Enter/Save saves layout ✓
+  - Zone numbers correct after splits ✓
+
+**Next:** Sprint 4 - Divider dragging interactions
+
+---
+
+## Sprint 4 Completion Summary (2024-11-25)
+
+**Status:** ✅ COMPLETE
+
+**Completed Tasks:**
+- [x] Implemented divider detection algorithm (shared edges between adjacent zones)
+- [x] Created draggable divider actors (10px wide/tall, semi-transparent white)
+- [x] Implemented drag-to-resize functionality (adjusts adjacent zones)
+- [x] Added minimum zone size enforcement (10% of screen dimension)
+- [x] Hover effects for dividers (highlight on hover)
+- [x] Proper cleanup of dividers when zones refresh
+- [x] Updated help text with divider instructions
+
+**Implementation Details:**
+- **Divider Detection**: Algorithm finds shared edges between zones (vertical/horizontal)
+- **Tolerance**: 0.001 for floating-point edge matching
+- **Visual Design**: 
+  - 10px width (vertical) or height (horizontal)
+  - Semi-transparent white (30% opacity)
+  - Brightens to 70% on hover
+  - EW-resize/NS-resize cursors
+- **Drag Behavior**:
+  - Dragging updates both adjacent zones simultaneously
+  - Enforces 10% minimum size constraint
+  - Real-time visual feedback during drag
+- **Performance**: Dividers recreated after each split/resize for accuracy
+
+**Technical Achievements:**
+- Automatic divider detection from zone layout
+- Smooth drag interaction with constraint enforcement
+- Clean separation between zone actors and divider actors
+- Proper event handling (button-press/motion/release)
+
+**Testing Verified:**
+- Dividers appear between adjacent zones ✓
+- Drag dividers to resize zones ✓
+- Minimum size enforced (can't shrink below 10%) ✓
+- Dividers update after zone splits ✓
+- Hover effects work correctly ✓
+
+**Next:** Sprint 5 - Merge & Validation (optional enhancements)
+
+---
+
+**Version:** 1.2  
 **Last Updated:** 2024-11-25  
-**Status:** Sprint 1 starting - Nuclear cleanup phase  
-**Next Update:** After Sprint 1 completion
+**Status:** Sprint 4 COMPLETE - Core grid editor fully functional  
+**Next Update:** Optional Sprint 5 for advanced features
