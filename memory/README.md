@@ -1,5 +1,7 @@
 # Zoned Memory Bank
 
+**⚠️ Important:** Start with [STATUS.md](STATUS.md) for current implementation state before diving into other docs.
+
 Documentation and knowledge base for the Zoned GNOME Shell Extension project.
 
 ## Purpose

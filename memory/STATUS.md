@@ -1,0 +1,192 @@
+# Zoned Implementation Status
+
+**Last Updated:** 2025-11-26  
+**Version:** Pre-release (active development)
+
+---
+
+## Purpose
+
+This document tracks the current implementation state of the Zoned GNOME Shell Extension. Use this as the single source of truth for what's implemented, what's evolving, and what's planned.
+
+**For Contributors:** Check this before diving into architecture docs - some may describe older/planned systems.
+
+---
+
+## ✅ Implemented & Stable
+
+These components are implemented and unlikely to change significantly:
+
+- **WindowManager** (`windowManager.js`)
+  - Window positioning and zone assignment
+  - Multi-monitor support
+  - Move window to zone functionality
+  
+- **KeybindingManager** (`keybindingManager.js`)
+  - Core keyboard shortcuts (Super+arrows, etc.)
+  - Keybinding registration/cleanup
+  
+- **ZoneOverlay** (`ui/zoneOverlay.js`)
+  - Visual zone preview overlays
+  
+- **NotificationManager** (`ui/notificationManager.js`)
+  - OSD-style zone change notifications
+  
+- **TemplateManager** (`templateManager.js`)
+  - Built-in layout templates (halves, thirds, quarters, focus)
+  - Template-to-layout conversion
+  
+- **LayoutConverter** (`utils/layoutConverter.js`)
+  - Zone ↔ Edge layout conversion
+  - Bidirectional transformation utilities
+
+- **ConfirmDialog** (`ui/confirmDialog.js`)
+  - Simple ModalDialog wrapper for confirmations
+
+---
+
+## 🚧 Implemented but Evolving
+
+These components exist and work, but may undergo architectural changes:
+
+- **ProfileManager** (`profileManager.js`)
+  - Current: Manages profiles and zone cycling
+  - **May change:** Likely to merge with LayoutPicker into unified component
+  - **Rationale:** Reduce complexity, tighter coupling needed
+  
+- **LayoutPicker** (`ui/layoutPicker.js`)
+  - Current: ModalDialog-based template picker
+  - **May change:** Architecture redesign if merged with ProfileManager
+  - Status: Working, but UI may be redesigned
+  
+- **GridEditor** (`ui/gridEditor.js`)
+  - Current: Full-screen edge-based layout editor
+  - Status: Core implementation complete (Sprint 4 done)
+  - **May change:** Polish, additional features (merge zones, undo/redo)
+  - Architecture: Stable (edge-based system)
+  
+- **PanelIndicator** (`ui/panelIndicator.js`)
+  - Current: Panel icon and menu
+  - **May change:** Menu items, integration with settings UI
+
+---
+
+## 📋 Planned (Not Yet Implemented)
+
+Features/components in planning or design phase:
+
+- **Settings/Preferences UI**
+  - Visual preferences dialog
+  - Per-application profile assignments
+  - Advanced configuration options
+  
+- **Profile Persistence Improvements**
+  - Better user profile management
+  - Import/export layouts
+  - Layout sharing/templates
+  
+- **Advanced GridEditor Features**
+  - Merge zones operation
+  - Undo/Redo with history
+  - Keyboard-only editing mode
+  - Zone margin controls
+  
+- **Multi-Monitor Enhancements**
+  - Per-monitor layout assignments
+  - Monitor selector in picker UI
+  - Cross-monitor zones (stretch goal)
+
+---
+
+## 🗑️ Deleted (No Longer Exists)
+
+Components that were removed during development:
+
+- **ProfileSettings** - Old modal dialog implementation (~552 lines)
+  - Deleted: 2024-11-25
+  - Reason: Replaced by LayoutPicker using proper ModalDialog
+  
+- **ProfileEditor** - Old profile editor (~706 lines)
+  - Deleted: 2024-11-25
+  - Reason: Replaced by GridEditor (edge-based system)
+  
+- **MessageDialog** - Custom dialog implementation (~334 lines)
+  - Deleted: 2024-11-25
+  - Reason: Replaced by ConfirmDialog using ModalDialog.ModalDialog
+  
+- **ZoneCanvas** - Old zone editing canvas (~250 lines)
+  - Deleted: 2024-11-25
+  - Reason: Replaced by GridEditor's edge-based approach
+
+---
+
+## 📚 Documentation Status
+
+### Current Technical References
+- ✅ `edge-based-layout-spec.md` - Active technical specification
+- ✅ `setup.md`, `vm-workflow.md` - Development workflows
+- ✅ `hammerspoon-translation.md` - Conceptual mapping (stable)
+
+### Historical/Completed Specs
+- 🗄️ `fancyzones-implementation-spec.md` - Sprint planning log (Sprint 1-4 complete)
+- 🗄️ `profile-editor-status.md` - Transition documentation (old→new editor)
+- 🗄️ `profile-picker-redesign.md` - Completed redesign spec
+
+### Outdated (Needs Rewrite)
+- ⚠️ `architecture/overview.md` - Describes deleted components, needs full rewrite
+- ⚠️ `architecture/component-design.md` - Describes deleted components, needs update
+- ⚠️ `api-reference/profiles.md` - May not match current ProfileManager API
+
+**Plan:** Rewrite architecture/API docs after ProfileManager/LayoutPicker architecture stabilizes.
+
+---
+
+## 🔄 Known Architecture Decisions Pending
+
+1. **ProfileManager + LayoutPicker Merger**
+   - Status: Under consideration
+   - Impact: API changes, documentation rewrite needed
+   
+2. **Layout vs Profile Terminology**
+   - Current: Mixed usage ("Profile" in code, "Layout" in UI/specs)
+   - Decision needed: Standardize on one term
+   
+3. **Settings UI Architecture**
+   - Status: Not yet designed
+   - Blocks: Preferences API documentation
+
+---
+
+## Version History
+
+- **2025-11-26:** Initial STATUS.md created
+  - GridEditor (Sprint 4) complete
+  - Old dialog system deleted
+  - ProfileManager/LayoutPicker architecture under review
+
+---
+
+## Quick Reference for Contributors
+
+**Want to understand the current system?**
+1. Read this STATUS.md first
+2. See `edge-based-layout-spec.md` for layout system details
+3. Check `development/setup.md` for dev environment
+4. Architecture docs are outdated - use with caution
+
+**Want to add features?**
+1. Check "Implemented & Stable" section for what exists
+2. Check "Planned" section to see if it's already designed
+3. Discuss in issues before major architectural changes
+
+**Found outdated documentation?**
+1. Check this STATUS.md to see if component still exists
+2. Update doc with status header (see template below)
+3. PR welcome!
+
+### Status Header Template
+```markdown
+**Status:** ✅ CURRENT | 🚧 IN PROGRESS | 📋 PLANNED | ⚠️ OUTDATED | 🗄️ HISTORICAL
+**Last Verified:** YYYY-MM-DD
+**Notes:** [Any relevant context]
+```

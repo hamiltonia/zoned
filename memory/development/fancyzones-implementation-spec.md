@@ -1,7 +1,11 @@
 # FancyZones-Style Implementation Spec
 
+**Status:** 🗄️ HISTORICAL  
+**Last Verified:** 2025-11-26  
+**Notes:** Sprint planning document for the FancyZones rewrite (Sprints 1-4 completed). Keep as historical reference for understanding development process. GridEditor implementation is now complete.
+
 **Created:** 2024-11-25  
-**Status:** Active Development  
+**Original Status:** Active Development  
 **Approach:** Start small, build out - Grid mode only
 
 ---

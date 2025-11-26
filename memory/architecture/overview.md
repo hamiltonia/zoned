@@ -1,5 +1,11 @@
 # Zoned Architecture Overview
 
+**Status:** ⚠️ OUTDATED  
+**Last Verified:** 2025-11-26  
+**Notes:** This document describes the OLD architecture with ProfilePicker, ProfileSettings, and MessageDialog components that have been deleted. Needs complete rewrite to reflect current LayoutPicker + GridEditor architecture. See memory/STATUS.md for current state.
+
+---
+
 ## Project Vision
 
 Zoned is a GNOME Shell extension that brings FancyZones-style window management to Linux. It provides profile-based window layouts with keyboard-driven zone cycling, inspired by Windows PowerToys FancyZones and macOS Hammerspoon.

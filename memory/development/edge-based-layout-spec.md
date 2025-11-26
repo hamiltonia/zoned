@@ -1,8 +1,12 @@
 # Edge-Based Layout Specification
 
+**Status:** ✅ CURRENT  
+**Last Verified:** 2025-11-26  
+**Notes:** Active technical reference for the edge-based layout system used in GridEditor. This is the authoritative spec for understanding how layouts are represented and manipulated.
+
 **Version:** 1.0  
 **Date:** 2025-11-25  
-**Status:** Draft
+**Original Status:** Draft
 
 ## Overview
 

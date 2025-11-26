@@ -1,5 +1,11 @@
 # Profile System API Reference
 
+**Status:** 🚧 POTENTIALLY OUTDATED  
+**Last Verified:** 2025-11-26  
+**Notes:** ProfileManager API may have changed with introduction of LayoutPicker and edge-based layouts. Verify against actual implementation before using. Default profiles list may not match current templates.
+
+---
+
 Complete specification for the Zoned profile system.
 
 ## Profile Structure
