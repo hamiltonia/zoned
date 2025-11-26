@@ -325,8 +325,7 @@ export class GridEditor {
     }
 
     /**
-     * Create edge actors with drag handles
-     * Each edge has a line (for hover detection) and a handle (for dragging)
+     * Create edge actors for dragging and deletion
      * @private
      */
     _createEdges() {
@@ -336,7 +335,7 @@ export class GridEditor {
         const draggableEdges = this._edgeLayout.edges.filter(edge => !edge.fixed);
         
         draggableEdges.forEach(edge => {
-            // Create edge LINE actor (thin, for hover detection only)
+            // Create edge LINE actor (for hover, drag, and delete)
             const lineActor = new St.Widget({
                 reactive: true,
                 track_hover: true
@@ -358,121 +357,47 @@ export class GridEditor {
                 lineActor.style = 'background-color: rgba(255, 255, 255, 0.2);';
             }
             
-            // Create drag HANDLE actor (circle, initially hidden)
-            const handleActor = new St.Widget({
-                style_class: 'edge-drag-handle',
-                width: 40,
-                height: 40,
-                reactive: true,
-                opacity: 0,  // Hidden by default
-                style: `
-                    background-color: rgba(255, 255, 255, 0.9);
-                    border: 3px solid rgba(255, 255, 255, 1.0);
-                    border-radius: 20px;
-                `
+            // Line hover - highlight
+            lineActor.connect('enter-event', () => {
+                lineActor.style = 'background-color: rgba(255, 255, 255, 0.4);';
             });
             
-            // Line hover - show and position handle
-            lineActor.connect('motion-event', (actor, event) => {
-                const [mouseX, mouseY] = event.get_coords();
-                this._positionHandle(handleActor, edge, mouseX, mouseY, monitor);
-                
-                // Fade in handle
-                handleActor.ease({
-                    opacity: 255,
-                    duration: 150,
-                    mode: Clutter.AnimationMode.EASE_OUT_QUAD
-                });
-                
-                // Highlight line slightly
-                if (edge.type === 'vertical') {
-                    lineActor.style = 'background-color: rgba(255, 255, 255, 0.4);';
-                } else {
-                    lineActor.style = 'background-color: rgba(255, 255, 255, 0.4);';
-                }
-                
-                return Clutter.EVENT_PROPAGATE;
-            });
-            
-            // Line leave - hide handle (unless dragging)
+            // Line leave - dim (unless dragging)
             lineActor.connect('leave-event', () => {
                 if (!this._draggingEdge) {
-                    handleActor.ease({
-                        opacity: 0,
-                        duration: 150,
-                        mode: Clutter.AnimationMode.EASE_OUT_QUAD
-                    });
-                    
-                    // Dim line
                     lineActor.style = 'background-color: rgba(255, 255, 255, 0.2);';
                 }
             });
             
-            // Handle drag start - ONLY the handle can be dragged, not the line
-            handleActor.connect('button-press-event', (actor, event) => {
+            // Line button press - drag or delete
+            lineActor.connect('button-press-event', (actor, event) => {
                 const modifiers = event.get_state();
                 const ctrlPressed = modifiers & Clutter.ModifierType.CONTROL_MASK;
                 
                 if (ctrlPressed) {
-                    // Ctrl+Click on handle: Delete edge
+                    // Ctrl+Click on line: Delete edge
                     logger.info(`[DELETE] Ctrl+Click on edge ${edge.id}`);
                     this._deleteEdge(edge);
                     return Clutter.EVENT_STOP;
                 } else {
                     // Regular click: Start drag
-                    logger.info(`[DRAG] Handle button-press: ${edge.id} (${edge.type})`);
+                    logger.info(`[DRAG] Line button-press: ${edge.id} (${edge.type})`);
                     this._onEdgeDragBegin(edge, event);
                     return Clutter.EVENT_STOP;
                 }
             });
             
-            // Add both actors to overlay
+            // Add line actor to overlay
             this._overlay.add_child(lineActor);
-            this._overlay.add_child(handleActor);
             
-            // Store both actors
+            // Store line actor
             this._edgeActors.push({
                 lineActor: lineActor,
-                handleActor: handleActor,
                 edge: edge
             });
         });
         
-        logger.debug(`Created ${this._edgeActors.length} edge+handle pairs`);
-    }
-    
-    /**
-     * Position drag handle at mouse location along edge
-     * @private
-     */
-    _positionHandle(handleActor, edge, mouseX, mouseY, monitor) {
-        if (edge.type === 'vertical') {
-            // Handle moves along vertical edge (fixed X, varying Y)
-            const edgeX = monitor.x + edge.position * monitor.width;
-            const edgeStartY = monitor.y + edge.start * monitor.height;
-            const edgeEndY = edgeStartY + edge.length * monitor.height;
-            
-            // Clamp mouse Y to edge bounds
-            const handleY = Math.max(edgeStartY, Math.min(edgeEndY, mouseY));
-            
-            handleActor.set_position(
-                edgeX - 20,  // Center on edge (handle is 40px wide)
-                handleY - 20  // Center on mouse
-            );
-        } else {
-            // Handle moves along horizontal edge (varying X, fixed Y)
-            const edgeY = monitor.y + edge.position * monitor.height;
-            const edgeStartX = monitor.x + edge.start * monitor.width;
-            const edgeEndX = edgeStartX + edge.length * monitor.width;
-            
-            // Clamp mouse X to edge bounds
-            const handleX = Math.max(edgeStartX, Math.min(edgeEndX, mouseX));
-            
-            handleActor.set_position(
-                handleX - 20,  // Center on mouse
-                edgeY - 20  // Center on edge (handle is 40px tall)
-            );
-        }
+        logger.debug(`Created ${this._edgeActors.length} edge actors`);
     }
 
     /**
@@ -820,6 +745,80 @@ export class GridEditor {
         if (removed > 0) {
             logger.debug(`Cleaned up ${removed} unused edges`);
         }
+    }
+
+    /**
+     * Recalculate start and length for all non-fixed edges based on regions that reference them
+     * This is critical after edge deletion/region merging to ensure edge bounds match their actual extent
+     * @private
+     */
+    _recalculateEdgeBounds() {
+        const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
+        
+        // For each non-fixed edge, recalculate its bounds
+        this._edgeLayout.edges.forEach(edge => {
+            if (edge.fixed) return; // Skip boundary edges
+            
+            // Find all regions that reference this edge
+            const regions = this._findRegionsReferencingEdge(edge.id);
+            
+            if (regions.length === 0) {
+                logger.warn(`[EDGE-BOUNDS] Edge ${edge.id} has no referencing regions (should be cleaned up)`);
+                return;
+            }
+            
+            if (edge.type === 'vertical') {
+                // For vertical edges: calculate bounds in perpendicular (Y) direction
+                // start = minimum top position, length = max bottom - min top
+                let minTop = 1.0;
+                let maxBottom = 0.0;
+                
+                regions.forEach(region => {
+                    const top = edgeMap.get(region.top);
+                    const bottom = edgeMap.get(region.bottom);
+                    
+                    if (top && bottom) {
+                        minTop = Math.min(minTop, top.position);
+                        maxBottom = Math.max(maxBottom, bottom.position);
+                    }
+                });
+                
+                const oldStart = edge.start;
+                const oldLength = edge.length;
+                
+                edge.start = minTop;
+                edge.length = maxBottom - minTop;
+                
+                if (Math.abs(oldStart - edge.start) > 0.001 || Math.abs(oldLength - edge.length) > 0.001) {
+                    logger.info(`[EDGE-BOUNDS] Updated vertical edge ${edge.id}: start ${oldStart.toFixed(3)}→${edge.start.toFixed(3)}, len ${oldLength.toFixed(3)}→${edge.length.toFixed(3)}`);
+                }
+            } else {
+                // For horizontal edges: calculate bounds in perpendicular (X) direction
+                // start = minimum left position, length = max right - min left
+                let minLeft = 1.0;
+                let maxRight = 0.0;
+                
+                regions.forEach(region => {
+                    const left = edgeMap.get(region.left);
+                    const right = edgeMap.get(region.right);
+                    
+                    if (left && right) {
+                        minLeft = Math.min(minLeft, left.position);
+                        maxRight = Math.max(maxRight, right.position);
+                    }
+                });
+                
+                const oldStart = edge.start;
+                const oldLength = edge.length;
+                
+                edge.start = minLeft;
+                edge.length = maxRight - minLeft;
+                
+                if (Math.abs(oldStart - edge.start) > 0.001 || Math.abs(oldLength - edge.length) > 0.001) {
+                    logger.info(`[EDGE-BOUNDS] Updated horizontal edge ${edge.id}: start ${oldStart.toFixed(3)}→${edge.start.toFixed(3)}, len ${oldLength.toFixed(3)}→${edge.length.toFixed(3)}`);
+                }
+            }
+        });
     }
 
     /**
@@ -1188,6 +1187,9 @@ export class GridEditor {
         // Clean up any orphaned edges
         this._cleanupUnusedEdges();
         
+        // Recalculate edge bounds to ensure hit targets match actual extent
+        this._recalculateEdgeBounds();
+        
         logger.info(`[EDGE-DELETE] Edge deletion complete`);
         this._logLayoutState('AFTER-EDGE-DELETE');
         
@@ -1301,12 +1303,10 @@ export class GridEditor {
         });
         this._regionActors = [];
         
-        // Remove edge actors (now objects with lineActor and handleActor)
+        // Remove edge actors (now objects with lineActor only)
         this._edgeActors.forEach(edgeObj => {
             this._overlay.remove_child(edgeObj.lineActor);
-            this._overlay.remove_child(edgeObj.handleActor);
             edgeObj.lineActor.destroy();
-            edgeObj.handleActor.destroy();
         });
         this._edgeActors = [];
         
