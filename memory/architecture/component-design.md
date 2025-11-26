@@ -2,7 +2,7 @@
 
 **Status:** ⚠️ OUTDATED  
 **Last Verified:** 2025-11-26  
-**Notes:** This document describes deleted components (ProfileSettings, ProfileEditor, MessageDialog, ZoneCanvas). Needs rewrite to document current components (LayoutPicker, GridEditor, TemplateManager, ConfirmDialog). See memory/STATUS.md for current component list.
+**Notes:** This document describes deleted components (ProfileSettings, ProfileEditor, MessageDialog, ZoneCanvas). Needs rewrite to document current components (LayoutPicker, LayoutEditor, TemplateManager, ConfirmDialog). See memory/STATUS.md for current component list.
 
 ---
 

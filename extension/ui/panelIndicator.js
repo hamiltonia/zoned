@@ -66,7 +66,7 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         }
 
         // Profile submenu
-        const profilesSubmenu = new PopupMenu.PopupSubMenuMenuItem('Profiles');
+        const profilesSubmenu = new PopupMenu.PopupSubMenuMenuItem('Layouts');
         const profiles = this._profileManager.getAllProfiles();
         
         profiles.forEach(profile => {

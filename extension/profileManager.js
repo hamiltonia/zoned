@@ -1,6 +1,45 @@
 /**
  * ProfileManager - Manages window layout profiles and state
  * 
+ * ARCHITECTURE NOTE - Profile vs Layout Model:
+ * ============================================
+ * 
+ * INTERNAL (Code):
+ * - PROFILE = Complete data object containing:
+ *   - id: Unique identifier
+ *   - name: User-visible name
+ *   - zones: Array of zone geometry (the LAYOUT data)
+ *   - metadata: (future) padding, shortcuts, per-profile settings
+ * 
+ * - ProfileManager class manages complete profile objects
+ * - Profiles are persisted to ~/.config/zoned/profiles.json
+ * - GSettings keys use "profile" naming (for backward compatibility)
+ * 
+ * USER-FACING (UI):
+ * - Users see "LAYOUT" everywhere in the UI
+ * - "Choose a layout", "Edit layout", "Layout Editor"
+ * - LayoutEditor component edits the zones array (geometry portion)
+ * - LayoutPicker shows profiles but calls them "layouts"
+ * 
+ * WHY THIS ARCHITECTURE?
+ * 1. Separation of Concerns:
+ *    - Layout = Pure geometry data (zones/edges)
+ *    - Profile = Complete package (metadata + layout + settings)
+ * 
+ * 2. User Simplicity:
+ *    - Users don't need to understand internal "profiles" concept
+ *    - "Layout" matches industry terminology (FancyZones, etc.)
+ * 
+ * 3. Code Precision:
+ *    - Code explicitly manages complete profile objects
+ *    - Clear separation between data model and presentation
+ * 
+ * 4. Future-Proof:
+ *    - Easy to add per-profile settings (padding, shortcuts, colors)
+ *    - Layout geometry remains pure and reusable
+ * 
+ * See: memory/development/v1-mvp-roadmap.md for full architecture spec
+ * 
  * Responsibilities:
  * - Loading default and user profiles
  * - Managing current profile and zone state

@@ -1,11 +1,17 @@
 /**
- * GridEditor - Full-screen grid editor for custom layouts (Edge-based)
+ * LayoutEditor - Full-screen visual layout editor (Edge-based)
+ * 
+ * ARCHITECTURE NOTE:
+ * - This component edits LAYOUT data (pure geometry: zones/edges)
+ * - Layouts are referenced by PROFILES (which add metadata like name, settings)
+ * - Users see "Layout" everywhere; internal code uses ProfileManager for complete objects
+ * - See: memory/development/v1-mvp-roadmap.md for architecture details
  * 
  * FancyZones-style visual editor with edge-based data structure:
  * - Click region: Split horizontally
  * - Shift+Click: Split vertically
  * - Drag edges: Resize (affects all regions sharing that edge)
- * - Ctrl+Click: Delete/merge region
+ * - Ctrl+Click on edge: Delete/merge regions
  * - Save/Cancel workflow
  * 
  * Part of FancyZones-style implementation (Sprint 3/4)
@@ -18,20 +24,23 @@ import Shell from 'gi://Shell';
 import { createLogger } from '../utils/debug.js';
 import { zonesToEdges, edgesToZones, validateEdgeLayout } from '../utils/layoutConverter.js';
 
-const logger = createLogger('GridEditor');
+const logger = createLogger('LayoutEditor');
 
 /**
- * GridEditor - Full-screen visual layout editor (edge-based)
+ * LayoutEditor - Full-screen visual layout editor (edge-based)
+ * 
+ * Edits the layout geometry (zones/edges) portion of a profile.
+ * Users see this as "Layout Editor" - the component for designing window zones.
  * 
  * Usage:
- *   const editor = new GridEditor(
- *       currentLayout,  // zone-based layout
+ *   const editor = new LayoutEditor(
+ *       currentProfile,  // Contains zones array (zone-based layout)
  *       profileManager,
  *       (layout) => profileManager.updateCurrentLayout(layout)  // receives zone-based
  *   );
  *   editor.show();
  */
-export class GridEditor {
+export class LayoutEditor {
     /**
      * Create a new grid editor
      * @param {Object} zoneLayout - Initial zone-based layout to edit
@@ -63,7 +72,7 @@ export class GridEditor {
         // When false, uses single accent color; when true, uses 4-color map diagnostic
         this.USE_MAP_COLORS = false;
         
-        logger.debug('GridEditor created (edge-based)');
+        logger.debug('LayoutEditor created (edge-based)');
         logger.debug(`Initial state: ${this._edgeLayout.regions.length} regions, ${this._edgeLayout.edges.length} edges`);
         this._logLayoutState('CONSTRUCTOR');
     }
@@ -224,7 +233,7 @@ export class GridEditor {
         this._helpTextBox.width = 800;
         
         const title = new St.Label({
-            text: 'Grid Editor',
+            text: 'Layout Editor',
             style: 'font-size: 14pt; font-weight: bold; color: white; margin-bottom: 8px;'
         });
         this._helpTextBox.add_child(title);
@@ -1556,6 +1565,6 @@ export class GridEditor {
      */
     destroy() {
         this.hide();
-        logger.debug('GridEditor destroyed');
+        logger.debug('LayoutEditor destroyed');
     }
 }

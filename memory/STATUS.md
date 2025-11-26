@@ -59,7 +59,7 @@ These components exist and work, but may undergo architectural changes:
   - **May change:** Architecture redesign if merged with ProfileManager
   - Status: Working, but UI may be redesigned
   
-- **GridEditor** (`ui/gridEditor.js`)
+- **LayoutEditor** (`ui/layoutEditor.js`)
   - Current: Full-screen edge-based layout editor
   - Status: Core implementation complete (Sprint 4 done)
   - **May change:** Polish, additional features (merge zones, undo/redo)
@@ -85,7 +85,7 @@ Features/components in planning or design phase:
   - Import/export layouts
   - Layout sharing/templates
   
-- **Advanced GridEditor Features**
+- **Advanced LayoutEditor Features**
   - Merge zones operation
   - Undo/Redo with history
   - Keyboard-only editing mode
@@ -108,7 +108,7 @@ Components that were removed during development:
   
 - **ProfileEditor** - Old profile editor (~706 lines)
   - Deleted: 2024-11-25
-  - Reason: Replaced by GridEditor (edge-based system)
+  - Reason: Replaced by LayoutEditor (edge-based system)
   
 - **MessageDialog** - Custom dialog implementation (~334 lines)
   - Deleted: 2024-11-25
@@ -116,7 +116,7 @@ Components that were removed during development:
   
 - **ZoneCanvas** - Old zone editing canvas (~250 lines)
   - Deleted: 2024-11-25
-  - Reason: Replaced by GridEditor's edge-based approach
+  - Reason: Replaced by LayoutEditor's edge-based approach
 
 ---
 
@@ -141,26 +141,59 @@ Components that were removed during development:
 
 ---
 
-## 🔄 Known Architecture Decisions Pending
+## 🔄 Known Architecture Decisions
 
-1. **ProfileManager + LayoutPicker Merger**
-   - Status: Under consideration
-   - Impact: API changes, documentation rewrite needed
-   
-2. **Layout vs Profile Terminology**
-   - Current: Mixed usage ("Profile" in code, "Layout" in UI/specs)
-   - Decision needed: Standardize on one term
-   
-3. **Settings UI Architecture**
-   - Status: Not yet designed
-   - Blocks: Preferences API documentation
+### 1. Profile vs Layout Terminology ✅ DECIDED (2025-11-26)
+
+**Decision:** Use separate terminology for internal code vs user-facing UI.
+
+**INTERNAL (Code):**
+- **Profile** = Complete data object with:
+  - `id`, `name` (metadata)
+  - `zones` array (the layout geometry)
+  - Future: `padding`, `shortcuts`, per-profile settings
+- `ProfileManager` class manages profiles
+- File: `extension/profileManager.js`
+- Persisted to: `~/.config/zoned/profiles.json`
+- GSettings keys use "profile" naming (backward compatibility)
+
+**USER-FACING (UI):**
+- Users see "**Layout**" everywhere
+- "Choose a layout", "Edit layout", "Layout Editor"
+- `LayoutEditor` component (renamed from LayoutEditor)
+- `LayoutPicker` shows profiles but calls them "layouts"
+
+**Rationale:**
+1. Separation of concerns: Layout = geometry, Profile = complete package
+2. User simplicity: "Layout" matches industry terminology
+3. Code precision: Explicit profile object management
+4. Future-proof: Easy to add per-profile settings
+
+**References:**
+- `memory/development/v1-mvp-roadmap.md` - Full architecture spec
+- `extension/profileManager.js` - Detailed implementation notes
+- `extension/ui/layoutEditor.js` - Component documentation
+
+### 2. ProfileManager + LayoutPicker Merger
+
+**Status:** NOT merging (conflicts with terminology decision)
+- ProfileManager stays as backend service
+- LayoutPicker remains separate UI component
+- Clear separation between data and presentation
+
+### 3. Settings UI Architecture
+
+**Status:** Planned (Phase 6 in roadmap)
+- Comprehensive LayoutManager dialog for power users
+- LayoutSettingsDialog for quick metadata edits
+- See v1-mvp-roadmap.md for detailed specs
 
 ---
 
 ## Version History
 
 - **2025-11-26:** Initial STATUS.md created
-  - GridEditor (Sprint 4) complete
+  - LayoutEditor (Sprint 4) complete
   - Old dialog system deleted
   - ProfileManager/LayoutPicker architecture under review
 
