@@ -14,6 +14,7 @@ import Gio from 'gi://Gio';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import { createLogger } from '../utils/debug.js';
+import { LayoutSettingsDialog } from './layoutSettingsDialog.js';
 
 const logger = createLogger('PanelIndicator');
 
@@ -65,8 +66,8 @@ class ZonedPanelIndicator extends PanelMenu.Button {
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         }
 
-        // Profile submenu
-        const profilesSubmenu = new PopupMenu.PopupSubMenuMenuItem('Layouts');
+        // Quick switch submenu
+        const profilesSubmenu = new PopupMenu.PopupSubMenuMenuItem('Choose Layout');
         const profiles = this._profileManager.getAllProfiles();
         
         profiles.forEach(profile => {
@@ -85,12 +86,19 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // Layout picker menu item
-        const layoutPickerItem = new PopupMenu.PopupMenuItem('Choose Layout...');
-        layoutPickerItem.connect('activate', () => {
+        // Full layout picker (ProfilePicker)
+        const layoutsItem = new PopupMenu.PopupMenuItem('Layouts');
+        layoutsItem.connect('activate', () => {
             this._openLayoutPicker();
         });
-        this.menu.addMenuItem(layoutPickerItem);
+        this.menu.addMenuItem(layoutsItem);
+        
+        // Settings (Extensions app preferences)
+        const settingsItem = new PopupMenu.PopupMenuItem('Settings');
+        settingsItem.connect('activate', () => {
+            this._openSettings();
+        });
+        this.menu.addMenuItem(settingsItem);
         
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
@@ -156,17 +164,43 @@ class ZonedPanelIndicator extends PanelMenu.Button {
     }
 
     /**
-     * Open the layout picker dialog
+     * Open the full layout picker (ProfilePicker)
      * @private
      */
     _openLayoutPicker() {
-        logger.debug('Opening LayoutPicker...');
+        logger.debug('Opening full layout picker (ProfilePicker)...');
         
-        if (this._layoutPicker) {
-            this._layoutPicker.open();
+        // Close menu first to release keyboard grab
+        this.menu.close();
+        
+        if (this._profilePicker) {
+            this._profilePicker.show();
         } else {
-            logger.error('LayoutPicker not available');
+            logger.error('ProfilePicker not available');
             this._notificationManager.show('Layout picker not available', 2000);
+        }
+    }
+
+    /**
+     * Open settings (GNOME Extensions preferences)
+     * @private
+     */
+    _openSettings() {
+        logger.debug('Opening settings...');
+        
+        try {
+            // Open GNOME Extensions preferences for this extension
+            const extensionId = 'zoned@hamiltonia.me';
+            const command = `gnome-extensions prefs ${extensionId}`;
+            
+            // Execute command
+            const GLib = imports.gi.GLib;
+            GLib.spawn_command_line_async(command);
+            
+            logger.info('Opened extension preferences');
+        } catch (error) {
+            logger.error(`Error opening settings: ${error}`);
+            this._notificationManager.show('Error opening settings', 2000);
         }
     }
 

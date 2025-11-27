@@ -159,7 +159,7 @@ These components are fully implemented and battle-tested:
 
 ---
 
-### Phase 2: LayoutSettingsDialog 📋 NEXT
+### Phase 2: LayoutSettingsDialog ✅ COMPLETE (2025-11-26)
 
 **Goal:** Create gateway dialog for all layout operations
 
@@ -367,9 +367,51 @@ export class LayoutSettingsDialog extends ModalDialog.ModalDialog {
 
 **Deliverable:** Working settings dialog with full validation
 
+**Completed:**
+- ✅ Created `extension/ui/layoutSettingsDialog.js`
+- ✅ Implements two modes: Create (layout=null) vs Edit (layout=existing)
+- ✅ Name input with validation (required for save)
+- ✅ Layout status display (zone count)
+- ✅ "Edit Layout..." button → LayoutEditor integration
+- ✅ Save button with validation (disabled until name + zones)
+- ✅ Proper callback flow (return to LayoutPicker)
+- ✅ Uses ProfileManager.saveProfile() for persistence
+- ✅ Follows existing dialog patterns (ModalDialog.ModalDialog)
+- ✅ Full JSDoc documentation and logging
+
+**Note:** Ready for integration with LayoutPicker in Phase 4
+
 ---
 
-### Phase 3: LayoutEditor Refactor
+### Phase 2A: Menu Structure & ProfilePicker Fixes ✅ COMPLETE (2025-11-26)
+
+**Goal:** Clean up panel menu structure and fix ProfilePicker keyboard handling
+
+**Changes to `extension/ui/panelIndicator.js`:**
+
+**Menu Structure Cleanup:**
+- ✅ "Layouts" submenu renamed to "Choose Layout" (quick switcher)
+- ✅ Added "Layouts" item that opens ProfilePicker (full interface)
+- ✅ Added "Settings" item that opens Extensions preferences
+- ✅ Removed test "New Layout..." item
+- ✅ Fixed ProfilePicker integration: changed from `.open()` to `.show()`
+
+**Keyboard Grab Fix:**
+- ✅ Added `this.menu.close()` before showing ProfilePicker
+- ✅ Fixes issue where PopupMenu's keyboard grab prevented all keyboard events (ESC, arrows, numbers, Enter) from reaching ProfilePicker
+- ✅ ProfilePicker now works identically whether opened from menu or Super+grave keybinding
+
+**User Experience Improvements:**
+- Consistent keyboard navigation in ProfilePicker regardless of invocation method
+- Clear menu structure: "Choose Layout ▶" for quick switching vs "Layouts" for full management
+- Settings accessible from panel menu
+
+**Deliverable:** Polished menu structure with working keyboard navigation
+
+---
+
+### Phase 3: LayoutEditor Refactor 📋 NEXT
+
 
 **Goal:** Make LayoutEditor a pure designer (doesn't persist directly)
 
