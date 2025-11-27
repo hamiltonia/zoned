@@ -67,8 +67,16 @@ EXTENSION_UUID="zoned@hamiltonia.me"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# SPICE mount point (standard for GNOME Boxes)
-VM_SPICE_MOUNT="/run/user/1000/spice-client-folder"
+# Detect hypervisor type based on host OS
+if [[ "$(uname)" == "Darwin" ]]; then
+    echo -e "${BLUE}Detected macOS host - configuring for Parallels Desktop${NC}"
+    VM_MOUNT_TYPE="parallels"
+    VM_SPICE_MOUNT="/media/psf/zoned"
+else
+    echo -e "${BLUE}Detected Linux host - configuring for GNOME Boxes${NC}"
+    VM_MOUNT_TYPE="gnome-boxes"
+    VM_SPICE_MOUNT="/run/user/1000/spice-client-folder"
+fi
 
 echo
 echo -e "${GREEN}Step 2: Testing Connection${NC}"
@@ -91,6 +99,8 @@ else
     fi
 fi
 
+echo
+
 # Create config directory
 mkdir -p "$CONFIG_DIR"
 
@@ -107,6 +117,9 @@ VM_IP="$VM_IP"
 # Project paths
 HOST_PROJECT_DIR="$PROJECT_DIR"
 VM_SPICE_MOUNT="$VM_SPICE_MOUNT"
+
+# Hypervisor type
+VM_MOUNT_TYPE="$VM_MOUNT_TYPE"
 
 # Extension details
 EXTENSION_UUID="$EXTENSION_UUID"
@@ -127,10 +140,20 @@ echo "     Host $VM_HOST"
 echo "         HostName $VM_IP"
 echo "         User $VM_USER"
 echo
-echo "  2. Configure shared folder in GNOME Boxes:"
-echo "     - Right-click VM → Properties → Devices & Shares"
-echo "     - Add shared folder: $PROJECT_DIR"
-echo "     - Share name: zoned"
+if [[ "$VM_MOUNT_TYPE" == "parallels" ]]; then
+    echo "  2. Configure shared folder in Parallels Desktop:"
+    echo "     - Parallels Desktop → VM Configuration → Options → Sharing"
+    echo "     - Enable 'Share Mac folders with Linux'"
+    echo "     - Add custom folder: $PROJECT_DIR → Name: zoned"
+    echo "     - In VM, verify: ls /media/psf/zoned"
+else
+    echo "  2. Configure shared folder in GNOME Boxes:"
+    echo "     - Right-click VM → Properties → Devices & Shares"
+    echo "     - Add shared folder: $PROJECT_DIR"
+    echo "     - Share name: zoned"
+    echo "     - In VM, open file manager → Other Locations → Networks"
+    echo "     - Click 'Spice client folder' to mount it"
+fi
 echo
 echo "  3. Run: make vm-setup"
 echo "     (This will configure the VM for development)"

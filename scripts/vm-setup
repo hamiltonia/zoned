@@ -51,15 +51,19 @@ if ! ssh -o ConnectTimeout=5 "$VM_USER@$VM_IP" "exit" 2>/dev/null; then
 fi
 echo -e "${GREEN}✓ SSH connection successful${NC}"
 
-# Check shared folder - handle GVFS mount
+# Check shared folder - handle multiple hypervisor types
 echo -e "${BLUE}[2/5]${NC} Detecting shared folder mount point..."
 
-# First check if the old direct mount exists (legacy)
-if ssh "$VM_USER@$VM_IP" "test -d $VM_SPICE_MOUNT" 2>/dev/null; then
+# Try Parallels mount first (macOS/Parallels Desktop)
+if ssh "$VM_USER@$VM_IP" "test -d /media/psf/zoned/extension" 2>/dev/null; then
+    ACTUAL_MOUNT="/media/psf/zoned"
+    echo -e "${GREEN}✓ Found Parallels shared folder at: $ACTUAL_MOUNT${NC}"
+# Then check if the old direct mount exists (legacy GNOME Boxes)
+elif ssh "$VM_USER@$VM_IP" "test -d $VM_SPICE_MOUNT" 2>/dev/null; then
     ACTUAL_MOUNT="$VM_SPICE_MOUNT"
     echo -e "${GREEN}✓ Found shared folder at: $ACTUAL_MOUNT${NC}"
 else
-    # Look for GVFS WebDAV mount (supports both dav: and dav+sd: protocols)
+    # Look for GVFS WebDAV mount (GNOME Boxes - supports both dav: and dav+sd: protocols)
     echo "Searching for GVFS mount..."
     GVFS_MOUNT=$(ssh "$VM_USER@$VM_IP" "find /run/user/1000/gvfs -maxdepth 1 -name 'dav*:*' -type d 2>/dev/null | head -n1" || echo "")
     
@@ -67,6 +71,14 @@ else
         echo -e "${RED}✗ Shared folder not mounted in VM${NC}"
         echo
         echo "To fix this:"
+        echo
+        echo "${BLUE}For Parallels Desktop (macOS):${NC}"
+        echo "  1. Parallels Desktop → VM Configuration → Options → Sharing"
+        echo "  2. Enable 'Share Mac folders with Linux'"
+        echo "  3. Add custom folder: $HOST_PROJECT_DIR → Name: zoned"
+        echo "  4. In VM, verify: ls /media/psf/zoned"
+        echo
+        echo "${BLUE}For GNOME Boxes (Linux):${NC}"
         echo "  1. In VM, open file manager (Nautilus)"
         echo "  2. Navigate to: Other Locations → Networks"
         echo "  3. Click on 'Spice client folder' to mount it"

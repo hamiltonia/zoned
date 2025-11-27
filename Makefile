@@ -1,6 +1,14 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean zip \
         vm-init vm-setup vm-install vm-logs vm-dev
 
+# Detect OS for sed compatibility
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    SED_INPLACE = sed -i ''
+else
+    SED_INPLACE = sed -i
+endif
+
 # Extension details
 EXTENSION_UUID = zoned@hamiltonia.me
 EXTENSION_DIR = extension
@@ -45,7 +53,7 @@ install:
 	@printf "$(COLOR_INFO)Installing Zoned extension (production mode)...$(COLOR_RESET)\n"
 	@mkdir -p $(INSTALL_DIR)
 	@cp -r $(EXTENSION_DIR)/* $(INSTALL_DIR)/
-	@sed -i 's/^const DEBUG = .*/const DEBUG = false;/' $(INSTALL_DIR)/utils/debug.js
+	@$(SED_INPLACE) 's/^const DEBUG = .*/const DEBUG = false;/' $(INSTALL_DIR)/utils/debug.js
 	@printf "$(COLOR_SUCCESS)✓ Installation complete: $(INSTALL_DIR)$(COLOR_RESET)\n"
 	@printf "$(COLOR_INFO)  DEBUG logging: disabled$(COLOR_RESET)\n"
 	@printf "$(COLOR_WARN)⚠ Don't forget to compile the schema: make compile-schema$(COLOR_RESET)\n"
@@ -54,7 +62,7 @@ install-dev:
 	@printf "$(COLOR_INFO)Installing Zoned extension (development mode)...$(COLOR_RESET)\n"
 	@mkdir -p $(INSTALL_DIR)
 	@cp -r $(EXTENSION_DIR)/* $(INSTALL_DIR)/
-	@sed -i 's/^const DEBUG = .*/const DEBUG = true;/' $(INSTALL_DIR)/utils/debug.js
+	@$(SED_INPLACE) 's/^const DEBUG = .*/const DEBUG = true;/' $(INSTALL_DIR)/utils/debug.js
 	@printf "$(COLOR_SUCCESS)✓ Installation complete: $(INSTALL_DIR)$(COLOR_RESET)\n"
 	@printf "$(COLOR_INFO)  DEBUG logging: enabled$(COLOR_RESET)\n"
 	@printf "$(COLOR_WARN)⚠ Don't forget to compile the schema: make compile-schema$(COLOR_RESET)\n"
@@ -129,7 +137,7 @@ zip:
 	@printf "$(COLOR_INFO)Creating extension package (production)...$(COLOR_RESET)\n"
 	@mkdir -p build/prod
 	@cp -r $(EXTENSION_DIR)/* build/prod/
-	@sed -i 's/^const DEBUG = .*/const DEBUG = false;/' build/prod/utils/debug.js
+	@$(SED_INPLACE) 's/^const DEBUG = .*/const DEBUG = false;/' build/prod/utils/debug.js
 	@cd build/prod && zip -r ../$(EXTENSION_UUID).zip . -x "*.git*"
 	@printf "$(COLOR_SUCCESS)✓ Package created: build/$(EXTENSION_UUID).zip$(COLOR_RESET)\n"
 	@printf "$(COLOR_INFO)  DEBUG logging: disabled (production build)$(COLOR_RESET)\n"
