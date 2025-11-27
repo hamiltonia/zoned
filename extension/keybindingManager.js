@@ -20,15 +20,15 @@ export class KeybindingManager {
      * @param {LayoutManager} layoutManager - Layout manager instance
      * @param {WindowManager} windowManager - Window manager instance
      * @param {NotificationManager} notificationManager - Notification manager instance
-     * @param {LayoutSwitcher} layoutSwitcher - Layout switcher instance
+     * @param {LayoutEditor} layoutEditor - Layout editor instance
      * @param {ZoneOverlay} zoneOverlay - Zone overlay instance (optional)
      */
-    constructor(settings, layoutManager, windowManager, notificationManager, layoutSwitcher, zoneOverlay = null) {
+    constructor(settings, layoutManager, windowManager, notificationManager, layoutEditor, zoneOverlay = null) {
         this._settings = settings;
         this._layoutManager = layoutManager;
         this._windowManager = windowManager;
         this._notificationManager = notificationManager;
-        this._layoutSwitcher = layoutSwitcher;
+        this._layoutEditor = layoutEditor;
         this._zoneOverlay = zoneOverlay;
         this._registeredKeys = [];
     }
@@ -171,16 +171,16 @@ export class KeybindingManager {
     }
 
     /**
-     * Handler: Show layout switcher (Super+grave)
+     * Handler: Show layout editor (Super+grave)
      * @private
      */
     _onShowLayoutSwitcher() {
-        logger.debug('Show layout switcher triggered');
+        logger.debug('Show layout editor triggered');
 
-        if (this._layoutSwitcher) {
-            this._layoutSwitcher.show();
+        if (this._layoutEditor) {
+            this._layoutEditor.show();
         } else {
-            logger.warn('Layout switcher not available');
+            logger.warn('Layout editor not available');
         }
     }
 

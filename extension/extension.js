@@ -21,7 +21,7 @@ import {LayoutManager} from './layoutManager.js';
 import {TemplateManager} from './templateManager.js';
 import {KeybindingManager} from './keybindingManager.js';
 import {NotificationManager} from './ui/notificationManager.js';
-import {LayoutSwitcher} from './ui/layoutSwitcher.js';
+import {LayoutEditor} from './ui/layoutEditor.js';
 import {ZoneOverlay} from './ui/zoneOverlay.js';
 import {ConflictDetector} from './ui/conflictDetector.js';
 import {PanelIndicator} from './ui/panelIndicator.js';
@@ -39,11 +39,12 @@ export default class ZonedExtension extends Extension {
         this._layoutManager = null;
         this._templateManager = null;
         this._notificationManager = null;
-        this._layoutSwitcher = null;
+        this._layoutEditor = null;
         this._zoneOverlay = null;
         this._conflictDetector = null;
         this._panelIndicator = null;
         this._keybindingManager = null;
+        this._workspaceSwitchedSignal = null;
         
         logger.info('Extension constructed');
     }
@@ -89,19 +90,19 @@ export default class ZonedExtension extends Extension {
             this._templateManager = new TemplateManager();
             logger.debug('TemplateManager initialized');
 
-            // Initialize LayoutSwitcher
-            this._layoutSwitcher = new LayoutSwitcher(
+            // Initialize LayoutEditor
+            this._layoutEditor = new LayoutEditor(
                 this._layoutManager,
                 this._zoneOverlay,
                 this._settings
             );
-            logger.debug('LayoutSwitcher initialized');
+            logger.debug('LayoutEditor initialized');
 
             // Initialize PanelIndicator
             this._panelIndicator = new PanelIndicator(
                 this._layoutManager,
                 this._conflictDetector,
-                this._layoutSwitcher,
+                this._layoutEditor,
                 this._notificationManager,
                 this._zoneOverlay
             );
@@ -117,13 +118,16 @@ export default class ZonedExtension extends Extension {
                 this._layoutManager,
                 this._windowManager,
                 this._notificationManager,
-                this._layoutSwitcher,
+                this._layoutEditor,
                 this._zoneOverlay
             );
 
             // Register all keybindings
             this._keybindingManager.registerKeybindings();
             logger.debug('KeybindingManager initialized');
+
+            // Setup workspace switching handler (if workspace mode enabled)
+            this._setupWorkspaceHandler();
 
             // Show startup notification
             const currentLayout = this._layoutManager.getCurrentLayout();
@@ -177,11 +181,18 @@ export default class ZonedExtension extends Extension {
                 logger.debug('PanelIndicator destroyed');
             }
 
+            // Disconnect workspace handler
+            if (this._workspaceSwitchedSignal) {
+                global.workspace_manager.disconnect(this._workspaceSwitchedSignal);
+                this._workspaceSwitchedSignal = null;
+                logger.debug('Workspace handler disconnected');
+            }
+
             // Destroy UI components
-            if (this._layoutSwitcher) {
-                this._layoutSwitcher.destroy();
-                this._layoutSwitcher = null;
-                logger.debug('LayoutSwitcher destroyed');
+            if (this._layoutEditor) {
+                this._layoutEditor.destroy();
+                this._layoutEditor = null;
+                logger.debug('LayoutEditor destroyed');
             }
 
             // TemplateManager has no destroy method (no cleanup needed)
@@ -227,5 +238,58 @@ export default class ZonedExtension extends Extension {
             logger.error(`Error disabling extension: ${error}`);
             logger.error(error.stack);
         }
+    }
+
+    /**
+     * Setup workspace switching handler
+     * Automatically switches layouts when workspace changes (if workspace mode enabled)
+     * @private
+     */
+    _setupWorkspaceHandler() {
+        // Connect to workspace-switched signal
+        this._workspaceSwitchedSignal = global.workspace_manager.connect(
+            'workspace-switched',
+            (manager, from, to) => {
+                // Only auto-switch if workspace mode is enabled
+                const workspaceMode = this._settings.get_boolean('use-per-workspace-layouts');
+                if (!workspaceMode) {
+                    return;
+                }
+
+                const toIndex = to.index();
+                logger.debug(`Workspace switched to ${toIndex}`);
+
+                // Get layout for this workspace
+                try {
+                    const mapString = this._settings.get_string('workspace-layout-map');
+                    const map = JSON.parse(mapString);
+                    const layoutId = map[toIndex.toString()];
+
+                    if (layoutId) {
+                        // Switch to the assigned layout
+                        const success = this._layoutManager.setLayout(layoutId);
+                        if (success) {
+                            const layout = this._layoutManager.getCurrentLayout();
+                            logger.info(`Auto-switched to layout: ${layout.name} for workspace ${toIndex}`);
+                            
+                            // Show notification
+                            this._zoneOverlay.showMessage(`Workspace ${toIndex + 1}: ${layout.name}`);
+                        }
+                    } else {
+                        // No layout assigned - use halves as default
+                        const layouts = this._layoutManager.getAllLayouts();
+                        const halvesLayout = layouts.find(l => l.id === 'halves');
+                        if (halvesLayout) {
+                            this._layoutManager.setLayout('halves');
+                            logger.debug(`No layout assigned for workspace ${toIndex}, using halves`);
+                        }
+                    }
+                } catch (e) {
+                    logger.error(`Error switching layout for workspace ${toIndex}:`, e);
+                }
+            }
+        );
+
+        logger.debug('Workspace switching handler setup');
     }
 }

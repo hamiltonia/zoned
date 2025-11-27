@@ -79,5 +79,24 @@
       </description>
     </key>
     
+    <!-- Workspace-specific layouts -->
+    <key name="use-per-workspace-layouts" type="b">
+      <default>false</default>
+      <summary>Use different layouts per workspace</summary>
+      <description>
+        When enabled, each workspace can have its own layout. When disabled, 
+        the layout applies globally to all workspaces.
+      </description>
+    </key>
+    
+    <key name="workspace-layout-map" type="s">
+      <default>"{}"</default>
+      <summary>Workspace to layout mapping</summary>
+      <description>
+        JSON object mapping workspace indices to layout IDs. 
+        Example: {"0": "layout-halves", "1": "layout-code"}
+      </description>
+    </key>
+    
   </schema>
 </schemalist>

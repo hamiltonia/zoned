@@ -20,12 +20,12 @@ const logger = createLogger('PanelIndicator');
 
 export const PanelIndicator = GObject.registerClass(
 class ZonedPanelIndicator extends PanelMenu.Button {
-    _init(layoutManager, conflictDetector, layoutSwitcher, notificationManager, zoneOverlay) {
+    _init(layoutManager, conflictDetector, layoutEditor, notificationManager, zoneOverlay) {
         super._init(0.0, 'Zoned Indicator', false);
 
         this._layoutManager = layoutManager;
         this._conflictDetector = conflictDetector;
-        this._layoutSwitcher = layoutSwitcher;
+        this._layoutEditor = layoutEditor;
         this._notificationManager = notificationManager;
         this._zoneOverlay = zoneOverlay;
         this._hasConflicts = false;
@@ -85,10 +85,10 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // Full layout switcher (LayoutSwitcher)
-        const layoutsItem = new PopupMenu.PopupMenuItem('Layouts');
+        // Full layout editor (LayoutEditor)
+        const layoutsItem = new PopupMenu.PopupMenuItem('Layout Editor');
         layoutsItem.connect('activate', () => {
-            this._openLayoutSwitcher();
+            this._openLayoutEditor();
         });
         this.menu.addMenuItem(layoutsItem);
         
@@ -163,20 +163,20 @@ class ZonedPanelIndicator extends PanelMenu.Button {
     }
 
     /**
-     * Open the layout switcher (visual layout selector)
+     * Open the layout editor (comprehensive layout management)
      * @private
      */
-    _openLayoutSwitcher() {
-        logger.debug('Opening layout switcher...');
+    _openLayoutEditor() {
+        logger.debug('Opening layout editor...');
         
         // Close menu first to release keyboard grab
         this.menu.close();
         
-        if (this._layoutSwitcher) {
-            this._layoutSwitcher.show();
+        if (this._layoutEditor) {
+            this._layoutEditor.show();
         } else {
-            logger.error('LayoutSwitcher not available');
-            this._notificationManager.show('Layout switcher not available', 2000);
+            logger.error('LayoutEditor not available');
+            this._notificationManager.show('Layout editor not available', 2000);
         }
     }
 
