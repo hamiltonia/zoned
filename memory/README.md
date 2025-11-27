@@ -34,11 +34,17 @@ memory/
 
 ## Quick Reference
 
+### For Active Development
+1. **Start here:** `/ROADMAP.md` - Current development plan and next steps
+2. **Check status:** `STATUS.md` - What's implemented, what's evolving, what's planned
+3. **Architecture:** Review the Profile vs Layout model in ROADMAP.md
+
 ### For Contributors
-1. Start with `architecture/overview.md` - understand the big picture
-2. Read `architecture/hammerspoon-translation.md` - see how Hammerspoon concepts map to GNOME
-3. Follow `development/setup.md` - get your dev environment ready
-4. Reference `api-reference/` - understand the profile and config systems
+1. Start with `STATUS.md` - understand current implementation state
+2. Read `/ROADMAP.md` - see active development phases and roadmap
+3. Read `architecture/hammerspoon-translation.md` - see how Hammerspoon concepts map to GNOME
+4. Follow `development/setup.md` - get your dev environment ready
+5. Reference `api-reference/` - understand the profile and config systems
 
 ### For Maintainers
 - `architecture/component-design.md` - detailed component interactions
@@ -55,10 +61,12 @@ This is a **documentation-first** project. The memory bank was created before th
 
 ## Related Documentation
 
+- `/ROADMAP.md` - **Development roadmap and implementation plan**
+- `STATUS.md` - **Current implementation status (start here!)**
 - `/docs/` - User-facing documentation (installation, usage, customization)
 - `/README.md` - Project overview and quick start
 - `/CONTRIBUTING.md` - Contribution guidelines
 
 ---
 *Created: 2025-11-21*
-*Last Updated: 2025-11-21*
+*Last Updated: 2025-11-26*
