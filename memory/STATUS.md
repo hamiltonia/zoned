@@ -49,14 +49,14 @@ These components are implemented and unlikely to change significantly:
 
 These components exist and work, but may undergo architectural changes:
 
-- **ProfileManager** (`profileManager.js`)
-  - Current: Manages profiles and zone cycling
-  - **May change:** Likely to merge with LayoutPicker into unified component
+- **LayoutManager** (`layoutManager.js`)
+  - Current: Manages layouts and zone cycling
+  - **May change:** Likely to merge with TemplatePicker into unified component
   - **Rationale:** Reduce complexity, tighter coupling needed
   
-- **LayoutPicker** (`ui/layoutPicker.js`)
+- **TemplatePicker** (`ui/layoutPicker.js`)
   - Current: ModalDialog-based template picker
-  - **May change:** Architecture redesign if merged with ProfileManager
+  - **May change:** Architecture redesign if merged with LayoutManager
   - Status: Working, but UI may be redesigned
   
 - **ZoneEditor** (`ui/zoneEditor.js`)
@@ -77,11 +77,11 @@ Features/components in planning or design phase:
 
 - **Settings/Preferences UI**
   - Visual preferences dialog
-  - Per-application profile assignments
+  - Per-application layout assignments
   - Advanced configuration options
   
-- **Profile Persistence Improvements**
-  - Better user profile management
+- **Layout Persistence Improvements**
+  - Better user layout management
   - Import/export layouts
   - Layout sharing/templates
   
@@ -102,11 +102,11 @@ Features/components in planning or design phase:
 
 Components that were removed during development:
 
-- **ProfileSettings** - Old modal dialog implementation (~552 lines)
+- **LayoutSettings** - Old modal dialog implementation (~552 lines)
   - Deleted: 2024-11-25
-  - Reason: Replaced by LayoutPicker using proper ModalDialog
+  - Reason: Replaced by TemplatePicker using proper ModalDialog
   
-- **ProfileEditor** - Old profile editor (~706 lines)
+- **LayoutEditor** - Old layout editor (~706 lines)
   - Deleted: 2024-11-25
   - Reason: Replaced by ZoneEditor (edge-based system)
   
@@ -129,56 +129,56 @@ Components that were removed during development:
 
 ### Historical/Completed Specs
 - 🗄️ `fancyzones-implementation-spec.md` - Sprint planning log (Sprint 1-4 complete)
-- 🗄️ `profile-editor-status.md` - Transition documentation (old→new editor)
-- 🗄️ `profile-picker-redesign.md` - Completed redesign spec
+- 🗄️ `layout-editor-status.md` - Transition documentation (old→new editor)
+- 🗄️ `layout-picker-redesign.md` - Completed redesign spec
 
 ### Outdated (Needs Rewrite)
 - ⚠️ `architecture/overview.md` - Describes deleted components, needs full rewrite
 - ⚠️ `architecture/component-design.md` - Describes deleted components, needs update
-- ⚠️ `api-reference/profiles.md` - May not match current ProfileManager API
+- ⚠️ `api-reference/layouts.md` - May not match current LayoutManager API
 
-**Plan:** Rewrite architecture/API docs after ProfileManager/LayoutPicker architecture stabilizes.
+**Plan:** Rewrite architecture/API docs after LayoutManager/TemplatePicker architecture stabilizes.
 
 ---
 
 ## 🔄 Known Architecture Decisions
 
-### 1. Profile vs Layout Terminology ✅ DECIDED (2025-11-26)
+### 1. Layout vs Layout Terminology ✅ DECIDED (2025-11-26)
 
 **Decision:** Use separate terminology for internal code vs user-facing UI.
 
 **INTERNAL (Code):**
-- **Profile** = Complete data object with:
+- **Layout** = Complete data object with:
   - `id`, `name` (metadata)
   - `zones` array (the layout geometry)
-  - Future: `padding`, `shortcuts`, per-profile settings
-- `ProfileManager` class manages profiles
-- File: `extension/profileManager.js`
-- Persisted to: `~/.config/zoned/profiles.json`
-- GSettings keys use "profile" naming (backward compatibility)
+  - Future: `padding`, `shortcuts`, per-layout settings
+- `LayoutManager` class manages layouts
+- File: `extension/layoutManager.js`
+- Persisted to: `~/.config/zoned/layouts.json`
+- GSettings keys use "layout" naming (backward compatibility)
 
 **USER-FACING (UI):**
 - Users see "**Layout**" everywhere
 - "Choose a layout", "Edit layout", "Layout Editor"
 - `ZoneEditor` component (renamed from ZoneEditor)
-- `LayoutPicker` shows profiles but calls them "layouts"
+- `TemplatePicker` shows layouts but calls them "layouts"
 
 **Rationale:**
-1. Separation of concerns: Layout = geometry, Profile = complete package
+1. Separation of concerns: Layout = geometry, Layout = complete package
 2. User simplicity: "Layout" matches industry terminology
-3. Code precision: Explicit profile object management
-4. Future-proof: Easy to add per-profile settings
+3. Code precision: Explicit layout object management
+4. Future-proof: Easy to add per-layout settings
 
 **References:**
 - `memory/development/v1-mvp-roadmap.md` - Full architecture spec
-- `extension/profileManager.js` - Detailed implementation notes
+- `extension/layoutManager.js` - Detailed implementation notes
 - `extension/ui/zoneEditor.js` - Component documentation
 
-### 2. ProfileManager + LayoutPicker Merger
+### 2. LayoutManager + TemplatePicker Merger
 
 **Status:** NOT merging (conflicts with terminology decision)
-- ProfileManager stays as backend service
-- LayoutPicker remains separate UI component
+- LayoutManager stays as backend service
+- TemplatePicker remains separate UI component
 - Clear separation between data and presentation
 
 ### 3. Settings UI Architecture
@@ -195,7 +195,7 @@ Components that were removed during development:
 - **2025-11-26:** Initial STATUS.md created
   - ZoneEditor (Sprint 4) complete
   - Old dialog system deleted
-  - ProfileManager/LayoutPicker architecture under review
+  - LayoutManager/TemplatePicker architecture under review
 
 ---
 

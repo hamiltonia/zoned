@@ -17,18 +17,18 @@ const logger = createLogger('KeybindingManager');
 export class KeybindingManager {
     /**
      * @param {Gio.Settings} settings - GSettings object
-     * @param {ProfileManager} profileManager - Profile manager instance
+     * @param {LayoutManager} layoutManager - Layout manager instance
      * @param {WindowManager} windowManager - Window manager instance
      * @param {NotificationManager} notificationManager - Notification manager instance
-     * @param {ProfilePicker} profilePicker - Profile picker instance
+     * @param {LayoutSwitcher} layoutSwitcher - Layout switcher instance
      * @param {ZoneOverlay} zoneOverlay - Zone overlay instance (optional)
      */
-    constructor(settings, profileManager, windowManager, notificationManager, profilePicker, zoneOverlay = null) {
+    constructor(settings, layoutManager, windowManager, notificationManager, layoutSwitcher, zoneOverlay = null) {
         this._settings = settings;
-        this._profileManager = profileManager;
+        this._layoutManager = layoutManager;
         this._windowManager = windowManager;
         this._notificationManager = notificationManager;
-        this._profilePicker = profilePicker;
+        this._layoutSwitcher = layoutSwitcher;
         this._zoneOverlay = zoneOverlay;
         this._registeredKeys = [];
     }
@@ -50,10 +50,10 @@ export class KeybindingManager {
             this._onCycleZoneRight.bind(this)
         );
 
-        // Profile picker
+        // Layout picker
         this._registerKeybinding(
-            'show-profile-picker',
-            this._onShowProfilePicker.bind(this)
+            'show-layout-picker',
+            this._onShowLayoutSwitcher.bind(this)
         );
 
         // Window management
@@ -121,7 +121,7 @@ export class KeybindingManager {
             return;
         }
 
-        const zone = this._profileManager.cycleZone(-1);
+        const zone = this._layoutManager.cycleZone(-1);
         if (!zone) {
             logger.warn('Failed to cycle to previous zone');
             return;
@@ -129,13 +129,13 @@ export class KeybindingManager {
 
         this._windowManager.moveWindowToZone(window, zone);
 
-        const profile = this._profileManager.getCurrentProfile();
-        const zoneIndex = this._profileManager.getCurrentZoneIndex();
-        const totalZones = profile.zones.length;
+        const layout = this._layoutManager.getCurrentLayout();
+        const zoneIndex = this._layoutManager.getCurrentZoneIndex();
+        const totalZones = layout.zones.length;
 
         // Show zone overlay (center-screen notification for user action)
         if (this._zoneOverlay) {
-            this._zoneOverlay.show(profile.name, zoneIndex, totalZones);
+            this._zoneOverlay.show(layout.name, zoneIndex, totalZones);
         }
     }
 
@@ -152,7 +152,7 @@ export class KeybindingManager {
             return;
         }
 
-        const zone = this._profileManager.cycleZone(1);
+        const zone = this._layoutManager.cycleZone(1);
         if (!zone) {
             logger.warn('Failed to cycle to next zone');
             return;
@@ -160,27 +160,27 @@ export class KeybindingManager {
 
         this._windowManager.moveWindowToZone(window, zone);
 
-        const profile = this._profileManager.getCurrentProfile();
-        const zoneIndex = this._profileManager.getCurrentZoneIndex();
-        const totalZones = profile.zones.length;
+        const layout = this._layoutManager.getCurrentLayout();
+        const zoneIndex = this._layoutManager.getCurrentZoneIndex();
+        const totalZones = layout.zones.length;
 
         // Show zone overlay (center-screen notification for user action)
         if (this._zoneOverlay) {
-            this._zoneOverlay.show(profile.name, zoneIndex, totalZones);
+            this._zoneOverlay.show(layout.name, zoneIndex, totalZones);
         }
     }
 
     /**
-     * Handler: Show profile picker (Super+grave)
+     * Handler: Show layout switcher (Super+grave)
      * @private
      */
-    _onShowProfilePicker() {
-        logger.debug('Show profile picker triggered');
+    _onShowLayoutSwitcher() {
+        logger.debug('Show layout switcher triggered');
 
-        if (this._profilePicker) {
-            this._profilePicker.show();
+        if (this._layoutSwitcher) {
+            this._layoutSwitcher.show();
         } else {
-            logger.warn('Profile picker not available');
+            logger.warn('Layout switcher not available');
         }
     }
 

@@ -2,13 +2,13 @@
 
 **Status:** ⚠️ OUTDATED  
 **Last Verified:** 2025-11-26  
-**Notes:** This document describes the OLD architecture with ProfilePicker, ProfileSettings, and MessageDialog components that have been deleted. Needs complete rewrite to reflect current LayoutPicker + ZoneEditor architecture. See memory/STATUS.md for current state.
+**Notes:** This document describes the OLD architecture with LayoutSwitcher, LayoutSettings, and MessageDialog components that have been deleted. Needs complete rewrite to reflect current TemplatePicker + ZoneEditor architecture. See memory/STATUS.md for current state.
 
 ---
 
 ## Project Vision
 
-Zoned is a GNOME Shell extension that brings FancyZones-style window management to Linux. It provides profile-based window layouts with keyboard-driven zone cycling, inspired by Windows PowerToys FancyZones and macOS Hammerspoon.
+Zoned is a GNOME Shell extension that brings FancyZones-style window management to Linux. It provides layout-based window layouts with keyboard-driven zone cycling, inspired by Windows PowerToys FancyZones and macOS Hammerspoon.
 
 ## High-Level Architecture
 
@@ -18,7 +18,7 @@ Zoned is a GNOME Shell extension that brings FancyZones-style window management 
 ├──────────────────────────────────────────────────────────┤
 │                                                            │
 │  ┌──────────────┐    ┌──────────────┐    ┌────────────┐ │
-│  │   Profile    │───▶│   Window     │───▶│  Keyboard  │ │
+│  │   Layout    │───▶│   Window     │───▶│  Keyboard  │ │
 │  │   Manager    │    │   Manager    │    │  Bindings  │ │
 │  └──────────────┘    └──────────────┘    └────────────┘ │
 │         │                    │                    │       │
@@ -37,7 +37,7 @@ Zoned is a GNOME Shell extension that brings FancyZones-style window management 
 │                             │                             │
 │                             ▼                             │
 │                     ┌──────────────┐                     │
-│                     │   Profile    │                     │
+│                     │   Layout    │                     │
 │                     │   Picker UI  │                     │
 │                     └──────────────┘                     │
 └──────────────────────────────────────────────────────────┘
@@ -45,23 +45,23 @@ Zoned is a GNOME Shell extension that brings FancyZones-style window management 
 
 ## Core Components
 
-### 1. Profile Manager (`profileManager.js`)
+### 1. Layout Manager (`layoutManager.js`)
 **Responsibilities:**
-- Load default profiles from bundled JSON
-- Load user custom profiles from `~/.config/zoned/profiles.json`
-- Merge and validate profile definitions
-- Provide profile query/selection API
-- Track current profile and zone state
+- Load default layouts from bundled JSON
+- Load user custom layouts from `~/.config/zoned/layouts.json`
+- Merge and validate layout definitions
+- Provide layout query/selection API
+- Track current layout and zone state
 
 **Key APIs:**
 ```javascript
-class ProfileManager {
-    loadProfiles()           // Load default + user configs
-    getCurrentProfile()      // Get active profile
-    getCurrentZone()         // Get active zone in current profile
-    setProfile(profileId)    // Switch to different profile
+class LayoutManager {
+    loadLayouts()           // Load default + user configs
+    getCurrentLayout()      // Get active layout
+    getCurrentZone()         // Get active zone in current layout
+    setLayout( layoutId)    // Switch to different layout
     cycleZone(direction)     // Cycle to next/previous zone
-    validateProfile(profile) // Ensure profile is valid
+    validateLayout(layout) // Ensure layout is valid
 }
 ```
 
@@ -87,32 +87,32 @@ class WindowManager {
 **Responsibilities:**
 - Register/unregister keyboard shortcuts
 - Handle shortcut events
-- Coordinate with Profile and Window managers
+- Coordinate with Layout and Window managers
 
 **Keybindings:**
-- `<Super>grave` - Open profile picker
+- `<Super>grave` - Open layout picker
 - `<Super>Left` - Cycle to previous zone
 - `<Super>Right` - Cycle to next zone
 - `<Super>Up` - Maximize/restore window
 - `<Super>Down` - Minimize window
 
-### 4. Profile Picker UI (`ui/profilePicker.js`)
+### 4. Layout Picker UI (`ui/layoutPicker.js`)
 **Responsibilities:**
-- Display modal dialog with profile list
+- Display modal dialog with layout list
 - Show ASCII visual representations
 - Handle keyboard navigation (arrows, Enter, Esc)
-- Indicate current active profile
+- Indicate current active layout
 
 **UI Components:**
 - `St.BoxLayout` - Container
-- `St.ScrollView` - Scrollable profile list
-- `St.Label` - Profile names and ASCII visuals
+- `St.ScrollView` - Scrollable layout list
+- `St.Label` - Layout names and ASCII visuals
 - `St.Button` - Selection (optional, keyboard-only works too)
 
 ### 5. Notification Manager (`ui/notificationManager.js`)
 **Responsibilities:**
 - Display zone change notifications
-- Display profile switch notifications
+- Display layout switch notifications
 - Ensure only one notification visible at a time
 - Use GNOME Shell notification system
 
@@ -124,34 +124,34 @@ User presses Super+Right
     ↓
 KeybindingManager.onCycleRight()
     ↓
-ProfileManager.cycleZone(+1)
+LayoutManager.cycleZone(+1)
     ↓
-ProfileManager.getCurrentZone()
+LayoutManager.getCurrentZone()
     ↓
 WindowManager.moveWindowToZone(zone)
     ↓
-NotificationManager.show("Profile | Zone")
+NotificationManager.show("Layout | Zone")
     ↓
-GSettings.saveState(profileId, zoneIndex)
+GSettings.saveState(layoutId, zoneIndex)
 ```
 
-### Profile Switching Flow
+### Layout Switching Flow
 ```
 User presses Super+grave
     ↓
-KeybindingManager.onProfilePicker()
+KeybindingManager.onLayoutSwitcher()
     ↓
-ProfilePicker.show(profiles)
+LayoutSwitcher.show(layouts)
     ↓
-User selects profile
+User selects layout
     ↓
-ProfileManager.setProfile(profileId)
+LayoutManager.setLayout( layoutId)
     ↓
-ProfileManager.setZone(1) // Reset to first zone
+LayoutManager.setZone(1) // Reset to first zone
     ↓
-NotificationManager.show("Switched to: Profile")
+NotificationManager.show("Switched to: Layout")
     ↓
-GSettings.saveState(profileId, zoneIndex)
+GSettings.saveState(layoutId, zoneIndex)
 ```
 
 ## State Management
@@ -159,7 +159,7 @@ GSettings.saveState(profileId, zoneIndex)
 ### Persistent State (GSettings)
 Stored in GSettings schema:
 ```xml
-<key name="current-profile-id" type="s">
+<key name="current-layout-id" type="s">
   <default>"halves"</default>
 </key>
 <key name="current-zone-index" type="i">
@@ -168,17 +168,17 @@ Stored in GSettings schema:
 ```
 
 ### Session State (Memory)
-- Loaded profiles (default + user)
+- Loaded layouts (default + user)
 - Current focused window
 - Active notification ID
-- Profile picker dialog instance
+- Layout picker dialog instance
 
 ## Configuration System
 
-### Default Profiles
-Bundled in: `extension/config/default-profiles.json`
+### Default Layouts
+Bundled in: `extension/config/default-layouts.json`
 
-Contains 9 profiles:
+Contains 9 layouts:
 1. Center Focus (60%)
 2. Balanced Focus (50%)
 3. Thirds
@@ -189,18 +189,18 @@ Contains 9 profiles:
 8. Balanced Left (40/40/20)
 9. Balanced Right (20/40/40)
 
-### User Profiles
-Optional file: `~/.config/zoned/profiles.json`
+### User Layouts
+Optional file: `~/.config/zoned/layouts.json`
 
 Users can:
-- Override default profiles (by matching `id`)
-- Add custom profiles
+- Override default layouts (by matching `id`)
+- Add custom layouts
 - Define their own zone layouts
 
-### Profile Format
+### Layout Format
 ```json
 {
-  "profiles": [
+  "layouts": [
     {
       "id": "custom_layout",
       "name": "My Custom Layout",
@@ -218,8 +218,8 @@ Users can:
 ### Initialization (enable())
 ```javascript
 1. Load GSettings schema
-2. Load profiles (default + user)
-3. Restore saved state (profile + zone)
+2. Load layouts (default + user)
+3. Restore saved state (layout + zone)
 4. Register keybindings
 5. Initialize UI components
 6. Ready for user interaction
@@ -246,7 +246,7 @@ Users can:
 ## Design Principles
 
 1. **Keyboard-first:** All operations accessible via keyboard shortcuts
-2. **Stateful:** Remember profile and zone across sessions
+2. **Stateful:** Remember layout and zone across sessions
 3. **Customizable:** Users can define their own layouts
 4. **Non-invasive:** Works alongside existing GNOME workflows
 5. **Performant:** Minimal overhead, instant window positioning
@@ -254,10 +254,10 @@ Users can:
 
 ## Future Enhancements
 
-- Preferences UI for visual profile editing
-- Per-application profile assignments
+- Preferences UI for visual layout editing
+- Per-application layout assignments
 - Advanced multi-monitor zone configurations
-- Import/export profile collections
+- Import/export layout collections
 - Animated window transitions (optional)
 - Integration with GNOME's window overview
 

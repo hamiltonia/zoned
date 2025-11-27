@@ -1,21 +1,21 @@
-# Profile System API Reference
+# Layout System API Reference
 
 **Status:** 🚧 POTENTIALLY OUTDATED  
 **Last Verified:** 2025-11-26  
-**Notes:** ProfileManager API may have changed with introduction of LayoutPicker and edge-based layouts. Verify against actual implementation before using. Default profiles list may not match current templates.
+**Notes:** LayoutManager API may have changed with introduction of TemplatePicker and edge-based layouts. Verify against actual implementation before using. Default layouts list may not match current templates.
 
 ---
 
-Complete specification for the Zoned profile system.
+Complete specification for the Zoned layout system.
 
-## Profile Structure
+## Layout Structure
 
-### Profile Object
+### Layout Object
 
-A profile defines a window layout with multiple zones.
+A layout defines a window layout with multiple zones.
 
 ```typescript
-interface Profile {
+interface Layout {
     id: string;           // Unique identifier (alphanumeric + underscores)
     name: string;         // Display name
     zones: Zone[];        // Array of zone definitions (min: 1)
@@ -81,7 +81,7 @@ Center 60%:
 
 ## Validation Rules
 
-### Profile Validation
+### Layout Validation
 
 1. **Required Fields:**
    - `id` must be present and non-empty
@@ -117,9 +117,9 @@ Center 60%:
    - Must be non-empty string
    - Should be descriptive (e.g., "Left Half", "Main Area")
 
-## Default Profiles
+## Default Layouts
 
-Zoned ships with 9 default profiles covering common layouts.
+Zoned ships with 9 default layouts covering common layouts.
 
 ### 1. Center Focus (60%)
 **ID:** `center_focus`
@@ -252,43 +252,43 @@ Narrow left, two equal panels on right.
 └──┴─────┴─────┘
 ```
 
-## Profile Management API
+## Layout Management API
 
-### ProfileManager Methods
+### LayoutManager Methods
 
-#### `loadProfiles(): void`
-Load and merge default and user profiles.
+#### `loadLayouts(): void`
+Load and merge default and user layouts.
 
 ```javascript
-profileManager.loadProfiles();
+layoutManager.loadLayouts();
 ```
 
 **Process:**
-1. Load default profiles from `extension/config/default-profiles.json`
-2. Load user profiles from `~/.config/zoned/profiles.json` (if exists)
+1. Load default layouts from `extension/config/default-layouts.json`
+2. Load user layouts from `~/.config/zoned/layouts.json` (if exists)
 3. Merge by `id` (user overrides default)
-4. Validate all profiles
-5. Restore last used profile from GSettings
+4. Validate all layouts
+5. Restore last used layout from GSettings
 
-**Throws:** `Error` if profile validation fails
+**Throws:** `Error` if layout validation fails
 
-#### `getCurrentProfile(): Profile`
-Get the currently active profile.
+#### `getCurrentLayout(): Layout`
+Get the currently active layout.
 
 ```javascript
-const profile = profileManager.getCurrentProfile();
-console.log(profile.name);  // "Halves"
+const layout = layoutManager.getCurrentLayout();
+console.log(layout.name);  // "Halves"
 ```
 
-**Returns:** Profile object
+**Returns:** Layout object
 
-**Fallback:** Returns first profile if current profile ID not found
+**Fallback:** Returns first layout if current layout ID not found
 
 #### `getCurrentZone(): Zone`
-Get the currently active zone within the current profile.
+Get the currently active zone within the current layout.
 
 ```javascript
-const zone = profileManager.getCurrentZone();
+const zone = layoutManager.getCurrentZone();
 console.log(zone.name);  // "Left Half"
 ```
 
@@ -296,32 +296,32 @@ console.log(zone.name);  // "Left Half"
 
 **Throws:** `Error` if zone index out of bounds
 
-#### `setProfile(profileId: string): void`
-Switch to a different profile.
+#### `setLayout( layoutId: string): void`
+Switch to a different layout.
 
 ```javascript
-profileManager.setProfile('thirds');
+layoutManager.setLayout( 'thirds');
 ```
 
 **Parameters:**
-- `profileId`: ID of profile to activate
+- `layoutId`: ID of layout to activate
 
 **Effects:**
-- Sets current profile
+- Sets current layout
 - Resets zone index to 0 (first zone)
 - Saves state to GSettings
 
-**Throws:** `Error` if profile ID not found
+**Throws:** `Error` if layout ID not found
 
 #### `cycleZone(direction: number): Zone`
-Move to next or previous zone in current profile.
+Move to next or previous zone in current layout.
 
 ```javascript
 // Next zone
-const nextZone = profileManager.cycleZone(+1);
+const nextZone = layoutManager.cycleZone(+1);
 
 // Previous zone  
-const prevZone = profileManager.cycleZone(-1);
+const prevZone = layoutManager.cycleZone(-1);
 ```
 
 **Parameters:**
@@ -338,13 +338,13 @@ const prevZone = profileManager.cycleZone(-1);
 
 ### GSettings Keys
 
-**current-profile-id** (string)
-- Current active profile ID
+**current-layout-id** (string)
+- Current active layout ID
 - Default: `"halves"`
 - Example: `"thirds"`, `"main_side_left"`
 
 **current-zone-index** (integer)
-- Current zone index within profile
+- Current zone index within layout
 - Default: `1` (first zone, 1-based in GSettings, 0-based in code)
 - Range: 0 to (number of zones - 1)
 
@@ -352,33 +352,33 @@ const prevZone = profileManager.cycleZone(-1);
 
 **Save State:**
 ```javascript
-// Automatically saved by ProfileManager on:
-// - setProfile()
+// Automatically saved by LayoutManager on:
+// - setLayout( )
 // - cycleZone()
 
 // Manual save:
-profileManager._saveState();
+layoutManager._saveState();
 ```
 
 **Restore State:**
 ```javascript
 // Automatically restored on:
-// - loadProfiles()
+// - loadLayouts()
 
 // Manual restore:
-profileManager._restoreState();
+layoutManager._restoreState();
 ```
 
-## Custom Profiles
+## Custom Layouts
 
-Users can create custom profiles by creating:
-`~/.config/zoned/profiles.json`
+Users can create custom layouts by creating:
+`~/.config/zoned/layouts.json`
 
-### Creating Custom Profiles
+### Creating Custom Layouts
 
 ```json
 {
-    "profiles": [
+    "layouts": [
         {
             "id": "my_custom_layout",
             "name": "My Custom Layout",
@@ -392,13 +392,13 @@ Users can create custom profiles by creating:
 }
 ```
 
-### Overriding Default Profiles
+### Overriding Default Layouts
 
-To override a default profile, use the same `id`:
+To override a default layout, use the same `id`:
 
 ```json
 {
-    "profiles": [
+    "layouts": [
         {
             "id": "halves",
             "name": "My Custom Halves",
@@ -411,7 +411,7 @@ To override a default profile, use the same `id`:
 }
 ```
 
-**Note:** User profiles completely replace default profiles with matching IDs.
+**Note:** User layouts completely replace default layouts with matching IDs.
 
 ## Advanced Layouts
 
@@ -452,7 +452,7 @@ Zones don't need to be uniform:
 
 ## Best Practices
 
-1. **Profile IDs:**
+1. **Layout IDs:**
    - Use lowercase with underscores
    - Be descriptive but concise
    - Avoid generic names like "layout1"

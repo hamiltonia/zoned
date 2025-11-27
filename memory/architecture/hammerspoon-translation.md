@@ -1,16 +1,16 @@
 # Reference Implementation Mapping
 
-This document maps concepts and APIs from the reference Hammerspoon implementation to GNOME Shell equivalents. The Hammerspoon code (`dotfiles/hammerspoon/.hammerspoon/init.lua`) implements a FancyZones-style window management system on macOS. Zoned brings the same profile-based zone management workflow to Linux/GNOME.
+This document maps concepts and APIs from the reference Hammerspoon implementation to GNOME Shell equivalents. The Hammerspoon code (`dotfiles/hammerspoon/.hammerspoon/init.lua`) implements a FancyZones-style window management system on macOS. Zoned brings the same layout-based zone management workflow to Linux/GNOME.
 
 **Note:** This is not a port of Hammerspoon to Linux. Hammerspoon is a macOS automation tool that was used to create a FancyZones-like system. Zoned is a native GNOME Shell extension that implements the same window management concepts using GNOME's APIs.
 
 ## Core Concept Mappings
 
-### Profile System
+### Layout System
 
 **Hammerspoon (Lua):**
 ```lua
-local profiles = {
+local layouts = {
     {
         id = "halves",
         name = "Halves",
@@ -24,7 +24,7 @@ local profiles = {
 
 **GNOME Shell (JavaScript):**
 ```javascript
-const profiles = [
+const layouts = [
     {
         id: "halves",
         name: "Halves",
@@ -47,7 +47,7 @@ const profiles = [
 **Hammerspoon (Lua):**
 ```lua
 local state = {
-    currentProfileIndex = 1,
+    currentLayoutIndex = 1,
     currentZoneIndex = 1
 }
 
@@ -56,7 +56,7 @@ local savedState = hs.settings.get("windowManagement.state")
 
 -- Save to disk
 hs.settings.set("windowManagement.state", {
-    profileIndex = state.currentProfileIndex,
+    layoutIndex = state.currentLayoutIndex,
     zoneIndex = state.currentZoneIndex
 })
 ```
@@ -67,11 +67,11 @@ hs.settings.set("windowManagement.state", {
 const settings = ExtensionUtils.getSettings();
 
 // Load from GSettings
-let currentProfileId = settings.get_string('current-profile-id');
+let currentLayoutId = settings.get_string('current-layout-id');
 let currentZoneIndex = settings.get_int('current-zone-index');
 
 // Save to GSettings
-settings.set_string('current-profile-id', profileId);
+settings.set_string('current-layout-id', layoutId);
 settings.set_int('current-zone-index', zoneIndex);
 ```
 
@@ -79,7 +79,7 @@ settings.set_int('current-zone-index', zoneIndex);
 - `hs.settings` → `Gio.Settings` (GSettings)
 - Requires XML schema definition
 - Type-specific getters/setters: `get_string()`, `get_int()`, etc.
-- Uses profile ID (string) instead of index (more stable)
+- Uses layout ID (string) instead of index (more stable)
 
 ## API Translations
 
@@ -142,9 +142,9 @@ function moveWindowToZone(window, zone) {
 
 **Hammerspoon (Lua):**
 ```lua
--- Profile Picker: Option+` (⌥~)
+-- Layout Picker: Option+` (⌥~)
 hs.hotkey.bind({"alt"}, "`", function()
-    showProfilePicker()
+    showLayoutSwitcher()
 end)
 
 -- Cycle Zone Left: Option+Command+Left (⌥⌘←)
@@ -160,13 +160,13 @@ end)
 
 **GNOME Shell (JavaScript):**
 ```javascript
-// Profile Picker: Super+` (Win+`)
+// Layout Picker: Super+` (Win+`)
 Main.wm.addKeybinding(
-    'show-profile-picker',
+    'show-layout-picker',
     this._settings,
     Meta.KeyBindingFlags.NONE,
     Shell.ActionMode.NORMAL,
-    this._showProfilePicker.bind(this)
+    this._showLayoutSwitcher.bind(this)
 );
 
 // Cycle Zone Left: Super+Left (Win+←)
@@ -197,7 +197,7 @@ Main.wm.addKeybinding(
 
 **GSettings Schema for Keybindings:**
 ```xml
-<key name="show-profile-picker" type="as">
+<key name="show-layout-picker" type="as">
     <default>['&lt;Super&gt;grave']</default>
 </key>
 <key name="cycle-zone-left" type="as">
@@ -220,7 +220,7 @@ if currentAlert then
     hs.alert.closeSpecific(currentAlert)
 end
 currentAlert = hs.alert.show(
-    string.format("%s | %s", profile.name, zone.name),
+    string.format("%s | %s", layout.name, zone.name),
     0.75
 )
 ```
@@ -241,7 +241,7 @@ Main.messageTray.add(source);
 const notification = new MessageTray.Notification(
     source,
     'Zoned',
-    `${profile.name} | ${zone.name}`
+    `${layout.name} | ${zone.name}`
 );
 
 currentNotification = notification;
@@ -263,30 +263,30 @@ GLib.timeout_add(GLib.PRIORITY_DEFAULT, 750, () => {
 - Manual timeout handling with `GLib.timeout_add()`
 - Different notification lifecycle
 
-### Profile Picker UI
+### Layout Picker UI
 
 **Hammerspoon (Lua):**
 ```lua
-local profileChooser = hs.chooser.new(function(choice)
+local layoutChooser = hs.chooser.new(function(choice)
     if not choice then
         hs.alert.show("Cancelled", 0.75)
         return
     end
     
-    local selectedIndex = choice.profileIndex
-    if selectedIndex ~= state.currentProfileIndex then
-        state.currentProfileIndex = selectedIndex
+    local selectedIndex = choice.layoutIndex
+    if selectedIndex ~= state.currentLayoutIndex then
+        state.currentLayoutIndex = selectedIndex
         state.currentZoneIndex = 1
         saveState()
         hs.alert.show(
-            string.format("Switched to: %s", getCurrentProfile().name),
+            string.format("Switched to: %s", getCurrentLayout().name),
             1
         )
     end
 end)
 
-profileChooser:choices(choices)
-profileChooser:show()
+layoutChooser:choices(choices)
+layoutChooser:show()
 ```
 
 **GNOME Shell (JavaScript):**
@@ -298,23 +298,23 @@ const dialog = new St.BoxLayout({
 });
 
 const scrollView = new St.ScrollView();
-const profileList = new St.BoxLayout({vertical: true});
+const layoutList = new St.BoxLayout({vertical: true});
 
-profiles.forEach((profile, index) => {
+layouts.forEach((layout, index) => {
     const item = new St.Button({
-        label: profile.name,
+        label: layout.name,
         style_class: index === currentIndex ? 'selected' : ''
     });
     
     item.connect('clicked', () => {
-        this._onProfileSelected(index);
+        this._onLayoutSelected(index);
         dialog.destroy();
     });
     
-    profileList.add(item);
+    layoutList.add(item);
 });
 
-scrollView.add_actor(profileList);
+scrollView.add_actor(layoutList);
 dialog.add(scrollView);
 
 Main.uiGroup.add_actor(dialog);
@@ -366,7 +366,7 @@ for (let i = 0; i < nMonitors; i++) {
 - Multiple files required:
   - `metadata.json` - Extension metadata
   - `extension.js` - Main entry point
-  - `profileManager.js` - Profile management
+  - `layoutManager.js` - Layout management
   - `windowManager.js` - Window positioning
   - Component modules in `ui/` directory
   - GSettings schema in `schemas/`
@@ -389,7 +389,7 @@ myWatcher:start()
 class Extension {
     enable() {
         // Initialize extension
-        this._loadProfiles();
+        this._loadLayouts();
         this._registerKeybindings();
     }
     

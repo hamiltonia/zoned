@@ -49,7 +49,7 @@ export class ConflictDetector {
                 }
             ]);
 
-            this._checkBinding('show-profile-picker', '<Super>grave', [
+            this._checkBinding('show-layout-picker', '<Super>grave', [
                 {
                     schema: wmSettings,
                     key: 'switch-group',

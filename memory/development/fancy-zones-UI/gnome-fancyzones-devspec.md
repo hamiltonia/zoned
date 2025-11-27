@@ -1,21 +1,21 @@
 # GNOME Extension Dev Spec: FancyZones-style Window Manager
 
 ## Executive Summary
-Implement a GNOME Shell extension providing multi-monitor window tiling with custom layouts, profile management, and keyboard/mouse-driven workflows. Core UX: instant visual feedback, minimal clicks to switch contexts, zero-friction zone editing.
+Implement a GNOME Shell extension providing multi-monitor window tiling with custom layouts, layout management, and keyboard/mouse-driven workflows. Core UX: instant visual feedback, minimal clicks to switch contexts, zero-friction zone editing.
 
 ---
 
-## 1. Profile & Layout Management
+## 1. Layout & Layout Management
 
 ### 1.1 Data Model
 ```typescript
-interface Profile {
+interface Layout {
   id: string;              // UUID
   name: string;
   icon?: string;           // Icon name from theme
   hotkey?: string;         // e.g., "<Super><Ctrl>1"
   layouts: Layout[];       // Per-monitor layouts
-  settings: ProfileSettings;
+  settings: LayoutSettings;
 }
 
 interface Layout {
@@ -34,7 +34,7 @@ interface Zone {
   index: number;           // For Win+Arrow navigation
 }
 
-interface ProfileSettings {
+interface LayoutSettings {
   shiftToActivate: boolean;
   zoneMargin: number;      // px
   snapThreshold: number;   // px for adjacent zone detection
@@ -43,7 +43,7 @@ interface ProfileSettings {
 }
 ```
 
-### 1.2 Profile Picker UX
+### 1.2 Layout Picker UX
 
 **Trigger Points:**
 1. `Super+Shift+\`` (configurable)
@@ -53,14 +53,14 @@ interface ProfileSettings {
 **Visual Design:**
 ```
 ┌─────────────────────────────────────┐
-│  Active: Work Setup         [Edit]  │ ← Current profile, inline edit
+│  Active: Work Setup         [Edit]  │ ← Current layout, inline edit
 ├─────────────────────────────────────┤
 │  ○ Default          Super+Ctrl+1    │ ← Radio selection, hotkey shown
 │  ● Work Setup       Super+Ctrl+2    │
 │  ○ Streaming        Super+Ctrl+3    │
 │  ○ Development      (unassigned)    │
 ├─────────────────────────────────────┤
-│  [+ New Profile]   [⚙ Settings]     │
+│  [+ New Layout]   [⚙ Settings]     │
 └─────────────────────────────────────┘
 ```
 
@@ -68,11 +68,11 @@ interface ProfileSettings {
 - **Modal overlay** centered on primary monitor (fade background to 85% opacity)
 - **Keyboard navigation**: Arrow keys, Enter to apply, Esc to cancel
 - **Mouse**: Click to select, double-click to apply
-- **Fast switch**: Type profile number (1-9) to apply immediately
-- **Inline rename**: Click profile name to edit (Enter saves, Esc cancels)
+- **Fast switch**: Type layout number (1-9) to apply immediately
+- **Inline rename**: Click layout name to edit (Enter saves, Esc cancels)
 - **Animation**: 150ms fade-in, zone preview on hover (ghosted zones on target monitors)
 
-**Profile Actions (right-click context menu):**
+**Layout Actions (right-click context menu):**
 - Rename
 - Duplicate
 - Assign Hotkey
@@ -85,9 +85,9 @@ interface ProfileSettings {
 ### 2.1 Editor Launch
 
 **Entry Points:**
-1. "Edit" button in profile picker (opens for active profile)
-2. `Super+Shift+\`` when profile picker is open
-3. Settings → Profiles → [Profile] → Edit Layouts
+1. "Edit" button in layout picker (opens for active layout)
+2. `Super+Shift+\`` when layout picker is open
+3. Settings → Layouts → [Layout] → Edit Layouts
 
 **Editor State:**
 - Full-screen overlay per monitor (multi-monitor: edit all simultaneously)
@@ -258,7 +258,7 @@ interface ProfileSettings {
 
 **Layout Assignment:**
 - Default: Each monitor gets "Priority Grid" template
-- Profile-specific: Per-monitor layouts stored in profile
+- Layout-specific: Per-monitor layouts stored in layout
 - Resolution change: Scale zones proportionally (validate min sizes)
 
 ### 4.2 Cross-Monitor Workflows
@@ -304,11 +304,11 @@ interface ProfileSettings {
 - Navigation mode: ○ Zone index  ● Relative position
 - ☐ Cycle across all monitors
 
-### 5.2 Per-Profile Settings
+### 5.2 Per-Layout Settings
 
 **Override global settings:**
-- ☐ Use custom colors for this profile
-- ☐ Use custom margins for this profile
+- ☐ Use custom colors for this layout
+- ☐ Use custom margins for this layout
 
 **Window Rules:**
 - Exclude applications: (list, one per line)
@@ -325,7 +325,7 @@ interface ProfileSettings {
 ### 6.1 Storage Format
 
 **Location:**
-- Profiles: `~/.local/share/gnome-shell/extensions/fancyzones@example.com/profiles.json`
+- Layouts: `~/.local/share/gnome-shell/extensions/fancyzones@example.com/layouts.json`
 - Settings: `~/.local/share/gnome-shell/extensions/fancyzones@example.com/settings.json`
 - Window state: `~/.cache/gnome-shell/extensions/fancyzones@example.com/window-state.json`
 
@@ -333,7 +333,7 @@ interface ProfileSettings {
 ```json
 {
   "version": "1.0",
-  "profiles": [
+  "layouts": [
     {
       "id": "uuid-here",
       "name": "Work Setup",
@@ -358,21 +358,21 @@ interface ProfileSettings {
       }
     }
   ],
-  "activeProfile": "uuid-here"
+  "activeLayout": "uuid-here"
 }
 ```
 
 ### 6.2 Import/Export UX
 
 **Export:**
-- Settings → Profiles → [Profile] → Export
-- Saves as `{profile-name}-{date}.fancyzones.json`
+- Settings → Layouts → [Layout] → Export
+- Saves as `{layout-name}-{date}.fancyzones.json`
 - Includes layouts, settings, window rules (excludes window state)
 
 **Import:**
-- Settings → Import Profile → File picker
-- Preview: Shows profile name, monitor count, zone count
-- Options: ☐ Import as new profile  ☑ Merge with existing
+- Settings → Import Layout → File picker
+- Preview: Shows layout name, monitor count, zone count
+- Options: ☐ Import as new layout  ☑ Merge with existing
 
 **Sync (future enhancement):**
 - Via GNOME Online Accounts (Google Drive, Nextcloud)
@@ -389,7 +389,7 @@ interface ProfileSettings {
 - `Meta.MonitorManager` - Display detection
 - `Meta.WindowGroup` - Window stacking
 - `Clutter.Actor` - Zone overlay rendering
-- `St.Widget` - UI components (profile picker, editor toolbar)
+- `St.Widget` - UI components (layout picker, editor toolbar)
 
 **Event Handling:**
 - `Meta.Display.grab-op-begin` - Detect drag start
@@ -399,9 +399,9 @@ interface ProfileSettings {
 ### 7.2 Performance Targets
 
 - **Zone rendering**: <16ms per frame (60 FPS)
-- **Profile switch**: <100ms (layout apply + zone recalc)
+- **Layout switch**: <100ms (layout apply + zone recalc)
 - **Editor load**: <200ms (including monitor detection)
-- **Memory footprint**: <10MB resident (5 profiles, 50 zones total)
+- **Memory footprint**: <10MB resident (5 layouts, 50 zones total)
 
 ### 7.3 Compatibility
 
@@ -466,16 +466,16 @@ interface ProfileSettings {
 
 ### 9.1 Functional Tests
 
-- [ ] Create grid layout, snap 4 windows, switch profile, verify windows restore
+- [ ] Create grid layout, snap 4 windows, switch layout, verify windows restore
 - [ ] Delete zone with snapped window, verify window unsnaps gracefully
 - [ ] Drag window to adjacent zone edge, verify multi-zone highlight
 - [ ] Hotplug monitor, verify layout applies to new monitor
-- [ ] Import profile with invalid zone data, verify error handling
+- [ ] Import layout with invalid zone data, verify error handling
 
 ### 9.2 Edge Cases
 
 - [ ] Snap window, disconnect monitor, reconnect, verify window position
-- [ ] Rapid profile switching (5 switches in 2 seconds), verify no crash
+- [ ] Rapid layout switching (5 switches in 2 seconds), verify no crash
 - [ ] 100 zones on single monitor, verify editor responsiveness
 - [ ] Fullscreen app (game), verify zones don't show on top
 - [ ] Screen recording, verify zone overlays appear in recording (optional setting)
@@ -511,8 +511,8 @@ interface ProfileSettings {
 
 | Shortcut | Action |
 |----------|--------|
-| `Super+Shift+\`` | Open profile picker / editor |
-| `Super+Ctrl+1-9` | Quick switch to profile |
+| `Super+Shift+\`` | Open layout picker / editor |
+| `Super+Ctrl+1-9` | Quick switch to layout |
 | `Super+Arrow` | Move window to adjacent zone |
 | `Super+Ctrl+Alt+Arrow` | Expand window to multiple zones |
 | `Super+PgUp/PgDn` | Cycle windows in same zone |

@@ -6,19 +6,19 @@ A GNOME Shell extension that brings FancyZones-style window management to Linux.
 
 ## Features
 
-- 🎯 **Profile-Based Layouts** - 9 built-in profiles plus custom profile support
+- 🎯 **Layout-Based Window Management** - 9 built-in layouts plus custom layout support
 - ⌨️ **Keyboard-First** - Cycle through zones with simple keyboard shortcuts
-- 💾 **State Persistence** - Remembers your profile and zone across sessions
-- 🎨 **Visual Profile Picker** - Quick profile switching with ASCII previews
+- 💾 **State Persistence** - Remembers your layout and zone across sessions
+- 🎨 **Visual Layout Picker** - Quick layout switching with ASCII previews
 - 🔧 **Auto-Fix Conflicts** - Detects and resolves keyboard shortcut conflicts with GNOME
 - 🖥️ **Multi-Monitor Ready** - Works seamlessly with multiple displays
 - ⚙️ **Customizable** - Define your own zone layouts via JSON
 
 ## What is Zoned?
 
-Zoned provides Windows PowerToys FancyZones-like functionality for GNOME. Instead of dragging windows to snap them, you use keyboard shortcuts to cycle through predefined zones in your chosen profile.
+Zoned provides Windows PowerToys FancyZones-like functionality for GNOME. Instead of dragging windows to snap them, you use keyboard shortcuts to cycle through predefined zones in your chosen layout.
 
-**Inspiration:** This project brings the profile-based window management workflow I created with Hammerspoon on macOS to Linux/GNOME.
+**Inspiration:** This project brings the layout-based window management workflow I created with Hammerspoon on macOS to Linux/GNOME.
 
 ## Installation
 
@@ -73,7 +73,7 @@ make enable
 |----------|--------|
 | `Super+Left` | Cycle to previous zone |
 | `Super+Right` | Cycle to next zone |
-| `Super+grave` | Open profile picker (backtick key) |
+| `Super+grave` | Open layout picker (backtick key) |
 | `Super+Up` | Maximize/restore window |
 | `Super+Down` | Minimize window |
 
@@ -83,23 +83,23 @@ make enable
 
 1. Open some windows
 2. Focus a window you want to position
-3. Press `Super+grave` to open the profile picker
-4. Select a profile (e.g., "Halves")
+3. Press `Super+grave` to open the layout picker
+4. Select a layout (e.g., "Halves")
 5. Press `Super+Right` to cycle through zones
 6. Window positions itself in each zone as you cycle
 
 ### Example: Setting Up a Coding Layout
 
 ```
-1. Open profile picker (Super+grave)
-2. Select "Main Left" profile (67% left, 33% right)
+1. Open layout picker (Super+grave)
+2. Select "Main Left" layout (67% left, 33% right)
 3. Focus your code editor
 4. Press Super+Right → Editor fills left 67%
 5. Focus your terminal
 6. Press Super+Right → Terminal fills right 33%
 ```
 
-## Built-in Profiles
+## Built-in Layouts
 
 1. **Center Focus (60%)** - Center window with narrow sides (20/60/20)
 2. **Balanced Focus (50%)** - Balanced center with sides (25/50/25)
@@ -111,16 +111,16 @@ make enable
 8. **Balanced Left** - Two left, one right (40/40/20)
 9. **Balanced Right** - One left, two right (20/40/40)
 
-## Custom Profiles
+## Custom Layouts
 
 Create your own layouts by editing:
-`~/.config/zoned/profiles.json`
+`~/.config/zoned/custom-layouts.json`
 
-Example custom profile:
+Example custom layout:
 
 ```json
 {
-  "profiles": [
+  "layouts": [
     {
       "id": "my_custom",
       "name": "My Custom Layout",
@@ -133,7 +133,7 @@ Example custom profile:
 }
 ```
 
-See [Profile Documentation](docs/customization.md) for details.
+See [Layout Documentation](docs/customization.md) for details.
 
 ## Documentation
 
@@ -141,7 +141,7 @@ See [Profile Documentation](docs/customization.md) for details.
 - [Usage Guide](docs/usage.md)
 - [Customization](docs/customization.md)
 - [Keyboard Shortcuts](memory/api-reference/keybindings.md)
-- [Profile API](memory/api-reference/profiles.md)
+- [Layout API](memory/api-reference/layouts.md)
 
 ### For Developers
 
@@ -222,7 +222,7 @@ Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 Areas where help is appreciated:
 - Testing on different GNOME versions
-- Additional profile designs
+- Additional layout designs
 - UI/UX improvements
 - Bug reports and fixes
 - Documentation improvements
@@ -230,11 +230,11 @@ Areas where help is appreciated:
 ## Roadmap
 
 - [x] Core zone cycling functionality
-- [x] Profile system with 9 default profiles
+- [x] Layout system with 9 default layouts
 - [x] State persistence
-- [x] Profile picker UI
-- [ ] Preferences UI for visual profile editing
-- [ ] Per-application profile assignments
+- [x] Layout picker UI
+- [ ] Preferences UI for visual layout editing
+- [ ] Per-application layout assignments
 - [ ] Zone preview overlay
 - [ ] Animated transitions (optional)
 - [ ] Wayland optimization
@@ -253,7 +253,7 @@ GNU General Public License v3.0 - see [LICENSE](LICENSE) for details.
 
 - 🐛 [Report bugs](https://github.com/hamiltonia/zoned/issues)
 - 💬 [Discussions](https://github.com/hamiltonia/zoned/discussions)
-- 📧 Contact: [GitHub Profile](https://github.com/hamiltonia)
+- 📧 Contact: [GitHub Layout](https://github.com/hamiltonia)
 
 ---
 

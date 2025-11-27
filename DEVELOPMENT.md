@@ -120,16 +120,16 @@ zoned/
 │   ├── extension.js           # Entry point
 │   ├── metadata.json          # Extension metadata
 │   ├── keybindingManager.js   # Keyboard shortcuts
-│   ├── profileManager.js      # Profile system
+│   ├── layoutManager.js      # Layout system
 │   ├── windowManager.js       # Window positioning
 │   ├── ui/                    # UI components
 │   │   ├── panelIndicator.js  # Top panel icon
-│   │   ├── profilePicker.js   # Profile selector
+│   │   ├── layoutPicker.js   # Layout selector
 │   │   ├── conflictDetector.js # Keybinding conflicts
 │   │   ├── notificationManager.js
 │   │   └── zoneOverlay.js
 │   ├── schemas/               # GSettings schema
-│   └── config/                # Default profiles
+│   └── config/                # Default layouts
 ├── memory/                     # Documentation
 ├── Makefile                   # Build automation
 └── README.md                  # User documentation
@@ -231,7 +231,7 @@ Before committing changes:
 - [ ] `make compile-schema` - Schema compiles successfully
 - [ ] `make logs` - No JS errors in output
 - [ ] Test Super+Left/Right - Windows cycle through zones
-- [ ] Test Super+grave - Profile picker opens
+- [ ] Test Super+grave - Layout picker opens
 - [ ] Test Super+Up - Maximize/restore works
 - [ ] Test Super+Down - Minimize works
 - [ ] Panel indicator shows status correctly

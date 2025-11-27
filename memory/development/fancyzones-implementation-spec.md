@@ -12,7 +12,7 @@
 
 ## Overview
 
-Complete rewrite of profile/layout management using FancyZones UX patterns. Replaces broken custom modal dialogs with proper GNOME Shell ModalDialog usage and full-screen grid editor.
+Complete rewrite of layout/layout management using FancyZones UX patterns. Replaces broken custom modal dialogs with proper GNOME Shell ModalDialog usage and full-screen grid editor.
 
 **Goals:**
 1. Fix modal dialog conflicts (use ModalDialog.ModalDialog)
@@ -24,15 +24,15 @@ Complete rewrite of profile/layout management using FancyZones UX patterns. Repl
 
 ## Terminology Change
 
-**Old:** Profile (container for zones)  
+**Old:** Layout (container for zones)  
 **New:** Layout (FancyZones term)
 
 **Rationale:** Align with FancyZones spec, clearer intent
 
 **Migration:**
-- Keep ProfileManager class name (public API)
+- Keep LayoutManager class name (public API)
 - Internal methods use "layout" terminology
-- UI displays "Choose Layout" not "Choose Profile"
+- UI displays "Choose Layout" not "Choose Layout"
 
 ---
 
@@ -40,7 +40,7 @@ Complete rewrite of profile/layout management using FancyZones UX patterns. Repl
 
 ```
 Component Hierarchy:
-├─ LayoutPicker (ModalDialog)          ← Quick modal overlay
+├─ TemplatePicker (ModalDialog)          ← Quick modal overlay
 │  ├─ Template cards (halves, thirds, etc.)
 │  └─ "New Custom Layout" button
 │
@@ -62,8 +62,8 @@ Component Hierarchy:
 ## Files to DELETE (Nuclear Cleanup)
 
 ```
-extension/ui/profileSettings.js        (~552 lines)
-extension/ui/profileEditor.js          (~706 lines)
+extension/ui/layoutSettings.js        (~552 lines)
+extension/ui/layoutEditor.js          (~706 lines)
 extension/ui/messageDialog.js          (~334 lines)
 extension/ui/zoneCanvas.js             (~250 lines)
 ────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ Total: 1,842 lines DELETED
 ### Day 1 Afternoon: Nuclear Deletion
 
 **Tasks:**
-- [ ] Delete 4 files (profileSettings, profileEditor, messageDialog, zoneCanvas)
+- [ ] Delete 4 files (layoutSettings, layoutEditor, messageDialog, zoneCanvas)
 - [ ] Remove imports from extension.js and panelIndicator.js
 - [ ] Commit deletion: "Remove deprecated dialog system - FancyZones rewrite"
 
@@ -136,7 +136,7 @@ Total: 1,842 lines DELETED
 
 ## Sprint 2: Layout Picker (ModalDialog)
 
-### Day 3: LayoutPicker Shell
+### Day 3: TemplatePicker Shell
 
 **Create: extension/ui/layoutPicker.js**
 
@@ -145,7 +145,7 @@ import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 
-export class LayoutPicker extends ModalDialog.ModalDialog {
+export class TemplatePicker extends ModalDialog.ModalDialog {
     constructor(layoutManager, templateManager) {
         super({ styleClass: 'zoned-layout-picker' });
         
@@ -232,7 +232,7 @@ export class LayoutPicker extends ModalDialog.ModalDialog {
     }
     
     _onTemplateSelected(template) {
-        // Apply layout to current profile
+        // Apply layout to current layout
         const layout = this._templateManager.createLayoutFromTemplate(template.id);
         this._layoutManager.updateCurrentLayout(layout);
         this.close();
@@ -251,9 +251,9 @@ export class LayoutPicker extends ModalDialog.ModalDialog {
 
 **Tasks:**
 - [ ] Add CSS for template cards
-- [ ] Wire up to PanelIndicator (replace old ProfilePicker)
+- [ ] Wire up to PanelIndicator (replace old LayoutSwitcher)
 - [ ] Test template selection flow
-- [ ] Commit: "Add LayoutPicker with ModalDialog"
+- [ ] Commit: "Add TemplatePicker with ModalDialog"
 
 ---
 
@@ -598,22 +598,22 @@ export class TemplateManager {
 
 **Remove:**
 ```javascript
-// OLD - ProfileSettings
-this._profileSettings = new ProfileSettings(...);
+// OLD - LayoutSettings
+this._layoutSettings = new LayoutSettings(...);
 this._settingsItem.connect('activate', () => {
-    this._profileSettings.show();
+    this._layoutSettings.show();
 });
 ```
 
 **Add:**
 ```javascript
-// NEW - LayoutPicker
-import { LayoutPicker } from './ui/layoutPicker.js';
+// NEW - TemplatePicker
+import { TemplatePicker } from './ui/layoutPicker.js';
 import { TemplateManager } from './templateManager.js';
 
 this._templateManager = new TemplateManager();
-this._layoutPicker = new LayoutPicker(
-    this._profileManager,
+this._layoutPicker = new TemplatePicker(
+    this._layoutManager,
     this._templateManager
 );
 
@@ -622,14 +622,14 @@ this._settingsItem.connect('activate', () => {
 });
 ```
 
-### ProfileManager Changes
+### LayoutManager Changes
 
 **Keep existing methods, add:**
 ```javascript
 updateCurrentLayout(layout) {
-    // Update active profile's zones
-    const activeId = this._settings.get_string('active-profile');
-    this.saveProfile({
+    // Update active layout's zones
+    const activeId = this._settings.get_string('active-layout');
+    this.saveLayout({
         id: activeId,
         name: layout.name,
         zones: layout.zones
@@ -646,7 +646,7 @@ updateCurrentLayout(layout) {
    - [ ] All 4 templates return valid zone configurations
    - [ ] createLayoutFromTemplate() creates deep copy
 
-2. **LayoutPicker:**
+2. **TemplatePicker:**
    - [ ] Opens as modal dialog
    - [ ] Shows 4 template cards
    - [ ] Click template applies layout
@@ -707,7 +707,7 @@ After 15 days of development:
 - [ ] Zone margin controls
 
 ### Phase 3: Multi-Monitor
-- [ ] Upgrade LayoutPicker to full window
+- [ ] Upgrade TemplatePicker to full window
 - [ ] Monitor selector bar (spec-02)
 - [ ] Per-monitor layouts
 - [ ] Cross-monitor zones (optional)
@@ -733,10 +733,10 @@ After 15 days of development:
 **Rationale:** Matches FancyZones UX, immersive editing experience  
 **Implementation:** Custom St.Widget, not ModalDialog (wrong pattern)
 
-### Decision 3: Terminology - Profile vs Layout
+### Decision 3: Terminology - Layout vs Layout
 **Chosen:** Layout  
 **Rationale:** Aligns with FancyZones, clearer intent, industry standard  
-**Migration:** Keep ProfileManager class, update UI strings
+**Migration:** Keep LayoutManager class, update UI strings
 
 ### Decision 4: Template Storage
 **Chosen:** Hardcoded built-in templates initially  
@@ -750,14 +750,14 @@ After 15 days of development:
 ```
 extension/
 ├── extension.js                       (modified - remove old imports)
-├── profileManager.js                  (modified - add updateCurrentLayout)
+├── layoutManager.js                  (modified - add updateCurrentLayout)
 ├── templateManager.js                 (NEW - 150 lines)
 ├── ui/
 │   ├── layoutPicker.js               (NEW - 200 lines)
 │   ├── zoneEditor.js                 (NEW - 350 lines)
 │   ├── confirmDialog.js              (NEW - 30 lines)
-│   ├── panelIndicator.js             (modified - use LayoutPicker)
-│   ├── profilePicker.js              (KEEP for now - backward compat)
+│   ├── panelIndicator.js             (modified - use TemplatePicker)
+│   ├── layoutPicker.js              (KEEP for now - backward compat)
 │   ├── notificationManager.js        (KEEP - unchanged)
 │   └── zoneOverlay.js                (KEEP - unchanged)
 └── utils/
@@ -765,14 +765,14 @@ extension/
 
 memory/development/
 ├── fancyzones-implementation-spec.md  (this file)
-├── profile-editor-status.md           (updated - mark deprecated)
+├── layout-editor-status.md           (updated - mark deprecated)
 ├── fancy-zones-UI/                    (reference specs)
 └── gnome-fancyzones-devspec.md        (reference spec)
 ```
 
 **Files Deleted:**
-- ❌ extension/ui/profileSettings.js
-- ❌ extension/ui/profileEditor.js
+- ❌ extension/ui/layoutSettings.js
+- ❌ extension/ui/layoutEditor.js
 - ❌ extension/ui/messageDialog.js
 - ❌ extension/ui/zoneCanvas.js
 
@@ -790,7 +790,7 @@ memory/development/
 - [x] Visual polish (blue zones, hover effects, help text)
 - [x] Save/Cancel workflow
 - [x] Layout validation
-- [x] Integrated with LayoutPicker
+- [x] Integrated with TemplatePicker
 
 **Implementation Details:**
 - ZoneEditor creates full-screen overlay on primary monitor

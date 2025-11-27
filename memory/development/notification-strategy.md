@@ -28,14 +28,14 @@ Zoned uses a dual-notification system to provide clear, context-appropriate feed
 
 **Use Cases**:
 - Window snapping to zones (Super+Left/Right)
-- Profile switching (via picker or menu)
+- Layout switching (via picker or menu)
 - Window minimize (Super+Down)
 - Window maximize/restore (Super+Up)
 
 **API**:
 ```javascript
-// Zone cycling with profile name and zone info
-zoneOverlay.show(profileName, zoneIndex, totalZones, duration);
+// Zone cycling with layout name and zone info
+zoneOverlay.show(layoutName, zoneIndex, totalZones, duration);
 
 // Generic message
 zoneOverlay.showMessage(message, duration);
@@ -46,8 +46,8 @@ zoneOverlay.showMessage(message, duration);
 // In keybindingManager.js - window minimize
 this._zoneOverlay.showMessage('Minimized');
 
-// In profileManager.js - profile switch
-zoneOverlay.showMessage(`Switched to: ${profile.name}`);
+// In layoutManager.js - layout switch
+zoneOverlay.showMessage(`Switched to: ${layout.name}`);
 ```
 
 ## Top-Bar Notifications (NotificationManager)
@@ -81,7 +81,7 @@ notificationManager.show(message, duration);
 **Example Usage**:
 ```javascript
 // In extension.js - startup
-this._notificationManager.show(`Enabled: ${currentProfile.name}`, 1500);
+this._notificationManager.show(`Enabled: ${currentLayout.name}`, 1500);
 
 // In panelIndicator.js - auto-fix success
 this._notificationManager.show(`✓ Fixed ${count} conflict${count !== 1 ? 's' : ''}`, 2000);
@@ -132,20 +132,20 @@ Both notification systems respect GNOME's text scaling settings by:
 All notification routing updated in:
 - ✅ `extension/extension.js` - Pass extension object to both managers
 - ✅ `extension/keybindingManager.js` - Route user actions to ZoneOverlay
-- ✅ `extension/profileManager.js` - Use ZoneOverlay for profile switching
-- ✅ `extension/ui/profilePicker.js` - Use ZoneOverlay instead of NotificationManager
-- ✅ `extension/ui/panelIndicator.js` - Use both (ZoneOverlay for profile switch, NotificationManager for auto-fix)
+- ✅ `extension/layoutManager.js` - Use ZoneOverlay for layout switching
+- ✅ `extension/ui/layoutPicker.js` - Use ZoneOverlay instead of NotificationManager
+- ✅ `extension/ui/panelIndicator.js` - Use both (ZoneOverlay for layout switch, NotificationManager for auto-fix)
 - ✅ `extension/ui/zoneOverlay.js` - Enhanced with watermark and generic message support
 - ✅ `extension/ui/notificationManager.js` - Redesigned with [Icon] | Message layout
 
 ## Testing Checklist
 
-- [x] Super+Left/Right shows center notification with profile and zone info
+- [x] Super+Left/Right shows center notification with layout and zone info
 - [x] Super+Down shows center "Minimized" notification
 - [x] Super+Up shows center "Maximized"/"Unmaximized"/"Restored" notification
-- [x] Profile picker selection shows center "Switched to: [Profile]" notification
-- [x] Panel menu profile selection shows center "Switched to: [Profile]" notification
-- [x] Extension startup shows top "Enabled: [Profile]" notification
+- [x] Layout picker selection shows center "Switched to: [Layout]" notification
+- [x] Panel menu layout selection shows center "Switched to: [Layout]" notification
+- [x] Extension startup shows top "Enabled: [Layout]" notification
 - [x] Keybinding conflicts show top warning notification
 - [x] Auto-fix success shows top success notification
 - [x] Full colorful icon appears as background in center notifications (512x512)

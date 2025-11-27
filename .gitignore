@@ -59,4 +59,4 @@ Thumbs.db
 .env.local
 
 # User-specific configs (not committed)
-profiles-local.json
+layouts-local.json

@@ -1,7 +1,7 @@
 /**
- * ProfilePicker - Visual profile selection dialog
+ * LayoutSwitcher - Visual layout selection dialog
  * 
- * Displays a centered dialog showing all available profiles with:
+ * Displays a centered dialog showing all available layouts with:
  * - 3-column grid layout with visual zone previews
  * - Cairo-rendered zone visualizations (replaces ASCII art)
  * - System accent color theming
@@ -17,7 +17,7 @@ import Gio from 'gi://Gio';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { createLogger } from '../utils/debug.js';
 
-const logger = createLogger('ProfilePicker');
+const logger = createLogger('LayoutSwitcher');
 const COLUMNS = 3;
 const CARD_PADDING = 10;
 const CARD_SPACING = 10;
@@ -26,24 +26,24 @@ const TITLE_HEIGHT = 50;  // Approximate height of title + spacing
 const INSTRUCTIONS_HEIGHT = 30;  // Approximate height of instructions + spacing
 const HEADER_SECTION_HEIGHT = 0;  // Reserved for future: explanation text, settings toggles
 
-export class ProfilePicker {
+export class LayoutSwitcher {
     /**
-     * @param {ProfileManager} profileManager - Profile manager instance
+     * @param {LayoutManager} layoutManager - Layout manager instance
      * @param {ZoneOverlay} zoneOverlay - Zone overlay instance for notifications
      * @param {Gio.Settings} settings - GSettings instance
      */
-    constructor(profileManager, zoneOverlay, settings) {
-        this._profileManager = profileManager;
+    constructor(layoutManager, zoneOverlay, settings) {
+        this._layoutManager = layoutManager;
         this._zoneOverlay = zoneOverlay;
         this._settings = settings;
         this._dialog = null;
         this._fullScreenOverlay = null;
         this._selectedIndex = 0;
-        this._profileButtons = [];
+        this._layoutButtons = [];
     }
 
     /**
-     * Show the profile picker dialog (or hide if already showing - toggle behavior)
+     * Show the layout switcher dialog (or hide if already showing - toggle behavior)
      */
     show() {
         if (this._dialog) {
@@ -52,30 +52,30 @@ export class ProfilePicker {
             return;
         }
 
-        const profiles = this._profileManager.getAllProfiles();
-        if (!profiles || profiles.length === 0) {
-            logger.warn('No profiles available to display');
+        const layouts = this._layoutManager.getAllLayouts();
+        if (!layouts || layouts.length === 0) {
+            logger.warn('No layouts available to display');
             return;
         }
 
-        // Find current profile index
-        const currentProfile = this._profileManager.getCurrentProfile();
-        this._selectedIndex = profiles.findIndex(p => p.id === currentProfile.id);
+        // Find current layout index
+        const currentLayout = this._layoutManager.getCurrentLayout();
+        this._selectedIndex = layouts.findIndex(p => p.id === currentLayout.id);
         if (this._selectedIndex < 0) {
             this._selectedIndex = 0;
         }
 
-        this._createDialog(profiles);
+        this._createDialog(layouts);
         this._connectKeyEvents();
         
-        // Create zone overlay showing current profile
-        this._createZoneOverlay(currentProfile);
+        // Create zone overlay showing current layout
+        this._createZoneOverlay(currentLayout);
 
-        logger.info('Profile picker shown');
+        logger.info('Layout switcher shown');
     }
 
     /**
-     * Hide the profile picker dialog
+     * Hide the layout switcher dialog
      */
     hide() {
         logger.debug('Hide called - dialog exists:', !!this._dialog, 'overlay exists:', !!this._zoneOverlay);
@@ -83,7 +83,7 @@ export class ProfilePicker {
         // Store dialog reference and immediately clear it to prevent event handlers from triggering
         const dialog = this._dialog;
         this._dialog = null;
-        this._profileButtons = [];
+        this._layoutButtons = [];
         
         // Always disconnect key events
         this._disconnectKeyEvents();
@@ -97,7 +97,7 @@ export class ProfilePicker {
             dialog.destroy();
         }
         
-        logger.debug('Profile picker hidden - overlay:', !!this._zoneOverlay, 'dialog:', !!this._dialog);
+        logger.debug('Layout switcher hidden - overlay:', !!this._zoneOverlay, 'dialog:', !!this._dialog);
     }
 
     /**
@@ -117,13 +117,13 @@ export class ProfilePicker {
 
     /**
      * Create or update the full-screen zone overlay
-     * Shows the zones of the given profile on the current monitor
+     * Shows the zones of the given layout on the current monitor
      * @private
      */
-    _createZoneOverlay(profile) {
+    _createZoneOverlay(layout) {
         // If overlay already exists, just update it
         if (this._fullScreenOverlay) {
-            this._updateZoneOverlay(profile);
+            this._updateZoneOverlay(layout) ;
             return;
         }
 
@@ -147,21 +147,21 @@ export class ProfilePicker {
             height: monitor.height
         });
         
-        // Store current profile for repainting
-        this._overlayProfile = profile;
+        // Store current layout for repainting
+        this._overlayLayout = layout;
         
         this._fullScreenOverlayCanvas.connect('repaint', () => {
             try {
                 const cr = this._fullScreenOverlayCanvas.get_context();
                 const [w, h] = this._fullScreenOverlayCanvas.get_surface_size();
                 
-                if (!this._overlayProfile) {
+                if (!this._overlayLayout) {
                     cr.$dispose();
                     return;
                 }
                 
                 // Draw each zone with rounded corners
-                this._overlayProfile.zones.forEach((zone) => {
+                this._overlayLayout.zones.forEach((zone) => {
                     const x = zone.x * w;
                     const y = zone.y * h;
                     const zoneW = zone.w * w;
@@ -200,23 +200,23 @@ export class ProfilePicker {
         // Add to stage BEFORE the dialog (so it appears behind)
         Main.uiGroup.insert_child_below(this._fullScreenOverlay, this._dialog);
         
-        logger.debug(`Zone overlay created for profile: ${profile.name}`);
+        logger.debug(`Zone overlay created for layout: ${layout.name}`);
     }
 
     /**
-     * Update the zone overlay with a new profile
+     * Update the zone overlay with a new layout
      * @private
      */
-    _updateZoneOverlay(profile) {
+    _updateZoneOverlay(layout) {
         if (!this._fullScreenOverlay || !this._fullScreenOverlayCanvas) {
-            this._createZoneOverlay(profile);
+            this._createZoneOverlay(layout);
             return;
         }
         
-        this._overlayProfile = profile;
+        this._overlayLayout = layout;
         this._fullScreenOverlayCanvas.queue_repaint();
         
-        logger.debug(`Zone overlay updated to profile: ${profile.name}`);
+        logger.debug(`Zone overlay updated to layout: ${layout.name}`);
     }
 
     /**
@@ -229,7 +229,7 @@ export class ProfilePicker {
             this._fullScreenOverlay.destroy();
             this._fullScreenOverlay = null;
             this._fullScreenOverlayCanvas = null;
-            this._overlayProfile = null;
+            this._overlayLayout = null;
             logger.debug('Zone overlay destroyed');
         }
     }
@@ -316,7 +316,7 @@ export class ProfilePicker {
      * Create visual zone preview using Cairo
      * @private
      */
-    _createZonePreview(profile, width, height) {
+    _createZonePreview(layout, width, height) {
         const canvas = new St.DrawingArea({
             width: width,
             height: height,
@@ -331,7 +331,7 @@ export class ProfilePicker {
                 const [w, h] = canvas.get_surface_size();
                 
                 // Draw each zone
-                profile.zones.forEach((zone) => {
+                layout.zones.forEach((zone) => {
                     const x = zone.x * w;
                     const y = zone.y * h;
                     const zoneW = zone.w * w;
@@ -361,7 +361,7 @@ export class ProfilePicker {
                 
                 cr.$dispose();
             } catch (e) {
-                logger.error(`Error drawing zone preview for ${profile.name}:`, e);
+                logger.error(`Error drawing zone preview for ${layout.name}:`, e);
             }
         });
         
@@ -372,7 +372,7 @@ export class ProfilePicker {
      * Create the dialog UI with grid layout
      * @private
      */
-    _createDialog(profiles) {
+    _createDialog(layouts) {
         // Background overlay - fully transparent, centered content, click to close
         this._dialog = new St.Bin({
             style_class: 'modal-dialog',
@@ -399,7 +399,7 @@ export class ProfilePicker {
         const isPortrait = monitor.height > monitor.width;
         
         // Read size from settings (default 0.6 = 60%)
-        const dialogSizeFraction = this._settings.get_double('profile-picker-size');
+        const dialogSizeFraction = this._settings.get_double('layout-picker-size');
         
         let dialogWidth, dialogHeight;
         
@@ -416,7 +416,7 @@ export class ProfilePicker {
         logger.debug(`Monitor: ${monitor.width}x${monitor.height} (${aspectRatio.toFixed(2)}:1), Portrait: ${isPortrait}`);
         logger.debug(`Dialog size (${(dialogSizeFraction * 100).toFixed(0)}%): ${dialogWidth}x${dialogHeight}`);
 
-        // Container for profile grid with explicit sizing
+        // Container for layout grid with explicit sizing
         const containerStyle = 'background-color: rgba(40, 40, 40, 0.95); ' +
                    'border-radius: 16px; ' +
                    'padding: 40px; ' +
@@ -434,7 +434,7 @@ export class ProfilePicker {
 
         // Title
         const title = new St.Label({
-            text: 'Select Profile',
+            text: 'Select Layout',
             style: 'font-weight: bold; ' +
                    'color: #ffffff; ' +
                    'text-align: center;'
@@ -461,11 +461,11 @@ export class ProfilePicker {
         });
         
         logger.debug(`Card dimensions: ${dimensions.width}x${dimensions.height}`);
-        logger.debug(`Creating cards for ${profiles.length} profiles`);
+        logger.debug(`Creating cards for ${layouts.length} layouts`);
 
         // Create rows
         let currentRow = null;
-        profiles.forEach((profile, index) => {
+        layouts.forEach((layout, index) => {
             const col = index % COLUMNS;
             
             // Start new row every COLUMNS items
@@ -477,12 +477,12 @@ export class ProfilePicker {
                 gridContainer.add_child(currentRow);
             }
             
-            const card = this._createProfileCard(profile, index, dimensions.width, dimensions.height);
+            const card = this._createLayoutCard(layout, index, dimensions.width, dimensions.height);
             currentRow.add_child(card);
-            this._profileButtons.push(card);
+            this._layoutButtons.push(card);
         });
         
-        logger.debug(`Created ${this._profileButtons.length} profile cards`);
+        logger.debug(`Created ${this._layoutButtons.length} layout cards`);
 
         scrollView.add_child(gridContainer);
         container.add_child(scrollView);
@@ -512,30 +512,30 @@ export class ProfilePicker {
     }
 
     /**
-     * Create a single profile card
+     * Create a single layout card
      * @private
      */
-    _createProfileCard(profile, index, width, height) {
-        const currentProfile = this._profileManager.getCurrentProfile();
-        const isCurrentProfile = profile.id === currentProfile.id;
+    _createLayoutCard(layout, index, width, height) {
+        const currentLayout = this._layoutManager.getCurrentLayout();
+        const isCurrentLayout = layout.id === currentLayout.id;
         
         const card = new St.Button({
-            style_class: 'profile-card',
+            style_class: 'layout-card',
             style: `padding: ${CARD_PADDING}px; width: ${width}px; ` +
                    `border-radius: 8px; ` +
-                   `background-color: ${isCurrentProfile ? 
+                   `background-color: ${isCurrentLayout ? 
                        'rgba(74, 144, 217, 0.3)' : 'rgba(60, 60, 60, 0.5)'};` +
-                   `border: ${isCurrentProfile ? '2px solid #4a90d9' : '1px solid #444'};`,
+                   `border: ${isCurrentLayout ? '2px solid #4a90d9' : '1px solid #444'};`,
             reactive: true,
             track_hover: true,
             can_focus: true
         });
         
-        // Store profile info for later reference
-        card._profileId = profile.id;
-        card._profile = profile;  // Store full profile for overlay updates
-        card._isCurrentProfile = isCurrentProfile;
-        card._profileIndex = index;
+        // Store layout info for later reference
+        card._layoutId = layout.id;
+        card._layout = layout;  // Store full layout for overlay updates
+        card._isCurrentLayout = isCurrentLayout;
+        card._layoutIndex = index;
         card._cardWidth = width;  // Store width for _updateSelection
         
         const box = new St.BoxLayout({
@@ -553,7 +553,7 @@ export class ProfilePicker {
             height: previewHeight
         });
         
-        const preview = this._createZonePreview(profile, previewWidth, previewHeight);
+        const preview = this._createZonePreview(layout, previewWidth, previewHeight);
         previewContainer.add_child(preview);
         
         // Large number overlay (if index < 9)
@@ -571,15 +571,15 @@ export class ProfilePicker {
         
         box.add_child(previewContainer);
         
-        // Profile name
+        // Layout name
         const name = new St.Label({
-            text: profile.name,
+            text: layout.name,
             style: 'text-align: center; font-weight: bold;'
         });
         box.add_child(name);
         
-        // Current profile indicator
-        if (isCurrentProfile) {
+        // Current layout indicator
+        if (isCurrentLayout) {
             const indicator = new St.Label({
                 text: '●',
                 style: 'color: #4a90d9; text-align: center;'
@@ -594,14 +594,14 @@ export class ProfilePicker {
             // Only update if dialog still exists (not being destroyed)
             if (!this._dialog) return Clutter.EVENT_PROPAGATE;
             
-            if (card._profileIndex !== this._selectedIndex) {
+            if (card._layoutIndex !== this._selectedIndex) {
                 card.style = `padding: ${CARD_PADDING}px; width: ${width}px; ` +
                             `border-radius: 8px; ` +
                             `background-color: rgba(74, 144, 217, 0.25); ` +
                             `border: 1px solid #6aa0d9;`;
             }
-            // Update zone overlay to show this profile's zones
-            this._updateZoneOverlay(card._profile);
+            // Update zone overlay to show this layout's zones
+            this._updateZoneOverlay(card._layout);
             return Clutter.EVENT_PROPAGATE;
         });
         
@@ -611,29 +611,29 @@ export class ProfilePicker {
             
             // Restore proper style based on selection state
             this._updateSelection();
-            // Revert zone overlay to current active profile
-            const currentProf = this._profileManager.getCurrentProfile();
+            // Revert zone overlay to current active layout
+            const currentProf = this._layoutManager.getCurrentLayout();
             this._updateZoneOverlay(currentProf);
             return Clutter.EVENT_PROPAGATE;
         });
         
         // Click handler
         card.connect('clicked', () => {
-            this._onProfileSelected(profile.id);
+            this._onLayoutSelected(layout.id);
         });
         
         return card;
     }
 
     /**
-     * Handle profile selection
+     * Handle layout selection
      * @private
      */
-    _onProfileSelected(profileId) {
-        logger.info(`Profile selection triggered: ${profileId}`);
+    _onLayoutSelected(layoutId) {
+        logger.info(`Layout selection triggered: ${layoutId}`);
         
-        // Use shared helper that handles both profile switching and notification
-        this._profileManager.setProfileWithNotification(profileId, this._zoneOverlay);
+        // Use shared helper that handles both layout switching and notification
+        this._layoutManager.setLayoutWithNotification(layoutId, this._zoneOverlay);
         
         // Hide dialog
         this.hide();
@@ -648,10 +648,10 @@ export class ProfilePicker {
         if (!this._dialog) return;
         
         logger.debug(`Updating selection to index: ${this._selectedIndex}`);
-        const currentProfile = this._profileManager.getCurrentProfile();
+        const currentLayout = this._layoutManager.getCurrentLayout();
         
-        this._profileButtons.forEach((button, index) => {
-            const isCurrentProfile = button._profileId === currentProfile.id;
+        this._layoutButtons.forEach((button, index) => {
+            const isCurrentLayout = button._layoutId === currentLayout.id;
             const isSelected = index === this._selectedIndex;
             const width = button._cardWidth || 200;  // Use stored width or fallback
             
@@ -662,8 +662,8 @@ export class ProfilePicker {
                               `background-color: rgba(74, 144, 217, 0.5); ` +
                               `border: 3px solid #4a90d9;`;
                 logger.debug(`Card ${index} is selected`);
-            } else if (isCurrentProfile) {
-                // Current profile - medium blue with medium border
+            } else if (isCurrentLayout) {
+                // Current layout - medium blue with medium border
                 button.style = `padding: ${CARD_PADDING}px; width: ${width}px; ` +
                               `border-radius: 8px; ` +
                               `background-color: rgba(74, 144, 217, 0.3); ` +
@@ -685,13 +685,13 @@ export class ProfilePicker {
     _connectKeyEvents() {
         this._keyPressId = global.stage.connect('key-press-event', (actor, event) => {
             const symbol = event.get_key_symbol();
-            const profiles = this._profileManager.getAllProfiles();
+            const layouts = this._layoutManager.getAllLayouts();
 
             // Number keys 1-9 for quick select
             if (symbol >= Clutter.KEY_1 && symbol <= Clutter.KEY_9) {
                 const index = symbol - Clutter.KEY_1;
-                if (index < profiles.length) {
-                    this._onProfileSelected(profiles[index].id);
+                if (index < layouts.length) {
+                    this._onLayoutSelected(layouts[index].id);
                     return Clutter.EVENT_STOP;
                 }
             }
@@ -699,7 +699,7 @@ export class ProfilePicker {
             // 2D Grid navigation
             const currentRow = Math.floor(this._selectedIndex / COLUMNS);
             const currentCol = this._selectedIndex % COLUMNS;
-            const totalRows = Math.ceil(profiles.length / COLUMNS);
+            const totalRows = Math.ceil(layouts.length / COLUMNS);
 
             switch (symbol) {
                 case Clutter.KEY_Escape:
@@ -708,8 +708,8 @@ export class ProfilePicker {
 
                 case Clutter.KEY_Return:
                 case Clutter.KEY_KP_Enter:
-                    if (profiles[this._selectedIndex]) {
-                        this._onProfileSelected(profiles[this._selectedIndex].id);
+                    if (layouts[this._selectedIndex]) {
+                        this._onLayoutSelected(layouts[this._selectedIndex].id);
                     }
                     return Clutter.EVENT_STOP;
 
@@ -720,32 +720,32 @@ export class ProfilePicker {
                         this._selectedIndex--;
                     } else if (currentRow > 0) {
                         this._selectedIndex = (currentRow - 1) * COLUMNS + (COLUMNS - 1);
-                        if (this._selectedIndex >= profiles.length) {
-                            this._selectedIndex = profiles.length - 1;
+                        if (this._selectedIndex >= layouts.length) {
+                            this._selectedIndex = layouts.length - 1;
                         }
                     }
                     this._updateSelection();
-                    // Update overlay to show newly selected profile
-                    if (this._profileButtons[this._selectedIndex]) {
-                        this._updateZoneOverlay(this._profileButtons[this._selectedIndex]._profile);
+                    // Update overlay to show newly selected layout
+                    if (this._layoutButtons[this._selectedIndex]) {
+                        this._updateZoneOverlay(this._layoutButtons[this._selectedIndex]._layout);
                     }
                     return Clutter.EVENT_STOP;
 
                 case Clutter.KEY_Right:
                 case Clutter.KEY_KP_Right:
                     // Move right, wrap to next row's start
-                    if (currentCol < COLUMNS - 1 && this._selectedIndex < profiles.length - 1) {
+                    if (currentCol < COLUMNS - 1 && this._selectedIndex < layouts.length - 1) {
                         this._selectedIndex++;
                     } else if (currentRow < totalRows - 1) {
                         this._selectedIndex = (currentRow + 1) * COLUMNS;
-                        if (this._selectedIndex >= profiles.length) {
-                            this._selectedIndex = profiles.length - 1;
+                        if (this._selectedIndex >= layouts.length) {
+                            this._selectedIndex = layouts.length - 1;
                         }
                     }
                     this._updateSelection();
-                    // Update overlay to show newly selected profile
-                    if (this._profileButtons[this._selectedIndex]) {
-                        this._updateZoneOverlay(this._profileButtons[this._selectedIndex]._profile);
+                    // Update overlay to show newly selected layout
+                    if (this._layoutButtons[this._selectedIndex]) {
+                        this._updateZoneOverlay(this._layoutButtons[this._selectedIndex]._layout);
                     }
                     return Clutter.EVENT_STOP;
 
@@ -756,9 +756,9 @@ export class ProfilePicker {
                     if (upIndex >= 0) {
                         this._selectedIndex = upIndex;
                         this._updateSelection();
-                        // Update overlay to show newly selected profile
-                        if (this._profileButtons[this._selectedIndex]) {
-                            this._updateZoneOverlay(this._profileButtons[this._selectedIndex]._profile);
+                        // Update overlay to show newly selected layout
+                        if (this._layoutButtons[this._selectedIndex]) {
+                            this._updateZoneOverlay(this._layoutButtons[this._selectedIndex]._layout);
                         }
                     }
                     return Clutter.EVENT_STOP;
@@ -767,12 +767,12 @@ export class ProfilePicker {
                 case Clutter.KEY_KP_Down:
                     // Move down one row
                     const downIndex = this._selectedIndex + COLUMNS;
-                    if (downIndex < profiles.length) {
+                    if (downIndex < layouts.length) {
                         this._selectedIndex = downIndex;
                         this._updateSelection();
-                        // Update overlay to show newly selected profile
-                        if (this._profileButtons[this._selectedIndex]) {
-                            this._updateZoneOverlay(this._profileButtons[this._selectedIndex]._profile);
+                        // Update overlay to show newly selected layout
+                        if (this._layoutButtons[this._selectedIndex]) {
+                            this._updateZoneOverlay(this._layoutButtons[this._selectedIndex]._layout);
                         }
                     }
                     return Clutter.EVENT_STOP;

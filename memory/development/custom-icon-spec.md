@@ -36,7 +36,7 @@ GNOME expects symbolic icons to end with `-symbolic.svg`:
 - More literal representation
 
 **Option 3: Stacked Rectangles**
-- Suggests different layouts/profiles
+- Suggests different layouts/layouts
 - Abstract but recognizable
 
 **Option 4: Grid with Emphasis**

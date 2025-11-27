@@ -17,10 +17,10 @@ const logger = createLogger('ConfirmDialog');
  * 
  * Usage:
  *   const dialog = new ConfirmDialog(
- *       'Delete Profile',
- *       'Are you sure you want to delete this profile?',
+ *       'Delete Layout',
+ *       'Are you sure you want to delete this layout?',
  *       () => { // confirmed
- *           profileManager.delete(id);
+ *           layoutManager.delete(id);
  *       }
  *   );
  *   dialog.open();

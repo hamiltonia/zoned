@@ -443,7 +443,7 @@ Accent:
 2. **Auto-dimming**: After 2 minutes of inactivity, reduce brightness by 20%
 3. **Screensaver**: After 10 minutes, show animated zone preview
 
-### Multiple Theme Profiles
+### Multiple Theme Layouts
 **Problem**: User wants dark theme for night, light theme for day
 
 **Solution**:

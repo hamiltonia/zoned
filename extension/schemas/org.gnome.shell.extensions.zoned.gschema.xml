@@ -3,11 +3,11 @@
   <schema id="org.gnome.shell.extensions.zoned" path="/org/gnome/shell/extensions/zoned/">
     
     <!-- State persistence -->
-    <key name="current-profile-id" type="s">
+    <key name="current-layout-id" type="s">
       <default>"halves"</default>
-      <summary>Current active profile ID</summary>
+      <summary>Current active layout ID</summary>
       <description>
-        The ID of the currently active window layout profile.
+        The ID of the currently active window layout layout.
       </description>
     </key>
     
@@ -15,7 +15,7 @@
       <default>0</default>
       <summary>Current zone index</summary>
       <description>
-        The index of the currently active zone within the current profile (0-based).
+        The index of the currently active zone within the current layout (0-based).
       </description>
     </key>
     
@@ -24,7 +24,7 @@
       <default>['&lt;Super&gt;Left']</default>
       <summary>Cycle to previous zone</summary>
       <description>
-        Move the focused window to the previous zone in the current profile.
+        Move the focused window to the previous zone in the current layout.
       </description>
     </key>
     
@@ -32,15 +32,15 @@
       <default>['&lt;Super&gt;Right']</default>
       <summary>Cycle to next zone</summary>
       <description>
-        Move the focused window to the next zone in the current profile.
+        Move the focused window to the next zone in the current layout.
       </description>
     </key>
     
-    <key name="show-profile-picker" type="as">
+    <key name="show-layout-picker" type="as">
       <default>['&lt;Super&gt;grave']</default>
-      <summary>Open profile picker</summary>
+      <summary>Open layout picker</summary>
       <description>
-        Display the profile selection dialog.
+        Display the layout selection dialog.
       </description>
     </key>
     
@@ -60,22 +60,22 @@
       </description>
     </key>
     
-    <!-- Profile Picker Settings -->
-    <key name="profile-picker-size" type="d">
+    <!-- Layout Picker Settings -->
+    <key name="layout-picker-size" type="d">
       <default>0.8</default>
       <range min="0.3" max="0.9"/>
-      <summary>Profile picker dialog size</summary>
+      <summary>Layout picker dialog size</summary>
       <description>
-        Size of the profile picker dialog as a fraction of screen size (0.3-0.9). Default is 0.8 (80%).
+        Size of the layout picker dialog as a fraction of screen size (0.3-0.9). Default is 0.8 (80%).
       </description>
     </key>
     
-    <!-- Profile Management Settings -->
-    <key name="profile-order" type="as">
+    <!-- Layout Management Settings -->
+    <key name="layout-order" type="as">
       <default>[]</default>
-      <summary>Custom profile order</summary>
+      <summary>Custom layout order</summary>
       <description>
-        Array of profile IDs in custom display order. Empty array means use natural order.
+        Array of layout IDs in custom display order. Empty array means use natural order.
       </description>
     </key>
     

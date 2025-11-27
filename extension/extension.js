@@ -3,10 +3,10 @@
  * 
  * Main extension entry point that coordinates all components:
  * - WindowManager: Window positioning and manipulation
- * - ProfileManager: Profile loading and state management
+ * - LayoutManager: Layout loading and state management
  * - KeybindingManager: Keyboard shortcut handling
  * - NotificationManager: Visual feedback
- * - ProfilePicker: Profile selection UI
+ * - LayoutSwitcher: Layout selection UI
  * - ZoneOverlay: Visual zone feedback
  * - ConflictDetector: Keybinding conflict detection
  * - PanelIndicator: Top bar menu
@@ -17,12 +17,11 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {WindowManager} from './windowManager.js';
-import {ProfileManager} from './profileManager.js';
+import {LayoutManager} from './layoutManager.js';
 import {TemplateManager} from './templateManager.js';
 import {KeybindingManager} from './keybindingManager.js';
 import {NotificationManager} from './ui/notificationManager.js';
-import {ProfilePicker} from './ui/profilePicker.js';
-import {LayoutPicker} from './ui/layoutPicker.js';
+import {LayoutSwitcher} from './ui/layoutSwitcher.js';
 import {ZoneOverlay} from './ui/zoneOverlay.js';
 import {ConflictDetector} from './ui/conflictDetector.js';
 import {PanelIndicator} from './ui/panelIndicator.js';
@@ -37,11 +36,10 @@ export default class ZonedExtension extends Extension {
         // Manager instances
         this._settings = null;
         this._windowManager = null;
-        this._profileManager = null;
+        this._layoutManager = null;
         this._templateManager = null;
         this._notificationManager = null;
-        this._profilePicker = null;
-        this._layoutPicker = null;
+        this._layoutSwitcher = null;
         this._zoneOverlay = null;
         this._conflictDetector = null;
         this._panelIndicator = null;
@@ -65,14 +63,14 @@ export default class ZonedExtension extends Extension {
             this._windowManager = new WindowManager();
             logger.debug('WindowManager initialized');
 
-            // Initialize ProfileManager and load profiles
-            this._profileManager = new ProfileManager(this._settings, this.path);
-            const profilesLoaded = this._profileManager.loadProfiles();
+            // Initialize LayoutManager and load layouts
+            this._layoutManager = new LayoutManager(this._settings, this.path);
+            const layoutsLoaded = this._layoutManager.loadLayouts();
             
-            if (!profilesLoaded) {
-                throw new Error('Failed to load profiles');
+            if (!layoutsLoaded) {
+                throw new Error('Failed to load layouts');
             }
-            logger.debug('ProfileManager initialized');
+            logger.debug('LayoutManager initialized');
 
             // Initialize ConflictDetector
             this._conflictDetector = new ConflictDetector(this._settings);
@@ -91,29 +89,21 @@ export default class ZonedExtension extends Extension {
             this._templateManager = new TemplateManager();
             logger.debug('TemplateManager initialized');
 
-            // Initialize LayoutPicker
-            this._layoutPicker = new LayoutPicker(
-                this._profileManager,
-                this._templateManager
-            );
-            logger.debug('LayoutPicker initialized');
-
-            // Initialize ProfilePicker (simple, no callbacks needed)
-            this._profilePicker = new ProfilePicker(
-                this._profileManager,
+            // Initialize LayoutSwitcher
+            this._layoutSwitcher = new LayoutSwitcher(
+                this._layoutManager,
                 this._zoneOverlay,
                 this._settings
             );
-            logger.debug('ProfilePicker initialized');
+            logger.debug('LayoutSwitcher initialized');
 
             // Initialize PanelIndicator
             this._panelIndicator = new PanelIndicator(
-                this._profileManager,
+                this._layoutManager,
                 this._conflictDetector,
-                this._profilePicker,
+                this._layoutSwitcher,
                 this._notificationManager,
-                this._zoneOverlay,
-                this._layoutPicker
+                this._zoneOverlay
             );
             Main.panel.addToStatusArea('zoned-indicator', this._panelIndicator);
             
@@ -124,10 +114,10 @@ export default class ZonedExtension extends Extension {
             // Initialize KeybindingManager (with zone overlay)
             this._keybindingManager = new KeybindingManager(
                 this._settings,
-                this._profileManager,
+                this._layoutManager,
                 this._windowManager,
                 this._notificationManager,
-                this._profilePicker,
+                this._layoutSwitcher,
                 this._zoneOverlay
             );
 
@@ -136,10 +126,10 @@ export default class ZonedExtension extends Extension {
             logger.debug('KeybindingManager initialized');
 
             // Show startup notification
-            const currentProfile = this._profileManager.getCurrentProfile();
-            if (currentProfile) {
+            const currentLayout = this._layoutManager.getCurrentLayout();
+            if (currentLayout) {
                 this._notificationManager.show(
-                    `Enabled: ${currentProfile.name}`,
+                    `Enabled: ${currentLayout.name}`,
                     1500
                 );
             }
@@ -188,16 +178,10 @@ export default class ZonedExtension extends Extension {
             }
 
             // Destroy UI components
-            if (this._layoutPicker) {
-                this._layoutPicker.destroy();
-                this._layoutPicker = null;
-                logger.debug('LayoutPicker destroyed');
-            }
-
-            if (this._profilePicker) {
-                this._profilePicker.destroy();
-                this._profilePicker = null;
-                logger.debug('ProfilePicker destroyed');
+            if (this._layoutSwitcher) {
+                this._layoutSwitcher.destroy();
+                this._layoutSwitcher = null;
+                logger.debug('LayoutSwitcher destroyed');
             }
 
             // TemplateManager has no destroy method (no cleanup needed)
@@ -223,10 +207,10 @@ export default class ZonedExtension extends Extension {
             }
 
             // Destroy managers
-            if (this._profileManager) {
-                this._profileManager.destroy();
-                this._profileManager = null;
-                logger.debug('ProfileManager destroyed');
+            if (this._layoutManager) {
+                this._layoutManager.destroy();
+                this._layoutManager = null;
+                logger.debug('LayoutManager destroyed');
             }
 
             if (this._windowManager) {

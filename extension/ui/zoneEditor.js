@@ -4,7 +4,7 @@
  * ARCHITECTURE NOTE:
  * - This component edits ZONE data (pure geometry: zones/edges)
  * - Layouts are referenced by PROFILES (which add metadata like name, settings)
- * - Users see "Layout" everywhere; internal code uses ProfileManager for complete objects
+ * - Users see "Layout" everywhere; internal code uses LayoutManager for complete objects
  * - See: memory/development/v1-mvp-roadmap.md for architecture details
  * 
  * FancyZones-style visual editor with edge-based data structure:
@@ -29,14 +29,14 @@ const logger = createLogger('ZoneEditor');
 /**
  * ZoneEditor - Full-screen visual layout editor (edge-based)
  * 
- * Edits the layout geometry (zones/edges) portion of a profile.
+ * Edits the layout geometry (zones/edges) portion of a layout.
  * Users see this as "Layout Editor" - the component for designing window zones.
  * 
  * Usage:
  *   const editor = new ZoneEditor(
- *       currentProfile,  // Contains zones array (zone-based layout)
- *       profileManager,
- *       (layout) => profileManager.updateCurrentLayout(layout)  // receives zone-based
+ *       currentLayout,  // Contains zones array (zone-based layout)
+ *       layoutManager,
+ *       (layout) => layoutManager.updateCurrentLayout(layout)  // receives zone-based
  *   );
  *   editor.show();
  */
@@ -44,14 +44,14 @@ export class ZoneEditor {
     /**
      * Create a new grid editor
      * @param {Object} zoneLayout - Initial zone-based layout to edit
-     * @param {ProfileManager} profileManager - Profile manager instance
+     * @param {LayoutManager} layoutManager - Layout manager instance
      * @param {Function} onSave - Callback when user saves (receives zone-based layout)
      * @param {Function} onCancel - Callback when user cancels (optional)
      */
-    constructor(zoneLayout, profileManager, onSave, onCancel = null) {
+    constructor(zoneLayout, layoutManager, onSave, onCancel = null) {
         // Convert zone-based to edge-based for internal editing
         this._edgeLayout = zonesToEdges(JSON.parse(JSON.stringify(zoneLayout)));
-        this._profileManager = profileManager;
+        this._layoutManager = layoutManager;
         this._onSaveCallback = onSave;
         this._onCancelCallback = onCancel;
         

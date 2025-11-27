@@ -1,8 +1,8 @@
-# Profile Editor Implementation Status
+# Layout Editor Implementation Status
 
 **Status:** 🗄️ HISTORICAL  
 **Last Verified:** 2025-11-26  
-**Notes:** Transition documentation tracking the old ProfileEditor → new ZoneEditor migration. Keep as historical reference for understanding the evolution of the editor component.
+**Notes:** Transition documentation tracking the old LayoutEditor → new ZoneEditor migration. Keep as historical reference for understanding the evolution of the editor component.
 
 **Date**: 2024-11-25  
 **Original Status**: ✅ ZoneEditor (FancyZones-style) - Active Development
@@ -19,7 +19,7 @@ The new edge-based grid editor is now the active implementation:
 
 2. **Cancel Callback to Layout Picker** ✓
    - Fixed Esc key returning to desktop instead of layout picker dialog
-   - Solution: Added optional `onCancel` callback parameter to ZoneEditor, passed from LayoutPicker
+   - Solution: Added optional `onCancel` callback parameter to ZoneEditor, passed from TemplatePicker
 
 3. **Error Notification Styling** ✓
    - Improved notification aesthetics to match application design
@@ -46,7 +46,7 @@ The new edge-based grid editor is now the active implementation:
 
 ### Architecture
 ```
-LayoutPicker (ModalDialog)
+TemplatePicker (ModalDialog)
   └─> ZoneEditor (Full-screen overlay with modal grab)
       ├─> Region actors (clickable zones)
       ├─> Edge actors (30px lines + 40px drag handles)
@@ -57,17 +57,17 @@ LayoutPicker (ModalDialog)
 
 ---
 
-## Old Profile Editor Status
+## Old Layout Editor Status
 
 **Status**: ⚠️ DEPRECATED - Needs complete redesign
 
 ### ✅ What's Working
-- **Core Extension**: Panel indicator, profile picker, keyboard snapping all work well
-- **Basic Profile Management**: Can switch between profiles via picker
+- **Core Extension**: Panel indicator, layout picker, keyboard snapping all work well
+- **Basic Layout Management**: Can switch between layouts via picker
 - **User Experience**: Core workflow is solid and functional
 
-### ❌ Profile Editor - Marked for Rewrite
-The old profile editor implementation has fundamental issues:
+### ❌ Layout Editor - Marked for Rewrite
+The old layout editor implementation has fundamental issues:
 - **Buggy**: Various UI glitches and crashes
 - **Poor UX**: Confusing interface, not intuitive
 - **Feature Gaps**: Missing critical functionality
@@ -82,7 +82,7 @@ The old implementation attempts to create custom modal dialogs from scratch usin
 
 **Old Approach (WRONG):**
 ```javascript
-// ProfileSettings and ProfileEditor manually implement modality:
+// LayoutSettings and LayoutEditor manually implement modality:
 this._dialog = new St.Bin({...});  // Custom container
 Main.uiGroup.add_child(this._dialog);  // Manual UI management
 Main.pushModal(this._backgroundActor);  // Manual modal grab
@@ -103,7 +103,7 @@ The new ZoneEditor follows better practices:
 
 ---
 
-## Historical Context (Old Profile Editor Fixes)
+## Historical Context (Old Layout Editor Fixes)
 
 The following fixes were attempted on the old implementation, but the overall design is flawed:
 
@@ -117,11 +117,11 @@ The following fixes were attempted on the old implementation, but the overall de
 - Added comprehensive logging
 - Moved default OK button to `_buildUI()`
 
-#### 2. ✅ ProfileSettings Performance - FIXED
+#### 2. ✅ LayoutSettings Performance - FIXED
 **Problem**: Every button click rebuilt entire dialog.
 
 **Solution**:
-- Created `_refreshProfileList()` method
+- Created `_refreshLayoutList()` method
 - Replaced `hide()/show()` with targeted refresh
 - Massive performance improvement
 
@@ -130,7 +130,7 @@ The following fixes were attempted on the old implementation, but the overall de
 - Added `_clickInProgress` flag
 - 300ms lockout after each click
 
-#### 4. ✅ ProfileEditor Zone Properties Update Bug - FIXED
+#### 4. ✅ LayoutEditor Zone Properties Update Bug - FIXED
 **Solution**:
 - Store reference to `_sidebarContainer`
 - Proper widget lifecycle management
@@ -138,7 +138,7 @@ The following fixes were attempted on the old implementation, but the overall de
 ## Next Steps
 
 1. **ZoneEditor**: Continue FancyZones implementation (active development)
-2. **Old Profile Editor**: Consider deprecation and eventual removal
+2. **Old Layout Editor**: Consider deprecation and eventual removal
 3. **Future**: Potentially port useful features from old editor to new ZoneEditor approach
 
 ## File Structure
@@ -146,8 +146,8 @@ The following fixes were attempted on the old implementation, but the overall de
 extension/ui/
 ├── zoneEditor.js        - NEW: FancyZones-style editor (~1100 lines) ✓
 ├── layoutPicker.js      - NEW: Template picker with custom option ✓
-├── profileSettings.js   - OLD: 552 lines, needs rewrite
-├── profileEditor.js     - OLD: 706 lines, needs rewrite
+├── layoutSettings.js   - OLD: 552 lines, needs rewrite
+├── layoutEditor.js     - OLD: 706 lines, needs rewrite
 ├── zoneCanvas.js        - OLD: 250 lines
 └── messageDialog.js     - OLD: 334 lines
 ```

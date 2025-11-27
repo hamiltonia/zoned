@@ -14,61 +14,61 @@ This document serves as the authoritative roadmap for the Zoned GNOME Shell Exte
 1. **Settings-first layout management** - Unified UI for creating/editing layouts
 2. **Comprehensive layout library** - Import/export, reorder, manage all layouts
 3. **Keybinding customization** - User-configurable shortcuts with conflict detection
-4. **Clean architecture** - Profile vs Layout separation for maintainability
+4. **Clean architecture** - Layout vs Layout separation for maintainability
 
 ---
 
-## Architecture: Profile vs Layout
+## Architecture: Layout vs Layout
 
 ### **Critical Terminology Decision**
 
 This architecture decision is fundamental to understanding the codebase:
 
 **Internal (Code):**
-- **Profile** = Complete data object containing:
+- **Layout** = Complete data object containing:
   - `id`, `name` (metadata)
   - `zones` array (the layout geometry/edge data)
-  - Future: `padding`, `shortcuts`, per-profile settings
-- **ProfileManager** class manages profiles (loading, saving, state)
-- File: `extension/profileManager.js`
-- Persisted to: `~/.config/zoned/profiles.json`
-- GSettings keys use "profile" naming (backward compatibility)
+  - Future: `padding`, `shortcuts`, per-layout settings
+- **LayoutManager** class manages layouts (loading, saving, state)
+- File: `extension/layoutManager.js`
+- Persisted to: `~/.config/zoned/layouts.json`
+- GSettings keys use "layout" naming (backward compatibility)
 
 **User-Facing (UI):**
 - Users see "**Layout**" everywhere
 - UI strings: "Choose a layout", "Switch layout", "Edit layout"
-- **ZoneEditor** component (edits the geometry/zones portion of a profile)
-- **LayoutPicker** component (shows profiles, but calls them "layouts")
+- **ZoneEditor** component (edits the geometry/zones portion of a layout)
+- **TemplatePicker** component (shows layouts, but calls them "layouts")
 
 ### **Why This Architecture?**
 
 1. **Separation of Concerns:**
    - Layout = Pure geometry data (zones/edges)
-   - Profile = Complete package (metadata + layout + settings)
+   - Layout = Complete package (metadata + layout + settings)
 
 2. **User Simplicity:**
-   - Users don't need to understand "profiles"
+   - Users don't need to understand "layouts"
    - "Layout" is intuitive and matches industry terminology
 
 3. **Code Precision:**
-   - Code is explicit about managing complete profile objects
+   - Code is explicit about managing complete layout objects
    - Clear what each component handles
 
 4. **Future-Proof:**
-   - Easy to add per-profile settings (padding, shortcuts, colors)
+   - Easy to add per-layout settings (padding, shortcuts, colors)
    - Layout data remains pure geometry
 
 ### **Component Mapping:**
 
 | Component | What it manages | User sees |
 |-----------|----------------|-----------|
-| ProfileManager | Profiles (complete objects) | N/A (internal) |
+| LayoutManager | Layouts (complete objects) | N/A (internal) |
 | ZoneEditor | zones array (geometry) | "Layout Editor" |
-| LayoutPicker | Profiles (displays as cards) | "Choose a layout" |
-| LayoutSettingsDialog | Profile metadata (name, etc.) | "Layout Settings" |
+| TemplatePicker | Layouts (displays as cards) | "Choose a layout" |
+| LayoutSettingsDialog | Layout metadata (name, etc.) | "Layout Settings" |
 
 **References:**
-- `extension/profileManager.js` - Detailed implementation notes
+- `extension/layoutManager.js` - Detailed implementation notes
 - `extension/ui/zoneEditor.js` - Component documentation
 - `memory/STATUS.md` - Architecture decisions
 
@@ -114,12 +114,12 @@ These components are fully implemented and battle-tested:
   - Integration with panel indicator for conflict warnings
 
 - **PanelIndicator** (`ui/panelIndicator.js`)
-  - Top bar integration showing current profile
-  - Menu with profile selection
+  - Top bar integration showing current layout
+  - Menu with layout selection
   - Conflict status indicator
   - About dialog
 
-- **ProfilePicker** (`ui/profilePicker.js`)
+- **LayoutSwitcher** (`ui/layoutPicker.js`)
   - Grid layout with monitor aspect ratio-matched cards
   - Cairo-rendered zone previews
   - Full-screen zone preview overlay with accent color theming
@@ -134,10 +134,10 @@ These components are fully implemented and battle-tested:
 
 ### 🚧 Implemented but Evolving
 
-- **ProfileManager** (`profileManager.js`)
-  - Current: Manages profiles and zone cycling
+- **LayoutManager** (`layoutManager.js`)
+  - Current: Manages layouts and zone cycling
   - Working and stable
-  - Architecture now finalized (Profile vs Layout model)
+  - Architecture now finalized (Layout vs Layout model)
   - Future: May need enhancements for LayoutSettingsDialog integration
 
 ---
@@ -146,16 +146,16 @@ These components are fully implemented and battle-tested:
 
 ### Phase 1: Terminology Cleanup ✅ COMPLETE (2025-11-26)
 
-**Goal:** Align user-facing terminology with "Layout" while keeping internal "Profile" for code
+**Goal:** Align user-facing terminology with "Layout" while keeping internal "Layout" for code
 
 **Completed:**
 - ✅ Renamed GridEditor → ZoneEditor (class, file, UI strings)
-- ✅ Added architecture documentation to ProfileManager and ZoneEditor
-- ✅ Documented Profile vs Layout model in STATUS.md
+- ✅ Added architecture documentation to LayoutManager and ZoneEditor
+- ✅ Documented Layout vs Layout model in STATUS.md
 - ✅ Created comprehensive architecture spec (merged into this roadmap)
 - ✅ Committed changes with detailed architecture explanation
 
-**Deliverable:** Clean separation between internal (Profile) and user-facing (Layout) terminology
+**Deliverable:** Clean separation between internal (Layout) and user-facing (Layout) terminology
 
 ---
 
@@ -171,7 +171,7 @@ These components are fully implemented and battle-tested:
 - Layout status display (zone count)
 - "Edit Layout..." button → ZoneEditor integration
 - Save button with validation (disabled until name + zones)
-- Proper callback flow (return to LayoutPicker)
+- Proper callback flow (return to TemplatePicker)
 
 **Component API Specification:**
 
@@ -191,16 +191,16 @@ These components are fully implemented and battle-tested:
 export class LayoutSettingsDialog extends ModalDialog.ModalDialog {
     /**
      * @param {Object|null} layout - Existing layout to edit, or null for new
-     * @param {ProfileManager} profileManager - Profile manager instance
+     * @param {LayoutManager} layoutManager - Layout manager instance
      * @param {Function} onSave - Callback after save
      * @param {Function} onCancel - Callback on cancel
      */
-    constructor(layout, profileManager, onSave, onCancel) {
+    constructor(layout, layoutManager, onSave, onCancel) {
         super({ styleClass: 'layout-settings-dialog' });
         
         this._isNewLayout = (layout === null);
         this._layout = layout ? {...layout} : { zones: [] };
-        this._profileManager = profileManager;
+        this._layoutManager = layoutManager;
         this._onSaveCallback = onSave;
         this._onCancelCallback = onCancel;
         
@@ -305,8 +305,8 @@ export class LayoutSettingsDialog extends ModalDialog.ModalDialog {
             }
         };
         
-        // Save to disk via ProfileManager
-        this._profileManager.saveProfile(finalLayout);
+        // Save to disk via LayoutManager
+        this._layoutManager.saveLayout(finalLayout);
         
         // Close and callback
         this.close();
@@ -328,14 +328,14 @@ export class LayoutSettingsDialog extends ModalDialog.ModalDialog {
 }
 ```
 
-**ProfileManager backend additions needed:**
-- Ensure `saveProfile(profile)` method exists and persists to disk
+**LayoutManager backend additions needed:**
+- Ensure `saveLayout(layout)` method exists and persists to disk
 - Add metadata field support if not already present
 
 **User Workflows to Support:**
 
 **Workflow 1: Create New Layout**
-1. User presses `Super+grave` → LayoutPicker appears
+1. User presses `Super+grave` → TemplatePicker appears
 2. User clicks "New Custom Layout"
 3. LayoutSettingsDialog opens (empty/new mode)
 4. User types name: "My Workspace"
@@ -345,24 +345,24 @@ export class LayoutSettingsDialog extends ModalDialog.ModalDialog {
 8. User clicks Save in ZoneEditor
 9. Returns to LayoutSettingsDialog (zone count updated)
 10. User clicks Save
-11. Layout persisted, returns to LayoutPicker
+11. Layout persisted, returns to TemplatePicker
 12. New layout appears in grid!
 
 **Workflow 2: Quick Rename (Metadata Only)**
-1. User presses `Super+grave` → LayoutPicker
+1. User presses `Super+grave` → TemplatePicker
 2. User hovers over "Halves" card → gear ⚙️ appears
 3. User clicks gear
 4. LayoutSettingsDialog opens (edit mode, pre-filled)
 5. User changes name to "Left-Right Split"
 6. User clicks Save (doesn't touch layout geometry)
-7. Layout renamed, returns to LayoutPicker
+7. Layout renamed, returns to TemplatePicker
 
 **Testing:**
 - [ ] Create new layout flow works end-to-end
 - [ ] Edit existing layout flow works
 - [ ] Name validation prevents empty names
 - [ ] Save button properly disabled/enabled
-- [ ] Proper return to LayoutPicker on save/cancel
+- [ ] Proper return to TemplatePicker on save/cancel
 - [ ] Layout persists to disk correctly
 
 **Deliverable:** Working settings dialog with full validation
@@ -374,35 +374,35 @@ export class LayoutSettingsDialog extends ModalDialog.ModalDialog {
 - ✅ Layout status display (zone count)
 - ✅ "Edit Layout..." button → ZoneEditor integration
 - ✅ Save button with validation (disabled until name + zones)
-- ✅ Proper callback flow (return to LayoutPicker)
-- ✅ Uses ProfileManager.saveProfile() for persistence
+- ✅ Proper callback flow (return to TemplatePicker)
+- ✅ Uses LayoutManager.saveLayout() for persistence
 - ✅ Follows existing dialog patterns (ModalDialog.ModalDialog)
 - ✅ Full JSDoc documentation and logging
 
-**Note:** Ready for integration with LayoutPicker in Phase 4
+**Note:** Ready for integration with TemplatePicker in Phase 4
 
 ---
 
-### Phase 2A: Menu Structure & ProfilePicker Fixes ✅ COMPLETE (2025-11-26)
+### Phase 2A: Menu Structure & LayoutSwitcher Fixes ✅ COMPLETE (2025-11-26)
 
-**Goal:** Clean up panel menu structure and fix ProfilePicker keyboard handling
+**Goal:** Clean up panel menu structure and fix LayoutSwitcher keyboard handling
 
 **Changes to `extension/ui/panelIndicator.js`:**
 
 **Menu Structure Cleanup:**
 - ✅ "Layouts" submenu renamed to "Choose Layout" (quick switcher)
-- ✅ Added "Layouts" item that opens ProfilePicker (full interface)
+- ✅ Added "Layouts" item that opens LayoutSwitcher (full interface)
 - ✅ Added "Settings" item that opens Extensions preferences
 - ✅ Removed test "New Layout..." item
-- ✅ Fixed ProfilePicker integration: changed from `.open()` to `.show()`
+- ✅ Fixed LayoutSwitcher integration: changed from `.open()` to `.show()`
 
 **Keyboard Grab Fix:**
-- ✅ Added `this.menu.close()` before showing ProfilePicker
-- ✅ Fixes issue where PopupMenu's keyboard grab prevented all keyboard events (ESC, arrows, numbers, Enter) from reaching ProfilePicker
-- ✅ ProfilePicker now works identically whether opened from menu or Super+grave keybinding
+- ✅ Added `this.menu.close()` before showing LayoutSwitcher
+- ✅ Fixes issue where PopupMenu's keyboard grab prevented all keyboard events (ESC, arrows, numbers, Enter) from reaching LayoutSwitcher
+- ✅ LayoutSwitcher now works identically whether opened from menu or Super+grave keybinding
 
 **User Experience Improvements:**
-- Consistent keyboard navigation in ProfilePicker regardless of invocation method
+- Consistent keyboard navigation in LayoutSwitcher regardless of invocation method
 - Clear menu structure: "Choose Layout ▶" for quick switching vs "Layouts" for full management
 - Settings accessible from panel menu
 
@@ -419,7 +419,7 @@ export class LayoutSettingsDialog extends ModalDialog.ModalDialog {
 
 **Before:**
 ```javascript
-constructor(layout, profileManager, onSave)
+constructor(layout, layoutManager, onSave)
 ```
 
 **After:**
@@ -437,14 +437,14 @@ constructor(layout, onComplete, onCancel)
 ```
 
 **Implementation changes:**
-- Remove `profileManager` parameter
+- Remove `layoutManager` parameter
 - `_onSave()` calls `onComplete(this._layout)` instead of saving
 - `_onCancel()` calls `onCancel()`
 - No direct disk writes
 
 **Update all call sites:**
 - ✅ LayoutSettingsDialog (already uses new API in Phase 2 spec)
-- Update LayoutPicker "New Custom Layout" flow
+- Update TemplatePicker "New Custom Layout" flow
 - Update future LayoutManager component
 
 **Testing:**
@@ -457,7 +457,7 @@ constructor(layout, onComplete, onCancel)
 
 ---
 
-### Phase 4: LayoutPicker Enhancements
+### Phase 4: TemplatePicker Enhancements
 
 **Goal:** Add gear icon for quick access to settings
 
@@ -508,7 +508,7 @@ _openLayoutSettings(layout) {
     
     const settingsDialog = new LayoutSettingsDialog(
         layout,
-        this._profileManager,
+        this._layoutManager,
         () => this.open(),  // Reopen on save
         () => this.open()   // Reopen on cancel
     );
@@ -574,10 +574,10 @@ _openLayoutSettings(layout) {
  * Tabbed interface for power users
  */
 export class LayoutManager extends ModalDialog.ModalDialog {
-    constructor(profileManager, conflictDetector, settingsManager) {
+    constructor(layoutManager, conflictDetector, settingsManager) {
         super({ styleClass: 'layout-manager-dialog' });
         
-        this._profileManager = profileManager;
+        this._layoutManager = layoutManager;
         this._conflictDetector = conflictDetector;
         this._settingsManager = settingsManager;
         
@@ -692,7 +692,7 @@ New keys needed:
 - [ ] Reset to defaults
 - [ ] Edit keybindings
 - [ ] Detect keybinding conflicts
-- [ ] All workflows accessible from both LayoutPicker and LayoutManager
+- [ ] All workflows accessible from both TemplatePicker and LayoutManager
 - [ ] State persists across GNOME Shell restart
 - [ ] Extension survives disable/enable cycle
 - [ ] Test on GNOME Shell versions (45, 46, 47)
@@ -727,7 +727,7 @@ These are polish items that can be addressed alongside or after the main phases:
 
 ## Data Structure Changes
 
-### Layout/Profile Object (Enhanced)
+### Layout/Layout Object (Enhanced)
 
 **Before:**
 ```json
@@ -753,7 +753,7 @@ These are polish items that can be addressed alongside or after the main phases:
 }
 ```
 
-**Migration:** ProfileManager adds default metadata on load if missing
+**Migration:** LayoutManager adds default metadata on load if missing
 
 ---
 
@@ -761,8 +761,8 @@ These are polish items that can be addressed alongside or after the main phases:
 
 ```
 extension/
-├── extension.js                       (modified - use ProfileManager)
-├── profileManager.js                  (enhanced - metadata support)
+├── extension.js                       (modified - use LayoutManager)
+├── layoutManager.js                  (enhanced - metadata support)
 ├── templateManager.js                 (unchanged)
 ├── ui/
 │   ├── layoutPicker.js               (modified - add gear icon)
@@ -876,11 +876,11 @@ make dev
 ### Essential Documentation
 - **This Roadmap:** Primary reference for development plan
 - **Architecture Decisions:** `memory/STATUS.md`
-- **Profile vs Layout Model:** This document (Architecture section)
+- **Layout vs Layout Model:** This document (Architecture section)
 - **Component Specs:** Throughout this roadmap
 - **API Translation:** `memory/architecture/hammerspoon-translation.md`
 - **Keybindings:** `memory/api-reference/keybindings.md`
-- **Profiles:** `memory/api-reference/profiles.md`
+- **Layouts:** `memory/api-reference/layouts.md`
 
 ### GNOME Shell Development
 - [GJS Guide](https://gjs.guide/)

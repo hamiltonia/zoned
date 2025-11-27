@@ -2,32 +2,32 @@
 
 **Status:** ⚠️ OUTDATED  
 **Last Verified:** 2025-11-26  
-**Notes:** This document describes deleted components (ProfileSettings, ProfileEditor, MessageDialog, ZoneCanvas). Needs rewrite to document current components (LayoutPicker, ZoneEditor, TemplateManager, ConfirmDialog). See memory/STATUS.md for current component list.
+**Notes:** This document describes deleted components (LayoutSettings, LayoutEditor, MessageDialog, ZoneCanvas). Needs rewrite to document current components (TemplatePicker, ZoneEditor, TemplateManager, ConfirmDialog). See memory/STATUS.md for current component list.
 
 ---
 
 Detailed implementation specifications for each component in the Zoned GNOME Shell extension.
 
-## 1. ProfileManager
+## 1. LayoutManager
 
-**File:** `extension/profileManager.js`
+**File:** `extension/layoutManager.js`
 
 ### Responsibilities
-- Load and merge default and user profile configurations
-- Validate profile definitions
-- Manage current profile and zone state
-- Provide profile query/selection API
+- Load and merge default and user layout configurations
+- Validate layout definitions
+- Manage current layout and zone state
+- Provide layout query/selection API
 - Coordinate with GSettings for state persistence
 
 ### Properties
 ```javascript
-class ProfileManager {
-    _profiles = [];              // Array of loaded profiles
-    _currentProfileId = null;    // ID of active profile
+class LayoutManager {
+    _layouts = [];              // Array of loaded layouts
+    _currentLayoutId = null;    // ID of active layout
     _currentZoneIndex = 0;       // Index of active zone (0-based)
     _settings = null;            // GSettings instance
-    _defaultProfilesPath = '';   // Path to bundled profiles
-    _userProfilesPath = '';      // Path to user profiles
+    _defaultLayoutsPath = '';   // Path to bundled layouts
+    _userLayoutsPath = '';      // Path to user layouts
 }
 ```
 
@@ -35,54 +35,54 @@ class ProfileManager {
 
 #### `constructor(settings)`
 - Store GSettings reference
-- Set profile paths
+- Set layout paths
 - Initialize state variables
 
-#### `loadProfiles()`
+#### `loadLayouts()`
 ```javascript
-loadProfiles() {
-    // 1. Load default profiles from extension/config/default-profiles.json
-    const defaultProfiles = this._loadJsonFile(this._defaultProfilesPath);
+loadLayouts() {
+    // 1. Load default layouts from extension/config/default-layouts.json
+    const defaultLayouts = this._loadJsonFile(this._defaultLayoutsPath);
     
-    // 2. Check for user profiles at ~/.config/zoned/profiles.json
-    const userProfiles = this._loadJsonFile(this._userProfilesPath);
+    // 2. Check for user layouts at ~/.config/zoned/layouts.json
+    const userLayouts = this._loadJsonFile(this._userLayoutsPath);
     
-    // 3. Merge: user profiles override defaults by matching 'id'
-    this._profiles = this._mergeProfiles(defaultProfiles, userProfiles);
+    // 3. Merge: user layouts override defaults by matching 'id'
+    this._layouts = this._mergeLayouts(defaultLayouts, userLayouts);
     
-    // 4. Validate all profiles
-    this._profiles.forEach(p => this._validateProfile(p));
+    // 4. Validate all layouts
+    this._layouts.forEach(p => this._validateLayout(p));
     
     // 5. Restore saved state from GSettings
     this._restoreState();
 }
 ```
 
-#### `_validateProfile(profile)`
+#### `_validateLayout(layout)`
 - Check required fields: `id`, `name`, `zones`
 - Validate zones array not empty
 - Validate zone fields: `name`, `x`, `y`, `w`, `h`
 - Check percentages in range [0, 1]
 - Throw error if invalid
 
-#### `getCurrentProfile()`
-- Return profile object matching `_currentProfileId`
-- If not found, return first profile as fallback
+#### `getCurrentLayout()`
+- Return layout object matching `_currentLayoutId`
+- If not found, return first layout as fallback
 
 #### `getCurrentZone()`
-- Get current profile
+- Get current layout
 - Return zone at `_currentZoneIndex`
 - Handle index bounds checking
 
-#### `setProfile(profileId)`
+#### `setLayout( layoutId)`
 ```javascript
-setProfile(profileId) {
-    // Validate profile exists
-    const profile = this._profiles.find(p => p.id === profileId);
-    if (!profile) throw new Error(`Profile ${profileId} not found`);
+setLayout( layoutId) {
+    // Validate layout exists
+    const layout = this._layouts.find(p => p.id === layoutId);
+    if (!layout) throw new Error(`Layout ${layoutId} not found`);
     
     // Update state
-    this._currentProfileId = profileId;
+    this._currentLayoutId = layoutId;
     this._currentZoneIndex = 0;  // Reset to first zone
     
     // Persist to GSettings
@@ -94,8 +94,8 @@ setProfile(profileId) {
 ```javascript
 cycleZone(direction) {
     // direction: +1 (next), -1 (previous)
-    const profile = this.getCurrentProfile();
-    const numZones = profile.zones.length;
+    const layout = this.getCurrentLayout();
+    const numZones = layout.zones.length;
     
     // Calculate new index with wraparound
     this._currentZoneIndex = 
@@ -109,7 +109,7 @@ cycleZone(direction) {
 ```
 
 #### `_saveState()` / `_restoreState()`
-- Save/load `current-profile-id` and `current-zone-index` to/from GSettings
+- Save/load `current-layout-id` and `current-zone-index` to/from GSettings
 
 ## 2. WindowManager
 
@@ -224,17 +224,17 @@ restoreMinimizedWindow() {
 ```javascript
 class KeybindingManager {
     _settings = null;
-    _profileManager = null;
+    _layoutManager = null;
     _windowManager = null;
     _notificationManager = null;
-    _profilePicker = null;
+    _layoutPicker = null;
     _keybindings = [];  // Track registered keybindings
 }
 ```
 
 ### Methods
 
-#### `constructor(settings, profileMgr, windowMgr, notifyMgr, profilePicker)`
+#### `constructor(settings, layoutMgr, windowMgr, notifyMgr, layoutPicker)`
 - Store references to all managers
 
 #### `registerKeybindings()`
@@ -250,8 +250,8 @@ registerKeybindings() {
             handler: this._onCycleZoneRight.bind(this)
         },
         {
-            name: 'show-profile-picker',
-            handler: this._onShowProfilePicker.bind(this)
+            name: 'show-layout-picker',
+            handler: this._onShowLayoutSwitcher.bind(this)
         },
         {
             name: 'minimize-window',
@@ -290,27 +290,27 @@ unregisterKeybindings() {
 
 ```javascript
 _onCycleZoneLeft() {
-    const zone = this._profileManager.cycleZone(-1);
+    const zone = this._layoutManager.cycleZone(-1);
     const window = this._windowManager.getFocusedWindow();
     
     if (this._windowManager.moveWindowToZone(window, zone)) {
-        const profile = this._profileManager.getCurrentProfile();
-        this._notificationManager.show(`${profile.name} | ${zone.name}`);
+        const layout = this._layoutManager.getCurrentLayout();
+        this._notificationManager.show(`${layout.name} | ${zone.name}`);
     }
 }
 
 _onCycleZoneRight() {
-    const zone = this._profileManager.cycleZone(+1);
+    const zone = this._layoutManager.cycleZone(+1);
     const window = this._windowManager.getFocusedWindow();
     
     if (this._windowManager.moveWindowToZone(window, zone)) {
-        const profile = this._profileManager.getCurrentProfile();
-        this._notificationManager.show(`${profile.name} | ${zone.name}`);
+        const layout = this._layoutManager.getCurrentLayout();
+        this._notificationManager.show(`${layout.name} | ${zone.name}`);
     }
 }
 
-_onShowProfilePicker() {
-    this._profilePicker.show();
+_onShowLayoutSwitcher() {
+    this._layoutPicker.show();
 }
 
 _onMinimizeWindow() {
@@ -332,30 +332,30 @@ _onMaximizeWindow() {
 }
 ```
 
-## 4. ProfilePicker (UI)
+## 4. LayoutSwitcher (UI)
 
-**File:** `extension/ui/profilePicker.js`
+**File:** `extension/ui/layoutPicker.js`
 
 ### Responsibilities
-- Display modal dialog with profile list
+- Display modal dialog with layout list
 - Show ASCII visual representations
 - Handle keyboard navigation
-- Indicate current active profile
+- Indicate current active layout
 
 ### Properties
 ```javascript
-class ProfilePicker {
-    _profileManager = null;
+class LayoutSwitcher {
+    _layoutManager = null;
     _notificationManager = null;
     _dialog = null;               // St.BoxLayout
-    _selectedIndex = 0;           // Currently highlighted profile
-    _profileButtons = [];         // Array of St.Button widgets
+    _selectedIndex = 0;           // Currently highlighted layout
+    _layoutButtons = [];         // Array of St.Button widgets
 }
 ```
 
 ### Methods
 
-#### `constructor(profileManager, notificationManager)`
+#### `constructor(layoutManager, notificationManager)`
 - Store manager references
 
 #### `show()`
@@ -372,14 +372,14 @@ show() {
         reactive: true
     });
     
-    // Add profile items
-    const profiles = this._profileManager._profiles;
-    const currentProfile = this._profileManager.getCurrentProfile();
+    // Add layout items
+    const layouts = this._layoutManager._layouts;
+    const currentLayout = this._layoutManager.getCurrentLayout();
     
-    profiles.forEach((profile, index) => {
-        const item = this._createProfileItem(profile, profile.id === currentProfile.id);
+    layouts.forEach((layout, index) => {
+        const item = this._createLayoutItem(layout, layout.id === currentLayout.id);
         this._dialog.add_child(item);
-        this._profileButtons.push(item);
+        this._layoutButtons.push(item);
     });
     
     // Center on screen
@@ -396,11 +396,11 @@ show() {
 }
 ```
 
-#### `_createProfileItem(profile, isCurrent)`
+#### `_createLayoutItem(layout, isCurrent)`
 ```javascript
-_createProfileItem(profile, isCurrent) {
+_createLayoutItem(layout, isCurrent) {
     const button = new St.Button({
-        style_class: 'zoned-profile-item',
+        style_class: 'zoned-layout-item',
         reactive: true,
         can_focus: true,
         track_hover: true
@@ -408,17 +408,17 @@ _createProfileItem(profile, isCurrent) {
     
     const box = new St.BoxLayout({vertical: true});
     
-    // Profile name (with indicator if current)
+    // Layout name (with indicator if current)
     const name = new St.Label({
-        text: (isCurrent ? '● ' : '  ') + profile.name,
-        style_class: 'profile-name'
+        text: (isCurrent ? '● ' : '  ') + layout.name,
+        style_class: 'layout-name'
     });
     
     // ASCII visual
-    const visual = this._generateVisual(profile);
+    const visual = this._generateVisual(layout);
     const visualLabel = new St.Label({
         text: visual,
-        style_class: 'profile-visual'
+        style_class: 'layout-visual'
     });
     
     box.add_child(name);
@@ -427,14 +427,14 @@ _createProfileItem(profile, isCurrent) {
     
     // Click handler
     button.connect('clicked', () => {
-        this._onProfileSelected(profile.id);
+        this._onLayoutSelected(layout.id);
     });
     
     return button;
 }
 ```
 
-#### `_generateVisual(profile)`
+#### `_generateVisual(layout)`
 - Generate ASCII art representation of zone layout
 - Use logic from Hammerspoon reference (see `generateVisual` function)
 
@@ -445,7 +445,7 @@ hide() {
         Main.uiGroup.remove_child(this._dialog);
         this._dialog.destroy();
         this._dialog = null;
-        this._profileButtons = [];
+        this._layoutButtons = [];
     }
 }
 ```
@@ -534,11 +534,11 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 export default class ZonedExtension {
     constructor() {
-        this._profileManager = null;
+        this._layoutManager = null;
         this._windowManager = null;
         this._keybindingManager = null;
         this._notificationManager = null;
-        this._profilePicker = null;
+        this._layoutPicker = null;
         this._settings = null;
     }
     
@@ -547,26 +547,26 @@ export default class ZonedExtension {
         this._settings = this.getSettings();
         
         // 2. Initialize managers
-        this._profileManager = new ProfileManager(this._settings);
+        this._layoutManager = new LayoutManager(this._settings);
         this._windowManager = new WindowManager();
         this._notificationManager = new NotificationManager();
         
-        // 3. Load profiles
-        this._profileManager.loadProfiles();
+        // 3. Load layouts
+        this._layoutManager.loadLayouts();
         
         // 4. Initialize UI
-        this._profilePicker = new ProfilePicker(
-            this._profileManager,
+        this._layoutPicker = new LayoutSwitcher(
+            this._layoutManager,
             this._notificationManager
         );
         
         // 5. Register keybindings
         this._keybindingManager = new KeybindingManager(
             this._settings,
-            this._profileManager,
+            this._layoutManager,
             this._windowManager,
             this._notificationManager,
-            this._profilePicker
+            this._layoutPicker
         );
         this._keybindingManager.registerKeybindings();
     }
@@ -579,9 +579,9 @@ export default class ZonedExtension {
         }
         
         // Destroy UI
-        if (this._profilePicker) {
-            this._profilePicker.hide();
-            this._profilePicker = null;
+        if (this._layoutPicker) {
+            this._layoutPicker.hide();
+            this._layoutPicker = null;
         }
         
         if (this._notificationManager) {
@@ -591,7 +591,7 @@ export default class ZonedExtension {
         
         // Clear references
         this._windowManager = null;
-        this._profileManager = null;
+        this._layoutManager = null;
         this._settings = null;
     }
 }

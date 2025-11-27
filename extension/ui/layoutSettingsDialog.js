@@ -37,7 +37,7 @@ const logger = createLogger('LayoutSettingsDialog');
  */
 export const LayoutSettingsDialog = GObject.registerClass(
 class LayoutSettingsDialog extends ModalDialog.ModalDialog {
-    _init(layout, profileManager, onSave, onCancel) {
+    _init(layout, layoutManager, onSave, onCancel) {
         super._init({ styleClass: 'layout-settings-dialog' });
 
         this._isNewLayout = (layout === null);
@@ -47,7 +47,7 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
             zones: []
         };
         
-        this._profileManager = profileManager;
+        this._layoutManager = layoutManager;
         this._onSaveCallback = onSave;
         this._onCancelCallback = onCancel;
         
@@ -197,7 +197,7 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
 
         const editor = new ZoneEditor(
             layoutForEditor,
-            this._profileManager,
+            this._layoutManager,
             (editedLayout) => {
                 logger.info(`ZoneEditor returned with ${editedLayout.zones.length} zones`);
                 this._layout.zones = editedLayout.zones;
@@ -239,7 +239,7 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
 
         logger.info(`Saving layout: ${finalLayout.name} (${finalLayout.id})`);
 
-        const success = this._profileManager.saveProfile(finalLayout);
+        const success = this._layoutManager.saveLayout(finalLayout);
 
         if (success) {
             logger.info('Layout saved successfully');
@@ -269,7 +269,7 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
     }
 
     /**
-     * Generate a unique profile ID
+     * Generate a unique layout ID
      * @returns {string} Unique ID
      * @private
      */

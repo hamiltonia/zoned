@@ -10,13 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial project setup with comprehensive documentation
 - Memory bank architecture and API documentation
-- 9 default window layout profiles
-- Profile-based zone cycling system
+- 9 default window layout layouts
+- Layout-based zone cycling system
 - Keyboard shortcuts for zone management (Super+Left/Right)
-- Profile picker UI (Super+grave)
+- Layout picker UI (Super+grave)
 - Window minimize/maximize shortcuts (Super+Up/Down)
 - State persistence via GSettings
-- Custom profile support via JSON configuration
+- Custom layout support via JSON configuration
 - Multi-monitor support
 - Visual feedback via notifications
 
@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Architecture overview and design
 - Development setup guide
 - Component design specifications
-- Profile system API reference
+- Layout system API reference
 - Keyboard shortcuts reference
 - Reference implementation mapping from Hammerspoon
 
@@ -33,14 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - First public release
 - Core window management functionality
-- 9 built-in profiles (Halves, Thirds, Quarters, etc.)
+- 9 built-in layouts (Halves, Thirds, Quarters, etc.)
 - Keyboard-driven zone cycling
-- Profile picker with ASCII visualizations
+- Layout picker with ASCII visualizations
 - State persistence across sessions
-- Custom profile configuration support
+- Custom layout configuration support
 
 ### Known Issues
-- Profile picker may need keyboard layout adjustments for backtick key
+- Layout picker may need keyboard layout adjustments for backtick key
 - Wayland requires logout/login to reload extension during development
 
 ---

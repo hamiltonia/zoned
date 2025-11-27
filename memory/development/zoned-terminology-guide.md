@@ -10,7 +10,7 @@ Based on Microsoft PowerToys FancyZones documentation
 | **Layout** | Complete arrangement of zones on a monitor | "Apply Focus layout", "Switch layouts", "Edit layout" |
 | **Template** | Pre-built layout pattern (e.g., 3-column, priority grid) | "Choose template", "Template library" |
 | **Custom Layout** | User-created layout (grid-based or freeform) | "Create custom layout", "Edit custom layout" |
-| **Profile** | Not used in FancyZones | Consider: per-monitor configs, but FZ uses monitor-specific settings instead |
+| **Layout** | Not used in FancyZones | Consider: per-monitor configs, but FZ uses monitor-specific settings instead |
 
 ## UI Components
 
@@ -47,7 +47,7 @@ Monitor
         └── Canvas-based
 ```
 
-**No "profile" concept** - settings are monitor-specific, not grouped into named profiles.
+**No "layout" concept** - settings are monitor-specific, not grouped into named layouts.
 
 ## Naming Patterns
 
@@ -70,7 +70,7 @@ Monitor
 
 - FZ uses: "custom-layouts.json" (file-based)
 - Terminology: "saved layouts", "custom layouts"
-- Avoid: "profiles", "presets" (unless you mean templates)
+- Avoid: "layouts", "presets" (unless you mean templates)
 
 ### Editor Modes
 
@@ -83,16 +83,16 @@ Consider these terms FancyZones avoids but might be useful:
 
 | Term | Purpose | Rationale |
 |------|---------|-----------|
-| **Workspace** | Optional grouping of layouts | If you need profile-like functionality |
+| **Workspace** | Optional grouping of layouts | If you need layout-like functionality |
 | **Preset** | Distinguish templates from customs | Clearer than "template" for users |
 | **Layout library** | Collection view | Better than just "layouts" |
 
 ## Anti-patterns (Don't Use)
 
 - ❌ "Zone layout" (redundant - layout already contains zones)
-- ❌ "Save profile" (FZ auto-saves, no profiles)
+- ❌ "Save layout" (FZ auto-saves, no layouts)
 - ❌ "Window zones" (zones are for windows, but just say "zones")
-- ❌ "Snap profile/preset" (mixing metaphors)
+- ❌ "Snap layout/preset" (mixing metaphors)
 
 ## FancyZones Feature Reference
 
@@ -165,7 +165,7 @@ Consider using:
 
 ```javascript
 // Recommended naming in codebase
-class ZoneLayout { }          // Not ZoneProfile, not WindowLayout
+class ZoneLayout { }          // Not ZoneLayout, not WindowLayout
 class Zone { }                // Not ZoneArea, not WindowZone
 class LayoutEditor { }        // Not ZoneEditor
 class GridLayoutModel { }     // Grid editing mode

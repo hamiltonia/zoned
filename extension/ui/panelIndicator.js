@@ -2,8 +2,8 @@
  * PanelIndicator - Top bar menu for Zoned
  * 
  * Displays an icon in the GNOME Shell top bar with a dropdown menu:
- * - Current profile indicator
- * - Profile switcher
+ * - Current layout indicator
+ * - Layout switcher
  * - Settings option
  * - Conflict warning (if applicable)
  */
@@ -20,15 +20,14 @@ const logger = createLogger('PanelIndicator');
 
 export const PanelIndicator = GObject.registerClass(
 class ZonedPanelIndicator extends PanelMenu.Button {
-    _init(profileManager, conflictDetector, profilePicker, notificationManager, zoneOverlay, layoutPicker) {
+    _init(layoutManager, conflictDetector, layoutSwitcher, notificationManager, zoneOverlay) {
         super._init(0.0, 'Zoned Indicator', false);
 
-        this._profileManager = profileManager;
+        this._layoutManager = layoutManager;
         this._conflictDetector = conflictDetector;
-        this._profilePicker = profilePicker;
+        this._layoutSwitcher = layoutSwitcher;
         this._notificationManager = notificationManager;
         this._zoneOverlay = zoneOverlay;
-        this._layoutPicker = layoutPicker;
         this._hasConflicts = false;
 
         // Create icon with reduced padding - using custom SVG
@@ -53,11 +52,11 @@ class ZonedPanelIndicator extends PanelMenu.Button {
      * @private
      */
     _buildMenu() {
-        // Current profile section
-        const currentProfile = this._profileManager.getCurrentProfile();
-        if (currentProfile) {
+        // Current layout section
+        const currentLayout = this._layoutManager.getCurrentLayout();
+        if (currentLayout) {
             const currentItem = new PopupMenu.PopupMenuItem(
-                `Current: ${currentProfile.name}`,
+                `Current: ${currentLayout.name}`,
                 {reactive: false}
             );
             currentItem.label.style = 'font-weight: bold;';
@@ -67,29 +66,29 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         }
 
         // Quick switch submenu
-        const profilesSubmenu = new PopupMenu.PopupSubMenuMenuItem('Choose Layout');
-        const profiles = this._profileManager.getAllProfiles();
+        const layoutsSubmenu = new PopupMenu.PopupSubMenuMenuItem('Choose Layout');
+        const layouts = this._layoutManager.getAllLayouts() ;
         
-        profiles.forEach(profile => {
-            const isCurrent = currentProfile && profile.id === currentProfile.id;
-            const label = isCurrent ? `● ${profile.name}` : profile.name;
+        layouts.forEach(layout => {
+            const isCurrent = currentLayout && layout.id === currentLayout.id;
+            const label = isCurrent ? `● ${layout.name}` : layout.name;
             
-            const profileItem = new PopupMenu.PopupMenuItem(label);
-            profileItem.connect('activate', () => {
-                this._onProfileSelected(profile.id);
+            const layoutItem = new PopupMenu.PopupMenuItem(label);
+            layoutItem.connect('activate', () => {
+                this._onLayoutSelected(layout.id);
             });
             
-            profilesSubmenu.menu.addMenuItem(profileItem);
+            layoutsSubmenu.menu.addMenuItem(layoutItem);
         });
         
-        this.menu.addMenuItem(profilesSubmenu);
+        this.menu.addMenuItem(layoutsSubmenu);
         
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // Full layout picker (ProfilePicker)
+        // Full layout switcher (LayoutSwitcher)
         const layoutsItem = new PopupMenu.PopupMenuItem('Layouts');
         layoutsItem.connect('activate', () => {
-            this._openLayoutPicker();
+            this._openLayoutSwitcher();
         });
         this.menu.addMenuItem(layoutsItem);
         
@@ -164,20 +163,20 @@ class ZonedPanelIndicator extends PanelMenu.Button {
     }
 
     /**
-     * Open the full layout picker (ProfilePicker)
+     * Open the layout switcher (visual layout selector)
      * @private
      */
-    _openLayoutPicker() {
-        logger.debug('Opening full layout picker (ProfilePicker)...');
+    _openLayoutSwitcher() {
+        logger.debug('Opening layout switcher...');
         
         // Close menu first to release keyboard grab
         this.menu.close();
         
-        if (this._profilePicker) {
-            this._profilePicker.show();
+        if (this._layoutSwitcher) {
+            this._layoutSwitcher.show();
         } else {
-            logger.error('ProfilePicker not available');
-            this._notificationManager.show('Layout picker not available', 2000);
+            logger.error('LayoutSwitcher not available');
+            this._notificationManager.show('Layout switcher not available', 2000);
         }
     }
 
@@ -205,12 +204,12 @@ class ZonedPanelIndicator extends PanelMenu.Button {
     }
 
     /**
-     * Handle profile selection from menu
+     * Handle layout selection from menu
      * @private
      */
-    _onProfileSelected(profileId) {
-        // Use shared helper that handles both profile switching and notification (center-screen for user action)
-        this._profileManager.setProfileWithNotification(profileId, this._zoneOverlay);
+    _onLayoutSelected(layoutId) {
+        // Use shared helper that handles both layout switching and notification (center-screen for user action)
+        this._layoutManager.setLayoutWithNotification(layoutId, this._zoneOverlay);
         this.updateMenu();
     }
 

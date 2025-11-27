@@ -8,9 +8,9 @@ Complete reference for Zoned keyboard shortcuts and keybinding customization.
 
 | Shortcut | Action | Description |
 |----------|--------|-------------|
-| `Super+Left` | Cycle Zone Left | Move window to previous zone in current profile |
-| `Super+Right` | Cycle Zone Right | Move window to next zone in current profile |
-| `Super+grave` | Profile Picker | Open profile selection dialog |
+| `Super+Left` | Cycle Zone Left | Move window to previous zone in current layout |
+| `Super+Right` | Cycle Zone Right | Move window to next zone in current layout |
+| `Super+grave` | Layout Picker | Open layout selection dialog |
 
 **Note:** `Super` is the Windows key (⊞) on most keyboards.
 
@@ -29,7 +29,7 @@ Complete reference for Zoned keyboard shortcuts and keybinding customization.
 - Pressing `Super+Right` on the last zone cycles back to the first zone
 - Pressing `Super+Left` on the first zone cycles to the last zone
 
-**Example with Halves profile (2 zones):**
+**Example with Halves layout (2 zones):**
 ```
 Zone 1 (Left) →[Super+Right]→ Zone 2 (Right) →[Super+Right]→ Zone 1 (Left)
               ←[Super+Left]←                  ←[Super+Left]←
@@ -38,25 +38,25 @@ Zone 1 (Left) →[Super+Right]→ Zone 2 (Right) →[Super+Right]→ Zone 1 (Lef
 **State Persistence:**
 - Current zone position is saved to GSettings
 - Persists across GNOME Shell restarts
-- Each profile remembers its last active zone
+- Each layout remembers its last active zone
 
-### Profile Picker
+### Layout Picker
 
 **Opening:**
 - Press `Super+grave` (backtick/tilde key)
 - Dialog appears centered on screen
-- Current profile is highlighted with ●
+- Current layout is highlighted with ●
 
 **Navigation:**
-- `Up/Down` arrows: Navigate profile list
-- `Enter`: Select highlighted profile
+- `Up/Down` arrows: Navigate layout list
+- `Enter`: Select highlighted layout
 - `Esc`: Cancel and close picker
-- Mouse click: Select profile
+- Mouse click: Select layout
 
 **Selection Effects:**
-- Switches to selected profile
-- Resets to first zone in new profile
-- Shows notification: "Switched to: [Profile Name
+- Switches to selected layout
+- Resets to first zone in new layout
+- Shows notification: "Switched to: [Layout Name
 
 ]"
 - Saves to GSettings
@@ -110,9 +110,9 @@ Keybindings are defined in the GSettings schema and can be customized.
     <summary>Cycle to next zone</summary>
 </key>
 
-<key name="show-profile-picker" type="as">
+<key name="show-layout-picker" type="as">
     <default>['&lt;Super&gt;grave']</default>
-    <summary>Open profile picker</summary>
+    <summary>Open layout picker</summary>
 </key>
 
 <key name="minimize-window" type="as">
@@ -159,9 +159,9 @@ gsettings set org.gnome.shell.extensions.zoned cycle-zone-left "['<Ctrl><Alt>Lef
 gsettings set org.gnome.shell.extensions.zoned cycle-zone-right "['<Ctrl><Alt>Right']"
 ```
 
-**Profile picker with F-key:**
+**Layout picker with F-key:**
 ```bash
-gsettings set org.gnome.shell.extensions.zoned show-profile-picker "['<Super>F12']"
+gsettings set org.gnome.shell.extensions.zoned show-layout-picker "['<Super>F12']"
 ```
 
 **Multiple keybindings for one action:**
@@ -328,7 +328,7 @@ gsettings set org.gnome.shell.extensions.zoned cycle-zone-left "['<Super>Left']"
 gsettings set org.gnome.shell.extensions.zoned cycle-zone-left <Super>Left
 ```
 
-### Profile Picker Won't Open
+### Layout Picker Won't Open
 
 **Backtick/grave key not working:**
 
@@ -337,7 +337,7 @@ Some keyboard layouts have backtick on different keys.
 **Alternatives:**
 ```bash
 # Use a different key
-gsettings set org.gnome.shell.extensions.zoned show-profile-picker "['<Super>space']"
+gsettings set org.gnome.shell.extensions.zoned show-layout-picker "['<Super>space']"
 ```
 
 ## Best Practices
@@ -371,7 +371,7 @@ Potential keybinding features for future versions:
 - Per-monitor zone cycling
 - Direct zone selection (e.g., Super+1, Super+2)
 - Custom actions (move and resize in one step)
-- Temporary profile switch (hold key)
+- Temporary layout switch (hold key)
 - Zone preview overlay
 
 ---

@@ -2,7 +2,7 @@
  * ZoneOverlay - Visual feedback showing current zone
  * 
  * Displays a translucent overlay when cycling zones showing:
- * - Current profile name
+ * - Current layout name
  * - Current zone number and total zones
  * - Auto-dismisses after a short duration
  */
@@ -27,15 +27,15 @@ export class ZoneOverlay {
     /**
      * Show the zone overlay with current zone information
      * 
-     * @param {string} profileName - Name of the current profile
+     * @param {string} layoutName - Name of the current layout
      * @param {number} zoneIndex - Current zone index (0-based)
-     * @param {number} totalZones - Total number of zones in profile
+     * @param {number} totalZones - Total number of zones in layout
      * @param {number} duration - Duration to show overlay in milliseconds (default: 1000)
      */
-    show(profileName, zoneIndex, totalZones, duration = 1000) {
-        const profileText = profileName;
+    show(layoutName, zoneIndex, totalZones, duration = 1000) {
+        const layoutText = layoutName;
         const messageText = `Zone ${zoneIndex + 1} of ${totalZones}`;
-        this._showNotification(profileText, messageText, duration);
+        this._showNotification(layoutText, messageText, duration);
     }
 
     /**

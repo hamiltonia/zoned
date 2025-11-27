@@ -113,7 +113,7 @@ Fixes #123
 
 **Examples:**
 ```
-feat(profiles): add sixths layout profile
+feat(layouts): add sixths layout layout
 
 fix(keybindings): resolve conflict with GNOME shortcuts
 
@@ -125,7 +125,7 @@ docs(readme): update installation instructions
 Before submitting:
 1. Test basic functionality:
    - Zone cycling works
-   - Profile picker displays correctly
+   - Layout picker displays correctly
    - State persists across
 
  sessions
@@ -133,7 +133,7 @@ Before submitting:
 
 2. Test edge cases:
    - No focused window
-   - Profile with single zone
+   - Layout with single zone
    - Multi-monitor setups
    - Wayland and X11
 
@@ -153,9 +153,9 @@ Before submitting:
 [Type] Brief description
 
 Examples:
-[Feature] Add vertical split profile
+[Feature] Add vertical split layout
 [Fix] Correct zone boundary calculation
-[Docs] Improve profile customization guide
+[Docs] Improve layout customization guide
 ```
 
 **PR Description Template:**
@@ -201,12 +201,12 @@ Documentation improvements are always welcome!
 - API reference: `memory/api-reference/`
 - README.md for overview
 
-### Profile Contributions
+### Layout Contributions
 
-New profile designs are welcome!
+New layout designs are welcome!
 
 **Guidelines:**
-- Profile must solve a real use case
+- Layout must solve a real use case
 - Provide clear use case description
 - Include ASCII visualization
 - Test with various window types
@@ -287,9 +287,9 @@ journalctl -b -o cat /usr/bin/gnome-shell | grep -i error
 
 When modifying components:
 
-1. **ProfileManager changes:**
-   - Update profile validation if needed
-   - Test with custom profiles
+1. **LayoutManager changes:**
+   - Update layout validation if needed
+   - Test with custom layouts
    - Verify state persistence
 
 2. **WindowManager changes:**
@@ -313,7 +313,7 @@ When modifying components:
 zoned/
 ├── extension/          # Extension source code
 │   ├── extension.js
-│   ├── profileManager.js
+│   ├── layoutManager.js
 │   ├── windowManager.js
 │   ├── keybindingManager.js
 │   ├── ui/
@@ -341,7 +341,7 @@ zoned/
 - [Architecture Overview](memory/architecture/overview.md)
 - [Component Design](memory/architecture/component-design.md)
 - [Development Setup](memory/development/setup.md)
-- [Profile API](memory/api-reference/profiles.md)
+- [Layout API](memory/api-reference/layouts.md)
 - [Keybindings API](memory/api-reference/keybindings.md)
 
 ### Community

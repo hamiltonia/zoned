@@ -212,7 +212,7 @@ make reload          # X11: reloads immediately
 make logs
 
 # 5. Test your changes
-# Use Super+grave to test profile picker
+# Use Super+grave to test layout picker
 # Use Super+Left/Right to test zone cycling
 ```
 
@@ -348,18 +348,18 @@ cat > .eslintrc.json << 'EOF'
 EOF
 ```
 
-## Testing Profile Configurations
+## Testing Layout Configurations
 
-### Create Test Profiles
+### Create Test Layouts
 
 ```bash
 # Create user config directory
 mkdir -p ~/.config/zoned
 
-# Create test profiles
-cat > ~/.config/zoned/profiles.json << 'EOF'
+# Create test layouts
+cat > ~/.config/zoned/layouts.json << 'EOF'
 {
-  "profiles": [
+  "layouts": [
     {
       "id": "test_layout",
       "name": "Test Layout",
@@ -373,11 +373,11 @@ cat > ~/.config/zoned/profiles.json << 'EOF'
 EOF
 ```
 
-### Validate Profiles
+### Validate Layouts
 
 ```bash
 # Check JSON syntax
-jq . ~/.config/zoned/profiles.json
+jq . ~/.config/zoned/layouts.json
 
 # Reload extension to test
 make reload
@@ -416,7 +416,7 @@ dconf reset -f /org/gnome/shell/extensions/zoned/
 2. Verify schema defines keybindings correctly
 3. Check if extension is enabled and keybindings registered
 
-### Profile Picker Not Showing
+### Layout Picker Not Showing
 
 1. Check logs for UI-related errors
 2. Verify St toolkit imports are correct
@@ -435,8 +435,8 @@ dconf reset -f /org/gnome/shell/extensions/zoned/
    - Cache monitor geometry when possible
    - Avoid unnecessary recalculations
 
-3. **Profile loading**
-   - Load profiles once on enable()
+3. **Layout loading**
+   - Load layouts once on enable()
    - Don't reload on every zone cycle
 
 4. **Memory management**
