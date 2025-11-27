@@ -2,7 +2,7 @@
 
 **Status:** ⚠️ OUTDATED  
 **Last Verified:** 2025-11-26  
-**Notes:** This document describes the OLD architecture with ProfilePicker, ProfileSettings, and MessageDialog components that have been deleted. Needs complete rewrite to reflect current LayoutPicker + LayoutEditor architecture. See memory/STATUS.md for current state.
+**Notes:** This document describes the OLD architecture with ProfilePicker, ProfileSettings, and MessageDialog components that have been deleted. Needs complete rewrite to reflect current LayoutPicker + ZoneEditor architecture. See memory/STATUS.md for current state.
 
 ---
 

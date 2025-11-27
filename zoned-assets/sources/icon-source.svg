@@ -62,7 +62,7 @@
   <rect width="16" height="16" fill="url(#bg-dark)" rx="2"/>
   <rect width="16" height="16" fill="url(#grid)" rx="2" opacity="0.4"/>
   
-  <!-- FULL-BLEED LAYOUT: Fills almost entire space with minimal padding -->
+  <!-- FULL-BLEED ZONE: Fills almost entire space with minimal padding -->
   <!-- Left column (full height) - starts at 0.8, ends at 15.2 (14.4 units tall) -->
   <rect x="0.8" y="0.8" width="4.2" height="14.4" rx="0.4" fill="url(#dark-column)" filter="url(#dark-shadow)"/>
   <rect x="0.8" y="0.8" width="4.2" height="0.2" rx="0.4" fill="url(#edge-light)"/>

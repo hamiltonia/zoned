@@ -2,14 +2,14 @@
 
 **Status:** 🗄️ HISTORICAL  
 **Last Verified:** 2025-11-26  
-**Notes:** Transition documentation tracking the old ProfileEditor → new LayoutEditor migration. Keep as historical reference for understanding the evolution of the editor component.
+**Notes:** Transition documentation tracking the old ProfileEditor → new ZoneEditor migration. Keep as historical reference for understanding the evolution of the editor component.
 
 **Date**: 2024-11-25  
-**Original Status**: ✅ LayoutEditor (FancyZones-style) - Active Development
+**Original Status**: ✅ ZoneEditor (FancyZones-style) - Active Development
 
 ## Current State (2024-11-25 7:55pm)
 
-### ✅ LayoutEditor (FancyZones-style) - NEW IMPLEMENTATION
+### ✅ ZoneEditor (FancyZones-style) - NEW IMPLEMENTATION
 The new edge-based grid editor is now the active implementation:
 
 #### Recent Fixes (2024-11-25 Evening)
@@ -19,7 +19,7 @@ The new edge-based grid editor is now the active implementation:
 
 2. **Cancel Callback to Layout Picker** ✓
    - Fixed Esc key returning to desktop instead of layout picker dialog
-   - Solution: Added optional `onCancel` callback parameter to LayoutEditor, passed from LayoutPicker
+   - Solution: Added optional `onCancel` callback parameter to ZoneEditor, passed from LayoutPicker
 
 3. **Error Notification Styling** ✓
    - Improved notification aesthetics to match application design
@@ -40,14 +40,14 @@ The new edge-based grid editor is now the active implementation:
 - **Clean Notifications**: Error messages match UI aesthetic with proper wrapping
 
 ### Files
-- `extension/ui/layoutEditor.js` - Main editor (~1100 lines)
+- `extension/ui/zoneEditor.js` - Main editor (~1100 lines)
 - `extension/ui/layoutPicker.js` - Template picker with custom layout option
 - `extension/utils/layoutConverter.js` - Zone ↔ Edge conversion
 
 ### Architecture
 ```
 LayoutPicker (ModalDialog)
-  └─> LayoutEditor (Full-screen overlay with modal grab)
+  └─> ZoneEditor (Full-screen overlay with modal grab)
       ├─> Region actors (clickable zones)
       ├─> Edge actors (30px lines + 40px drag handles)
       ├─> Help text (instructions at top)
@@ -94,8 +94,8 @@ Main.pushModal(this._backgroundActor);  // Manual modal grab
 3. **Missing Functionality**: Built-in ModalDialog provides proper animations, keyboard nav, etc.
 4. **Complexity**: ~700 lines of custom dialog code vs. ~50 lines using ModalDialog
 
-### The Solution (LayoutEditor Approach)
-The new LayoutEditor follows better practices:
+### The Solution (ZoneEditor Approach)
+The new ZoneEditor follows better practices:
 - Uses proper modal management with `Main.pushModal()`
 - Clean lifecycle with `show()`, `hide()`, `destroy()`
 - Proper Z-order management using Clutter child ordering
@@ -137,14 +137,14 @@ The following fixes were attempted on the old implementation, but the overall de
 
 ## Next Steps
 
-1. **LayoutEditor**: Continue FancyZones implementation (active development)
+1. **ZoneEditor**: Continue FancyZones implementation (active development)
 2. **Old Profile Editor**: Consider deprecation and eventual removal
-3. **Future**: Potentially port useful features from old editor to new LayoutEditor approach
+3. **Future**: Potentially port useful features from old editor to new ZoneEditor approach
 
 ## File Structure
 ```
 extension/ui/
-├── layoutEditor.js        - NEW: FancyZones-style editor (~1100 lines) ✓
+├── zoneEditor.js        - NEW: FancyZones-style editor (~1100 lines) ✓
 ├── layoutPicker.js      - NEW: Template picker with custom option ✓
 ├── profileSettings.js   - OLD: 552 lines, needs rewrite
 ├── profileEditor.js     - OLD: 706 lines, needs rewrite
@@ -154,7 +154,7 @@ extension/ui/
 
 ## Key Learnings
 
-1. **Use framework primitives**: LayoutEditor uses proper modal management
+1. **Use framework primitives**: ZoneEditor uses proper modal management
 2. **Z-order matters**: Last child added = highest Z-order in Clutter
 3. **Callbacks over events**: Simple callback pattern for dialog navigation works well
 4. **Edge-based > Zone-based**: Shared edges simplify layout operations

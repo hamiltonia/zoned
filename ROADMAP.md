@@ -37,7 +37,7 @@ This architecture decision is fundamental to understanding the codebase:
 **User-Facing (UI):**
 - Users see "**Layout**" everywhere
 - UI strings: "Choose a layout", "Switch layout", "Edit layout"
-- **LayoutEditor** component (edits the geometry/zones portion of a profile)
+- **ZoneEditor** component (edits the geometry/zones portion of a profile)
 - **LayoutPicker** component (shows profiles, but calls them "layouts")
 
 ### **Why This Architecture?**
@@ -63,13 +63,13 @@ This architecture decision is fundamental to understanding the codebase:
 | Component | What it manages | User sees |
 |-----------|----------------|-----------|
 | ProfileManager | Profiles (complete objects) | N/A (internal) |
-| LayoutEditor | zones array (geometry) | "Layout Editor" |
+| ZoneEditor | zones array (geometry) | "Layout Editor" |
 | LayoutPicker | Profiles (displays as cards) | "Choose a layout" |
 | LayoutSettingsDialog | Profile metadata (name, etc.) | "Layout Settings" |
 
 **References:**
 - `extension/profileManager.js` - Detailed implementation notes
-- `extension/ui/layoutEditor.js` - Component documentation
+- `extension/ui/zoneEditor.js` - Component documentation
 - `memory/STATUS.md` - Architecture decisions
 
 ---
@@ -126,7 +126,7 @@ These components are fully implemented and battle-tested:
   - Keyboard shortcuts (1-9, arrows, Page Up/Down)
   - Compact, polished design
 
-- **LayoutEditor** (`ui/layoutEditor.js`)
+- **ZoneEditor** (`ui/zoneEditor.js`)
   - Full-screen edge-based layout editor
   - Visual zone editing with drag-and-drop
   - **Status:** Core implementation complete (Sprint 4)
@@ -149,8 +149,8 @@ These components are fully implemented and battle-tested:
 **Goal:** Align user-facing terminology with "Layout" while keeping internal "Profile" for code
 
 **Completed:**
-- ✅ Renamed GridEditor → LayoutEditor (class, file, UI strings)
-- ✅ Added architecture documentation to ProfileManager and LayoutEditor
+- ✅ Renamed GridEditor → ZoneEditor (class, file, UI strings)
+- ✅ Added architecture documentation to ProfileManager and ZoneEditor
 - ✅ Documented Profile vs Layout model in STATUS.md
 - ✅ Created comprehensive architecture spec (merged into this roadmap)
 - ✅ Committed changes with detailed architecture explanation
@@ -169,7 +169,7 @@ These components are fully implemented and battle-tested:
 - Two modes: Create (layout=null) vs Edit (layout=existing)
 - Name input with validation (required for save)
 - Layout status display (zone count)
-- "Edit Layout..." button → LayoutEditor integration
+- "Edit Layout..." button → ZoneEditor integration
 - Save button with validation (disabled until name + zones)
 - Proper callback flow (return to LayoutPicker)
 
@@ -186,7 +186,7 @@ These components are fully implemented and battle-tested:
  * States:
  * - State A (Create): Name empty, no zones, Save disabled
  * - State B (Edit): Name filled, zones exist, Save enabled
- * - State C (After LayoutEditor): Zone count updated
+ * - State C (After ZoneEditor): Zone count updated
  */
 export class LayoutSettingsDialog extends ModalDialog.ModalDialog {
     /**
@@ -229,7 +229,7 @@ export class LayoutSettingsDialog extends ModalDialog.ModalDialog {
             label: 'Edit Layout...',
             style_class: 'button'
         });
-        this._editLayoutButton.connect('clicked', () => this._openLayoutEditor());
+        this._editLayoutButton.connect('clicked', () => this._openZoneEditor());
         
         // Save/Cancel buttons
         this._saveButton = this.setButtons([
@@ -265,15 +265,15 @@ export class LayoutSettingsDialog extends ModalDialog.ModalDialog {
         this._saveButton.set_opacity(canSave ? 255 : 128);
     }
     
-    _openLayoutEditor() {
+    _openZoneEditor() {
         // Close settings dialog
         this.close();
         
-        // Open LayoutEditor with current layout
-        const editor = new LayoutEditor(
+        // Open ZoneEditor with current layout
+        const editor = new ZoneEditor(
             this._layout.zones.length > 0 ? this._layout : null,
             (editedLayout) => {
-                // LayoutEditor saved - update our layout
+                // ZoneEditor saved - update our layout
                 this._layout.zones = editedLayout.zones;
                 
                 // Reopen settings dialog
@@ -282,7 +282,7 @@ export class LayoutSettingsDialog extends ModalDialog.ModalDialog {
                 this._updateSaveButton();
             },
             () => {
-                // LayoutEditor canceled - reopen settings
+                // ZoneEditor canceled - reopen settings
                 this.open();
             }
         );
@@ -340,9 +340,9 @@ export class LayoutSettingsDialog extends ModalDialog.ModalDialog {
 3. LayoutSettingsDialog opens (empty/new mode)
 4. User types name: "My Workspace"
 5. User clicks "Edit Layout..."
-6. LayoutEditor opens (full-screen)
+6. ZoneEditor opens (full-screen)
 7. User designs layout (split zones, drag dividers)
-8. User clicks Save in LayoutEditor
+8. User clicks Save in ZoneEditor
 9. Returns to LayoutSettingsDialog (zone count updated)
 10. User clicks Save
 11. Layout persisted, returns to LayoutPicker
@@ -372,7 +372,7 @@ export class LayoutSettingsDialog extends ModalDialog.ModalDialog {
 - ✅ Implements two modes: Create (layout=null) vs Edit (layout=existing)
 - ✅ Name input with validation (required for save)
 - ✅ Layout status display (zone count)
-- ✅ "Edit Layout..." button → LayoutEditor integration
+- ✅ "Edit Layout..." button → ZoneEditor integration
 - ✅ Save button with validation (disabled until name + zones)
 - ✅ Proper callback flow (return to LayoutPicker)
 - ✅ Uses ProfileManager.saveProfile() for persistence
@@ -410,12 +410,12 @@ export class LayoutSettingsDialog extends ModalDialog.ModalDialog {
 
 ---
 
-### Phase 3: LayoutEditor Refactor 📋 NEXT
+### Phase 3: ZoneEditor Refactor 📋 NEXT
 
 
-**Goal:** Make LayoutEditor a pure designer (doesn't persist directly)
+**Goal:** Make ZoneEditor a pure designer (doesn't persist directly)
 
-**Changes to `extension/ui/layoutEditor.js`:**
+**Changes to `extension/ui/zoneEditor.js`:**
 
 **Before:**
 ```javascript
@@ -425,7 +425,7 @@ constructor(layout, profileManager, onSave)
 **After:**
 ```javascript
 /**
- * LayoutEditor - Visual layout designer
+ * ZoneEditor - Visual layout designer
  * 
  * No longer persists directly - returns layout data to caller
  * 
@@ -448,7 +448,7 @@ constructor(layout, onComplete, onCancel)
 - Update future LayoutManager component
 
 **Testing:**
-- [ ] LayoutEditor still works visually
+- [ ] ZoneEditor still works visually
 - [ ] Data returned correctly via callback
 - [ ] No direct saves to disk
 - [ ] Proper cleanup on cancel
@@ -517,7 +517,7 @@ _openLayoutSettings(layout) {
 ```
 
 **Update "New Custom Layout" flow:**
-- Change to open LayoutSettingsDialog instead of LayoutEditor directly
+- Change to open LayoutSettingsDialog instead of ZoneEditor directly
 - Follows settings-first approach
 
 **Testing:**
@@ -768,7 +768,7 @@ extension/
 │   ├── layoutPicker.js               (modified - add gear icon)
 │   ├── layoutSettingsDialog.js       (NEW - gateway dialog)
 │   ├── layoutManager.js              (NEW - comprehensive management)
-│   ├── layoutEditor.js               (modified - API changes)
+│   ├── zoneEditor.js               (modified - API changes)
 │   ├── keybindingEditor.js           (NEW - part of LayoutManager)
 │   ├── confirmDialog.js              (unchanged)
 │   ├── messageDialog.js              (complete)

@@ -62,7 +62,7 @@
   <rect width="256" height="256" fill="url(#bg-dark)" rx="32"/>
   <rect width="256" height="256" fill="url(#grid)" rx="32" opacity="0.4"/>
   
-  <!-- CORRECT LAYOUT: 2 full columns, then split column with Z on top -->
+  <!-- CORRECT ZONE: 2 full columns, then split column with Z on top -->
   <g transform="translate(36, 52) scale(11.5)">
     <!-- Left column (full) -->
     <rect x="1.5" y="2.5" width="3.5" height="11" rx="0.5" fill="url(#dark-column)" filter="url(#dark-shadow)"/>

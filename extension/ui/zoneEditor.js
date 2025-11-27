@@ -1,8 +1,8 @@
 /**
- * LayoutEditor - Full-screen visual layout editor (Edge-based)
+ * ZoneEditor - Full-screen visual layout editor (Edge-based)
  * 
  * ARCHITECTURE NOTE:
- * - This component edits LAYOUT data (pure geometry: zones/edges)
+ * - This component edits ZONE data (pure geometry: zones/edges)
  * - Layouts are referenced by PROFILES (which add metadata like name, settings)
  * - Users see "Layout" everywhere; internal code uses ProfileManager for complete objects
  * - See: memory/development/v1-mvp-roadmap.md for architecture details
@@ -24,23 +24,23 @@ import Shell from 'gi://Shell';
 import { createLogger } from '../utils/debug.js';
 import { zonesToEdges, edgesToZones, validateEdgeLayout } from '../utils/layoutConverter.js';
 
-const logger = createLogger('LayoutEditor');
+const logger = createLogger('ZoneEditor');
 
 /**
- * LayoutEditor - Full-screen visual layout editor (edge-based)
+ * ZoneEditor - Full-screen visual layout editor (edge-based)
  * 
  * Edits the layout geometry (zones/edges) portion of a profile.
  * Users see this as "Layout Editor" - the component for designing window zones.
  * 
  * Usage:
- *   const editor = new LayoutEditor(
+ *   const editor = new ZoneEditor(
  *       currentProfile,  // Contains zones array (zone-based layout)
  *       profileManager,
  *       (layout) => profileManager.updateCurrentLayout(layout)  // receives zone-based
  *   );
  *   editor.show();
  */
-export class LayoutEditor {
+export class ZoneEditor {
     /**
      * Create a new grid editor
      * @param {Object} zoneLayout - Initial zone-based layout to edit
@@ -72,7 +72,7 @@ export class LayoutEditor {
         // When false, uses single accent color; when true, uses 4-color map diagnostic
         this.USE_MAP_COLORS = false;
         
-        logger.debug('LayoutEditor created (edge-based)');
+        logger.debug('ZoneEditor created (edge-based)');
         logger.debug(`Initial state: ${this._edgeLayout.regions.length} regions, ${this._edgeLayout.edges.length} edges`);
         this._logLayoutState('CONSTRUCTOR');
     }
@@ -83,7 +83,7 @@ export class LayoutEditor {
      * @private
      */
     _logLayoutState(context) {
-        logger.info(`=== LAYOUT STATE [${context}] ===`);
+        logger.info(`=== ZONE STATE [${context}] ===`);
         logger.info(`Regions: ${this._edgeLayout.regions.length}, Edges: ${this._edgeLayout.edges.length}`);
         
         // Log all edges
@@ -116,7 +116,7 @@ export class LayoutEditor {
             logger.error(`!!! ${invalidCount} regions have invalid edge references !!!`);
         }
         
-        logger.info(`=== END LAYOUT STATE ===`);
+        logger.info(`=== END ZONE STATE ===`);
     }
 
     /**
@@ -1565,6 +1565,6 @@ export class LayoutEditor {
      */
     destroy() {
         this.hide();
-        logger.debug('LayoutEditor destroyed');
+        logger.debug('ZoneEditor destroyed');
     }
 }

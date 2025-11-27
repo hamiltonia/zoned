@@ -2,7 +2,7 @@
 
 **Status:** 🗄️ HISTORICAL  
 **Last Verified:** 2025-11-26  
-**Notes:** Sprint planning document for the FancyZones rewrite (Sprints 1-4 completed). Keep as historical reference for understanding development process. LayoutEditor implementation is now complete.
+**Notes:** Sprint planning document for the FancyZones rewrite (Sprints 1-4 completed). Keep as historical reference for understanding development process. ZoneEditor implementation is now complete.
 
 **Created:** 2024-11-25  
 **Original Status:** Active Development  
@@ -44,7 +44,7 @@ Component Hierarchy:
 │  ├─ Template cards (halves, thirds, etc.)
 │  └─ "New Custom Layout" button
 │
-├─ LayoutEditor (Full-screen overlay)    ← Immersive editing
+├─ ZoneEditor (Full-screen overlay)    ← Immersive editing
 │  ├─ Zone rendering (Clutter actors)
 │  ├─ Click-to-split interaction
 │  ├─ Divider dragging
@@ -87,9 +87,9 @@ Total: 1,842 lines DELETED
 - ModalDialog subclass
 - Grid of template cards
 - Click to apply layout
-- "New Custom Layout" button opens LayoutEditor
+- "New Custom Layout" button opens ZoneEditor
 
-**3. extension/ui/layoutEditor.js** (~350 lines)
+**3. extension/ui/zoneEditor.js** (~350 lines)
 - Full-screen overlay on monitor
 - Click zone to split (Shift for vertical)
 - Drag dividers to resize
@@ -241,7 +241,7 @@ export class LayoutPicker extends ModalDialog.ModalDialog {
     _openEditor() {
         this.close();
         // Will implement in Sprint 3
-        // const editor = new LayoutEditor(...);
+        // const editor = new ZoneEditor(...);
         // editor.show();
     }
 }
@@ -261,7 +261,7 @@ export class LayoutPicker extends ModalDialog.ModalDialog {
 
 ### Days 5-6: Full-Screen Overlay
 
-**Create: extension/ui/layoutEditor.js**
+**Create: extension/ui/zoneEditor.js**
 
 ```javascript
 import St from 'gi://St';
@@ -269,7 +269,7 @@ import Clutter from 'gi://Clutter';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import Shell from 'gi://Shell';
 
-export class LayoutEditor {
+export class ZoneEditor {
     constructor(layout, layoutManager, onSave) {
         this._layout = JSON.parse(JSON.stringify(layout)); // Deep copy
         this._layoutManager = layoutManager;
@@ -472,7 +472,7 @@ export class LayoutEditor {
 - [ ] Test click-to-split (horizontal and vertical)
 - [ ] Add keyboard shortcuts (Esc to cancel)
 - [ ] Visual polish (zone colors, borders)
-- [ ] Commit: "Add LayoutEditor with click-to-split"
+- [ ] Commit: "Add ZoneEditor with click-to-split"
 
 ---
 
@@ -652,7 +652,7 @@ updateCurrentLayout(layout) {
    - [ ] Click template applies layout
    - [ ] Esc closes dialog
 
-3. **LayoutEditor:**
+3. **ZoneEditor:**
    - [ ] Full-screen overlay appears
    - [ ] Click zone splits horizontally
    - [ ] Shift+click splits vertically
@@ -754,7 +754,7 @@ extension/
 ├── templateManager.js                 (NEW - 150 lines)
 ├── ui/
 │   ├── layoutPicker.js               (NEW - 200 lines)
-│   ├── layoutEditor.js                 (NEW - 350 lines)
+│   ├── zoneEditor.js                 (NEW - 350 lines)
 │   ├── confirmDialog.js              (NEW - 30 lines)
 │   ├── panelIndicator.js             (modified - use LayoutPicker)
 │   ├── profilePicker.js              (KEEP for now - backward compat)
@@ -783,7 +783,7 @@ memory/development/
 **Status:** ✅ COMPLETE
 
 **Completed Tasks:**
-- [x] Created extension/ui/layoutEditor.js (full-screen overlay)
+- [x] Created extension/ui/zoneEditor.js (full-screen overlay)
 - [x] Click-to-split horizontal (default click)
 - [x] Click-to-split vertical (Shift+click)
 - [x] Keyboard shortcuts (Esc to cancel, Enter to save)
@@ -793,7 +793,7 @@ memory/development/
 - [x] Integrated with LayoutPicker
 
 **Implementation Details:**
-- LayoutEditor creates full-screen overlay on primary monitor
+- ZoneEditor creates full-screen overlay on primary monitor
 - Uses Main.pushModal() for proper modal input handling
 - Help text displayed at top with keyboard shortcuts
 - Zone actors rendered with semi-transparent blue background

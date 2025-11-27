@@ -8,7 +8,7 @@
  * - PROFILE = Complete data object containing:
  *   - id: Unique identifier
  *   - name: User-visible name
- *   - zones: Array of zone geometry (the LAYOUT data)
+ *   - zones: Array of zone geometry (the ZONE data)
  *   - metadata: (future) padding, shortcuts, per-profile settings
  * 
  * - ProfileManager class manages complete profile objects
@@ -16,9 +16,9 @@
  * - GSettings keys use "profile" naming (for backward compatibility)
  * 
  * USER-FACING (UI):
- * - Users see "LAYOUT" everywhere in the UI
+ * - Users see "ZONE" everywhere in the UI
  * - "Choose a layout", "Edit layout", "Layout Editor"
- * - LayoutEditor component edits the zones array (geometry portion)
+ * - ZoneEditor component edits the zones array (geometry portion)
  * - LayoutPicker shows profiles but calls them "layouts"
  * 
  * WHY THIS ARCHITECTURE?

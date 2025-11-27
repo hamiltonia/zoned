@@ -4,7 +4,7 @@
  * ARCHITECTURE NOTE:
  * - This is the entry point for creating/editing layouts
  * - Handles METADATA (name, settings) separate from GEOMETRY (zones)
- * - Uses LayoutEditor for geometry editing
+ * - Uses ZoneEditor for geometry editing
  * - Enforces settings-first approach (name required before save)
  * 
  * Modes:
@@ -14,7 +14,7 @@
  * States:
  * - State A (Create): Name empty, no zones → Save disabled
  * - State B (Edit): Name filled, zones exist → Save enabled
- * - State C (After LayoutEditor): Zone count updated → May enable save
+ * - State C (After ZoneEditor): Zone count updated → May enable save
  * 
  * Part of Phase 2 implementation (v1.0 roadmap)
  */
@@ -24,7 +24,7 @@ import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import { createLogger } from '../utils/debug.js';
-import { LayoutEditor } from './layoutEditor.js';
+import { ZoneEditor } from './zoneEditor.js';
 
 const logger = createLogger('LayoutSettingsDialog');
 
@@ -126,7 +126,7 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
             style_class: 'button',
             style: 'padding: 8px 24px; margin-bottom: 16px;'
         });
-        editButton.connect('clicked', () => this._openLayoutEditor());
+        editButton.connect('clicked', () => this._openZoneEditor());
         this.contentLayout.add_child(editButton);
 
         // Add buttons using ModalDialog's button system
@@ -185,21 +185,21 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
     }
 
     /**
-     * Open LayoutEditor to edit geometry
+     * Open ZoneEditor to edit geometry
      * @private
      */
-    _openLayoutEditor() {
-        logger.info('Opening LayoutEditor from LayoutSettingsDialog');
+    _openZoneEditor() {
+        logger.info('Opening ZoneEditor from LayoutSettingsDialog');
         
         this.close();
 
         const layoutForEditor = (this._layout.zones.length > 0) ? this._layout : null;
 
-        const editor = new LayoutEditor(
+        const editor = new ZoneEditor(
             layoutForEditor,
             this._profileManager,
             (editedLayout) => {
-                logger.info(`LayoutEditor returned with ${editedLayout.zones.length} zones`);
+                logger.info(`ZoneEditor returned with ${editedLayout.zones.length} zones`);
                 this._layout.zones = editedLayout.zones;
 
                 this.open();
@@ -207,7 +207,7 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
                 this._updateSaveButton();
             },
             () => {
-                logger.info('LayoutEditor canceled, reopening settings dialog');
+                logger.info('ZoneEditor canceled, reopening settings dialog');
                 this.open();
             }
         );

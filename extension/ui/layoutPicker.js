@@ -12,7 +12,7 @@ import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import { createLogger } from '../utils/debug.js';
-import { LayoutEditor } from './layoutEditor.js';
+import { ZoneEditor } from './zoneEditor.js';
 
 const logger = createLogger('LayoutPicker');
 
@@ -254,17 +254,17 @@ class ZonedLayoutPicker extends ModalDialog.ModalDialog {
         
         logger.debug('Starting grid editor with simple 2-region split');
         
-        // Open LayoutEditor with cancel callback to reopen this picker
-        const editor = new LayoutEditor(
+        // Open ZoneEditor with cancel callback to reopen this picker
+        const editor = new ZoneEditor(
             layout,
             this._profileManager,
             (editedLayout) => {
-                logger.info('Layout saved from LayoutEditor');
+                logger.info('Layout saved from ZoneEditor');
                 this._profileManager.updateCurrentLayout(editedLayout);
             },
             () => {
                 // Cancel callback: reopen the layout picker
-                logger.debug('LayoutEditor canceled - reopening layout picker');
+                logger.debug('ZoneEditor canceled - reopening layout picker');
                 this.open();
             }
         );

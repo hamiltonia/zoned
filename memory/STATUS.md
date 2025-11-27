@@ -59,7 +59,7 @@ These components exist and work, but may undergo architectural changes:
   - **May change:** Architecture redesign if merged with ProfileManager
   - Status: Working, but UI may be redesigned
   
-- **LayoutEditor** (`ui/layoutEditor.js`)
+- **ZoneEditor** (`ui/zoneEditor.js`)
   - Current: Full-screen edge-based layout editor
   - Status: Core implementation complete (Sprint 4 done)
   - **May change:** Polish, additional features (merge zones, undo/redo)
@@ -85,7 +85,7 @@ Features/components in planning or design phase:
   - Import/export layouts
   - Layout sharing/templates
   
-- **Advanced LayoutEditor Features**
+- **Advanced ZoneEditor Features**
   - Merge zones operation
   - Undo/Redo with history
   - Keyboard-only editing mode
@@ -108,7 +108,7 @@ Components that were removed during development:
   
 - **ProfileEditor** - Old profile editor (~706 lines)
   - Deleted: 2024-11-25
-  - Reason: Replaced by LayoutEditor (edge-based system)
+  - Reason: Replaced by ZoneEditor (edge-based system)
   
 - **MessageDialog** - Custom dialog implementation (~334 lines)
   - Deleted: 2024-11-25
@@ -116,7 +116,7 @@ Components that were removed during development:
   
 - **ZoneCanvas** - Old zone editing canvas (~250 lines)
   - Deleted: 2024-11-25
-  - Reason: Replaced by LayoutEditor's edge-based approach
+  - Reason: Replaced by ZoneEditor's edge-based approach
 
 ---
 
@@ -160,7 +160,7 @@ Components that were removed during development:
 **USER-FACING (UI):**
 - Users see "**Layout**" everywhere
 - "Choose a layout", "Edit layout", "Layout Editor"
-- `LayoutEditor` component (renamed from LayoutEditor)
+- `ZoneEditor` component (renamed from ZoneEditor)
 - `LayoutPicker` shows profiles but calls them "layouts"
 
 **Rationale:**
@@ -172,7 +172,7 @@ Components that were removed during development:
 **References:**
 - `memory/development/v1-mvp-roadmap.md` - Full architecture spec
 - `extension/profileManager.js` - Detailed implementation notes
-- `extension/ui/layoutEditor.js` - Component documentation
+- `extension/ui/zoneEditor.js` - Component documentation
 
 ### 2. ProfileManager + LayoutPicker Merger
 
@@ -193,7 +193,7 @@ Components that were removed during development:
 ## Version History
 
 - **2025-11-26:** Initial STATUS.md created
-  - LayoutEditor (Sprint 4) complete
+  - ZoneEditor (Sprint 4) complete
   - Old dialog system deleted
   - ProfileManager/LayoutPicker architecture under review
 

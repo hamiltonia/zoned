@@ -2,7 +2,7 @@
 
 **Date**: 2025-11-26  
 **Status**: ✅ IMPLEMENTED  
-**File**: `extension/ui/layoutEditor.js`
+**File**: `extension/ui/zoneEditor.js`
 
 ## Problem Summary
 
@@ -49,7 +49,7 @@ This correctly identifies that Region 0 (0.0→1.0) overlaps with both Region 1 
 
 ### 1. Update `_canDeleteEdge()` Method
 
-**Location**: `extension/ui/layoutEditor.js`, around line 850-920
+**Location**: `extension/ui/zoneEditor.js`, around line 850-920
 
 **Find this section:**
 ```javascript
@@ -142,7 +142,7 @@ This correctly identifies that Region 0 (0.0→1.0) overlaps with both Region 1 
 
 ### 2. Add Missing `_onSave()` Method
 
-**Location**: `extension/ui/layoutEditor.js`, before `_onCancel()` method
+**Location**: `extension/ui/zoneEditor.js`, before `_onCancel()` method
 
 **Add this method:**
 ```javascript
