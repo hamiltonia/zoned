@@ -18,6 +18,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { createLogger } from '../utils/debug.js';
 import { TemplateManager } from '../templateManager.js';
 import { ZoneEditor } from './zoneEditor.js';
+import { LayoutSettingsDialog } from './layoutSettingsDialog.js';
 
 const logger = createLogger('LayoutSwitcher');
 
@@ -765,69 +766,30 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Handle edit layout click - open zone editor
+     * Handle edit layout click - open settings dialog
      * @private
      */
     _onEditLayoutClicked(layout) {
         logger.info(`Edit layout clicked: ${layout.name}`);
 
-        const editor = new ZoneEditor(
+        this.hide();
+
+        const settingsDialog = new LayoutSettingsDialog(
             layout,
             this._layoutManager,
             (updatedLayout) => {
-                // Save the updated layout
-                this._layoutManager.saveLayout(updatedLayout);
-                logger.info(`Layout updated: ${updatedLayout.name}`);
-                
-                // Reopen layout editor
-                this.show();
-            },
+                // Layout was saved or deleted
+                logger.info(`Settings dialog completed for: ${layout.name}`);
+                this.show(); // Reopen switcher
+            }
+            ,
             () => {
-                // Cancel callback - reopen layout editor
-                this.show();
+                // Canceled
+                logger.info('Settings dialog canceled');
+                this.show(); // Reopen switcher
             }
         );
-
-        // Hide layout editor while editing
-        this.hide();
-
-        // Show zone editor
-        editor.show();
-    }
-
-    /**
-     * Handle create new layout click
-     * @private
-     */
-    _onCreateNewLayoutClicked() {
-        logger.info('Create new layout clicked');
-
-        // Start with halves template as base
-        const baseLayout = this._templateManager.createLayoutFromTemplate('halves');
-        baseLayout.name = 'New Layout';
-
-        const editor = new ZoneEditor(
-            baseLayout,
-            this._layoutManager,
-            (newLayout) => {
-                // Save the new layout
-                this._layoutManager.saveLayout(newLayout);
-                logger.info(`New layout created: ${newLayout.name}`);
-                
-                // Apply it immediately
-                this._applyLayout(newLayout);
-                
-                // Reopen layout editor
-                this.show();
-            },
-            () => {
-                // Cancel callback - reopen layout editor
-                this.show();
-            }
-        );
-
-        this.hide();
-        editor.show();
+        settingsDialog.open();
     }
 
     /**
@@ -878,6 +840,110 @@ export class LayoutSwitcher {
      */
     _connectKeyEvents() {
         this._keyPressId = global.stage.connect('key-press-event', (actor, event) => {
+            const symbol = event.get_key_symbol();
+
+            switch (symbol) {
+                case Clutter.KEY_Escape:
+                    this.hide();
+                    return Clutter.EVENT_STOP;
+            }
+
+            return Clutter.EVENT_PROPAGATE;
+        });
+    }
+
+    /**
+     * Disconnect keyboard event handlers
+     * @private
+     */
+    _disconnectKeyEvents() {
+        if (this._keyPressId) {
+            global.stage.disconnect(this._keyPressId);
+            this._keyPressId = null;
+        }
+    }
+
+    /**
+     * Clean up resources
+     */
+    /**
+     * Handle create new layout click
+     * @private
+     */
+    _onCreateNewLayoutClicked() {
+        logger.info("Create new layout clicked");
+
+        this.hide();
+
+        const settingsDialog = new LayoutSettingsDialog(
+            null, // New layout
+            this._layoutManager,
+            (newLayout) => {
+                if (newLayout) {
+                    // Layout was saved, apply it
+                    logger.info(`New layout created: ${newLayout.name}`);
+                    this._applyLayout(newLayout);
+                }
+                this.show(); // Reopen switcher
+            },
+            () => {
+                // Canceled
+                logger.info("Create new layout canceled");
+                this.show(); // Reopen switcher
+            }
+        );
+
+        settingsDialog.open();
+    }
+
+    /**
+     * Apply a layout to the current context (workspace or global)
+     * @private
+     */
+    _applyLayout(layout) {
+        if (this._workspaceMode) {
+            // Apply to current workspace only
+            try {
+                const mapString = this._settings.get_string("workspace-layout-map");
+                const map = JSON.parse(mapString);
+                map[this._currentWorkspace.toString()] = layout.id;
+                this._settings.set_string("workspace-layout-map", JSON.stringify(map));
+                
+                // If we're on the current workspace, apply immediately
+                const activeWorkspace = global.workspace_manager.get_active_workspace_index();
+                if (activeWorkspace === this._currentWorkspace) {
+                    this._layoutManager.setLayout(layout.id);
+                }
+                
+                logger.info(`Applied layout ${layout.id} to workspace ${this._currentWorkspace}`);
+            } catch (e) {
+                logger.error("Error applying layout to workspace:", e);
+            }
+        } else {
+            // Apply globally
+            this._layoutManager.setLayout(layout.id);
+            logger.info(`Applied layout ${layout.id} globally`);
+        }
+    }
+
+    /**
+     * Refresh the dialog content
+     * @private
+     */
+    _refreshDialog() {
+        // Close and reopen to refresh
+        const wasWorkspace = this._currentWorkspace;
+        this.hide();
+        this._currentWorkspace = wasWorkspace;
+        this.show();
+    }
+
+    /**
+     * Connect keyboard event handlers
+     * @private
+     */
+    _connectKeyEvents() {
+        this._keyPressId = global.stage.connect("key-press-event", (actor, event) => {
             const symbol = event.get_key_symbol();
 
             switch (symbol) {
