@@ -16,7 +16,10 @@
  * - State B (Edit): Name filled, zones exist → Save enabled
  * - State C (After ZoneEditor): Zone count updated → May enable save
  * 
- * Part of Phase 2 implementation (v1.0 roadmap)
+ * Enhanced with FancyZones features:
+ * - Padding field
+ * - Keyboard shortcut recorder (placeholder)
+ * - Delete button for existing layouts
  */
 
 import GObject from 'gi://GObject';
@@ -25,13 +28,14 @@ import St from 'gi://St';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import { createLogger } from '../utils/debug.js';
 import { ZoneEditor } from './zoneEditor.js';
+import { ConfirmDialog } from './confirmDialog.js';
 
 const logger = createLogger('LayoutSettingsDialog');
 
 /**
  * LayoutSettingsDialog - Gateway dialog for layout management
  * 
- * Separates metadata editing (name, etc.) from geometry editing (zones).
+ * Separates metadata editing (name, padding, shortcut) from geometry editing (zones).
  * This enforces a settings-first approach where users must name their layout
  * before saving.
  */
@@ -44,7 +48,8 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
         
         // Create working copy to avoid mutating input
         this._layout = layout ? JSON.parse(JSON.stringify(layout)) : {
-            zones: []
+            zones: [],
+            padding: 8
         };
         
         this._layoutManager = layoutManager;
@@ -54,6 +59,8 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
         // UI elements (will be created in _buildUI)
         this._nameEntry = null;
         this._layoutStatusLabel = null;
+        this._paddingSpinButton = null;
+        this._shortcutButton = null;
         this._saveButton = null;
 
         this._buildUI();
@@ -129,8 +136,71 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
         editButton.connect('clicked', () => this._openZoneEditor());
         this.contentLayout.add_child(editButton);
 
+        // Padding field
+        const paddingBox = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 12px; margin-bottom: 16px;'
+        });
+
+        const paddingLabel = new St.Label({
+            text: 'Padding:',
+            style: 'font-size: 11pt; padding-top: 6px;',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        paddingBox.add_child(paddingLabel);
+
+        this._paddingSpinButton = new St.SpinButton({
+            adjustment: new St.Adjustment({
+                lower: 0,
+                upper: 64,
+                step_increment: 1,
+                value: this._layout.padding || 8
+            }),
+            style: 'width: 80px;'
+        });
+        paddingBox.add_child(this._paddingSpinButton);
+
+        const paddingUnit = new St.Label({
+            text: 'pixels',
+            style: 'font-size: 11pt; color: #999; padding-top: 6px;',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        paddingBox.add_child(paddingUnit);
+
+        this.contentLayout.add_child(paddingBox);
+
+        // Keyboard shortcut field
+        const shortcutBox = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 12px; margin-bottom: 16px;'
+        });
+
+        const shortcutLabel = new St.Label({
+            text: 'Shortcut:',
+            style: 'font-size: 11pt; padding-top: 6px;',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        shortcutBox.add_child(shortcutLabel);
+
+        this._shortcutButton = new St.Button({
+            label: this._layout.shortcut || 'Click to record',
+            style_class: 'button',
+            style: 'padding: 6px 16px;'
+        });
+        this._shortcutButton.connect('clicked', () => this._recordShortcut());
+        shortcutBox.add_child(this._shortcutButton);
+
+        const shortcutHint = new St.Label({
+            text: '(Not yet implemented)',
+            style: 'font-size: 9pt; color: #888; padding-top: 8px;',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        shortcutBox.add_child(shortcutHint);
+
+        this.contentLayout.add_child(shortcutBox);
+
         // Add buttons using ModalDialog's button system
-        this.setButtons([
+        const buttons = [
             {
                 label: 'Cancel',
                 action: () => this._onCancel(),
@@ -140,7 +210,17 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
                 label: 'Save',
                 action: () => this._onSave()
             }
-        ]);
+        ];
+
+        // Add delete button for existing layouts
+        if (!this._isNewLayout) {
+            buttons.unshift({
+                label: 'Delete',
+                action: () => this._onDelete()
+            });
+        }
+
+        this.setButtons(buttons);
 
         logger.debug('LayoutSettingsDialog UI built');
     }
@@ -216,6 +296,50 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
     }
 
     /**
+     * Record keyboard shortcut (placeholder)
+     * @private
+     */
+    _recordShortcut() {
+        logger.info('Shortcut recorder not yet implemented');
+        // TODO: Implement keyboard shortcut recording
+        // This will involve capturing key press events and storing the combination
+    }
+
+    /**
+     * Handle delete action
+     * @private
+     */
+    _onDelete() {
+        logger.info(`Delete requested for layout: ${this._layout.name}`);
+
+        const confirmDialog = new ConfirmDialog(
+            'Delete Layout',
+            `Are you sure you want to delete "${this._layout.name}"? This cannot be undone.`,
+            () => {
+                // Confirmed - delete the layout
+                const success = this._layoutManager.deleteLayout(this._layout.id);
+                
+                if (success) {
+                    logger.info(`Layout deleted: ${this._layout.name}`);
+                    this.close();
+                    
+                    if (this._onSaveCallback) {
+                        this._onSaveCallback(null); // Signal deletion
+                    }
+                } else {
+                    logger.error('Failed to delete layout');
+                }
+            },
+            () => {
+                // Canceled
+                logger.info('Delete canceled');
+            }
+        );
+
+        confirmDialog.open();
+    }
+
+    /**
      * Handle save action
      * @private
      */
@@ -226,11 +350,14 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
         }
 
         const name = this._nameEntry.get_text().trim();
+        const padding = this._paddingSpinButton.get_value();
 
         const finalLayout = {
             id: this._layout.id || this._generateId(),
             name: name,
             zones: this._layout.zones,
+            padding: padding,
+            shortcut: this._layout.shortcut || null,
             metadata: {
                 createdDate: this._layout.metadata?.createdDate || Date.now(),
                 modifiedDate: Date.now()
