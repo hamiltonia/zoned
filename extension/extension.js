@@ -21,7 +21,7 @@ import {LayoutManager} from './layoutManager.js';
 import {TemplateManager} from './templateManager.js';
 import {KeybindingManager} from './keybindingManager.js';
 import {NotificationManager} from './ui/notificationManager.js';
-import {LayoutEditor} from './ui/layoutEditor.js';
+import {LayoutSwitcher} from './ui/layoutSwitcher.js';
 import {ZoneOverlay} from './ui/zoneOverlay.js';
 import {ConflictDetector} from './ui/conflictDetector.js';
 import {PanelIndicator} from './ui/panelIndicator.js';
@@ -39,7 +39,7 @@ export default class ZonedExtension extends Extension {
         this._layoutManager = null;
         this._templateManager = null;
         this._notificationManager = null;
-        this._layoutEditor = null;
+        this._layoutSwitcher = null;
         this._zoneOverlay = null;
         this._conflictDetector = null;
         this._panelIndicator = null;
@@ -90,19 +90,19 @@ export default class ZonedExtension extends Extension {
             this._templateManager = new TemplateManager();
             logger.debug('TemplateManager initialized');
 
-            // Initialize LayoutEditor
-            this._layoutEditor = new LayoutEditor(
+            // Initialize LayoutSwitcher
+            this._layoutSwitcher = new LayoutSwitcher(
                 this._layoutManager,
                 this._zoneOverlay,
                 this._settings
             );
-            logger.debug('LayoutEditor initialized');
+            logger.debug('LayoutSwitcher initialized');
 
             // Initialize PanelIndicator
             this._panelIndicator = new PanelIndicator(
                 this._layoutManager,
                 this._conflictDetector,
-                this._layoutEditor,
+                this._layoutSwitcher,
                 this._notificationManager,
                 this._zoneOverlay
             );
@@ -118,7 +118,7 @@ export default class ZonedExtension extends Extension {
                 this._layoutManager,
                 this._windowManager,
                 this._notificationManager,
-                this._layoutEditor,
+                this._layoutSwitcher,
                 this._zoneOverlay
             );
 
@@ -189,10 +189,10 @@ export default class ZonedExtension extends Extension {
             }
 
             // Destroy UI components
-            if (this._layoutEditor) {
-                this._layoutEditor.destroy();
-                this._layoutEditor = null;
-                logger.debug('LayoutEditor destroyed');
+            if (this._layoutSwitcher) {
+                this._layoutSwitcher.destroy();
+                this._layoutSwitcher = null;
+                logger.debug('LayoutSwitcher destroyed');
             }
 
             // TemplateManager has no destroy method (no cleanup needed)

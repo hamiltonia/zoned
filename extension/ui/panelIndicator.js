@@ -25,7 +25,7 @@ class ZonedPanelIndicator extends PanelMenu.Button {
 
         this._layoutManager = layoutManager;
         this._conflictDetector = conflictDetector;
-        this._layoutEditor = layoutEditor;
+        this._layoutSwitcher = layoutEditor;
         this._notificationManager = notificationManager;
         this._zoneOverlay = zoneOverlay;
         this._hasConflicts = false;
@@ -85,10 +85,10 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // Full layout editor (LayoutEditor)
+        // Full layout editor (LayoutSwitcher)
         const layoutsItem = new PopupMenu.PopupMenuItem('Layout Editor');
         layoutsItem.connect('activate', () => {
-            this._openLayoutEditor();
+            this._openLayoutSwitcher();
         });
         this.menu.addMenuItem(layoutsItem);
         
@@ -166,16 +166,16 @@ class ZonedPanelIndicator extends PanelMenu.Button {
      * Open the layout editor (comprehensive layout management)
      * @private
      */
-    _openLayoutEditor() {
+    _openLayoutSwitcher() {
         logger.debug('Opening layout editor...');
         
         // Close menu first to release keyboard grab
         this.menu.close();
         
-        if (this._layoutEditor) {
-            this._layoutEditor.show();
+        if (this._layoutSwitcher) {
+            this._layoutSwitcher.show();
         } else {
-            logger.error('LayoutEditor not available');
+            logger.error('LayoutSwitcher not available');
             this._notificationManager.show('Layout editor not available', 2000);
         }
     }
