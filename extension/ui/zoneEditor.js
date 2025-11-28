@@ -49,8 +49,19 @@ export class ZoneEditor {
      * @param {Function} onCancel - Callback when user cancels (optional)
      */
     constructor(zoneLayout, layoutManager, onSave, onCancel = null) {
+        // Handle null layout (new layout with no zones) by creating default split template
+        const layoutToEdit = zoneLayout || {
+            id: null,
+            name: 'New Layout',
+            zones: [
+                // Default: 2-zone left/right split (50/50)
+                { name: 'Zone 1', x: 0.0, y: 0.0, w: 0.5, h: 1.0 },
+                { name: 'Zone 2', x: 0.5, y: 0.0, w: 0.5, h: 1.0 }
+            ]
+        };
+        
         // Convert zone-based to edge-based for internal editing
-        this._edgeLayout = zonesToEdges(JSON.parse(JSON.stringify(zoneLayout)));
+        this._edgeLayout = zonesToEdges(JSON.parse(JSON.stringify(layoutToEdit)));
         this._layoutManager = layoutManager;
         this._onSaveCallback = onSave;
         this._onCancelCallback = onCancel;
@@ -63,6 +74,10 @@ export class ZoneEditor {
         this._currentHandle = null;  // Currently visible handle
         this._helpTextBox = null;  // Store reference to help text for Z-order management
         this._toolbar = null;  // Store reference to toolbar for Z-order management
+        
+        // Prevent multiple save/cancel invocations
+        this._saveExecuted = false;
+        this._cancelExecuted = false;
         
         // Minimum region size (10% of screen dimension)
         this.MIN_REGION_SIZE = 0.1;
@@ -1519,13 +1534,20 @@ export class ZoneEditor {
      * @private
      */
     _onSave() {
+        // One-shot guard: prevent multiple invocations
+        if (this._saveExecuted) {
+            logger.warn('Save already executed, ignoring duplicate call');
+            return;
+        }
+        this._saveExecuted = true;
+        
         logger.info('Saving grid editor layout');
         
         // Validate edge layout
-        const validation = validateEdgeLayout(this._edgeLayout);
-        if (!validation.valid) {
-            logger.error(`Layout validation failed: ${validation.errors.join(', ')}`);
-            this._showCenteredNotification('Invalid Layout', validation.errors[0]);
+        const isValid = validateEdgeLayout(this._edgeLayout);
+        if (!isValid) {
+            logger.error('Layout validation failed');
+            this._showCenteredNotification('Invalid Layout', 'This layout cannot be saved');
             return;
         }
         
@@ -1548,6 +1570,13 @@ export class ZoneEditor {
      * @private
      */
     _onCancel() {
+        // One-shot guard: prevent multiple invocations
+        if (this._cancelExecuted) {
+            logger.warn('Cancel already executed, ignoring duplicate call');
+            return;
+        }
+        this._cancelExecuted = true;
+        
         logger.info('Cancelling grid editor');
         this.hide();
         

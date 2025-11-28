@@ -25,6 +25,7 @@
 import GObject from 'gi://GObject';
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
+import GLib from 'gi://GLib';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import { createLogger } from '../utils/debug.js';
 import { ZoneEditor } from './zoneEditor.js';
@@ -45,6 +46,7 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
         super._init({ styleClass: 'layout-settings-dialog' });
 
         this._isNewLayout = (layout === null);
+        this._isReopening = false;  // Flag to prevent re-entrance
         
         // Create working copy to avoid mutating input
         this._layout = layout ? JSON.parse(JSON.stringify(layout)) : {
@@ -59,7 +61,7 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
         // UI elements (will be created in _buildUI)
         this._nameEntry = null;
         this._layoutStatusLabel = null;
-        this._paddingSpinButton = null;
+        this._paddingEntry = null;
         this._shortcutButton = null;
         this._saveButton = null;
 
@@ -266,24 +268,70 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
     _openZoneEditor() {
         logger.info('Opening ZoneEditor from LayoutSettingsDialog');
         
+        // Capture current state before closing
+        const currentName = this._nameEntry.get_text();
+        const currentPadding = this._paddingEntry.get_text();
+        const layoutData = JSON.parse(JSON.stringify(this._layout));
+        
         this.close();
 
-        const layoutForEditor = (this._layout.zones.length > 0) ? this._layout : null;
+        const layoutForEditor = (layoutData.zones.length > 0) ? layoutData : null;
 
+        // Create one-shot callbacks to prevent multiple invocations
+        let saveCallbackExecuted = false;
+        let cancelCallbackExecuted = false;
+        
         const editor = new ZoneEditor(
             layoutForEditor,
             this._layoutManager,
             (editedLayout) => {
+                // CRITICAL: Set flag FIRST to prevent race condition
+                if (saveCallbackExecuted) {
+                    logger.warn('Save callback already executed, ignoring duplicate call');
+                    return;
+                }
+                saveCallbackExecuted = true;
+                
                 logger.info(`ZoneEditor returned with ${editedLayout.zones.length} zones`);
-                this._layout.zones = editedLayout.zones;
-
-                this.open();
-                this._layoutStatusLabel.set_text(this._getLayoutStatus());
-                this._updateSaveButton();
+                
+                // Update layout data with new zones
+                layoutData.zones = editedLayout.zones;
+                layoutData.name = currentName;
+                layoutData.padding = parseInt(currentPadding) || 8;
+                
+                // Create NEW dialog instance instead of reopening old one
+                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                    const newDialog = new LayoutSettingsDialog(
+                        layoutData,
+                        this._layoutManager,
+                        this._onSaveCallback,
+                        this._onCancelCallback
+                    );
+                    newDialog.open();
+                    return GLib.SOURCE_REMOVE;
+                });
             },
             () => {
+                // CRITICAL: Set flag FIRST to prevent race condition
+                if (cancelCallbackExecuted) {
+                    logger.warn('Cancel callback already executed, ignoring duplicate call');
+                    return;
+                }
+                cancelCallbackExecuted = true;
+                
                 logger.info('ZoneEditor canceled, reopening settings dialog');
-                this.open();
+                
+                // Create NEW dialog instance instead of reopening old one
+                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                    const newDialog = new LayoutSettingsDialog(
+                        layoutData,
+                        this._layoutManager,
+                        this._onSaveCallback,
+                        this._onCancelCallback
+                    );
+                    newDialog.open();
+                    return GLib.SOURCE_REMOVE;
+                });
             }
         );
 

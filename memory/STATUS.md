@@ -1,6 +1,6 @@
 # Zoned Implementation Status
 
-**Last Updated:** 2025-11-26  
+**Last Updated:** 2025-11-27  
 **Version:** Pre-release (active development)
 
 ---
@@ -42,6 +42,17 @@ These components are implemented and unlikely to change significantly:
 
 - **ConfirmDialog** (`ui/confirmDialog.js`)
   - Simple ModalDialog wrapper for confirmations
+
+- **LayoutSettingsDialog** (`ui/layoutSettingsDialog.js`)
+  - Gateway dialog for creating/editing layouts
+  - Two modes: Create (layout=null) and Edit (layout=existing)
+  - Settings-first approach enforcing name before save
+  - Integration with ZoneEditor for geometry editing
+  - **Status:** Phase 2 complete (2025-11-27)
+  - **Critical Bug Fixed (2025-11-27):** Resolved infinite loop caused by ModalDialog lifecycle issue
+    - Root cause: Attempting to reopen same dialog instance after closing
+    - Solution: Create NEW dialog instance when returning from ZoneEditor
+    - Impact: Eliminated event loop recursion completely
 
 ---
 

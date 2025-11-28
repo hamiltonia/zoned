@@ -159,11 +159,21 @@ These components are fully implemented and battle-tested:
 
 ---
 
-### Phase 2: LayoutSettingsDialog ✅ COMPLETE (2025-11-26)
+### Phase 2: LayoutSettingsDialog ✅ COMPLETE (2025-11-27)
 
 **Goal:** Create gateway dialog for all layout operations
 
 **New file:** `extension/ui/layoutSettingsDialog.js`
+
+**Critical Bug Fixes (2025-11-27):**
+- ✅ Fixed variable name mismatch (`_paddingSpinButton` → `_paddingEntry`)
+- ✅ Fixed ZoneEditor crash with null layouts (added default 2-zone split template)
+- ✅ Fixed validateEdgeLayout return value check (boolean vs object)
+- ✅ **CRITICAL FIX:** Resolved infinite loop caused by ModalDialog lifecycle issue
+  - Root cause: Attempting to reopen the same dialog instance after closing it
+  - Solution: Create NEW LayoutSettingsDialog instance when returning from ZoneEditor
+  - Architecture: GNOME Shell's ModalDialog is not designed to be closed and reopened
+  - Impact: Eliminated event loop recursion completely
 
 **Features to implement:**
 - Two modes: Create (layout=null) vs Edit (layout=existing)
