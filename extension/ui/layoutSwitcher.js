@@ -38,6 +38,10 @@ export class LayoutSwitcher {
         this._currentWorkspace = 0;
         this._workspaceMode = false;
         this._workspaceButtons = [];
+        
+        // Keyboard navigation state
+        this._allCards = [];  // All selectable cards (templates + custom layouts)
+        this._selectedCardIndex = -1;  // Currently focused card (-1 = none)
     }
 
     /**
@@ -48,6 +52,10 @@ export class LayoutSwitcher {
             this.hide();
             return;
         }
+
+        // Reset state for new dialog instance
+        this._allCards = [];
+        this._selectedCardIndex = -1;
 
         // Get current workspace
         this._currentWorkspace = global.workspace_manager.get_active_workspace_index();
@@ -68,6 +76,8 @@ export class LayoutSwitcher {
         const dialog = this._dialog;
         this._dialog = null;
         this._workspaceButtons = [];
+        this._allCards = [];
+        this._selectedCardIndex = -1;
 
         this._disconnectKeyEvents();
 
@@ -297,9 +307,10 @@ export class LayoutSwitcher {
         const templates = this._templateManager.getBuiltinTemplates();
         const currentLayout = this._getCurrentLayout();
 
-        templates.forEach(template => {
-            const card = this._createTemplateCard(template, currentLayout);
+        templates.forEach((template, index) => {
+            const card = this._createTemplateCard(template, currentLayout, index);
             templatesRow.add_child(card);
+            this._allCards.push({ card, layout: template, isTemplate: true });
         });
 
         section.add_child(templatesRow);
@@ -311,7 +322,7 @@ export class LayoutSwitcher {
      * Create a template card
      * @private
      */
-    _createTemplateCard(template, currentLayout) {
+    _createTemplateCard(template, currentLayout, cardIndex) {
         const isActive = this._isLayoutActive(template, currentLayout);
 
         const card = new St.Button({
@@ -445,6 +456,8 @@ export class LayoutSwitcher {
         });
 
         let currentRow = null;
+        const templateCount = this._templateManager.getBuiltinTemplates().length;
+        
         layouts.forEach((layout, index) => {
             const col = index % COLUMNS;
 
@@ -456,8 +469,10 @@ export class LayoutSwitcher {
                 container.add_child(currentRow);
             }
 
-            const card = this._createCustomLayoutCard(layout, currentLayout);
+            const cardIndex = templateCount + index;
+            const card = this._createCustomLayoutCard(layout, currentLayout, cardIndex);
             currentRow.add_child(card);
+            this._allCards.push({ card, layout, isTemplate: false });
         });
 
         return container;
@@ -467,7 +482,7 @@ export class LayoutSwitcher {
      * Create a custom layout card with edit button
      * @private
      */
-    _createCustomLayoutCard(layout, currentLayout) {
+    _createCustomLayoutCard(layout, currentLayout, cardIndex) {
         const isActive = this._isLayoutActive(layout, currentLayout);
 
         const card = new St.Button({
@@ -654,7 +669,8 @@ export class LayoutSwitcher {
                    'border-radius: 8px; ' +
                    'margin-top: 16px;',
             x_align: Clutter.ActorAlign.CENTER,
-            reactive: true
+            reactive: true,
+            track_hover: true
         });
 
         const label = new St.Label({
@@ -665,6 +681,21 @@ export class LayoutSwitcher {
 
         button.connect('clicked', () => {
             this._onCreateNewLayoutClicked();
+        });
+
+        // Hover effects
+        button.connect('enter-event', () => {
+            button.style = 'padding: 16px 32px; ' +
+                          'background-color: #4a90d9; ' +
+                          'border-radius: 8px; ' +
+                          'margin-top: 16px;';
+        });
+
+        button.connect('leave-event', () => {
+            button.style = 'padding: 16px 32px; ' +
+                          'background-color: #3584e4; ' +
+                          'border-radius: 8px; ' +
+                          'margin-top: 16px;';
         });
 
         return button;
@@ -739,11 +770,8 @@ export class LayoutSwitcher {
     _onTemplateClicked(template) {
         logger.info(`Template clicked: ${template.name}`);
 
-        // Create a layout from template
-        const layout = this._templateManager.createLayoutFromTemplate(template.id);
-
-        // Apply the layout
-        this._applyLayout(layout);
+        // Templates are already loaded in LayoutManager, just apply by ID
+        this._applyLayout(template);
 
         // Show notification
         this._zoneOverlay.showMessage(`Applied: ${template.name}`);
@@ -829,9 +857,18 @@ export class LayoutSwitcher {
     _refreshDialog() {
         // Close and reopen to refresh
         const wasWorkspace = this._currentWorkspace;
+        const wasSelectedIndex = this._selectedCardIndex;
+        
         this.hide();
+        
         this._currentWorkspace = wasWorkspace;
         this.show();
+        
+        // Try to restore selection
+        if (wasSelectedIndex >= 0 && wasSelectedIndex < this._allCards.length) {
+            this._selectedCardIndex = wasSelectedIndex;
+            this._updateCardFocus();
+        }
     }
 
     /**
@@ -841,15 +878,136 @@ export class LayoutSwitcher {
     _connectKeyEvents() {
         this._keyPressId = global.stage.connect('key-press-event', (actor, event) => {
             const symbol = event.get_key_symbol();
+            const modifiers = event.get_state();
 
             switch (symbol) {
                 case Clutter.KEY_Escape:
                     this.hide();
                     return Clutter.EVENT_STOP;
+
+                case Clutter.KEY_Return:
+                case Clutter.KEY_KP_Enter:
+                    // Apply selected card or first card if none selected
+                    if (this._selectedCardIndex >= 0 && this._selectedCardIndex < this._allCards.length) {
+                        this._applyCardAtIndex(this._selectedCardIndex);
+                    } else if (this._allCards.length > 0) {
+                        this._applyCardAtIndex(0);
+                    }
+                    return Clutter.EVENT_STOP;
+
+                case Clutter.KEY_Left:
+                    this._navigateCards(-1);
+                    return Clutter.EVENT_STOP;
+
+                case Clutter.KEY_Right:
+                    this._navigateCards(1);
+                    return Clutter.EVENT_STOP;
+
+                case Clutter.KEY_Up:
+                    // Navigate up (by 4 for grid layout)
+                    this._navigateCards(-4);
+                    return Clutter.EVENT_STOP;
+
+                case Clutter.KEY_Down:
+                    // Navigate down (by 4 for grid layout)
+                    this._navigateCards(4);
+                    return Clutter.EVENT_STOP;
+
+                case Clutter.KEY_1:
+                case Clutter.KEY_2:
+                case Clutter.KEY_3:
+                case Clutter.KEY_4:
+                case Clutter.KEY_5:
+                case Clutter.KEY_6:
+                case Clutter.KEY_7:
+                case Clutter.KEY_8:
+                case Clutter.KEY_9:
+                    // Quick select by number (1-9)
+                    const number = symbol - Clutter.KEY_0;
+                    const index = number - 1;
+                    if (index >= 0 && index < this._allCards.length) {
+                        this._applyCardAtIndex(index);
+                    }
+                    return Clutter.EVENT_STOP;
             }
 
             return Clutter.EVENT_PROPAGATE;
         });
+    }
+
+    /**
+     * Navigate between cards using keyboard
+     * @param {number} delta - Direction to navigate (-1 = left, 1 = right, -4 = up, 4 = down)
+     * @private
+     */
+    _navigateCards(delta) {
+        if (this._allCards.length === 0) return;
+
+        // Initialize selection if none
+        if (this._selectedCardIndex < 0) {
+            this._selectedCardIndex = 0;
+        } else {
+            // Move selection
+            let newIndex = this._selectedCardIndex + delta;
+            
+            // Wrap around
+            if (newIndex < 0) {
+                newIndex = this._allCards.length - 1;
+            } else if (newIndex >= this._allCards.length) {
+                newIndex = 0;
+            }
+            
+            this._selectedCardIndex = newIndex;
+        }
+
+        // Update visual focus
+        this._updateCardFocus();
+    }
+
+    /**
+     * Update visual focus indicator on cards
+     * @private
+     */
+    _updateCardFocus() {
+        this._allCards.forEach((cardObj, index) => {
+            const isFocused = index === this._selectedCardIndex;
+            const currentLayout = this._getCurrentLayout();
+            const isActive = this._isLayoutActive(cardObj.layout, currentLayout);
+
+            if (isFocused) {
+                // Focused card - bright border
+                cardObj.card.style = `padding: 16px; border-radius: 8px; width: 180px; ` +
+                                    `background-color: rgba(74, 144, 217, 0.4); ` +
+                                    `border: 3px solid #ffffff;`;
+            } else if (isActive) {
+                // Active but not focused
+                cardObj.card.style = `padding: 16px; border-radius: 8px; width: 180px; ` +
+                                    `background-color: rgba(53, 132, 228, 0.3); ` +
+                                    `border: 2px solid #3584e4;`;
+            } else {
+                // Normal state
+                cardObj.card.style = `padding: 16px; border-radius: 8px; width: 180px; ` +
+                                    `background-color: rgba(60, 60, 60, 0.5); ` +
+                                    `border: 1px solid #444;`;
+            }
+        });
+    }
+
+    /**
+     * Apply layout at given card index
+     * @param {number} index - Index in _allCards array
+     * @private
+     */
+    _applyCardAtIndex(index) {
+        if (index < 0 || index >= this._allCards.length) return;
+
+        const cardObj = this._allCards[index];
+        
+        if (cardObj.isTemplate) {
+            this._onTemplateClicked(cardObj.layout);
+        } else {
+            this._onLayoutClicked(cardObj.layout);
+        }
     }
 
     /**
@@ -863,9 +1021,6 @@ export class LayoutSwitcher {
         }
     }
 
-    /**
-     * Clean up resources
-     */
     /**
      * Handle create new layout click
      * @private
@@ -894,77 +1049,6 @@ export class LayoutSwitcher {
         );
 
         settingsDialog.open();
-    }
-
-    /**
-     * Apply a layout to the current context (workspace or global)
-     * @private
-     */
-    _applyLayout(layout) {
-        if (this._workspaceMode) {
-            // Apply to current workspace only
-            try {
-                const mapString = this._settings.get_string("workspace-layout-map");
-                const map = JSON.parse(mapString);
-                map[this._currentWorkspace.toString()] = layout.id;
-                this._settings.set_string("workspace-layout-map", JSON.stringify(map));
-                
-                // If we're on the current workspace, apply immediately
-                const activeWorkspace = global.workspace_manager.get_active_workspace_index();
-                if (activeWorkspace === this._currentWorkspace) {
-                    this._layoutManager.setLayout(layout.id);
-                }
-                
-                logger.info(`Applied layout ${layout.id} to workspace ${this._currentWorkspace}`);
-            } catch (e) {
-                logger.error("Error applying layout to workspace:", e);
-            }
-        } else {
-            // Apply globally
-            this._layoutManager.setLayout(layout.id);
-            logger.info(`Applied layout ${layout.id} globally`);
-        }
-    }
-
-    /**
-     * Refresh the dialog content
-     * @private
-     */
-    _refreshDialog() {
-        // Close and reopen to refresh
-        const wasWorkspace = this._currentWorkspace;
-        this.hide();
-        this._currentWorkspace = wasWorkspace;
-        this.show();
-    }
-
-    /**
-     * Connect keyboard event handlers
-     * @private
-     */
-    _connectKeyEvents() {
-        this._keyPressId = global.stage.connect("key-press-event", (actor, event) => {
-            const symbol = event.get_key_symbol();
-
-            switch (symbol) {
-                case Clutter.KEY_Escape:
-                    this.hide();
-                    return Clutter.EVENT_STOP;
-            }
-
-            return Clutter.EVENT_PROPAGATE;
-        });
-    }
-
-    /**
-     * Disconnect keyboard event handlers
-     * @private
-     */
-    _disconnectKeyEvents() {
-        if (this._keyPressId) {
-            global.stage.disconnect(this._keyPressId);
-            this._keyPressId = null;
-        }
     }
 
     /**
