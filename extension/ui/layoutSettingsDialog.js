@@ -149,16 +149,11 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
         });
         paddingBox.add_child(paddingLabel);
 
-        this._paddingSpinButton = new St.SpinButton({
-            adjustment: new St.Adjustment({
-                lower: 0,
-                upper: 64,
-                step_increment: 1,
-                value: this._layout.padding || 8
-            }),
+        this._paddingEntry = new St.Entry({
+            text: String(this._layout.padding || 8),
             style: 'width: 80px;'
         });
-        paddingBox.add_child(this._paddingSpinButton);
+        paddingBox.add_child(this._paddingEntry);
 
         const paddingUnit = new St.Label({
             text: 'pixels',
@@ -350,7 +345,7 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
         }
 
         const name = this._nameEntry.get_text().trim();
-        const padding = this._paddingSpinButton.get_value();
+        const padding = parseInt(this._paddingEntry.get_text()) || 8;
 
         const finalLayout = {
             id: this._layout.id || this._generateId(),
