@@ -141,6 +141,7 @@ export class ZoneEditor {
         const monitor = Main.layoutManager.currentMonitor;
         
         logger.info('Showing grid editor');
+        logger.info(`Monitor dimensions: ${monitor.width}×${monitor.height} at position (${monitor.x}, ${monitor.y})`);
         
         // Create full-screen overlay
         this._overlay = new St.Widget({
@@ -244,7 +245,7 @@ export class ZoneEditor {
         });
         
         const monitor = Main.layoutManager.currentMonitor;
-        this._helpTextBox.set_position(monitor.x + (monitor.width - 800) / 2, monitor.y + 20);
+        this._helpTextBox.set_position((monitor.width - 800) / 2, 20);
         this._helpTextBox.width = 800;
         
         const title = new St.Label({
@@ -293,8 +294,8 @@ export class ZoneEditor {
             const actor = new St.Button({
                 style_class: 'region-actor',
                 reactive: true,
-                x: monitor.x + left.position * monitor.width,
-                y: monitor.y + top.position * monitor.height,
+                x: left.position * monitor.width,
+                y: top.position * monitor.height,
                 width: (right.position - left.position) * monitor.width,
                 height: (bottom.position - top.position) * monitor.height
             });
@@ -384,15 +385,15 @@ export class ZoneEditor {
             
             if (edge.type === 'vertical') {
                 lineActor.set_position(
-                    monitor.x + edge.position * monitor.width - 15,
-                    monitor.y + edge.start * monitor.height
+                    edge.position * monitor.width - 15,
+                    edge.start * monitor.height
                 );
                 lineActor.set_size(30, edge.length * monitor.height);
                 lineActor.style = 'background-color: transparent;';
             } else {
                 lineActor.set_position(
-                    monitor.x + edge.start * monitor.width,
-                    monitor.y + edge.position * monitor.height - 15
+                    edge.start * monitor.width,
+                    edge.position * monitor.height - 15
                 );
                 lineActor.set_size(edge.length * monitor.width, 30);
                 lineActor.style = 'background-color: transparent;';
@@ -1351,8 +1352,8 @@ export class ZoneEditor {
         // Calculate width based on content - icon (40px) + text (480px) + spacing (12px) + padding (40px)
         const boxWidth = 572;
         notificationBox.set_position(
-            monitor.x + (monitor.width - boxWidth) / 2,
-            monitor.y + (monitor.height / 2) - 50
+            (monitor.width - boxWidth) / 2,
+            (monitor.height / 2) - 50
         );
         
         // Add to overlay (high Z-order since added last)
@@ -1448,8 +1449,8 @@ export class ZoneEditor {
         
         // Position at bottom center
         this._toolbar.set_position(
-            monitor.x + (monitor.width - 250) / 2,
-            monitor.y + monitor.height - 80
+            (monitor.width - 250) / 2,
+            monitor.height - 80
         );
         this._toolbar.width = 250;
         
