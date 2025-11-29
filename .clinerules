@@ -31,6 +31,16 @@
 - **Example**: "Fix shell configuration - Modified by Cline" or "Add memory bank entry - Created by Cline"
 - **Rationale**: This balances automation (prepared commits with good messages) with user control (review before finalizing)
 
+## Testing and Deployment
+- **CRITICAL**: NEVER execute `make install`, `make compile-schema`, or any deployment commands without explicit user permission
+- **Testing Location**: All testing is done in the VM environment, not locally
+- **Deployment Workflow**:
+  1. Make code changes as requested
+  2. Inform user that changes are complete and ready for testing
+  3. Wait for user to deploy to VM and test
+  4. Do NOT automatically run install/build commands
+- **Rationale**: User controls when and where code is deployed to avoid disrupting local system
+
 ## Notes
 - Always check existing memory bank entries before creating new ones
 - Update system state documentation after major changes
