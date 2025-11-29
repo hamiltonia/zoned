@@ -79,6 +79,16 @@
       </description>
     </key>
     
+    <!-- Layout Application Mode -->
+    <key name="apply-layout-globally" type="b">
+      <default>true</default>
+      <summary>Apply layout to all spaces</summary>
+      <description>
+        When enabled (default), applying a layout affects all monitors and workspaces.
+        When disabled, user can choose specific monitor and workspace for layout application.
+      </description>
+    </key>
+    
     <!-- Workspace-specific layouts -->
     <key name="use-per-workspace-layouts" type="b">
       <default>false</default>

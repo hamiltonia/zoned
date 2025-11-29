@@ -362,88 +362,487 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Create top bar with monitor and workspace selectors
+     * Create "Spaces" section with collapsible monitor and workspace selectors
      * @private
      */
     _createTopBar() {
-        const topBar = new St.BoxLayout({
-            vertical: false,
-            style: 'spacing: 24px;'
+        // Read global apply setting
+        this._applyGlobally = this._settings.get_boolean('apply-layout-globally');
+        
+        const spacesSection = new St.BoxLayout({
+            vertical: true,
+            style: 'spacing: 12px; padding-bottom: 20px; border-bottom: 1px solid #404040;'
         });
 
-        // Monitor info (static for now) - use currentMonitor for simplicity
-        const monitor = Main.layoutManager.currentMonitor;
+        // Header row with title and checkbox
+        const header = this._createSpacesHeader();
+        spacesSection.add_child(header);
 
-        const monitorLabel = new St.Label({
-            text: `Monitor: Primary`,
-            style: 'font-size: 14pt; color: #ffffff; font-weight: bold;'
-        });
-        topBar.add_child(monitorLabel);
+        // Collapsible content (monitor dropdown + workspace cards)
+        this._spacesContent = this._createSpacesContent();
+        spacesSection.add_child(this._spacesContent);
 
-        const monitorInfo = new St.Label({
-            text: `${monitor.width} × ${monitor.height}`,
-            style: 'font-size: 11pt; color: #aaaaaa; margin-left: 8px;'
-        });
-        topBar.add_child(monitorInfo);
+        // Set initial collapsed state based on checkbox
+        this._updateSpacesExpansion();
 
-        // Spacer
-        const spacer = new St.Widget({
-            x_expand: true
-        });
-        topBar.add_child(spacer);
-
-        // Workspace selector (if workspace mode enabled)
-        if (this._workspaceMode) {
-            const workspaceBox = this._createWorkspaceSelector();
-            topBar.add_child(workspaceBox);
-        }
-
-        return topBar;
+        return spacesSection;
     }
 
     /**
-     * Create workspace selector buttons
+     * Create Spaces header with title and "apply to all" checkbox
+     * @private
+     */
+    _createSpacesHeader() {
+        const header = new St.BoxLayout({
+            vertical: false,
+            style: 'padding: 0 4px;',
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        // "Spaces" title
+        const title = new St.Label({
+            text: 'Spaces',
+            style: 'font-size: 16pt; color: #ffffff; font-weight: bold;',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        header.add_child(title);
+
+        // Spacer
+        const spacer = new St.Widget({ x_expand: true });
+        header.add_child(spacer);
+
+        // Checkbox container (reversed layout: checkbox on right of label)
+        const checkboxContainer = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 8px;',
+            y_align: Clutter.ActorAlign.CENTER,
+            reactive: true
+        });
+
+        // Label
+        const checkboxLabel = new St.Label({
+            text: 'Apply one layout to all spaces',
+            style: 'font-size: 13px; color: #9ca3af;',
+            y_align: Clutter.ActorAlign.CENTER,
+            reactive: true
+        });
+
+        // Checkbox with checkmark
+        this._applyGloballyCheckbox = new St.Button({
+            style_class: 'checkbox',
+            style: `width: 18px; height: 18px; ` +
+                   `border: 2px solid ${this._applyGlobally ? '#00d4ff' : '#9ca3af'}; ` +
+                   `border-radius: 3px; ` +
+                   `background-color: ${this._applyGlobally ? '#00d4ff' : 'transparent'};`,
+            reactive: true,
+            track_hover: true,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        // Add checkmark icon when checked
+        if (this._applyGlobally) {
+            const checkmark = new St.Label({
+                text: '✓',
+                style: 'color: #1a202c; font-size: 14px; font-weight: bold;',
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER
+            });
+            this._applyGloballyCheckbox.set_child(checkmark);
+        }
+
+        // Click handlers for both label and checkbox
+        const toggleCheckbox = () => {
+            this._applyGlobally = !this._applyGlobally;
+            this._settings.set_boolean('apply-layout-globally', this._applyGlobally);
+            
+            // Update checkbox appearance and checkmark
+            this._applyGloballyCheckbox.style = `width: 18px; height: 18px; ` +
+                   `border: 2px solid ${this._applyGlobally ? '#00d4ff' : '#9ca3af'}; ` +
+                   `border-radius: 3px; ` +
+                   `background-color: ${this._applyGlobally ? '#00d4ff' : 'transparent'};`;
+            
+            // Update checkmark
+            if (this._applyGlobally) {
+                const checkmark = new St.Label({
+                    text: '✓',
+                    style: 'color: #1a202c; font-size: 14px; font-weight: bold;',
+                    x_align: Clutter.ActorAlign.CENTER,
+                    y_align: Clutter.ActorAlign.CENTER
+                });
+                this._applyGloballyCheckbox.set_child(checkmark);
+            } else {
+                this._applyGloballyCheckbox.set_child(null);
+            }
+            
+            // Toggle expansion
+            this._updateSpacesExpansion();
+        };
+
+        checkboxLabel.connect('button-press-event', () => {
+            toggleCheckbox();
+            return Clutter.EVENT_STOP;
+        });
+
+        this._applyGloballyCheckbox.connect('clicked', () => {
+            toggleCheckbox();
+            return Clutter.EVENT_STOP;
+        });
+
+        // Add label then checkbox (visual order: label | checkbox)
+        checkboxContainer.add_child(checkboxLabel);
+        checkboxContainer.add_child(this._applyGloballyCheckbox);
+
+        header.add_child(checkboxContainer);
+
+        return header;
+    }
+
+    /**
+     * Create collapsible spaces content container
+     * @private
+     */
+    _createSpacesContent() {
+        const content = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 16px;',
+            clip_to_allocation: true
+        });
+
+        // Monitor dropdown
+        const monitorDropdown = this._createMonitorDropdown();
+        content.add_child(monitorDropdown);
+
+        // Workspace cards grid - always show workspaces
+        const workspaceGrid = this._createWorkspaceSelector();
+        content.add_child(workspaceGrid);
+
+        return content;
+    }
+
+    /**
+     * Update spaces content expansion based on checkbox state
+     * @private
+     */
+    _updateSpacesExpansion() {
+        if (!this._spacesContent) return;
+
+        if (this._applyGlobally) {
+            // Collapsed state
+            this._spacesContent.set_height(0);
+            this._spacesContent.opacity = 0;
+        } else {
+            // Expanded state - use dynamically calculated card dimensions
+            this._spacesContent.set_height(this._cardHeight + 16); // Add padding
+            this._spacesContent.opacity = 255;
+        }
+    }
+
+    /**
+     * Create monitor dropdown selector
+     * @private
+     */
+    _createMonitorDropdown() {
+        const dropdown = new St.BoxLayout({
+            vertical: true
+        });
+
+        // Get all monitors
+        const monitors = Main.layoutManager.monitors;
+        const primaryIndex = Main.layoutManager.primaryIndex;
+        
+        // Default to primary monitor
+        this._selectedMonitorIndex = primaryIndex;
+        const currentMonitor = monitors[this._selectedMonitorIndex];
+
+        // Use dynamically calculated card dimensions (same as layout cards)
+        const cardWidth = this._cardWidth;
+        const cardHeight = this._cardHeight;
+
+        // Dropdown trigger button (16:9 aspect ratio card - using calculated dimensions)
+        this._monitorTrigger = new St.Button({
+            style_class: 'monitor-dropdown-trigger',
+            style: `width: ${cardWidth}px; height: ${cardHeight}px; ` +
+                   `background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); ` +
+                   `border: 2px solid #4a5568; ` +
+                   `border-radius: 6px; ` +
+                   `padding: 8px;`,
+            reactive: true,
+            track_hover: true
+        });
+
+        const triggerContent = new St.BoxLayout({
+            vertical: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            style: 'spacing: 6px;'
+        });
+
+        // Monitor icon (simplified rectangle)
+        const monitorIcon = new St.Widget({
+            style: `width: 56px; height: 32px; ` +
+                   `background: linear-gradient(135deg, #1a202c 0%, #0f1419 100%); ` +
+                   `border: 2px solid #6b7280; ` +
+                   `border-radius: 3px;`
+        });
+        triggerContent.add_child(monitorIcon);
+
+        // Monitor label
+        const monitorLabel = new St.Label({
+            text: this._selectedMonitorIndex === primaryIndex ? 'Primary Monitor' : `Monitor ${this._selectedMonitorIndex + 1}`,
+            style: 'font-size: 12px; color: #9ca3af; font-weight: 500;'
+        });
+        triggerContent.add_child(monitorLabel);
+
+        this._monitorTrigger.set_child(triggerContent);
+
+        // Hover effect
+        this._monitorTrigger.connect('enter-event', () => {
+            this._monitorTrigger.style = `width: ${cardWidth}px; height: ${cardHeight}px; ` +
+                   `background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); ` +
+                   `border: 2px solid #00d4ff; ` +
+                   `border-radius: 6px; ` +
+                   `padding: 8px; ` +
+                   `box-shadow: 0 0 12px rgba(0, 212, 255, 0.3);`;
+        });
+
+        this._monitorTrigger.connect('leave-event', () => {
+            this._monitorTrigger.style = `width: ${cardWidth}px; height: ${cardHeight}px; ` +
+                   `background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); ` +
+                   `border: 2px solid #4a5568; ` +
+                   `border-radius: 6px; ` +
+                   `padding: 8px;`;
+        });
+
+        // Click to toggle dropdown menu
+        this._monitorTrigger.connect('clicked', () => {
+            this._toggleMonitorDropdown();
+        });
+
+        dropdown.add_child(this._monitorTrigger);
+        
+        // Store dropdown container for later menu attachment
+        this._monitorDropdownContainer = dropdown;
+
+        return dropdown;
+    }
+
+    /**
+     * Toggle monitor dropdown menu visibility
+     * @private
+     */
+    _toggleMonitorDropdown() {
+        if (this._monitorMenu) {
+            // Close existing menu
+            this._monitorDropdownContainer.remove_child(this._monitorMenu);
+            this._monitorMenu.destroy();
+            this._monitorMenu = null;
+        } else {
+            // Create and show menu
+            this._monitorMenu = this._createMonitorDropdownMenu();
+            this._monitorDropdownContainer.add_child(this._monitorMenu);
+        }
+    }
+
+    /**
+     * Create monitor dropdown menu
+     * @private
+     */
+    _createMonitorDropdownMenu() {
+        const menu = new St.BoxLayout({
+            vertical: true,
+            style: `background: #353535; ` +
+                   `border: 1px solid #505050; ` +
+                   `border-radius: 6px; ` +
+                   `margin-top: 4px; ` +
+                   `padding: 4px;`,
+            reactive: true
+        });
+
+        const monitors = Main.layoutManager.monitors;
+        const primaryIndex = Main.layoutManager.primaryIndex;
+
+        monitors.forEach((monitor, index) => {
+            const item = new St.Button({
+                style_class: 'monitor-menu-item',
+                style: `padding: 10px 12px; ` +
+                       `background: ${index === this._selectedMonitorIndex ? '#2d4a5a' : 'transparent'}; ` +
+                       `border-radius: 4px;`,
+                reactive: true,
+                track_hover: true
+            });
+
+            const itemContent = new St.BoxLayout({
+                vertical: false,
+                style: 'spacing: 10px;'
+            });
+
+            // Small monitor icon
+            const icon = new St.Widget({
+                style: `width: 40px; height: 24px; ` +
+                       `background: linear-gradient(135deg, #1a202c 0%, #0f1419 100%); ` +
+                       `border: 2px solid #6b7280; ` +
+                       `border-radius: 2px;`
+            });
+            itemContent.add_child(icon);
+
+            // Monitor label
+            const label = new St.Label({
+                text: index === primaryIndex ? 'Primary Monitor' : `Monitor ${index + 1}`,
+                style: 'font-size: 12px; color: #e0e0e0;'
+            });
+            itemContent.add_child(label);
+
+            item.set_child(itemContent);
+
+            // Hover effect
+            item.connect('enter-event', () => {
+                if (index !== this._selectedMonitorIndex) {
+                    item.style = `padding: 10px 12px; background: #3d3d3d; border-radius: 4px;`;
+                }
+            });
+
+            item.connect('leave-event', () => {
+                if (index !== this._selectedMonitorIndex) {
+                    item.style = `padding: 10px 12px; background: transparent; border-radius: 4px;`;
+                }
+            });
+
+            // Click to select monitor
+            item.connect('clicked', () => {
+                this._onMonitorSelected(index);
+            });
+
+            menu.add_child(item);
+        });
+
+        return menu;
+    }
+
+    /**
+     * Handle monitor selection
+     * @private
+     */
+    _onMonitorSelected(monitorIndex) {
+        this._selectedMonitorIndex = monitorIndex;
+        logger.debug(`Monitor ${monitorIndex} selected`);
+
+        // Update trigger label
+        const monitors = Main.layoutManager.monitors;
+        const primaryIndex = Main.layoutManager.primaryIndex;
+        const triggerContent = this._monitorTrigger.get_child();
+        const label = triggerContent.get_children()[1]; // Second child is the label
+        
+        label.text = monitorIndex === primaryIndex ? 'Primary Monitor' : `Monitor ${monitorIndex + 1}`;
+
+        // Close dropdown
+        this._toggleMonitorDropdown();
+    }
+
+    /**
+     * Create workspace selector with enhanced 16:9 cards
      * @private
      */
     _createWorkspaceSelector() {
-        const box = new St.BoxLayout({
+        const grid = new St.BoxLayout({
             vertical: false,
-            style: 'spacing: 8px;'
+            style: 'spacing: 12px; padding: 4px;',
+            x_expand: true,
+            x_align: Clutter.ActorAlign.CENTER
         });
-
-        const label = new St.Label({
-            text: 'Workspace:',
-            style: 'font-size: 11pt; color: #aaaaaa; margin-right: 8px;'
-        });
-        box.add_child(label);
 
         const nWorkspaces = global.workspace_manager.get_n_workspaces();
+        
+        // Use dynamically calculated card dimensions (same as layout cards)
+        const cardWidth = this._cardWidth;
+        const cardHeight = this._cardHeight;
 
         for (let i = 0; i < nWorkspaces; i++) {
             const isActive = i === this._currentWorkspace;
             
-            const button = new St.Button({
-                label: `${i + 1}`,
-                style_class: 'workspace-button',
-                style: `padding: 8px 16px; ` +
+            const card = new St.Button({
+                style_class: 'workspace-card',
+                style: `width: ${cardWidth}px; ` +
+                       `height: ${cardHeight}px; ` +
+                       `background: linear-gradient(135deg, ${isActive ? '#1e3a5f' : '#2d3748'} 0%, ${isActive ? '#0f2847' : '#1a202c'} 100%); ` +
+                       `border: 2px solid ${isActive ? '#00d4ff' : '#4a5568'}; ` +
                        `border-radius: 6px; ` +
-                       `min-width: 40px; ` +
-                       `${isActive ? 
-                           'background-color: #3584e4; color: white; font-weight: bold;' : 
-                           'background-color: rgba(255,255,255,0.1); color: #cccccc;'}`,
-                reactive: true
+                       `position: relative; ` +
+                       `${isActive ? 'box-shadow: 0 0 16px rgba(0, 212, 255, 0.4);' : ''}`,
+                reactive: true,
+                track_hover: true
             });
 
+            const cardContent = new St.BoxLayout({
+                vertical: true,
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER
+            });
+
+            // Workspace number badge (top-left corner)
+            const badge = new St.Label({
+                text: `${i + 1}`,
+                style: `position: absolute; ` +
+                       `top: 8px; ` +
+                       `left: 8px; ` +
+                       `font-size: 11px; ` +
+                       `opacity: 0.7; ` +
+                       `color: ${isActive ? '#00d4ff' : '#9ca3af'};`
+            });
+            
+            // Workspace label (centered)
+            const label = new St.Label({
+                text: `Workspace ${i + 1}`,
+                style: `font-size: 14px; ` +
+                       `font-weight: 500; ` +
+                       `color: ${isActive ? '#00d4ff' : '#9ca3af'};`
+            });
+            cardContent.add_child(label);
+
+            // Create container to hold both badge and content
+            const container = new St.Widget({
+                layout_manager: new Clutter.BinLayout(),
+                x_expand: true,
+                y_expand: true
+            });
+            container.add_child(cardContent);
+            container.add_child(badge);
+
+            card.set_child(container);
+
+            // Hover effects
             const workspaceIndex = i;
-            button.connect('clicked', () => {
+            
+            card.connect('enter-event', () => {
+                if (!isActive) {
+                    card.style = `width: ${cardWidth}px; ` +
+                           `height: ${cardHeight}px; ` +
+                           `background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); ` +
+                           `border: 2px solid #00d4ff; ` +
+                           `border-radius: 6px; ` +
+                           `box-shadow: 0 0 12px rgba(0, 212, 255, 0.3);`;
+                }
+            });
+
+            card.connect('leave-event', () => {
+                if (!isActive) {
+                    card.style = `width: ${cardWidth}px; ` +
+                           `height: ${cardHeight}px; ` +
+                           `background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); ` +
+                           `border: 2px solid #4a5568; ` +
+                           `border-radius: 6px;`;
+                }
+            });
+
+            card.connect('clicked', () => {
                 this._onWorkspaceSelected(workspaceIndex);
             });
 
-            this._workspaceButtons.push(button);
-            box.add_child(button);
+            this._workspaceButtons.push(card);
+            grid.add_child(card);
         }
 
-        return box;
+        return grid;
     }
 
     /**
@@ -454,15 +853,36 @@ export class LayoutSwitcher {
         this._currentWorkspace = workspaceIndex;
         logger.debug(`Switched to workspace ${workspaceIndex} in editor`);
 
-        // Update workspace button styles
-        this._workspaceButtons.forEach((button, index) => {
+        // Update workspace card styles with 16:9 design using dynamically calculated dimensions
+        this._workspaceButtons.forEach((card, index) => {
             const isActive = index === workspaceIndex;
-            button.style = `padding: 8px 16px; ` +
-                          `border-radius: 6px; ` +
-                          `min-width: 40px; ` +
-                          `${isActive ? 
-                              'background-color: #3584e4; color: white; font-weight: bold;' : 
-                              'background-color: rgba(255,255,255,0.1); color: #cccccc;'}`;
+            
+            // Update card style
+            card.style = `width: ${this._cardWidth}px; ` +
+                   `height: ${this._cardHeight}px; ` +
+                   `background: linear-gradient(135deg, ${isActive ? '#1e3a5f' : '#2d3748'} 0%, ${isActive ? '#0f2847' : '#1a202c'} 100%); ` +
+                   `border: 2px solid ${isActive ? '#00d4ff' : '#4a5568'}; ` +
+                   `border-radius: 6px; ` +
+                   `position: relative; ` +
+                   `${isActive ? 'box-shadow: 0 0 16px rgba(0, 212, 255, 0.4);' : ''}`;
+            
+            // Update label and badge colors
+            const container = card.get_child();
+            const children = container.get_children();
+            const cardContent = children[0]; // First child is the content box
+            const badge = children[1]; // Second child is the badge
+            
+            const label = cardContent.get_children()[0]; // Label inside content box
+            label.style = `font-size: 14px; ` +
+                         `font-weight: 500; ` +
+                         `color: ${isActive ? '#00d4ff' : '#9ca3af'};`;
+            
+            badge.style = `position: absolute; ` +
+                         `top: 8px; ` +
+                         `left: 8px; ` +
+                         `font-size: 11px; ` +
+                         `opacity: 0.7; ` +
+                         `color: ${isActive ? '#00d4ff' : '#9ca3af'};`;
         });
 
         // Refresh the layout display to show current workspace's layout

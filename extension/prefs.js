@@ -31,6 +31,20 @@ export default class ZonedPreferences extends ExtensionPreferences {
         });
         page.add(group);
 
+        // Add "Apply layout globally" switch
+        const settings = this.getSettings();
+        const applyGloballyRow = new Adw.SwitchRow({
+            title: 'Apply one layout to all spaces',
+            subtitle: 'When enabled, layouts apply to all monitors and workspaces. When disabled, you can choose specific spaces in the layout picker.',
+        });
+        settings.bind(
+            'apply-layout-globally',
+            applyGloballyRow,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        group.add(applyGloballyRow);
+
         // Add info row explaining how to access features
         const infoRow = new Adw.ActionRow({
             title: 'Access Layout Tools',
