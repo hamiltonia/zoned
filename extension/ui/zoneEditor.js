@@ -138,7 +138,7 @@ export class ZoneEditor {
      * Show the grid editor
      */
     show() {
-        const monitor = Main.layoutManager.primaryMonitor;
+        const monitor = Main.layoutManager.currentMonitor;
         
         logger.info('Showing grid editor');
         
@@ -243,7 +243,7 @@ export class ZoneEditor {
             y_align: Clutter.ActorAlign.START
         });
         
-        const monitor = Main.layoutManager.primaryMonitor;
+        const monitor = Main.layoutManager.currentMonitor;
         this._helpTextBox.set_position(monitor.x + (monitor.width - 800) / 2, monitor.y + 20);
         this._helpTextBox.width = 800;
         
@@ -276,7 +276,7 @@ export class ZoneEditor {
      * @private
      */
     _createRegions() {
-        const monitor = Main.layoutManager.primaryMonitor;
+        const monitor = Main.layoutManager.currentMonitor;
         const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
         
         this._edgeLayout.regions.forEach((region, index) => {
@@ -370,7 +370,7 @@ export class ZoneEditor {
      * @private
      */
     _createEdges() {
-        const monitor = Main.layoutManager.primaryMonitor;
+        const monitor = Main.layoutManager.currentMonitor;
         
         // Only create actors for non-fixed edges (not screen boundaries)
         const draggableEdges = this._edgeLayout.edges.filter(edge => !edge.fixed);
@@ -466,7 +466,7 @@ export class ZoneEditor {
         if (!this._draggingEdge) return;
         
         const [x, y] = event.get_coords();
-        const monitor = Main.layoutManager.primaryMonitor;
+        const monitor = Main.layoutManager.currentMonitor;
         const edge = this._draggingEdge.edge;
         
         let newPosition;
@@ -1306,7 +1306,7 @@ export class ZoneEditor {
      * @private
      */
     _showCenteredNotification(title, message) {
-        const monitor = Main.layoutManager.primaryMonitor;
+        const monitor = Main.layoutManager.currentMonitor;
         
         const notificationBox = new St.BoxLayout({
             vertical: false,
@@ -1438,7 +1438,7 @@ export class ZoneEditor {
      * @private
      */
     _createToolbar() {
-        const monitor = Main.layoutManager.primaryMonitor;
+        const monitor = Main.layoutManager.currentMonitor;
         
         this._toolbar = new St.BoxLayout({
             style: 'spacing: 12px; padding: 16px; background-color: rgba(255, 255, 255, 0.95); border-radius: 8px;',
