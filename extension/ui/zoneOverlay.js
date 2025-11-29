@@ -127,10 +127,11 @@ export class ZoneOverlay {
             // Add to UI
             Main.uiGroup.add_child(this._overlay);
 
-            // Center on screen
+            // Center on current monitor
+            const monitor = Main.layoutManager.currentMonitor;
             this._overlay.set_position(
-                Math.floor((global.screen_width - this._overlay.width) / 2),
-                Math.floor(global.screen_height / 4)  // Top quarter of screen
+                Math.floor(monitor.x + (monitor.width - this._overlay.width) / 2),
+                Math.floor(monitor.y + monitor.height / 4)  // Top quarter of screen
             );
 
             // Auto-hide after duration

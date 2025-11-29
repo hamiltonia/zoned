@@ -96,8 +96,8 @@ export class NotificationManager {
             const allocationId = this._notification.connect('notify::allocation', () => {
                 this._notification.disconnect(allocationId);
                 
-                // Position at top-center (below panel)
-                const monitor = Main.layoutManager.primaryMonitor;
+                // Position at top-center of current monitor (below panel)
+                const monitor = Main.layoutManager.currentMonitor;
                 const panel = Main.layoutManager.panelBox;
                 
                 this._notification.set_position(

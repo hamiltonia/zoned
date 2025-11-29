@@ -353,10 +353,10 @@ export class LayoutSwitcher {
 
         this._dialog.set_child(container);
 
-        // Add to stage
+        // Add to stage - size to current monitor, not combined screen
         Main.uiGroup.add_child(this._dialog);
-        this._dialog.set_position(0, 0);
-        this._dialog.set_size(global.screen_width, global.screen_height);
+        this._dialog.set_position(monitor.x, monitor.y);
+        this._dialog.set_size(monitor.width, monitor.height);
 
         this._dialog.grab_key_focus();
     }
