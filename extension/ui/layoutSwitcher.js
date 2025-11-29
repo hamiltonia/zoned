@@ -88,11 +88,129 @@ export class LayoutSwitcher {
     }
 
     /**
+     * Calculate card dimensions based on monitor height (height-first approach)
+     * Always uses 5 columns to ensure consistent layout
+     * @private
+     */
+    _calculateCardDimensions(monitor) {
+        const COLUMNS = 5;  // Always 5 columns for both templates and custom layouts
+        const MIN_CARD_WIDTH = 160;
+        const MAX_CARD_WIDTH = 280;
+        const GAP = 16;
+        const CARD_PADDING = 32;
+        
+        // Layout constants for height calculation
+        const TOP_BAR = 60;
+        const SECTION_HEADER = 40;
+        const CARD_SPACING = 12;  // Preview to name gap
+        const NAME_HEIGHT = 24;
+        const SECTION_GAP = 32;
+        const CREATE_BUTTON = 80;
+        const DIALOG_PADDING = 64;
+        
+        // Calculate max dialog height (85% of screen)
+        const maxDialogHeight = Math.floor(monitor.height * 0.85);
+        
+        // Fixed height budget (everything except card rows)
+        const fixedHeight = TOP_BAR + (2 * SECTION_HEADER) + SECTION_GAP + CREATE_BUTTON + DIALOG_PADDING;
+        
+        // Available height for 3 rows of cards (1 template row + 2 custom layout rows)
+        const availableForCards = maxDialogHeight - fixedHeight;
+        const rowHeight = availableForCards / 3;
+        
+        // Calculate card height from available row height
+        const cardContentHeight = rowHeight - CARD_PADDING - CARD_SPACING - NAME_HEIGHT;
+        
+        // Preview is the main content, leave some room for card padding
+        const previewHeight = Math.floor(cardContentHeight * 0.8);
+        
+        // Calculate preview width maintaining 16:9 aspect ratio
+        const previewWidth = Math.floor(previewHeight * (16 / 9));
+        
+        // Card width is preview + padding on both sides
+        const cardWidth = previewWidth + CARD_PADDING;
+        
+        // Clamp card width to reasonable bounds
+        const clampedCardWidth = Math.max(MIN_CARD_WIDTH, Math.min(MAX_CARD_WIDTH, cardWidth));
+        
+        // Recalculate preview size if we clamped the card width
+        const finalPreviewWidth = clampedCardWidth - CARD_PADDING;
+        const finalPreviewHeight = Math.floor(finalPreviewWidth * (9 / 16));
+        
+        return {
+            cardWidth: clampedCardWidth,
+            previewWidth: finalPreviewWidth,
+            previewHeight: finalPreviewHeight,
+            customColumns: COLUMNS
+        };
+    }
+
+    /**
+     * Calculate dialog width based on card dimensions
+     * Always uses 5 columns for consistent layout
+     * @private
+     */
+    _calculateDialogWidth(cardWidth) {
+        const COLUMNS = 5;  // Always 5 columns
+        const GAP = 16;
+        const CONTAINER_PADDING = 64;  // 32px left + 32px right from container
+        const BORDER_WIDTH_TOTAL = 10;  // 5 cards × 2px extra (changed from 1px to 2px per card) = 10px
+        const EXTRA_BUFFER = 110;  // Generous buffer for St.BoxLayout implicit margins, scrollbar, and nested spacing
+        
+        return (COLUMNS * cardWidth) + ((COLUMNS - 1) * GAP) + CONTAINER_PADDING + BORDER_WIDTH_TOTAL + EXTRA_BUFFER;
+    }
+
+    /**
+     * Calculate dialog height based on content
+     * @private
+     */
+    _calculateDialogHeight(monitor, previewHeight, cardWidth) {
+        const TOP_BAR = 60;
+        const SECTION_HEADER = 40;
+        const CARD_SPACING = 12;  // Preview to name gap
+        const NAME_HEIGHT = 24;
+        const SECTION_GAP = 32;
+        const CREATE_BUTTON = 80;
+        const PADDING = 64;
+        const CARD_PADDING = 32;
+        
+        // Total card height
+        const cardHeight = CARD_PADDING + previewHeight + CARD_SPACING + NAME_HEIGHT + CARD_PADDING;
+        
+        // Templates section (1 row)
+        const templatesHeight = SECTION_HEADER + cardHeight;
+        
+        // Custom layouts section (2 rows visible)
+        const customHeight = SECTION_HEADER + (2 * cardHeight) + 16;  // 16px gap between rows
+        
+        const idealHeight = TOP_BAR + templatesHeight + SECTION_GAP + customHeight + CREATE_BUTTON + PADDING;
+        
+        // Clamp to 85% of screen height
+        const maxHeight = Math.floor(monitor.height * 0.85);
+        
+        return Math.min(idealHeight, maxHeight);
+    }
+
+    /**
      * Create the main dialog UI
      * @private
      */
     _createDialog() {
         const monitor = Main.layoutManager.currentMonitor;
+
+        // Calculate adaptive dimensions
+        const dims = this._calculateCardDimensions(monitor);
+        this._cardWidth = dims.cardWidth;
+        this._previewWidth = dims.previewWidth;
+        this._previewHeight = dims.previewHeight;
+        this._customColumns = dims.customColumns;
+        
+        const dialogWidth = this._calculateDialogWidth(this._cardWidth);
+        const dialogHeight = this._calculateDialogHeight(monitor, this._previewHeight, this._cardWidth);
+        
+        logger.debug(`Adaptive sizing: ${monitor.width}×${monitor.height} ` +
+                    `→ cards: ${this._cardWidth}px, preview: ${this._previewWidth}×${this._previewHeight}, ` +
+                    `columns: ${this._customColumns}, dialog: ${dialogWidth}×${dialogHeight}`);
 
         // Background overlay - translucent, click to close
         this._dialog = new St.Bin({
@@ -113,10 +231,7 @@ export class LayoutSwitcher {
             return Clutter.EVENT_PROPAGATE;
         });
 
-        // Main container
-        const dialogWidth = Math.floor(monitor.width * 0.7);
-        const dialogHeight = Math.floor(monitor.height * 0.8);
-
+        // Main container (using calculated adaptive dimensions)
         const container = new St.BoxLayout({
             vertical: true,
             style: `background-color: rgba(40, 40, 40, 0.98); ` +
@@ -301,7 +416,7 @@ export class LayoutSwitcher {
         // Template cards in horizontal row
         const templatesRow = new St.BoxLayout({
             vertical: false,
-            style: 'spacing: 16px;'
+            style: 'spacing: 16px; padding: 2px;' // Padding to prevent outline clipping
         });
 
         const templates = this._templateManager.getBuiltinTemplates();
@@ -319,7 +434,7 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Create a template card
+     * Create a template card (PROTOTYPE: Hybrid hover with action buttons)
      * @private
      */
     _createTemplateCard(template, currentLayout, cardIndex) {
@@ -329,49 +444,151 @@ export class LayoutSwitcher {
             style_class: 'template-card',
             style: `padding: 16px; ` +
                    `border-radius: 8px; ` +
-                   `width: 180px; ` +
+                   `width: ${this._cardWidth}px; ` +
                    `${isActive ? 
                        'background-color: rgba(53, 132, 228, 0.3); border: 2px solid #3584e4;' : 
-                       'background-color: rgba(60, 60, 60, 0.5); border: 1px solid #444;'}`,
+                       'background-color: rgba(60, 60, 60, 0.5); border: 2px solid transparent;'}`,
             reactive: true,
             track_hover: true
         });
 
-        const box = new St.BoxLayout({
+        // Main content box
+        const mainBox = new St.BoxLayout({
             vertical: true,
             style: 'spacing: 12px;'
         });
 
-        // Template icon/preview
-        const preview = this._createZonePreview(template.zones, 160, 90);
-        box.add_child(preview);
+        // Template icon/preview (using adaptive dimensions)
+        const preview = this._createZonePreview(template.zones, this._previewWidth, this._previewHeight);
+        mainBox.add_child(preview);
 
         // Template name
         const name = new St.Label({
             text: template.name,
             style: 'text-align: center; font-weight: bold; color: white;'
         });
-        box.add_child(name);
+        mainBox.add_child(name);
 
-        card.set_child(box);
-
-        // Click to apply
-        card.connect('clicked', () => {
-            this._onTemplateClicked(template);
+        // Action buttons overlay (top-right corner, hidden by default)
+        const actionBox = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 6px; margin: 4px;',
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.START,
+            opacity: 0  // Start invisible
         });
 
-        // Hover effects
+        // Duplicate button (for templates)
+        const dupButton = new St.Button({
+            style_class: 'action-button',
+            style: 'padding: 6px 10px; ' +
+                   'background-color: rgba(53, 132, 228, 0.95); ' +
+                   'border-radius: 4px;',
+            reactive: true,
+            track_hover: true
+        });
+
+        const dupBox = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 4px;'
+        });
+        dupBox.add_child(new St.Icon({
+            icon_name: 'document-edit-symbolic',
+            icon_size: 14,
+            style: 'color: white;'
+        }));
+        dupBox.add_child(new St.Label({
+            text: 'Dup',
+            style: 'font-size: 9pt; color: white; font-weight: bold;'
+        }));
+        dupButton.set_child(dupBox);
+
+        dupButton.connect('clicked', () => {
+            this._onEditTemplateClicked(template);
+            return Clutter.EVENT_STOP;  // Don't trigger card click
+        });
+
+        // Delete button (disabled for templates)
+        const delButton = new St.Button({
+            style_class: 'action-button',
+            style: 'padding: 6px 10px; ' +
+                   'background-color: rgba(192, 28, 40, 0.5); ' +
+                   'border-radius: 4px; ' +
+                   'opacity: 0.4;',
+            reactive: false  // Templates can't be deleted
+        });
+
+        const delBox = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 4px;'
+        });
+        delBox.add_child(new St.Icon({
+            icon_name: 'user-trash-symbolic',
+            icon_size: 14,
+            style: 'color: white;'
+        }));
+        delBox.add_child(new St.Label({
+            text: 'Del',
+            style: 'font-size: 9pt; color: white; font-weight: bold;'
+        }));
+        delButton.set_child(delBox);
+
+        actionBox.add_child(dupButton);
+        actionBox.add_child(delButton);
+
+        // Use BinLayout to overlay action buttons on top of main content
+        const container = new St.Widget({
+            layout_manager: new Clutter.BinLayout()
+        });
+        container.add_child(mainBox);
+        container.add_child(actionBox);
+
+        card.set_child(container);
+
+        // Click card to apply (primary action)
+        // But ignore clicks on action buttons
+        card.connect('clicked', (actor, event) => {
+            const clickSource = event ? event.get_source() : null;
+            
+            // Check if click originated from action buttons
+            if (clickSource && (clickSource === dupButton || clickSource === delButton ||
+                clickSource.get_parent() === dupButton || clickSource.get_parent() === delButton)) {
+                return Clutter.EVENT_PROPAGATE;
+            }
+            
+            // Otherwise, apply the template
+            this._onTemplateClicked(template);
+            return Clutter.EVENT_STOP;
+        });
+
+        // Hover effects: show action buttons + change background
         card.connect('enter-event', () => {
+            // Fade in action buttons
+            actionBox.ease({
+                opacity: 255,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT
+            });
+
+            // Change background
             if (!isActive) {
-                card.style = `padding: 16px; border-radius: 8px; width: 180px; ` +
-                            `background-color: rgba(74, 144, 217, 0.25); border: 1px solid #6aa0d9;`;
+                card.style = `padding: 16px; border-radius: 8px; width: ${this._cardWidth}px; ` +
+                            `background-color: rgba(74, 144, 217, 0.25); border: 2px solid #6aa0d9;`;
             }
         });
 
         card.connect('leave-event', () => {
+            // Fade out action buttons
+            actionBox.ease({
+                opacity: 0,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT
+            });
+
+            // Restore background
             if (!isActive) {
-                card.style = `padding: 16px; border-radius: 8px; width: 180px; ` +
-                            `background-color: rgba(60, 60, 60, 0.5); border: 1px solid #444;`;
+                card.style = `padding: 16px; border-radius: 8px; width: ${this._cardWidth}px; ` +
+                            `background-color: rgba(60, 60, 60, 0.5); border: 2px solid transparent;`;
             }
         });
 
@@ -449,7 +666,7 @@ export class LayoutSwitcher {
      * @private
      */
     _createCustomLayoutGrid(layouts, currentLayout) {
-        const COLUMNS = 4;
+        const COLUMNS = this._customColumns;  // Use adaptive columns (5-7)
         const container = new St.BoxLayout({
             vertical: true,
             style: 'spacing: 16px;'
@@ -464,7 +681,7 @@ export class LayoutSwitcher {
             if (col === 0) {
                 currentRow = new St.BoxLayout({
                     vertical: false,
-                    style: 'spacing: 16px;'
+                    style: 'spacing: 16px; padding: 2px;' // Padding to prevent outline clipping
                 });
                 container.add_child(currentRow);
             }
@@ -489,10 +706,10 @@ export class LayoutSwitcher {
             style_class: 'custom-layout-card',
             style: `padding: 16px; ` +
                    `border-radius: 8px; ` +
-                   `width: 180px; ` +
+                   `width: ${this._cardWidth}px; ` +
                    `${isActive ? 
                        'background-color: rgba(53, 132, 228, 0.3); border: 2px solid #3584e4;' : 
-                       'background-color: rgba(60, 60, 60, 0.5); border: 1px solid #444;'}`,
+                       'background-color: rgba(60, 60, 60, 0.5); border: 2px solid transparent;'}`,
             reactive: true,
             track_hover: true
         });
@@ -502,14 +719,14 @@ export class LayoutSwitcher {
             style: 'spacing: 12px;'
         });
 
-        // Layout preview with edit button overlay
+        // Layout preview with edit button overlay (using adaptive dimensions)
         const previewContainer = new St.Widget({
             layout_manager: new Clutter.BinLayout(),
-            width: 160,
-            height: 90
+            width: this._previewWidth,
+            height: this._previewHeight
         });
 
-        const preview = this._createZonePreview(layout.zones, 160, 90);
+        const preview = this._createZonePreview(layout.zones, this._previewWidth, this._previewHeight);
         previewContainer.add_child(preview);
 
         // Edit button overlay (top-right corner)
@@ -556,15 +773,15 @@ export class LayoutSwitcher {
         // Hover effects
         card.connect('enter-event', () => {
             if (!isActive) {
-                card.style = `padding: 16px; border-radius: 8px; width: 180px; ` +
-                            `background-color: rgba(74, 144, 217, 0.25); border: 1px solid #6aa0d9;`;
+                card.style = `padding: 16px; border-radius: 8px; width: ${this._cardWidth}px; ` +
+                            `background-color: rgba(74, 144, 217, 0.25); border: 2px solid #6aa0d9;`;
             }
         });
 
         card.connect('leave-event', () => {
             if (!isActive) {
-                card.style = `padding: 16px; border-radius: 8px; width: 180px; ` +
-                            `background-color: rgba(60, 60, 60, 0.5); border: 1px solid #444;`;
+                card.style = `padding: 16px; border-radius: 8px; width: ${this._cardWidth}px; ` +
+                            `background-color: rgba(60, 60, 60, 0.5); border: 2px solid transparent;`;
             }
         });
 
@@ -821,6 +1038,58 @@ export class LayoutSwitcher {
     }
 
     /**
+     * Handle edit template click - create duplicate and open editor
+     * @private
+     */
+    _onEditTemplateClicked(template) {
+        logger.info(`Edit template clicked: ${template.name} - creating duplicate`);
+
+        // Create a copy of the template
+        const newLayout = {
+            id: `layout-${Date.now()}`,
+            name: `${template.name} - Copy`,
+            zones: JSON.parse(JSON.stringify(template.zones))
+        };
+
+        // Save the new layout
+        this._layoutManager.saveLayout(newLayout);
+
+        // Close switcher and open ZoneEditor with new layout
+        this.hide();
+
+        logger.info(`Created duplicate layout: ${newLayout.name}`);
+        this._zoneOverlay.showMessage(`Created: ${newLayout.name}`);
+
+        // Open settings dialog for the new layout
+        const settingsDialog = new LayoutSettingsDialog(
+            newLayout,
+            this._layoutManager,
+            (updatedLayout) => {
+                logger.info(`Duplicate layout saved: ${updatedLayout ? updatedLayout.name : 'deleted'}`);
+                this.show(); // Reopen switcher
+            },
+            () => {
+                logger.info('Duplicate layout editing canceled');
+                this.show(); // Reopen switcher
+            }
+        );
+        settingsDialog.open();
+    }
+
+    /**
+     * Handle delete layout click - show confirmation
+     * @private
+     */
+    _onDeleteClicked(layout) {
+        logger.info(`Delete clicked for layout: ${layout.name}`);
+        
+        // TODO: Implement confirmation dialog and actual deletion
+        // For prototype, just log
+        logger.warn('Delete not yet implemented - this is a prototype');
+        this._zoneOverlay.showMessage(`Delete feature coming soon`);
+    }
+
+    /**
      * Apply a layout to the current context (workspace or global)
      * @private
      */
@@ -975,20 +1244,21 @@ export class LayoutSwitcher {
             const isActive = this._isLayoutActive(cardObj.layout, currentLayout);
 
             if (isFocused) {
-                // Focused card - bright border
-                cardObj.card.style = `padding: 16px; border-radius: 8px; width: 180px; ` +
+                // Focused card - use box-shadow for rounded focus indicator
+                cardObj.card.style = `padding: 16px; border-radius: 8px; width: ${this._cardWidth}px; ` +
                                     `background-color: rgba(74, 144, 217, 0.4); ` +
-                                    `border: 3px solid #ffffff;`;
+                                    `border: 2px solid #3584e4; ` +
+                                    `box-shadow: 0 0 0 2px #ffffff;`;
             } else if (isActive) {
                 // Active but not focused
-                cardObj.card.style = `padding: 16px; border-radius: 8px; width: 180px; ` +
+                cardObj.card.style = `padding: 16px; border-radius: 8px; width: ${this._cardWidth}px; ` +
                                     `background-color: rgba(53, 132, 228, 0.3); ` +
                                     `border: 2px solid #3584e4;`;
             } else {
                 // Normal state
-                cardObj.card.style = `padding: 16px; border-radius: 8px; width: 180px; ` +
+                cardObj.card.style = `padding: 16px; border-radius: 8px; width: ${this._cardWidth}px; ` +
                                     `background-color: rgba(60, 60, 60, 0.5); ` +
-                                    `border: 1px solid #444;`;
+                                    `border: 2px solid transparent;`;
             }
         });
     }
