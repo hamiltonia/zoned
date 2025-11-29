@@ -44,6 +44,7 @@ export class LayoutSwitcher {
         this._selectedCardIndex = -1;  // Currently focused card (-1 = none)
     }
 
+
     /**
      * Show the layout editor dialog
      */
@@ -95,21 +96,28 @@ export class LayoutSwitcher {
     _calculateCardDimensions(monitor) {
         const COLUMNS = 5;  // Always 5 columns for both templates and custom layouts
         const MIN_CARD_WIDTH = 160;
-        const MAX_CARD_WIDTH = 280;
-        const GAP = 16;
-        const CARD_PADDING = 32;
+        const MAX_CARD_WIDTH = 350;  // Empirically tested: 340px fits at 200% scaling
+        
+        // Get display scale factor to convert physical pixels to logical pixels
+        const themeContext = St.ThemeContext.get_for_stage(global.stage);
+        const scaleFactor = themeContext.scale_factor;
+        
+        // Convert monitor dimensions from physical to logical pixels for CSS calculations
+        // At 200% scaling: 3840 physical -> 1920 logical (what CSS sees)
+        const logicalWidth = monitor.width / scaleFactor;
+        const logicalHeight = monitor.height / scaleFactor;
+        
+        logger.info(`[SCALE] Physical: ${monitor.width}×${monitor.height}, Logical: ${logicalWidth}×${logicalHeight}, Scale: ${scaleFactor}x`);
         
         // Layout constants for height calculation
         const TOP_BAR = 60;
         const SECTION_HEADER = 40;
-        const CARD_SPACING = 12;  // Preview to name gap
-        const NAME_HEIGHT = 24;
         const SECTION_GAP = 32;
         const CREATE_BUTTON = 80;
         const DIALOG_PADDING = 64;
         
-        // Calculate max dialog height (85% of screen)
-        const maxDialogHeight = Math.floor(monitor.height * 0.85);
+        // Calculate max dialog height (90% of screen for more vertical space)
+        const maxDialogHeight = Math.floor(logicalHeight * 0.90);
         
         // Fixed height budget (everything except card rows)
         const fixedHeight = TOP_BAR + (2 * SECTION_HEADER) + SECTION_GAP + CREATE_BUTTON + DIALOG_PADDING;
@@ -118,27 +126,46 @@ export class LayoutSwitcher {
         const availableForCards = maxDialogHeight - fixedHeight;
         const rowHeight = availableForCards / 3;
         
-        // Calculate card height from available row height
-        const cardContentHeight = rowHeight - CARD_PADDING - CARD_SPACING - NAME_HEIGHT;
+        // HEIGHT-FIRST APPROACH: Calculate card height from available vertical space
+        // Card is full-bleed 16:9, no internal padding needed
+        const cardHeight = Math.floor(rowHeight - 16);  // 16px gap between rows
         
-        // Preview is the main content, leave some room for card padding
-        const previewHeight = Math.floor(cardContentHeight * 0.8);
+        // Calculate card width FROM height maintaining 16:9 aspect ratio
+        const heightDerivedWidth = Math.floor(cardHeight * (16 / 9));
         
-        // Calculate preview width maintaining 16:9 aspect ratio
-        const previewWidth = Math.floor(previewHeight * (16 / 9));
+        // HORIZONTAL CONSTRAINT: Calculate max width that allows 5 cards to fit
+        // Account for all horizontal spacing (must match _calculateDialogWidth logic)
+        const CARD_GAP = 24;  // Match this._CARD_GAP from _createDialog
+        const CONTAINER_PADDING_HORIZONTAL = 30 + 19;  // LEFT + RIGHT
+        const CONTENTBOX_MARGIN_HORIZONTAL = 0 + (-8);  // LEFT + RIGHT
+        const SCROLLVIEW_PADDING_RIGHT = 0;
+        const GRID_ROW_PADDING_HORIZONTAL = 0 + 0;  // LEFT + RIGHT
         
-        // Card width is preview + padding on both sides
-        const cardWidth = previewWidth + CARD_PADDING;
+        const availableWidth = logicalWidth - CONTAINER_PADDING_HORIZONTAL - 
+                               CONTENTBOX_MARGIN_HORIZONTAL - SCROLLVIEW_PADDING_RIGHT - 
+                               GRID_ROW_PADDING_HORIZONTAL;
+        
+        const gapTotal = (COLUMNS - 1) * CARD_GAP;
+        const maxCardWidthForHorizontalFit = Math.floor((availableWidth - gapTotal) / COLUMNS);
+        
+        // Use the SMALLER of height-derived or horizontal constraint to ensure cards fit both ways
+        const constrainedWidth = Math.min(heightDerivedWidth, maxCardWidthForHorizontalFit);
         
         // Clamp card width to reasonable bounds
-        const clampedCardWidth = Math.max(MIN_CARD_WIDTH, Math.min(MAX_CARD_WIDTH, cardWidth));
+        const clampedCardWidth = Math.max(MIN_CARD_WIDTH, Math.min(MAX_CARD_WIDTH, constrainedWidth));
         
-        // Recalculate preview size if we clamped the card width
-        const finalPreviewWidth = clampedCardWidth - CARD_PADDING;
-        const finalPreviewHeight = Math.floor(finalPreviewWidth * (9 / 16));
+        // Recalculate card height if we clamped the width (maintain 16:9)
+        const finalCardHeight = Math.floor(clampedCardWidth * (9 / 16));
+        
+        // Preview fills card edge-to-edge (full-bleed)
+        const finalPreviewWidth = clampedCardWidth;
+        const finalPreviewHeight = finalCardHeight;
+        
+        logger.info(`[FINAL] Card dimensions: ${clampedCardWidth}×${finalCardHeight}px`);
         
         return {
             cardWidth: clampedCardWidth,
+            cardHeight: finalCardHeight,
             previewWidth: finalPreviewWidth,
             previewHeight: finalPreviewHeight,
             customColumns: COLUMNS
@@ -148,34 +175,31 @@ export class LayoutSwitcher {
     /**
      * Calculate dialog width based on card dimensions
      * Always uses 5 columns for consistent layout
+     * Uses actual spacing variables for accurate calculation at all display scales
      * @private
      */
     _calculateDialogWidth(cardWidth) {
         const COLUMNS = 5;  // Always 5 columns
-        const GAP = 16;
-        const CONTAINER_PADDING = 64;  // 32px left + 32px right from container
-        const BORDER_WIDTH_TOTAL = 10;  // 5 cards × 2px extra (changed from 1px to 2px per card) = 10px
-        const EXTRA_BUFFER = 110;  // Generous buffer for St.BoxLayout implicit margins, scrollbar, and nested spacing
         
-        return (COLUMNS * cardWidth) + ((COLUMNS - 1) * GAP) + CONTAINER_PADDING + BORDER_WIDTH_TOTAL + EXTRA_BUFFER;
+        // Use actual spacing variables (set in _createDialog before this is called)
+        const cardGap = this._CARD_GAP;  // Horizontal gap between cards
+        const containerPadding = this._CONTAINER_PADDING_LEFT + this._CONTAINER_PADDING_RIGHT;
+        const contentBoxMargins = this._CONTENTBOX_MARGIN_LEFT + this._CONTENTBOX_MARGIN_RIGHT;
+        const scrollViewPadding = this._SCROLLVIEW_PADDING_RIGHT;
+        
+        return (COLUMNS * cardWidth) + ((COLUMNS - 1) * cardGap) + containerPadding + contentBoxMargins + scrollViewPadding;
     }
 
     /**
      * Calculate dialog height based on content
      * @private
      */
-    _calculateDialogHeight(monitor, previewHeight, cardWidth) {
+    _calculateDialogHeight(monitor, cardHeight) {
         const TOP_BAR = 60;
         const SECTION_HEADER = 40;
-        const CARD_SPACING = 12;  // Preview to name gap
-        const NAME_HEIGHT = 24;
         const SECTION_GAP = 32;
         const CREATE_BUTTON = 80;
         const PADDING = 64;
-        const CARD_PADDING = 32;
-        
-        // Total card height
-        const cardHeight = CARD_PADDING + previewHeight + CARD_SPACING + NAME_HEIGHT + CARD_PADDING;
         
         // Templates section (1 row)
         const templatesHeight = SECTION_HEADER + cardHeight;
@@ -185,8 +209,8 @@ export class LayoutSwitcher {
         
         const idealHeight = TOP_BAR + templatesHeight + SECTION_GAP + customHeight + CREATE_BUTTON + PADDING;
         
-        // Clamp to 85% of screen height
-        const maxHeight = Math.floor(monitor.height * 0.85);
+        // Clamp to 90% of screen height (increased from 85% for more vertical space)
+        const maxHeight = Math.floor(monitor.height * 0.90);
         
         return Math.min(idealHeight, maxHeight);
     }
@@ -198,19 +222,64 @@ export class LayoutSwitcher {
     _createDialog() {
         const monitor = Main.layoutManager.currentMonitor;
 
+        // ============================================================================
+        // DISPLAY SCALE DETECTION - For logging purposes
+        // ============================================================================
+        
+        // Get display scale factor (1.0 = 100%, 2.0 = 200%, etc.)
+        const themeContext = St.ThemeContext.get_for_stage(global.stage);
+        const scaleFactor = themeContext.scale_factor;
+        
+        logger.info(`Display scale factor detected: ${scaleFactor}x (${scaleFactor * 100}%)`);
+        logger.info(`Monitor dimensions (logical pixels): ${monitor.width}×${monitor.height}`);
+        
+        // ============================================================================
+        // SPACING CONFIGURATION - Values in logical pixels (automatically scaled by GNOME)
+        // ============================================================================
+        // NOTE: Monitor dimensions are already in logical pixels which account for display
+        // scaling. At 200% scale, a 1920x1080 physical display becomes 960x540 logical.
+        // Therefore, spacing should also be in logical pixels (no manual scaling needed).
+        // ============================================================================
+        
+        // CONTAINER STYLING (controls dialog appearance)
+        this._CONTAINER_BORDER_RADIUS = 16;   // Dialog corner radius (set to 0 for sharp corners & flush scrollbar)
+        
+        // CONTAINER PADDING (controls dialog outer padding)
+        this._CONTAINER_PADDING_LEFT = 30;    // Dialog container left padding
+        this._CONTAINER_PADDING_RIGHT = 19;   // Dialog container right padding (set to 0 to position scrollbar at edge)
+        this._CONTAINER_PADDING_TOP = 32;     // Dialog container top padding
+        this._CONTAINER_PADDING_BOTTOM = 32;  // Dialog container bottom padding
+        
+        // EXTERNAL SPACING (controls alignment with topBar and dialog edges)
+        this._CONTENTBOX_MARGIN_LEFT = 0;     // contentBox left margin (negative pulls left to align with topBar)
+        this._CONTENTBOX_MARGIN_RIGHT = -8;   // contentBox right margin (accounts for scrollbar space)
+        this._SCROLLVIEW_PADDING_RIGHT = 0;   // scrollView right padding (scrollbar spacing)
+        
+        // INTERNAL SPACING (controls card grid positioning within blue debug boxes)
+        this._GRID_ROW_PADDING_LEFT = 0;      // Blue box internal left padding
+        this._GRID_ROW_PADDING_RIGHT = 0;     // Blue box internal right padding
+        this._GRID_ROW_PADDING_TOP = 2;       // Blue box internal top padding
+        this._GRID_ROW_PADDING_BOTTOM = 2;    // Blue box internal bottom padding
+        
+        // CARD SPACING
+        this._CARD_GAP = 24;                  // Horizontal gap between cards in a row
+        this._ROW_GAP = 24;                   // Vertical gap between rows of cards
+        
+        // ============================================================================
+
         // Calculate adaptive dimensions
         const dims = this._calculateCardDimensions(monitor);
         this._cardWidth = dims.cardWidth;
+        this._cardHeight = dims.cardHeight;
         this._previewWidth = dims.previewWidth;
         this._previewHeight = dims.previewHeight;
         this._customColumns = dims.customColumns;
         
         const dialogWidth = this._calculateDialogWidth(this._cardWidth);
-        const dialogHeight = this._calculateDialogHeight(monitor, this._previewHeight, this._cardWidth);
+        const dialogHeight = this._calculateDialogHeight(monitor, this._cardHeight);
         
-        logger.debug(`Adaptive sizing: ${monitor.width}×${monitor.height} ` +
-                    `→ cards: ${this._cardWidth}px, preview: ${this._previewWidth}×${this._previewHeight}, ` +
-                    `columns: ${this._customColumns}, dialog: ${dialogWidth}×${dialogHeight}`);
+        logger.info(`Card dimensions: ${this._cardWidth}×${this._cardHeight}, ` +
+                   `Dialog: ${dialogWidth}×${dialogHeight}`);
 
         // Background overlay - translucent, click to close
         this._dialog = new St.Bin({
@@ -231,12 +300,15 @@ export class LayoutSwitcher {
             return Clutter.EVENT_PROPAGATE;
         });
 
-        // Main container (using calculated adaptive dimensions)
+        // Main container (using calculated adaptive dimensions and spacing variables)
         const container = new St.BoxLayout({
             vertical: true,
             style: `background-color: rgba(40, 40, 40, 0.98); ` +
-                   `border-radius: 16px; ` +
-                   `padding: 32px; ` +
+                   `border-radius: ${this._CONTAINER_BORDER_RADIUS}px; ` +
+                   `padding-left: ${this._CONTAINER_PADDING_LEFT}px; ` +
+                   `padding-right: ${this._CONTAINER_PADDING_RIGHT}px; ` +
+                   `padding-top: ${this._CONTAINER_PADDING_TOP}px; ` +
+                   `padding-bottom: ${this._CONTAINER_PADDING_BOTTOM}px; ` +
                    `width: ${dialogWidth}px; ` +
                    `height: ${dialogHeight}px;`
         });
@@ -248,9 +320,9 @@ export class LayoutSwitcher {
         const topBar = this._createTopBar();
         container.add_child(topBar);
 
-        // Scrollable content area
+        // Scrollable content area (using _SCROLLVIEW_PADDING_RIGHT variable)
         const scrollView = new St.ScrollView({
-            style: 'flex: 1; margin-top: 24px;',
+            style: `flex: 1; margin-top: 24px; padding-right: ${this._SCROLLVIEW_PADDING_RIGHT}px;`,
             overlay_scrollbars: true,
             hscrollbar_policy: St.PolicyType.NEVER,
             vscrollbar_policy: St.PolicyType.AUTOMATIC,
@@ -258,9 +330,10 @@ export class LayoutSwitcher {
             y_expand: true
         });
 
+        // Content container (using _CONTENTBOX_MARGIN_LEFT and _CONTENTBOX_MARGIN_RIGHT variables)
         const contentBox = new St.BoxLayout({
             vertical: true,
-            style: 'spacing: 32px;'
+            style: `spacing: 32px; margin-left: ${this._CONTENTBOX_MARGIN_LEFT}px; margin-right: ${this._CONTENTBOX_MARGIN_RIGHT}px;`
         });
 
         // Templates section
@@ -413,10 +486,10 @@ export class LayoutSwitcher {
         });
         section.add_child(header);
 
-        // Template cards in horizontal row
+        // Template cards in horizontal row (using spacing variables)
         const templatesRow = new St.BoxLayout({
             vertical: false,
-            style: 'spacing: 16px; padding: 2px;' // Padding to prevent outline clipping
+            style: `spacing: ${this._CARD_GAP}px; padding-left: ${this._GRID_ROW_PADDING_LEFT}px; padding-right: ${this._GRID_ROW_PADDING_RIGHT}px; padding-top: ${this._GRID_ROW_PADDING_TOP}px; padding-bottom: ${this._GRID_ROW_PADDING_BOTTOM}px;`
         });
 
         const templates = this._templateManager.getBuiltinTemplates();
@@ -434,7 +507,7 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Create a template card (PROTOTYPE: Hybrid hover with action buttons)
+     * Create a template card (PHASE 4: Add bottom bar overlay)
      * @private
      */
     _createTemplateCard(template, currentLayout, cardIndex) {
@@ -442,9 +515,10 @@ export class LayoutSwitcher {
 
         const card = new St.Button({
             style_class: 'template-card',
-            style: `padding: 16px; ` +
+            style: `padding: 0; ` +  // NO PADDING for full-bleed
                    `border-radius: 8px; ` +
                    `width: ${this._cardWidth}px; ` +
+                   `height: ${this._cardHeight}px; ` +
                    `${isActive ? 
                        'background-color: rgba(53, 132, 228, 0.3); border: 2px solid #3584e4;' : 
                        'background-color: rgba(60, 60, 60, 0.5); border: 2px solid transparent;'}`,
@@ -452,142 +526,25 @@ export class LayoutSwitcher {
             track_hover: true
         });
 
-        // Main content box
-        const mainBox = new St.BoxLayout({
-            vertical: true,
-            style: 'spacing: 12px;'
-        });
-
-        // Template icon/preview (using adaptive dimensions)
-        const preview = this._createZonePreview(template.zones, this._previewWidth, this._previewHeight);
-        mainBox.add_child(preview);
-
-        // Template name
-        const name = new St.Label({
-            text: template.name,
-            style: 'text-align: center; font-weight: bold; color: white;'
-        });
-        mainBox.add_child(name);
-
-        // Action buttons overlay (top-right corner, hidden by default)
-        const actionBox = new St.BoxLayout({
-            vertical: false,
-            style: 'spacing: 6px; margin: 4px;',
-            x_align: Clutter.ActorAlign.END,
-            y_align: Clutter.ActorAlign.START,
-            opacity: 0  // Start invisible
-        });
-
-        // Duplicate button (for templates)
-        const dupButton = new St.Button({
-            style_class: 'action-button',
-            style: 'padding: 6px 10px; ' +
-                   'background-color: rgba(53, 132, 228, 0.95); ' +
-                   'border-radius: 4px;',
-            reactive: true,
-            track_hover: true
-        });
-
-        const dupBox = new St.BoxLayout({
-            vertical: false,
-            style: 'spacing: 4px;'
-        });
-        dupBox.add_child(new St.Icon({
-            icon_name: 'document-edit-symbolic',
-            icon_size: 14,
-            style: 'color: white;'
-        }));
-        dupBox.add_child(new St.Label({
-            text: 'Dup',
-            style: 'font-size: 9pt; color: white; font-weight: bold;'
-        }));
-        dupButton.set_child(dupBox);
-
-        dupButton.connect('clicked', () => {
-            this._onEditTemplateClicked(template);
-            return Clutter.EVENT_STOP;  // Don't trigger card click
-        });
-
-        // Delete button (disabled for templates)
-        const delButton = new St.Button({
-            style_class: 'action-button',
-            style: 'padding: 6px 10px; ' +
-                   'background-color: rgba(192, 28, 40, 0.5); ' +
-                   'border-radius: 4px; ' +
-                   'opacity: 0.4;',
-            reactive: false  // Templates can't be deleted
-        });
-
-        const delBox = new St.BoxLayout({
-            vertical: false,
-            style: 'spacing: 4px;'
-        });
-        delBox.add_child(new St.Icon({
-            icon_name: 'user-trash-symbolic',
-            icon_size: 14,
-            style: 'color: white;'
-        }));
-        delBox.add_child(new St.Label({
-            text: 'Del',
-            style: 'font-size: 9pt; color: white; font-weight: bold;'
-        }));
-        delButton.set_child(delBox);
-
-        actionBox.add_child(dupButton);
-        actionBox.add_child(delButton);
-
-        // Use BinLayout to overlay action buttons on top of main content
-        const container = new St.Widget({
-            layout_manager: new Clutter.BinLayout()
-        });
-        container.add_child(mainBox);
-        container.add_child(actionBox);
-
-        card.set_child(container);
-
-        // Click card to apply (primary action)
-        // But ignore clicks on action buttons
-        card.connect('clicked', (actor, event) => {
-            const clickSource = event ? event.get_source() : null;
-            
-            // Check if click originated from action buttons
-            if (clickSource && (clickSource === dupButton || clickSource === delButton ||
-                clickSource.get_parent() === dupButton || clickSource.get_parent() === delButton)) {
-                return Clutter.EVENT_PROPAGATE;
-            }
-            
-            // Otherwise, apply the template
+        // Click card to apply
+        card.connect('clicked', () => {
             this._onTemplateClicked(template);
             return Clutter.EVENT_STOP;
         });
 
-        // Hover effects: show action buttons + change background
+        // Hover effects
         card.connect('enter-event', () => {
-            // Fade in action buttons
-            actionBox.ease({
-                opacity: 255,
-                duration: 150,
-                mode: Clutter.AnimationMode.EASE_OUT
-            });
-
-            // Change background
             if (!isActive) {
-                card.style = `padding: 16px; border-radius: 8px; width: ${this._cardWidth}px; ` +
+                card.style = `padding: 0; border-radius: 8px; ` +
+                            `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
                             `background-color: rgba(74, 144, 217, 0.25); border: 2px solid #6aa0d9;`;
             }
         });
 
         card.connect('leave-event', () => {
-            // Fade out action buttons
-            actionBox.ease({
-                opacity: 0,
-                duration: 150,
-                mode: Clutter.AnimationMode.EASE_OUT
-            });
-
-            // Restore background
             if (!isActive) {
-                card.style = `padding: 16px; border-radius: 8px; width: ${this._cardWidth}px; ` +
+                card.style = `padding: 0; border-radius: 8px; ` +
+                            `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
                             `background-color: rgba(60, 60, 60, 0.5); border: 2px solid transparent;`;
             }
         });
@@ -669,7 +626,7 @@ export class LayoutSwitcher {
         const COLUMNS = this._customColumns;  // Use adaptive columns (5-7)
         const container = new St.BoxLayout({
             vertical: true,
-            style: 'spacing: 16px;'
+            style: `spacing: ${this._ROW_GAP}px;`
         });
 
         let currentRow = null;
@@ -681,7 +638,7 @@ export class LayoutSwitcher {
             if (col === 0) {
                 currentRow = new St.BoxLayout({
                     vertical: false,
-                    style: 'spacing: 16px; padding: 2px;' // Padding to prevent outline clipping
+                    style: `spacing: ${this._CARD_GAP}px; padding-left: ${this._GRID_ROW_PADDING_LEFT}px; padding-right: ${this._GRID_ROW_PADDING_RIGHT}px; padding-top: ${this._GRID_ROW_PADDING_TOP}px; padding-bottom: ${this._GRID_ROW_PADDING_BOTTOM}px;`
                 });
                 container.add_child(currentRow);
             }
@@ -696,7 +653,7 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Create a custom layout card with edit button
+     * Create a custom layout card (PHASE 4: Add bottom bar overlay)
      * @private
      */
     _createCustomLayoutCard(layout, currentLayout, cardIndex) {
@@ -704,9 +661,10 @@ export class LayoutSwitcher {
 
         const card = new St.Button({
             style_class: 'custom-layout-card',
-            style: `padding: 16px; ` +
+            style: `padding: 0; ` +  // NO PADDING for full-bleed
                    `border-radius: 8px; ` +
                    `width: ${this._cardWidth}px; ` +
+                   `height: ${this._cardHeight}px; ` +
                    `${isActive ? 
                        'background-color: rgba(53, 132, 228, 0.3); border: 2px solid #3584e4;' : 
                        'background-color: rgba(60, 60, 60, 0.5); border: 2px solid transparent;'}`,
@@ -714,58 +672,7 @@ export class LayoutSwitcher {
             track_hover: true
         });
 
-        const box = new St.BoxLayout({
-            vertical: true,
-            style: 'spacing: 12px;'
-        });
-
-        // Layout preview with edit button overlay (using adaptive dimensions)
-        const previewContainer = new St.Widget({
-            layout_manager: new Clutter.BinLayout(),
-            width: this._previewWidth,
-            height: this._previewHeight
-        });
-
-        const preview = this._createZonePreview(layout.zones, this._previewWidth, this._previewHeight);
-        previewContainer.add_child(preview);
-
-        // Edit button overlay (top-right corner)
-        const editButton = new St.Button({
-            style_class: 'edit-button',
-            style: 'padding: 6px; ' +
-                   'background-color: rgba(53, 132, 228, 0.9); ' +
-                   'border-radius: 50%; ' +
-                   'width: 32px; height: 32px; ' +
-                   'margin: 4px;',
-            x_align: Clutter.ActorAlign.END,
-            y_align: Clutter.ActorAlign.START,
-            reactive: true
-        });
-
-        const editIcon = new St.Label({
-            text: '✏',
-            style: 'color: white; font-size: 14pt;'
-        });
-        editButton.set_child(editIcon);
-
-        editButton.connect('clicked', () => {
-            this._onEditLayoutClicked(layout);
-            return Clutter.EVENT_STOP;
-        });
-
-        previewContainer.add_child(editButton);
-        box.add_child(previewContainer);
-
-        // Layout name
-        const name = new St.Label({
-            text: layout.name,
-            style: 'text-align: center; font-weight: bold; color: white;'
-        });
-        box.add_child(name);
-
-        card.set_child(box);
-
-        // Click to apply (but not if clicking edit button)
+        // Click to apply
         card.connect('clicked', () => {
             this._onLayoutClicked(layout);
         });
@@ -773,14 +680,16 @@ export class LayoutSwitcher {
         // Hover effects
         card.connect('enter-event', () => {
             if (!isActive) {
-                card.style = `padding: 16px; border-radius: 8px; width: ${this._cardWidth}px; ` +
+                card.style = `padding: 0; border-radius: 8px; ` +
+                            `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
                             `background-color: rgba(74, 144, 217, 0.25); border: 2px solid #6aa0d9;`;
             }
         });
 
         card.connect('leave-event', () => {
             if (!isActive) {
-                card.style = `padding: 16px; border-radius: 8px; width: ${this._cardWidth}px; ` +
+                card.style = `padding: 0; border-radius: 8px; ` +
+                            `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
                             `background-color: rgba(60, 60, 60, 0.5); border: 2px solid transparent;`;
             }
         });
@@ -1245,18 +1154,21 @@ export class LayoutSwitcher {
 
             if (isFocused) {
                 // Focused card - use box-shadow for rounded focus indicator
-                cardObj.card.style = `padding: 16px; border-radius: 8px; width: ${this._cardWidth}px; ` +
+                cardObj.card.style = `padding: 0; border-radius: 8px; ` +
+                                    `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
                                     `background-color: rgba(74, 144, 217, 0.4); ` +
                                     `border: 2px solid #3584e4; ` +
                                     `box-shadow: 0 0 0 2px #ffffff;`;
             } else if (isActive) {
                 // Active but not focused
-                cardObj.card.style = `padding: 16px; border-radius: 8px; width: ${this._cardWidth}px; ` +
+                cardObj.card.style = `padding: 0; border-radius: 8px; ` +
+                                    `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
                                     `background-color: rgba(53, 132, 228, 0.3); ` +
                                     `border: 2px solid #3584e4;`;
             } else {
                 // Normal state
-                cardObj.card.style = `padding: 16px; border-radius: 8px; width: ${this._cardWidth}px; ` +
+                cardObj.card.style = `padding: 0; border-radius: 8px; ` +
+                                    `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
                                     `background-color: rgba(60, 60, 60, 0.5); ` +
                                     `border: 2px solid transparent;`;
             }
