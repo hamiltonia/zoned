@@ -42,6 +42,9 @@ export class LayoutSwitcher {
         // Keyboard navigation state
         this._allCards = [];  // All selectable cards (templates + custom layouts)
         this._selectedCardIndex = -1;  // Currently focused card (-1 = none)
+        
+        // Card bottom bar configuration
+        this._CARD_BOTTOM_BAR_DEFAULT_OPACITY = 255 * .25;  // ~25% of 255 (range: 0-255)
     }
 
 
@@ -927,24 +930,63 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Create a template card (PHASE 4: Add bottom bar overlay)
+     * Create a template card with zone preview and hover bar
      * @private
      */
     _createTemplateCard(template, currentLayout, cardIndex) {
         const isActive = this._isLayoutActive(template, currentLayout);
+        const accentColor = this._getAccentColor();
+        const accentHex = this._rgbToHex(accentColor.red, accentColor.green, accentColor.blue);
+        const accentRGBA = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.3)`;
 
         const card = new St.Button({
             style_class: 'template-card',
-            style: `padding: 0; ` +  // NO PADDING for full-bleed
+            style: `padding: 0; ` +
                    `border-radius: 8px; ` +
                    `width: ${this._cardWidth}px; ` +
                    `height: ${this._cardHeight}px; ` +
+                   `overflow: hidden; ` +
                    `${isActive ? 
-                       'background-color: rgba(53, 132, 228, 0.3); border: 2px solid #3584e4;' : 
-                       'background-color: rgba(60, 60, 60, 0.5); border: 2px solid transparent;'}`,
+                       `background-color: ${accentRGBA}; border: 2px solid ${accentHex};` : 
+                       'background-color: rgba(40, 40, 40, 0.8); border: 2px solid transparent;'}`,
             reactive: true,
-            track_hover: true
+            track_hover: true,
+            clip_to_allocation: true
         });
+
+        // Container for layering (preview + bottom bar) - MUST have border-radius to clip properly
+        const container = new St.Widget({
+            layout_manager: new Clutter.BinLayout(),
+            x_expand: true,
+            y_expand: true,
+            clip_to_allocation: true,
+            style: 'border-radius: 8px;'  // Match card border-radius for proper clipping
+        });
+
+        // Zone preview background (wrapped in constraining container)
+        const previewContainer = new St.Bin({
+            x_align: Clutter.ActorAlign.FILL,
+            y_align: Clutter.ActorAlign.FILL,
+            x_expand: true,
+            y_expand: true,
+            clip_to_allocation: true,
+            style: 'border-radius: 8px 8px 0 0;'  // Round top corners only
+        });
+        
+        const preview = this._createZonePreview(
+            template.zones,
+            this._previewWidth,
+            this._previewHeight
+        );
+        
+        previewContainer.set_child(preview);
+        container.add_child(previewContainer);
+
+        // Bottom bar with name and buttons
+        const bottomBar = this._createCardBottomBar(template.name, true, template);
+        container.add_child(bottomBar);
+
+        card.set_child(container);
 
         // Click card to apply
         card.connect('clicked', () => {
@@ -952,21 +994,63 @@ export class LayoutSwitcher {
             return Clutter.EVENT_STOP;
         });
 
-        // Hover effects
+        // Store bottom bar reference for hover handling
+        card._bottomBar = bottomBar;
+        card._nameLabel = bottomBar._nameLabel;
+        card._buttonBox = bottomBar._buttonBox;
+        card._isActive = isActive;
+
+        // Hover effects for card border + bottom bar transition
         card.connect('enter-event', () => {
             if (!isActive) {
+                const hoverRGBA = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.35)`;
                 card.style = `padding: 0; border-radius: 8px; ` +
                             `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
-                            `background-color: rgba(74, 144, 217, 0.25); border: 2px solid #6aa0d9;`;
+                            `overflow: hidden; ` +
+                            `background-color: ${hoverRGBA}; border: 2px solid ${accentHex}; ` +
+                            `box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);`;
             }
+            // Smooth transition: fade in background, hide name, show buttons
+            card._bottomBar._background.ease({
+                opacity: 255,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD
+            });
+            card._nameLabel.ease({
+                opacity: 0,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD
+            });
+            card._buttonBox.ease({
+                opacity: 255,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD
+            });
         });
 
         card.connect('leave-event', () => {
             if (!isActive) {
                 card.style = `padding: 0; border-radius: 8px; ` +
                             `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
-                            `background-color: rgba(60, 60, 60, 0.5); border: 2px solid transparent;`;
+                            `overflow: hidden; ` +
+                            `background-color: rgba(40, 40, 40, 0.8); border: 2px solid transparent;`;
             }
+            // Smooth transition: fade out background to default opacity, show name, hide buttons
+            card._bottomBar._background.ease({
+                opacity: this._CARD_BOTTOM_BAR_DEFAULT_OPACITY,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD
+            });
+            card._nameLabel.ease({
+                opacity: 255,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD
+            });
+            card._buttonBox.ease({
+                opacity: 0,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD
+            });
         });
 
         return card;
@@ -1073,48 +1157,317 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Create a custom layout card (PHASE 4: Add bottom bar overlay)
+     * Create a custom layout card with zone preview and hover bar
      * @private
      */
     _createCustomLayoutCard(layout, currentLayout, cardIndex) {
         const isActive = this._isLayoutActive(layout, currentLayout);
+        const accentColor = this._getAccentColor();
+        const accentHex = this._rgbToHex(accentColor.red, accentColor.green, accentColor.blue);
+        const accentRGBA = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.3)`;
 
         const card = new St.Button({
             style_class: 'custom-layout-card',
-            style: `padding: 0; ` +  // NO PADDING for full-bleed
+            style: `padding: 0; ` +
                    `border-radius: 8px; ` +
                    `width: ${this._cardWidth}px; ` +
                    `height: ${this._cardHeight}px; ` +
+                   `overflow: hidden; ` +
                    `${isActive ? 
-                       'background-color: rgba(53, 132, 228, 0.3); border: 2px solid #3584e4;' : 
+                       `background-color: ${accentRGBA}; border: 2px solid ${accentHex};` : 
                        'background-color: rgba(60, 60, 60, 0.5); border: 2px solid transparent;'}`,
             reactive: true,
-            track_hover: true
+            track_hover: true,
+            clip_to_allocation: true
         });
+
+        // Container for layering (preview + bottom bar) - MUST have border-radius to match card
+        const container = new St.Widget({
+            layout_manager: new Clutter.BinLayout(),
+            x_expand: true,
+            y_expand: true,
+            clip_to_allocation: true,
+            style: 'border-radius: 8px;'  // Match card border-radius for proper clipping
+        });
+
+        // Zone preview background (wrapped in constraining container)
+        const previewContainer = new St.Bin({
+            x_align: Clutter.ActorAlign.FILL,
+            y_align: Clutter.ActorAlign.FILL,
+            x_expand: true,
+            y_expand: true,
+            clip_to_allocation: true,
+            style: 'border-radius: 8px 8px 0 0;'  // Round top corners only
+        });
+        
+        const preview = this._createZonePreview(
+            layout.zones,
+            this._previewWidth,
+            this._previewHeight
+        );
+        
+        previewContainer.set_child(preview);
+        container.add_child(previewContainer);
+
+        // Bottom bar with name and buttons
+        const bottomBar = this._createCardBottomBar(layout.name, false, layout);
+        container.add_child(bottomBar);
+
+        card.set_child(container);
 
         // Click to apply
         card.connect('clicked', () => {
             this._onLayoutClicked(layout);
         });
 
-        // Hover effects
+        // Store bottom bar reference for hover handling
+        card._bottomBar = bottomBar;
+        card._nameLabel = bottomBar._nameLabel;
+        card._buttonBox = bottomBar._buttonBox;
+        card._isActive = isActive;
+
+        // Hover effects for card border + bottom bar transition
         card.connect('enter-event', () => {
             if (!isActive) {
+                const hoverRGBA = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.35)`;
                 card.style = `padding: 0; border-radius: 8px; ` +
                             `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
-                            `background-color: rgba(74, 144, 217, 0.25); border: 2px solid #6aa0d9;`;
+                            `overflow: hidden; ` +
+                            `background-color: ${hoverRGBA}; border: 2px solid ${accentHex}; ` +
+                            `box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);`;
             }
+            // Smooth transition: fade in background, hide name, show buttons
+            card._bottomBar._background.ease({
+                opacity: 255,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD
+            });
+            card._nameLabel.ease({
+                opacity: 0,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD
+            });
+            card._buttonBox.ease({
+                opacity: 255,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD
+            });
         });
 
         card.connect('leave-event', () => {
             if (!isActive) {
                 card.style = `padding: 0; border-radius: 8px; ` +
                             `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
-                            `background-color: rgba(60, 60, 60, 0.5); border: 2px solid transparent;`;
+                            `overflow: hidden; ` +
+                            `background-color: rgba(40, 40, 40, 0.8); border: 2px solid transparent;`;
             }
+            // Smooth transition: fade out background to default opacity, show name, hide buttons
+            card._bottomBar._background.ease({
+                opacity: this._CARD_BOTTOM_BAR_DEFAULT_OPACITY,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD
+            });
+            card._nameLabel.ease({
+                opacity: 255,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD
+            });
+            card._buttonBox.ease({
+                opacity: 0,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD
+            });
         });
 
         return card;
+    }
+
+    /**
+     * Create card bottom bar with name and action buttons
+     * @param {string} name - Layout name to display
+     * @param {boolean} isTemplate - True for template cards, false for custom layouts
+     * @param {object} layout - Layout object for button handlers
+     * @private
+     */
+    _createCardBottomBar(name, isTemplate, layout) {
+        const accentColor = this._getAccentColor();
+        const accentRGB = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.6)`;
+        
+        const bottomBar = new St.Widget({
+            layout_manager: new Clutter.BinLayout(),
+            style: 'height: 32px;',
+            y_align: Clutter.ActorAlign.END,
+            x_expand: true
+        });
+
+        // Background in accent color - subtle by default, more opaque on hover
+        const background = new St.Bin({
+            style: `background-color: ${accentRGB}; ` +
+                   'border-radius: 0 0 6px 6px;',
+            x_expand: true,
+            y_expand: true,
+            opacity: this._CARD_BOTTOM_BAR_DEFAULT_OPACITY
+        });
+        bottomBar.add_child(background);
+
+        // Name label layer (visible by default, hidden on hover)
+        const nameLabel = new St.Label({
+            text: name,
+            style: 'color: white; font-size: 11px; font-weight: 600; text-align: center;',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+            opacity: 255
+        });
+        bottomBar.add_child(nameLabel);
+
+        // Buttons layer (hidden by default, shown on hover)
+        const buttonBox = new St.BoxLayout({
+            vertical: false,
+            x_align: Clutter.ActorAlign.FILL,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+            opacity: 0
+        });
+
+        if (isTemplate) {
+            // Template: Single full-width "Duplicate" button with icon
+            const duplicateBtn = new St.Button({
+                style_class: 'card-action-button',
+                style: 'color: white; font-size: 11px; font-weight: 600; ' +
+                       'padding: 0 16px; background-color: transparent;',
+                reactive: true,
+                track_hover: true,
+                x_align: Clutter.ActorAlign.CENTER,
+                x_expand: true
+            });
+
+            const btnContent = new St.BoxLayout({
+                vertical: false,
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+                style: 'spacing: 6px;',
+                x_expand: false
+            });
+
+            const icon = new St.Icon({
+                icon_name: 'edit-copy-symbolic',
+                style_class: 'system-status-icon',
+                icon_size: 14
+            });
+            btnContent.add_child(icon);
+
+            const label = new St.Label({
+                text: 'Duplicate',
+                y_align: Clutter.ActorAlign.CENTER
+            });
+            btnContent.add_child(label);
+
+            duplicateBtn.set_child(btnContent);
+
+            duplicateBtn.connect('clicked', (btn) => {
+                this._onEditTemplateClicked(layout);
+                return Clutter.EVENT_STOP;
+            });
+
+            buttonBox.add_child(duplicateBtn);
+        } else {
+            // Custom layout: Split Edit / Delete buttons with icons
+            const editBtn = new St.Button({
+                style_class: 'card-action-button',
+                style: 'color: white; font-size: 11px; font-weight: 600; ' +
+                       'padding: 0 12px; background-color: transparent;',
+                reactive: true,
+                track_hover: true,
+                x_align: Clutter.ActorAlign.CENTER,
+                x_expand: true
+            });
+
+            const editContent = new St.BoxLayout({
+                vertical: false,
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+                style: 'spacing: 6px;',
+                x_expand: false
+            });
+
+            const editIcon = new St.Icon({
+                icon_name: 'document-edit-symbolic',
+                style_class: 'system-status-icon',
+                icon_size: 14
+            });
+            editContent.add_child(editIcon);
+
+            const editLabel = new St.Label({
+                text: 'Edit',
+                y_align: Clutter.ActorAlign.CENTER
+            });
+            editContent.add_child(editLabel);
+
+            editBtn.set_child(editContent);
+
+            editBtn.connect('clicked', (btn) => {
+                this._onEditLayoutClicked(layout);
+                return Clutter.EVENT_STOP;
+            });
+
+            // Vertical separator
+            const separator = new St.Widget({
+                style: 'width: 1px; background-color: rgba(255, 255, 255, 0.3);',
+                y_expand: true
+            });
+
+            const deleteBtn = new St.Button({
+                style_class: 'card-action-button',
+                style: 'color: white; font-size: 11px; font-weight: 600; ' +
+                       'padding: 0 12px; background-color: transparent;',
+                reactive: true,
+                track_hover: true,
+                x_align: Clutter.ActorAlign.CENTER,
+                x_expand: true
+            });
+
+            const deleteContent = new St.BoxLayout({
+                vertical: false,
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+                style: 'spacing: 6px;',
+                x_expand: false
+            });
+
+            const deleteIcon = new St.Icon({
+                icon_name: 'edit-delete-symbolic',
+                style_class: 'system-status-icon',
+                icon_size: 14
+            });
+            deleteContent.add_child(deleteIcon);
+
+            const deleteLabel = new St.Label({
+                text: 'Delete',
+                y_align: Clutter.ActorAlign.CENTER
+            });
+            deleteContent.add_child(deleteLabel);
+
+            deleteBtn.set_child(deleteContent);
+
+            deleteBtn.connect('clicked', (btn) => {
+                this._onDeleteClicked(layout);
+                return Clutter.EVENT_STOP;
+            });
+
+            buttonBox.add_child(editBtn);
+            buttonBox.add_child(separator);
+            buttonBox.add_child(deleteBtn);
+        }
+
+        bottomBar.add_child(buttonBox);
+
+        // Store references for hover handling
+        bottomBar._nameLabel = nameLabel;
+        bottomBar._buttonBox = buttonBox;
+        bottomBar._background = background;
+
+        return bottomBar;
     }
 
     /**
@@ -1123,9 +1476,9 @@ export class LayoutSwitcher {
      */
     _createZonePreview(zones, width, height) {
         const canvas = new St.DrawingArea({
-            width: width,
-            height: height,
-            style: 'border: 1px solid #444; background-color: #1a1a1a;'
+            style: 'background-color: #1a1a1a;',
+            x_expand: true,
+            y_expand: true
         });
 
         const accentColor = this._getAccentColor();
@@ -1134,6 +1487,27 @@ export class LayoutSwitcher {
             try {
                 const cr = canvas.get_context();
                 const [w, h] = canvas.get_surface_size();
+
+                // Create rounded rectangle clipping path for top corners only
+                // (bottom corners are covered by the bottom bar)
+                const radius = 8;
+                const degrees = Math.PI / 180.0;
+                
+                cr.newPath();
+                // Top-right corner (rounded)
+                cr.arc(w - radius, radius, radius, -90 * degrees, 0 * degrees);
+                // Right edge
+                cr.lineTo(w, h);
+                // Bottom edge (no rounding)
+                cr.lineTo(0, h);
+                // Left edge
+                cr.lineTo(0, radius);
+                // Top-left corner (rounded)
+                cr.arc(radius, radius, radius, 180 * degrees, 270 * degrees);
+                cr.closePath();
+                
+                // Apply clipping - all subsequent drawing will be constrained to this path
+                cr.clip();
 
                 zones.forEach((zone) => {
                     const x = zone.x * w;
@@ -1204,16 +1578,36 @@ export class LayoutSwitcher {
     }
 
     /**
+     * Convert RGB values (0-1 range) to hex color string
+     * @private
+     */
+    _rgbToHex(r, g, b) {
+        const toHex = (val) => {
+            const hex = Math.round(val * 255).toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+        };
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+
+    /**
      * Create "Create new layout" button
      * @private
      */
     _createNewLayoutButton() {
+        const accentColor = this._getAccentColor();
+        const accentHex = this._rgbToHex(accentColor.red, accentColor.green, accentColor.blue);
+        const accentHexHover = this._rgbToHex(
+            Math.min(1, accentColor.red * 1.15),
+            Math.min(1, accentColor.green * 1.15),
+            Math.min(1, accentColor.blue * 1.15)
+        );
+
         const button = new St.Button({
             style_class: 'create-new-button',
-            style: 'padding: 16px 32px; ' +
-                   'background-color: #3584e4; ' +
-                   'border-radius: 8px; ' +
-                   'margin-top: 16px;',
+            style: `padding: 16px 32px; ` +
+                   `background-color: ${accentHex}; ` +
+                   `border-radius: 8px; ` +
+                   `margin-top: 16px;`,
             x_align: Clutter.ActorAlign.CENTER,
             reactive: true,
             track_hover: true
@@ -1231,17 +1625,17 @@ export class LayoutSwitcher {
 
         // Hover effects
         button.connect('enter-event', () => {
-            button.style = 'padding: 16px 32px; ' +
-                          'background-color: #4a90d9; ' +
-                          'border-radius: 8px; ' +
-                          'margin-top: 16px;';
+            button.style = `padding: 16px 32px; ` +
+                          `background-color: ${accentHexHover}; ` +
+                          `border-radius: 8px; ` +
+                          `margin-top: 16px;`;
         });
 
         button.connect('leave-event', () => {
-            button.style = 'padding: 16px 32px; ' +
-                          'background-color: #3584e4; ' +
-                          'border-radius: 8px; ' +
-                          'margin-top: 16px;';
+            button.style = `padding: 16px 32px; ` +
+                          `background-color: ${accentHex}; ` +
+                          `border-radius: 8px; ` +
+                          `margin-top: 16px;`;
         });
 
         return button;
@@ -1567,6 +1961,11 @@ export class LayoutSwitcher {
      * @private
      */
     _updateCardFocus() {
+        const accentColor = this._getAccentColor();
+        const accentHex = this._rgbToHex(accentColor.red, accentColor.green, accentColor.blue);
+        const accentRGBAActive = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.3)`;
+        const accentRGBAFocus = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.4)`;
+
         this._allCards.forEach((cardObj, index) => {
             const isFocused = index === this._selectedCardIndex;
             const currentLayout = this._getCurrentLayout();
@@ -1576,15 +1975,15 @@ export class LayoutSwitcher {
                 // Focused card - use box-shadow for rounded focus indicator
                 cardObj.card.style = `padding: 0; border-radius: 8px; ` +
                                     `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
-                                    `background-color: rgba(74, 144, 217, 0.4); ` +
-                                    `border: 2px solid #3584e4; ` +
-                                    `box-shadow: 0 0 0 2px #ffffff;`;
+                                    `background-color: ${accentRGBAFocus}; ` +
+                                    `border: 2px solid ${accentHex}; ` +
+                                    `box-shadow: 0 0 0 3px ${accentHex}, 0 4px 12px rgba(0, 0, 0, 0.3);`;
             } else if (isActive) {
                 // Active but not focused
                 cardObj.card.style = `padding: 0; border-radius: 8px; ` +
                                     `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
-                                    `background-color: rgba(53, 132, 228, 0.3); ` +
-                                    `border: 2px solid #3584e4;`;
+                                    `background-color: ${accentRGBAActive}; ` +
+                                    `border: 2px solid ${accentHex};`;
             } else {
                 // Normal state
                 cardObj.card.style = `padding: 0; border-radius: 8px; ` +
