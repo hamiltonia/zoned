@@ -140,10 +140,15 @@ export class ZoneEditor {
     show() {
         const monitor = Main.layoutManager.currentMonitor;
         
+        // Get display scale factor
+        const themeContext = St.ThemeContext.get_for_stage(global.stage);
+        const scaleFactor = themeContext.scale_factor;
+        
         logger.info('Showing grid editor');
         logger.info(`Monitor dimensions: ${monitor.width}×${monitor.height} at position (${monitor.x}, ${monitor.y})`);
+        logger.info(`Scale factor: ${scaleFactor}x`);
         
-        // Create full-screen overlay
+        // Create full-screen overlay - keep at physical dimensions
         this._overlay = new St.Widget({
             style_class: 'grid-editor-overlay',
             reactive: true,
@@ -237,6 +242,9 @@ export class ZoneEditor {
      * @private
      */
     _createHelpText() {
+        const themeContext = St.ThemeContext.get_for_stage(global.stage);
+        const scaleFactor = themeContext.scale_factor;
+        
         this._helpTextBox = new St.BoxLayout({
             vertical: true,
             style: 'spacing: 8px; padding: 20px; background-color: rgba(30, 30, 30, 0.95); border-radius: 8px;',
@@ -245,8 +253,9 @@ export class ZoneEditor {
         });
         
         const monitor = Main.layoutManager.currentMonitor;
-        this._helpTextBox.set_position((monitor.width - 800) / 2, 20);
-        this._helpTextBox.width = 800;
+        const helpWidth = 800 * scaleFactor;
+        this._helpTextBox.set_position((monitor.width - helpWidth) / 2, 20);
+        this._helpTextBox.width = helpWidth;
         
         const title = new St.Label({
             text: 'Layout Editor',
@@ -1308,6 +1317,8 @@ export class ZoneEditor {
      */
     _showCenteredNotification(title, message) {
         const monitor = Main.layoutManager.currentMonitor;
+        const themeContext = St.ThemeContext.get_for_stage(global.stage);
+        const scaleFactor = themeContext.scale_factor;
         
         const notificationBox = new St.BoxLayout({
             vertical: false,
@@ -1323,11 +1334,11 @@ export class ZoneEditor {
         });
         notificationBox.add_child(icon);
         
-        // Text container - fixed width for proper wrapping
+        // Text container - scale width for HiDPI
         const textBox = new St.BoxLayout({
             vertical: true,
             style: 'spacing: 4px;',
-            width: 480
+            width: 480 * scaleFactor
         });
         
         const titleLabel = new St.Label({
@@ -1349,11 +1360,12 @@ export class ZoneEditor {
         
         notificationBox.add_child(textBox);
         
-        // Calculate width based on content - icon (40px) + text (480px) + spacing (12px) + padding (40px)
-        const boxWidth = 572;
+        // Calculate width based on content - scale for HiDPI
+        // icon (40px) + text (480px) + spacing (12px) + padding (40px) = 572px
+        const boxWidth = 572 * scaleFactor;
         notificationBox.set_position(
             (monitor.width - boxWidth) / 2,
-            (monitor.height / 2) - 50
+            (monitor.height / 2) - (50 * scaleFactor)
         );
         
         // Add to overlay (high Z-order since added last)
@@ -1440,6 +1452,8 @@ export class ZoneEditor {
      */
     _createToolbar() {
         const monitor = Main.layoutManager.currentMonitor;
+        const themeContext = St.ThemeContext.get_for_stage(global.stage);
+        const scaleFactor = themeContext.scale_factor;
         
         this._toolbar = new St.BoxLayout({
             style: 'spacing: 12px; padding: 16px; background-color: rgba(255, 255, 255, 0.95); border-radius: 8px;',
@@ -1447,12 +1461,15 @@ export class ZoneEditor {
             y_align: Clutter.ActorAlign.END
         });
         
-        // Position at bottom center
+        // Scale the toolbar width and position for HiDPI displays
+        const toolbarWidth = 250 * scaleFactor;
+        const toolbarHeight = 80 * scaleFactor;
+        
         this._toolbar.set_position(
-            (monitor.width - 250) / 2,
-            monitor.height - 80
+            (monitor.width - toolbarWidth) / 2,
+            monitor.height - toolbarHeight
         );
-        this._toolbar.width = 250;
+        this._toolbar.width = toolbarWidth;
         
         // Save button
         const saveButton = new St.Button({
