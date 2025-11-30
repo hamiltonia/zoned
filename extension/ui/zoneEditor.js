@@ -21,6 +21,7 @@ import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import Shell from 'gi://Shell';
+import Gio from 'gi://Gio';
 import { createLogger } from '../utils/debug.js';
 import { zonesToEdges, edgesToZones, validateEdgeLayout } from '../utils/layoutConverter.js';
 
@@ -323,9 +324,10 @@ export class ZoneEditor {
             } else {
                 // Single system accent color for all regions
                 // Use the theme's accent color (respects user's GNOME appearance settings)
+                const accentColor = this._getAccentColor();
                 colorScheme = {
-                    bg: 'rgba(53, 132, 228, 0.3)',  // Default to libadwaita blue if theme doesn't define
-                    border: 'rgb(53, 132, 228)',
+                    bg: `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.3)`,
+                    border: this._rgbToHex(accentColor.red, accentColor.green, accentColor.blue),
                     name: 'Accent'
                 };
             }
@@ -382,6 +384,10 @@ export class ZoneEditor {
     _createEdges() {
         const monitor = Main.layoutManager.currentMonitor;
         
+        // Get system accent color for edge highlights
+        const accentColor = this._getAccentColor();
+        const accentRGBA = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.4)`;
+        
         // Only create actors for non-fixed edges (not screen boundaries)
         const draggableEdges = this._edgeLayout.edges.filter(edge => !edge.fixed);
         
@@ -408,9 +414,9 @@ export class ZoneEditor {
                 lineActor.style = 'background-color: transparent;';
             }
             
-            // Line hover - highlight
+            // Line hover - highlight with accent color
             lineActor.connect('enter-event', () => {
-                lineActor.style = 'background-color: rgba(255, 255, 255, 0.4);';
+                lineActor.style = `background-color: ${accentRGBA};`;
             });
             
             // Line leave - hide (unless dragging)
@@ -1456,7 +1462,7 @@ export class ZoneEditor {
         const scaleFactor = themeContext.scale_factor;
         
         this._toolbar = new St.BoxLayout({
-            style: 'spacing: 12px; padding: 16px; background-color: rgba(255, 255, 255, 0.95); border-radius: 8px;',
+            style: 'spacing: 12px; padding: 16px; background-color: rgba(30, 30, 30, 0.95); border-radius: 8px;',
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.END
         });
@@ -1471,22 +1477,51 @@ export class ZoneEditor {
         );
         this._toolbar.width = toolbarWidth;
         
-        // Save button
+        // Get system accent color for buttons
+        const accentColor = this._getAccentColor();
+        const accentHex = this._rgbToHex(accentColor.red, accentColor.green, accentColor.blue);
+        
+        // Calculate lighter accent color for hover (brighten by 15%)
+        const accentHoverHex = this._rgbToHex(
+            Math.min(1, accentColor.red * 1.15),
+            Math.min(1, accentColor.green * 1.15),
+            Math.min(1, accentColor.blue * 1.15)
+        );
+        
+        // Save button - uses system accent color
         const saveButton = new St.Button({
             label: 'Save Layout',
             style_class: 'button',
-            style: 'padding: 8px 24px; background-color: #1c71d8; color: white; border-radius: 4px; font-weight: bold;'
+            style: `padding: 8px 24px; background-color: ${accentHex}; color: white; border-radius: 4px; font-weight: bold;`
         });
         saveButton.connect('clicked', () => this._onSave());
+        
+        // Hover effect for Save button
+        saveButton.connect('enter-event', () => {
+            saveButton.style = `padding: 8px 24px; background-color: ${accentHoverHex}; color: white; border-radius: 4px; font-weight: bold;`;
+        });
+        saveButton.connect('leave-event', () => {
+            saveButton.style = `padding: 8px 24px; background-color: ${accentHex}; color: white; border-radius: 4px; font-weight: bold;`;
+        });
+        
         this._toolbar.add_child(saveButton);
         
-        // Cancel button
+        // Cancel button - uses neutral gray
         const cancelButton = new St.Button({
             label: 'Cancel',
             style_class: 'button',
-            style: 'padding: 8px 24px; background-color: #666; color: white; border-radius: 4px;'
+            style: 'padding: 8px 24px; background-color: rgba(80, 80, 80, 0.9); color: white; border-radius: 4px;'
         });
         cancelButton.connect('clicked', () => this._onCancel());
+        
+        // Hover effect for Cancel button - lighten gray
+        cancelButton.connect('enter-event', () => {
+            cancelButton.style = 'padding: 8px 24px; background-color: rgba(100, 100, 100, 0.9); color: white; border-radius: 4px;';
+        });
+        cancelButton.connect('leave-event', () => {
+            cancelButton.style = 'padding: 8px 24px; background-color: rgba(80, 80, 80, 0.9); color: white; border-radius: 4px;';
+        });
+        
         this._toolbar.add_child(cancelButton);
         
         this._overlay.add_child(this._toolbar);
@@ -1605,6 +1640,46 @@ export class ZoneEditor {
         } else {
             logger.warn('No cancel callback provided - cannot reopen layout picker');
         }
+    }
+
+    /**
+     * Get GNOME system accent color
+     * @private
+     */
+    _getAccentColor() {
+        try {
+            const interfaceSettings = new Gio.Settings({schema: 'org.gnome.desktop.interface'});
+            const accentColorName = interfaceSettings.get_string('accent-color');
+
+            const accentColors = {
+                'blue': {red: 0.29, green: 0.56, blue: 0.85},
+                'teal': {red: 0.13, green: 0.63, blue: 0.62},
+                'green': {red: 0.38, green: 0.68, blue: 0.33},
+                'yellow': {red: 0.84, green: 0.65, blue: 0.13},
+                'orange': {red: 0.92, green: 0.49, blue: 0.18},
+                'red': {red: 0.88, green: 0.29, blue: 0.29},
+                'pink': {red: 0.90, green: 0.39, blue: 0.64},
+                'purple': {red: 0.60, green: 0.41, blue: 0.82},
+                'slate': {red: 0.45, green: 0.52, blue: 0.60}
+            };
+
+            return accentColors[accentColorName] || accentColors['blue'];
+        } catch (e) {
+            logger.warn('Failed to get accent color:', e);
+            return {red: 0.29, green: 0.56, blue: 0.85};
+        }
+    }
+
+    /**
+     * Convert RGB values (0-1) to hex color string
+     * @private
+     */
+    _rgbToHex(r, g, b) {
+        const toHex = (val) => {
+            const hex = Math.round(val * 255).toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+        };
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
     }
 
     /**
