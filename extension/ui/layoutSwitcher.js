@@ -19,6 +19,7 @@ import { createLogger } from '../utils/debug.js';
 import { TemplateManager } from '../templateManager.js';
 import { ZoneEditor } from './zoneEditor.js';
 import { LayoutSettingsDialog } from './layoutSettingsDialog.js';
+import { ThemeManager } from '../utils/theme.js';
 
 const logger = createLogger('LayoutSwitcher');
 
@@ -33,6 +34,7 @@ export class LayoutSwitcher {
         this._zoneOverlay = zoneOverlay;
         this._settings = settings;
         this._templateManager = new TemplateManager();
+        this._themeManager = new ThemeManager(settings);
         
         this._dialog = null;
         this._currentWorkspace = 0;
@@ -223,6 +225,7 @@ export class LayoutSwitcher {
      * @private
      */
     _createDialog() {
+        const colors = this._themeManager.getColors();
         const monitor = Main.layoutManager.currentMonitor;
 
         // ============================================================================
@@ -289,7 +292,7 @@ export class LayoutSwitcher {
             style_class: 'modal-dialog',
             reactive: true,
             can_focus: true,
-            style: 'background-color: rgba(0, 0, 0, 0.5);',
+            style: `background-color: ${colors.modalOverlay};`,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER
         });
@@ -306,7 +309,7 @@ export class LayoutSwitcher {
         // Main container (using calculated adaptive dimensions and spacing variables)
         const container = new St.BoxLayout({
             vertical: true,
-            style: `background-color: rgba(40, 40, 40, 0.98); ` +
+            style: `background-color: ${colors.containerBg}; ` +
                    `border-radius: ${this._CONTAINER_BORDER_RADIUS}px; ` +
                    `padding-left: ${this._CONTAINER_PADDING_LEFT}px; ` +
                    `padding-right: ${this._CONTAINER_PADDING_RIGHT}px; ` +
@@ -369,12 +372,14 @@ export class LayoutSwitcher {
      * @private
      */
     _createTopBar() {
+        const colors = this._themeManager.getColors();
+        
         // Read global apply setting
         this._applyGlobally = this._settings.get_boolean('apply-layout-globally');
         
         const spacesSection = new St.BoxLayout({
             vertical: true,
-            style: 'spacing: 12px; padding-bottom: 20px; border-bottom: 1px solid #404040;'
+            style: `spacing: 12px; padding-bottom: 20px; border-bottom: 1px solid ${colors.border};`
         });
 
         // Header row with title and checkbox
@@ -396,6 +401,8 @@ export class LayoutSwitcher {
      * @private
      */
     _createSpacesHeader() {
+        const colors = this._themeManager.getColors();
+        
         const header = new St.BoxLayout({
             vertical: false,
             style: 'padding: 0 4px;',
@@ -406,7 +413,7 @@ export class LayoutSwitcher {
         // "Spaces" title
         const title = new St.Label({
             text: 'Spaces',
-            style: 'font-size: 16pt; color: #ffffff; font-weight: bold;',
+            style: `font-size: 16pt; color: ${colors.textPrimary}; font-weight: bold;`,
             y_align: Clutter.ActorAlign.CENTER
         });
         header.add_child(title);
@@ -426,7 +433,7 @@ export class LayoutSwitcher {
         // Label
         const checkboxLabel = new St.Label({
             text: 'Apply one layout to all spaces',
-            style: 'font-size: 13px; color: #9ca3af;',
+            style: `font-size: 13px; color: ${colors.textMuted};`,
             y_align: Clutter.ActorAlign.CENTER,
             reactive: true
         });
@@ -435,9 +442,9 @@ export class LayoutSwitcher {
         this._applyGloballyCheckbox = new St.Button({
             style_class: 'checkbox',
             style: `width: 18px; height: 18px; ` +
-                   `border: 2px solid ${this._applyGlobally ? '#00d4ff' : '#9ca3af'}; ` +
+                   `border: 2px solid ${this._applyGlobally ? colors.accentHex : colors.textMuted}; ` +
                    `border-radius: 3px; ` +
-                   `background-color: ${this._applyGlobally ? '#00d4ff' : 'transparent'};`,
+                   `background-color: ${this._applyGlobally ? colors.accentHex : 'transparent'};`,
             reactive: true,
             track_hover: true,
             y_align: Clutter.ActorAlign.CENTER
@@ -447,7 +454,7 @@ export class LayoutSwitcher {
         if (this._applyGlobally) {
             const checkmark = new St.Label({
                 text: '✓',
-                style: 'color: #1a202c; font-size: 14px; font-weight: bold;',
+                style: `color: ${colors.isDark ? '#1a202c' : 'white'}; font-size: 14px; font-weight: bold;`,
                 x_align: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER
             });
@@ -459,17 +466,19 @@ export class LayoutSwitcher {
             this._applyGlobally = !this._applyGlobally;
             this._settings.set_boolean('apply-layout-globally', this._applyGlobally);
             
+            const colors = this._themeManager.getColors();
+            
             // Update checkbox appearance and checkmark
             this._applyGloballyCheckbox.style = `width: 18px; height: 18px; ` +
-                   `border: 2px solid ${this._applyGlobally ? '#00d4ff' : '#9ca3af'}; ` +
+                   `border: 2px solid ${this._applyGlobally ? colors.accentHex : colors.textMuted}; ` +
                    `border-radius: 3px; ` +
-                   `background-color: ${this._applyGlobally ? '#00d4ff' : 'transparent'};`;
+                   `background-color: ${this._applyGlobally ? colors.accentHex : 'transparent'};`;
             
             // Update checkmark
             if (this._applyGlobally) {
                 const checkmark = new St.Label({
                     text: '✓',
-                    style: 'color: #1a202c; font-size: 14px; font-weight: bold;',
+                    style: `color: ${colors.isDark ? '#1a202c' : 'white'}; font-size: 14px; font-weight: bold;`,
                     x_align: Clutter.ActorAlign.CENTER,
                     y_align: Clutter.ActorAlign.CENTER
                 });
@@ -546,6 +555,8 @@ export class LayoutSwitcher {
      * @private
      */
     _createMonitorDropdown() {
+        const colors = this._themeManager.getColors();
+        
         const dropdown = new St.BoxLayout({
             vertical: true
         });
@@ -566,8 +577,8 @@ export class LayoutSwitcher {
         this._monitorTrigger = new St.Button({
             style_class: 'monitor-dropdown-trigger',
             style: `width: ${cardWidth}px; height: ${cardHeight}px; ` +
-                   `background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); ` +
-                   `border: 2px solid #4a5568; ` +
+                   `background: ${colors.monitorCardBg}; ` +
+                   `border: 2px solid ${colors.borderLight}; ` +
                    `border-radius: 6px; ` +
                    `padding: 8px;`,
             reactive: true,
@@ -584,8 +595,8 @@ export class LayoutSwitcher {
         // Monitor icon (simplified rectangle)
         const monitorIcon = new St.Widget({
             style: `width: 56px; height: 32px; ` +
-                   `background: linear-gradient(135deg, #1a202c 0%, #0f1419 100%); ` +
-                   `border: 2px solid #6b7280; ` +
+                   `background: ${colors.monitorIconBg}; ` +
+                   `border: 2px solid ${colors.monitorIconBorder}; ` +
                    `border-radius: 3px;`
         });
         triggerContent.add_child(monitorIcon);
@@ -593,7 +604,7 @@ export class LayoutSwitcher {
         // Monitor label
         const monitorLabel = new St.Label({
             text: this._selectedMonitorIndex === primaryIndex ? 'Primary Monitor' : `Monitor ${this._selectedMonitorIndex + 1}`,
-            style: 'font-size: 12px; color: #9ca3af; font-weight: 500;'
+            style: `font-size: 12px; color: ${colors.textMuted}; font-weight: 500;`
         });
         triggerContent.add_child(monitorLabel);
 
@@ -601,18 +612,20 @@ export class LayoutSwitcher {
 
         // Hover effect
         this._monitorTrigger.connect('enter-event', () => {
+            const c = this._themeManager.getColors();
             this._monitorTrigger.style = `width: ${cardWidth}px; height: ${cardHeight}px; ` +
-                   `background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); ` +
-                   `border: 2px solid #00d4ff; ` +
+                   `background: ${c.monitorCardBg}; ` +
+                   `border: 2px solid ${c.accentHex}; ` +
                    `border-radius: 6px; ` +
                    `padding: 8px; ` +
-                   `box-shadow: 0 0 12px rgba(0, 212, 255, 0.3);`;
+                   `box-shadow: 0 0 12px ${c.accentRGBA(0.3)};`;
         });
 
         this._monitorTrigger.connect('leave-event', () => {
+            const c = this._themeManager.getColors();
             this._monitorTrigger.style = `width: ${cardWidth}px; height: ${cardHeight}px; ` +
-                   `background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); ` +
-                   `border: 2px solid #4a5568; ` +
+                   `background: ${c.monitorCardBg}; ` +
+                   `border: 2px solid ${c.borderLight}; ` +
                    `border-radius: 6px; ` +
                    `padding: 8px;`;
         });
@@ -652,10 +665,12 @@ export class LayoutSwitcher {
      * @private
      */
     _createMonitorDropdownMenu() {
+        const colors = this._themeManager.getColors();
+        
         const menu = new St.BoxLayout({
             vertical: true,
-            style: `background: #353535; ` +
-                   `border: 1px solid #505050; ` +
+            style: `background: ${colors.menuBg}; ` +
+                   `border: 1px solid ${colors.menuBorder}; ` +
                    `border-radius: 6px; ` +
                    `margin-top: 4px; ` +
                    `padding: 4px;`,
@@ -669,7 +684,7 @@ export class LayoutSwitcher {
             const item = new St.Button({
                 style_class: 'monitor-menu-item',
                 style: `padding: 10px 12px; ` +
-                       `background: ${index === this._selectedMonitorIndex ? '#2d4a5a' : 'transparent'}; ` +
+                       `background: ${index === this._selectedMonitorIndex ? colors.menuItemBgActive : colors.menuItemBg}; ` +
                        `border-radius: 4px;`,
                 reactive: true,
                 track_hover: true
@@ -683,8 +698,8 @@ export class LayoutSwitcher {
             // Small monitor icon
             const icon = new St.Widget({
                 style: `width: 40px; height: 24px; ` +
-                       `background: linear-gradient(135deg, #1a202c 0%, #0f1419 100%); ` +
-                       `border: 2px solid #6b7280; ` +
+                       `background: ${colors.monitorIconBg}; ` +
+                       `border: 2px solid ${colors.monitorIconBorder}; ` +
                        `border-radius: 2px;`
             });
             itemContent.add_child(icon);
@@ -692,7 +707,7 @@ export class LayoutSwitcher {
             // Monitor label
             const label = new St.Label({
                 text: index === primaryIndex ? 'Primary Monitor' : `Monitor ${index + 1}`,
-                style: 'font-size: 12px; color: #e0e0e0;'
+                style: `font-size: 12px; color: ${colors.textSecondary};`
             });
             itemContent.add_child(label);
 
@@ -701,13 +716,13 @@ export class LayoutSwitcher {
             // Hover effect
             item.connect('enter-event', () => {
                 if (index !== this._selectedMonitorIndex) {
-                    item.style = `padding: 10px 12px; background: #3d3d3d; border-radius: 4px;`;
+                    item.style = `padding: 10px 12px; background: ${colors.menuItemBgHover}; border-radius: 4px;`;
                 }
             });
 
             item.connect('leave-event', () => {
                 if (index !== this._selectedMonitorIndex) {
-                    item.style = `padding: 10px 12px; background: transparent; border-radius: 4px;`;
+                    item.style = `padding: 10px 12px; background: ${colors.menuItemBg}; border-radius: 4px;`;
                 }
             });
 
@@ -747,6 +762,8 @@ export class LayoutSwitcher {
      * @private
      */
     _createWorkspaceSelector() {
+        const colors = this._themeManager.getColors();
+        
         const grid = new St.BoxLayout({
             vertical: false,
             style: 'spacing: 12px; padding: 4px;',
@@ -767,11 +784,11 @@ export class LayoutSwitcher {
                 style_class: 'workspace-card',
                 style: `width: ${cardWidth}px; ` +
                        `height: ${cardHeight}px; ` +
-                       `background: linear-gradient(135deg, ${isActive ? '#1e3a5f' : '#2d3748'} 0%, ${isActive ? '#0f2847' : '#1a202c'} 100%); ` +
-                       `border: 2px solid ${isActive ? '#00d4ff' : '#4a5568'}; ` +
+                       `background: ${isActive ? colors.workspaceCardBgActive : colors.workspaceCardBg}; ` +
+                       `border: 2px solid ${isActive ? colors.accentHex : colors.borderLight}; ` +
                        `border-radius: 6px; ` +
                        `position: relative; ` +
-                       `${isActive ? 'box-shadow: 0 0 16px rgba(0, 212, 255, 0.4);' : ''}`,
+                       `${isActive ? `box-shadow: 0 0 16px ${colors.accentRGBA(0.4)};` : ''}`,
                 reactive: true,
                 track_hover: true
             });
@@ -790,7 +807,7 @@ export class LayoutSwitcher {
                        `left: 8px; ` +
                        `font-size: 11px; ` +
                        `opacity: 0.7; ` +
-                       `color: ${isActive ? '#00d4ff' : '#9ca3af'};`
+                       `color: ${isActive ? colors.accentHex : colors.textMuted};`
             });
             
             // Workspace label (centered)
@@ -798,7 +815,7 @@ export class LayoutSwitcher {
                 text: `Workspace ${i + 1}`,
                 style: `font-size: 14px; ` +
                        `font-weight: 500; ` +
-                       `color: ${isActive ? '#00d4ff' : '#9ca3af'};`
+                       `color: ${isActive ? colors.accentHex : colors.textMuted};`
             });
             cardContent.add_child(label);
 
@@ -818,21 +835,23 @@ export class LayoutSwitcher {
             
             card.connect('enter-event', () => {
                 if (!isActive) {
+                    const c = this._themeManager.getColors();
                     card.style = `width: ${cardWidth}px; ` +
                            `height: ${cardHeight}px; ` +
-                           `background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); ` +
-                           `border: 2px solid #00d4ff; ` +
+                           `background: ${c.workspaceCardBg}; ` +
+                           `border: 2px solid ${c.accentHex}; ` +
                            `border-radius: 6px; ` +
-                           `box-shadow: 0 0 12px rgba(0, 212, 255, 0.3);`;
+                           `box-shadow: 0 0 12px ${c.accentRGBA(0.3)};`;
                 }
             });
 
             card.connect('leave-event', () => {
                 if (!isActive) {
+                    const c = this._themeManager.getColors();
                     card.style = `width: ${cardWidth}px; ` +
                            `height: ${cardHeight}px; ` +
-                           `background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); ` +
-                           `border: 2px solid #4a5568; ` +
+                           `background: ${c.workspaceCardBg}; ` +
+                           `border: 2px solid ${c.borderLight}; ` +
                            `border-radius: 6px;`;
                 }
             });
@@ -893,19 +912,35 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Create templates section
+     * Create templates section with visual depth
      * @private
      */
     _createTemplatesSection() {
+        const colors = this._themeManager.getColors();
+        
+        // Outer section card with depth
         const section = new St.BoxLayout({
             vertical: true,
-            style: 'spacing: 16px;'
+            style: `
+                background-color: ${colors.sectionBg};
+                border: 1px solid ${colors.sectionBorder};
+                border-radius: 16px;
+                padding: 20px;
+                box-shadow: ${colors.sectionShadow};
+            `
         });
 
         // Section header
         const header = new St.Label({
             text: 'Templates',
-            style: 'font-size: 16pt; color: #ffffff; font-weight: bold;'
+            style: `
+                font-size: 11pt;
+                font-weight: 600;
+                color: ${colors.textMuted};
+                margin-bottom: 16px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            `
         });
         section.add_child(header);
 
@@ -934,10 +969,10 @@ export class LayoutSwitcher {
      * @private
      */
     _createTemplateCard(template, currentLayout, cardIndex) {
+        const colors = this._themeManager.getColors();
         const isActive = this._isLayoutActive(template, currentLayout);
-        const accentColor = this._getAccentColor();
-        const accentHex = this._rgbToHex(accentColor.red, accentColor.green, accentColor.blue);
-        const accentRGBA = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.3)`;
+        const accentHex = colors.accentHex;
+        const accentRGBA = colors.accentRGBA(0.3);
 
         const card = new St.Button({
             style_class: 'template-card',
@@ -948,7 +983,7 @@ export class LayoutSwitcher {
                    `overflow: hidden; ` +
                    `${isActive ? 
                        `background-color: ${accentRGBA}; border: 2px solid ${accentHex};` : 
-                       'background-color: rgba(40, 40, 40, 0.8); border: 2px solid transparent;'}`,
+                       `background-color: ${colors.cardBgTemplate}; border: 2px solid transparent;`}`,
             reactive: true,
             track_hover: true,
             clip_to_allocation: true
@@ -1003,11 +1038,11 @@ export class LayoutSwitcher {
         // Hover effects for card border + bottom bar transition
         card.connect('enter-event', () => {
             if (!isActive) {
-                const hoverRGBA = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.35)`;
+                const c = this._themeManager.getColors();
                 card.style = `padding: 0; border-radius: 8px; ` +
                             `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
                             `overflow: hidden; ` +
-                            `background-color: ${hoverRGBA}; border: 2px solid ${accentHex}; ` +
+                            `background-color: ${c.accentRGBA(0.35)}; border: 2px solid ${c.accentHex}; ` +
                             `box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);`;
             }
             // Smooth transition: fade in background, hide name, show buttons
@@ -1030,10 +1065,11 @@ export class LayoutSwitcher {
 
         card.connect('leave-event', () => {
             if (!isActive) {
+                const c = this._themeManager.getColors();
                 card.style = `padding: 0; border-radius: 8px; ` +
                             `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
                             `overflow: hidden; ` +
-                            `background-color: rgba(40, 40, 40, 0.8); border: 2px solid transparent;`;
+                            `background-color: ${c.cardBgTemplate}; border: 2px solid transparent;`;
             }
             // Smooth transition: fade out background to default opacity, show name, hide buttons
             card._bottomBar._background.ease({
@@ -1057,40 +1093,50 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Create custom layouts section
+     * Create custom layouts section with visual depth
      * @private
      */
     _createCustomLayoutsSection() {
+        const colors = this._themeManager.getColors();
+        
+        // Outer section card with depth
         const section = new St.BoxLayout({
             vertical: true,
-            style: 'spacing: 16px;'
+            style: `
+                background-color: ${colors.sectionBg};
+                border: 1px solid ${colors.sectionBorder};
+                border-radius: 16px;
+                padding: 20px;
+                box-shadow: ${colors.sectionShadow};
+            `
         });
 
         // Section header
-        const headerRow = new St.BoxLayout({
-            vertical: false
-        });
-
         const header = new St.Label({
             text: 'Custom Layouts',
-            style: 'font-size: 16pt; color: #ffffff; font-weight: bold;'
+            style: `
+                font-size: 11pt;
+                font-weight: 600;
+                color: ${colors.textMuted};
+                margin-bottom: 16px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            `
         });
-        headerRow.add_child(header);
-
-        section.add_child(headerRow);
+        section.add_child(header);
 
         // Custom layout cards
         const customLayouts = this._getCustomLayouts();
         const currentLayout = this._getCurrentLayout();
 
         if (customLayouts.length === 0) {
-            // Empty state
+            // Empty state (styled within the section card)
             const emptyState = new St.BoxLayout({
                 vertical: true,
-                style: 'spacing: 12px; padding: 32px; ' +
-                       'background-color: rgba(60, 60, 60, 0.3); ' +
-                       'border-radius: 8px; ' +
-                       'border: 2px dashed #666;',
+                style: `spacing: 12px; padding: 32px; ` +
+                       `background-color: ${colors.inputBg}; ` +
+                       `border-radius: 12px; ` +
+                       `border: 2px dashed ${colors.divider};`,
                 x_align: Clutter.ActorAlign.CENTER
             });
 
@@ -1102,13 +1148,13 @@ export class LayoutSwitcher {
 
             const text = new St.Label({
                 text: 'No custom layouts yet',
-                style: 'font-size: 14pt; color: #aaaaaa;'
+                style: `font-size: 14pt; color: ${colors.textSecondary};`
             });
             emptyState.add_child(text);
 
             const hint = new St.Label({
                 text: 'Create or duplicate a layout to get started',
-                style: 'font-size: 11pt; color: #888888;'
+                style: `font-size: 11pt; color: ${colors.textMuted};`
             });
             emptyState.add_child(hint);
 
@@ -1161,10 +1207,10 @@ export class LayoutSwitcher {
      * @private
      */
     _createCustomLayoutCard(layout, currentLayout, cardIndex) {
+        const colors = this._themeManager.getColors();
         const isActive = this._isLayoutActive(layout, currentLayout);
-        const accentColor = this._getAccentColor();
-        const accentHex = this._rgbToHex(accentColor.red, accentColor.green, accentColor.blue);
-        const accentRGBA = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.3)`;
+        const accentHex = colors.accentHex;
+        const accentRGBA = colors.accentRGBA(0.3);
 
         const card = new St.Button({
             style_class: 'custom-layout-card',
@@ -1175,7 +1221,7 @@ export class LayoutSwitcher {
                    `overflow: hidden; ` +
                    `${isActive ? 
                        `background-color: ${accentRGBA}; border: 2px solid ${accentHex};` : 
-                       'background-color: rgba(60, 60, 60, 0.5); border: 2px solid transparent;'}`,
+                       `background-color: ${colors.cardBg}; border: 2px solid transparent;`}`,
             reactive: true,
             track_hover: true,
             clip_to_allocation: true
@@ -1229,11 +1275,11 @@ export class LayoutSwitcher {
         // Hover effects for card border + bottom bar transition
         card.connect('enter-event', () => {
             if (!isActive) {
-                const hoverRGBA = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.35)`;
+                const c = this._themeManager.getColors();
                 card.style = `padding: 0; border-radius: 8px; ` +
                             `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
                             `overflow: hidden; ` +
-                            `background-color: ${hoverRGBA}; border: 2px solid ${accentHex}; ` +
+                            `background-color: ${c.accentRGBA(0.35)}; border: 2px solid ${c.accentHex}; ` +
                             `box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);`;
             }
             // Smooth transition: fade in background, hide name, show buttons
@@ -1256,10 +1302,11 @@ export class LayoutSwitcher {
 
         card.connect('leave-event', () => {
             if (!isActive) {
+                const c = this._themeManager.getColors();
                 card.style = `padding: 0; border-radius: 8px; ` +
                             `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
                             `overflow: hidden; ` +
-                            `background-color: rgba(40, 40, 40, 0.8); border: 2px solid transparent;`;
+                            `background-color: ${c.cardBg}; border: 2px solid transparent;`;
             }
             // Smooth transition: fade out background to default opacity, show name, hide buttons
             card._bottomBar._background.ease({
@@ -1290,8 +1337,8 @@ export class LayoutSwitcher {
      * @private
      */
     _createCardBottomBar(name, isTemplate, layout) {
-        const accentColor = this._getAccentColor();
-        const accentRGB = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.6)`;
+        const colors = this._themeManager.getColors();
+        const accentRGB = colors.accentRGBA(0.6);
         
         const bottomBar = new St.Widget({
             layout_manager: new Clutter.BinLayout(),
@@ -1475,13 +1522,15 @@ export class LayoutSwitcher {
      * @private
      */
     _createZonePreview(zones, width, height) {
+        const colors = this._themeManager.getColors();
+        
         const canvas = new St.DrawingArea({
-            style: 'background-color: #1a1a1a;',
+            style: `background-color: ${colors.canvasBg};`,
             x_expand: true,
             y_expand: true
         });
 
-        const accentColor = this._getAccentColor();
+        const accentColor = colors.accent;
 
         canvas.connect('repaint', () => {
             try {
@@ -1547,60 +1596,13 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Get GNOME system accent color
-     * @private
-     */
-    _getAccentColor() {
-        try {
-            const interfaceSettings = new Gio.Settings({
-                schema: 'org.gnome.desktop.interface'
-            });
-
-            const accentColorName = interfaceSettings.get_string('accent-color');
-
-            const accentColors = {
-                'blue': {red: 0.29, green: 0.56, blue: 0.85},
-                'teal': {red: 0.18, green: 0.65, blue: 0.65},
-                'green': {red: 0.20, green: 0.65, blue: 0.42},
-                'yellow': {red: 0.96, green: 0.76, blue: 0.13},
-                'orange': {red: 0.96, green: 0.47, blue: 0.00},
-                'red': {red: 0.75, green: 0.22, blue: 0.17},
-                'pink': {red: 0.87, green: 0.33, blue: 0.61},
-                'purple': {red: 0.61, green: 0.29, blue: 0.85},
-                'slate': {red: 0.44, green: 0.50, blue: 0.56}
-            };
-
-            return accentColors[accentColorName] || accentColors['blue'];
-        } catch (e) {
-            logger.warn('Failed to get accent color:', e);
-            return {red: 0.29, green: 0.56, blue: 0.85};
-        }
-    }
-
-    /**
-     * Convert RGB values (0-1 range) to hex color string
-     * @private
-     */
-    _rgbToHex(r, g, b) {
-        const toHex = (val) => {
-            const hex = Math.round(val * 255).toString(16);
-            return hex.length === 1 ? '0' + hex : hex;
-        };
-        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-    }
-
-    /**
      * Create "Create new layout" button
      * @private
      */
     _createNewLayoutButton() {
-        const accentColor = this._getAccentColor();
-        const accentHex = this._rgbToHex(accentColor.red, accentColor.green, accentColor.blue);
-        const accentHexHover = this._rgbToHex(
-            Math.min(1, accentColor.red * 1.15),
-            Math.min(1, accentColor.green * 1.15),
-            Math.min(1, accentColor.blue * 1.15)
-        );
+        const colors = this._themeManager.getColors();
+        const accentHex = colors.accentHex;
+        const accentHexHover = colors.accentHexHover;
 
         const button = new St.Button({
             style_class: 'create-new-button',
@@ -1677,15 +1679,13 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Get all custom (non-template) layouts
+     * Get all custom (user-created) layouts
      * @private
      */
     _getCustomLayouts() {
         const allLayouts = this._layoutManager.getAllLayouts();
-        const templateIds = this._templateManager.getBuiltinTemplates().map(t => t.id);
-        
-        // Filter out templates - custom layouts have IDs like "layout-*"
-        return allLayouts.filter(layout => !templateIds.includes(layout.id));
+        // Filter out templates (templates have specific IDs like 'halves', 'thirds', etc.)
+        return allLayouts.filter(layout => layout.id && layout.id.startsWith('layout-'));
     }
 
     /**
@@ -1693,13 +1693,7 @@ export class LayoutSwitcher {
      * @private
      */
     _isLayoutActive(layout, currentLayout) {
-        if (!currentLayout) return false;
-        
-        // For templates, compare zones (templates might be applied as custom layouts)
-        if (layout.zones && currentLayout.zones) {
-            return JSON.stringify(layout.zones) === JSON.stringify(currentLayout.zones);
-        }
-        
+        if (!currentLayout || !layout) return false;
         return layout.id === currentLayout.id;
     }
 
@@ -1710,14 +1704,59 @@ export class LayoutSwitcher {
     _onTemplateClicked(template) {
         logger.info(`Template clicked: ${template.name}`);
 
-        // Templates are already loaded in LayoutManager, just apply by ID
-        this._applyLayout(template);
+        // Create layout from template
+        const layout = this._templateManager.createLayoutFromTemplate(template.id);
+        
+        this._applyLayout(layout);
+        this._zoneOverlay.showMessage(`Switched to: ${template.name}`);
 
-        // Show notification
-        this._zoneOverlay.showMessage(`Applied: ${template.name}`);
-
-        // Close dialog
         this.hide();
+    }
+
+    /**
+     * Handle workspace selection
+     * @private
+     */
+    _onWorkspaceSelected(workspaceIndex) {
+        this._currentWorkspace = workspaceIndex;
+        logger.debug(`Switched to workspace ${workspaceIndex} in editor`);
+
+        const colors = this._themeManager.getColors();
+
+        // Update workspace card styles with 16:9 design using dynamically calculated dimensions
+        this._workspaceButtons.forEach((card, index) => {
+            const isActive = index === workspaceIndex;
+            
+            // Update card style
+            card.style = `width: ${this._cardWidth}px; ` +
+                   `height: ${this._cardHeight}px; ` +
+                   `background: ${isActive ? colors.workspaceCardBgActive : colors.workspaceCardBg}; ` +
+                   `border: 2px solid ${isActive ? colors.accentHex : colors.borderLight}; ` +
+                   `border-radius: 6px; ` +
+                   `position: relative; ` +
+                   `${isActive ? `box-shadow: 0 0 16px ${colors.accentRGBA(0.4)};` : ''}`;
+            
+            // Update label and badge colors
+            const container = card.get_child();
+            const children = container.get_children();
+            const cardContent = children[0]; // First child is the content box
+            const badge = children[1]; // Second child is the badge
+            
+            const label = cardContent.get_children()[0]; // Label inside content box
+            label.style = `font-size: 14px; ` +
+                         `font-weight: 500; ` +
+                         `color: ${isActive ? colors.accentHex : colors.textMuted};`;
+            
+            badge.style = `position: absolute; ` +
+                         `top: 8px; ` +
+                         `left: 8px; ` +
+                         `font-size: 11px; ` +
+                         `opacity: 0.7; ` +
+                         `color: ${isActive ? colors.accentHex : colors.textMuted};`;
+        });
+
+        // Refresh the layout display to show current workspace's layout
+        this._refreshDialog();
     }
 
     /**
@@ -1745,12 +1784,12 @@ export class LayoutSwitcher {
         const settingsDialog = new LayoutSettingsDialog(
             layout,
             this._layoutManager,
+            this._settings,
             (updatedLayout) => {
                 // Layout was saved or deleted
                 logger.info(`Settings dialog completed for: ${layout.name}`);
                 this.show(); // Reopen switcher
-            }
-            ,
+            },
             () => {
                 // Canceled
                 logger.info('Settings dialog canceled');
@@ -1787,6 +1826,7 @@ export class LayoutSwitcher {
         const settingsDialog = new LayoutSettingsDialog(
             newLayout,
             this._layoutManager,
+            this._settings,
             (updatedLayout) => {
                 logger.info(`Duplicate layout saved: ${updatedLayout ? updatedLayout.name : 'deleted'}`);
                 this.show(); // Reopen switcher
@@ -1961,10 +2001,10 @@ export class LayoutSwitcher {
      * @private
      */
     _updateCardFocus() {
-        const accentColor = this._getAccentColor();
-        const accentHex = this._rgbToHex(accentColor.red, accentColor.green, accentColor.blue);
-        const accentRGBAActive = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.3)`;
-        const accentRGBAFocus = `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.4)`;
+        const colors = this._themeManager.getColors();
+        const accentHex = colors.accentHex;
+        const accentRGBAActive = colors.accentRGBA(0.3);
+        const accentRGBAFocus = colors.accentRGBA(0.4);
 
         this._allCards.forEach((cardObj, index) => {
             const isFocused = index === this._selectedCardIndex;
@@ -1988,7 +2028,7 @@ export class LayoutSwitcher {
                 // Normal state
                 cardObj.card.style = `padding: 0; border-radius: 8px; ` +
                                     `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
-                                    `background-color: rgba(60, 60, 60, 0.5); ` +
+                                    `background-color: ${colors.cardBg}; ` +
                                     `border: 2px solid transparent;`;
             }
         });
@@ -2034,6 +2074,7 @@ export class LayoutSwitcher {
         const settingsDialog = new LayoutSettingsDialog(
             null, // New layout
             this._layoutManager,
+            this._settings,
             (newLayout) => {
                 if (newLayout) {
                     // Layout was saved, apply it

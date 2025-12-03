@@ -9,6 +9,7 @@ import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import { createLogger } from '../utils/debug.js';
+import { ThemeManager } from '../utils/theme.js';
 
 const logger = createLogger('ConfirmDialog');
 
@@ -35,6 +36,7 @@ export class ConfirmDialog extends ModalDialog.ModalDialog {
      * @param {string} options.confirmLabel - Label for confirm button (default: 'Confirm')
      * @param {string} options.cancelLabel - Label for cancel button (default: 'Cancel')
      * @param {boolean} options.destructive - Style confirm button as destructive (red)
+     * @param {Object} options.settings - GSettings object for theme support
      */
     constructor(title, message, onConfirm, options = {}) {
         super({ styleClass: 'zoned-confirm-dialog' });
@@ -47,6 +49,9 @@ export class ConfirmDialog extends ModalDialog.ModalDialog {
             cancelLabel: options.cancelLabel || 'Cancel',
             destructive: options.destructive || false
         };
+        
+        // Create ThemeManager if settings provided
+        this._themeManager = options.settings ? new ThemeManager(options.settings) : null;
 
         this._buildUI();
 
@@ -54,10 +59,64 @@ export class ConfirmDialog extends ModalDialog.ModalDialog {
     }
 
     /**
+     * Apply CSS custom properties to dialog for stylesheet theming
+     * Uses dialogLayout which is the actual container element
+     * @private
+     */
+    _applyCSSVariables() {
+        if (!this._themeManager) {
+            logger.debug('No ThemeManager, skipping CSS variable application');
+            return;
+        }
+        
+        const colors = this._themeManager.getColors();
+        
+        // Use dialogLayout instead of _dialog (which doesn't exist in GNOME's ModalDialog)
+        if (this.dialogLayout) {
+            const style = this.dialogLayout.get_style();
+            this.dialogLayout.set_style(
+                (style || '') +
+                `--zoned-container-bg: ${colors.containerBg}; ` +
+                `--zoned-card-bg: ${colors.cardBg}; ` +
+                `--zoned-text-primary: ${colors.textPrimary}; ` +
+                `--zoned-text-secondary: ${colors.textSecondary}; ` +
+                `--zoned-text-muted: ${colors.textMuted}; ` +
+                `--zoned-accent: ${colors.accentHex}; ` +
+                `--zoned-button-bg: ${colors.buttonBg}; ` +
+                `--zoned-button-text: ${colors.buttonText}; ` +
+                `--zoned-button-bg-hover: ${colors.buttonBgHover}; ` +
+                `--zoned-accent-hover: ${colors.accentHexHover}; ` +
+                `--zoned-border: ${colors.border};`
+            );
+            
+            // Apply theme class
+            const themeClass = colors.isDark ? 'zoned-theme-dark' : 'zoned-theme-light';
+            this.dialogLayout.add_style_class_name(themeClass);
+            
+            logger.debug(`Applied CSS variables and theme class: ${themeClass} to dialogLayout`);
+        } else {
+            logger.error('ModalDialog.dialogLayout not available');
+        }
+    }
+    
+    /**
+     * Override open() to apply CSS variables when dialog is shown
+     * @override
+     */
+    open() {
+        super.open();
+        // Apply CSS variables to dialogLayout
+        this._applyCSSVariables();
+    }
+
+    /**
      * Build the dialog UI
      * @private
      */
     _buildUI() {
+        // Apply CSS custom properties to dialog root for stylesheet
+        this._applyCSSVariables();
+        
         // Add title
         const titleLabel = new St.Label({
             text: this._title,

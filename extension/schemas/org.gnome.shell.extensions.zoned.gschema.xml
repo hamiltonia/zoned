@@ -79,6 +79,16 @@
       </description>
     </key>
     
+    <!-- UI Theme Preference -->
+    <key name="ui-theme" type="s">
+      <default>"system"</default>
+      <summary>UI color theme preference</summary>
+      <description>
+        Color scheme for extension UI dialogs. Options: 'system' (follows GNOME color-scheme), 
+        'light' (force light mode), 'dark' (force dark mode). Default is 'system'.
+      </description>
+    </key>
+    
     <!-- Layout Application Mode -->
     <key name="apply-layout-globally" type="b">
       <default>true</default>

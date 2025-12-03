@@ -24,6 +24,7 @@ import Shell from 'gi://Shell';
 import Gio from 'gi://Gio';
 import { createLogger } from '../utils/debug.js';
 import { zonesToEdges, edgesToZones, validateEdgeLayout } from '../utils/layoutConverter.js';
+import { ThemeManager } from '../utils/theme.js';
 
 const logger = createLogger('ZoneEditor');
 
@@ -46,10 +47,11 @@ export class ZoneEditor {
      * Create a new grid editor
      * @param {Object} zoneLayout - Initial zone-based layout to edit
      * @param {LayoutManager} layoutManager - Layout manager instance
+     * @param {Gio.Settings} settings - Extension settings instance
      * @param {Function} onSave - Callback when user saves (receives zone-based layout)
      * @param {Function} onCancel - Callback when user cancels (optional)
      */
-    constructor(zoneLayout, layoutManager, onSave, onCancel = null) {
+    constructor(zoneLayout, layoutManager, settings, onSave, onCancel = null) {
         // Handle null layout (new layout with no zones) by creating default split template
         const layoutToEdit = zoneLayout || {
             id: null,
@@ -64,8 +66,12 @@ export class ZoneEditor {
         // Convert zone-based to edge-based for internal editing
         this._edgeLayout = zonesToEdges(JSON.parse(JSON.stringify(layoutToEdit)));
         this._layoutManager = layoutManager;
+        this._settings = settings;
         this._onSaveCallback = onSave;
         this._onCancelCallback = onCancel;
+        
+        // Initialize theme manager
+        this._themeManager = new ThemeManager(settings);
         
         this._overlay = null;
         this._regionActors = [];
@@ -149,6 +155,9 @@ export class ZoneEditor {
         logger.info(`Monitor dimensions: ${monitor.width}×${monitor.height} at position (${monitor.x}, ${monitor.y})`);
         logger.info(`Scale factor: ${scaleFactor}x`);
         
+        // Get theme colors
+        const colors = this._themeManager.getColors();
+        
         // Create full-screen overlay - keep at physical dimensions
         this._overlay = new St.Widget({
             style_class: 'grid-editor-overlay',
@@ -159,8 +168,8 @@ export class ZoneEditor {
             height: monitor.height
         });
         
-        // Dim background
-        this._overlay.style = 'background-color: rgba(0, 0, 0, 0.7);';
+        // Dim background with theme-aware color
+        this._overlay.style = `background-color: ${colors.modalOverlay};`;
         
         // Add regions and edges FIRST (lower Z-order)
         this._createRegions();
@@ -245,10 +254,11 @@ export class ZoneEditor {
     _createHelpText() {
         const themeContext = St.ThemeContext.get_for_stage(global.stage);
         const scaleFactor = themeContext.scale_factor;
+        const colors = this._themeManager.getColors();
         
         this._helpTextBox = new St.BoxLayout({
             vertical: true,
-            style: 'spacing: 8px; padding: 20px; background-color: rgba(30, 30, 30, 0.95); border-radius: 8px;',
+            style: `spacing: 8px; padding: 20px; background-color: ${colors.helpBoxBg}; border-radius: 8px;`,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.START
         });
@@ -260,7 +270,7 @@ export class ZoneEditor {
         
         const title = new St.Label({
             text: 'Layout Editor',
-            style: 'font-size: 14pt; font-weight: bold; color: white; margin-bottom: 8px;'
+            style: `font-size: 14pt; font-weight: bold; color: ${colors.textPrimary}; margin-bottom: 8px;`
         });
         this._helpTextBox.add_child(title);
         
@@ -273,7 +283,7 @@ export class ZoneEditor {
         instructions.forEach(text => {
             const label = new St.Label({
                 text: text,
-                style: 'font-size: 11pt; color: #e0e0e0;'
+                style: `font-size: 11pt; color: ${colors.textSecondary};`
             });
             label.clutter_text.line_wrap = true;
             this._helpTextBox.add_child(label);
@@ -1325,15 +1335,16 @@ export class ZoneEditor {
         const monitor = Main.layoutManager.currentMonitor;
         const themeContext = St.ThemeContext.get_for_stage(global.stage);
         const scaleFactor = themeContext.scale_factor;
+        const colors = this._themeManager.getColors();
         
         const notificationBox = new St.BoxLayout({
             vertical: false,
-            style: 'spacing: 12px; padding: 20px; background-color: rgba(30, 30, 30, 0.95); border-radius: 8px;',
+            style: `spacing: 12px; padding: 20px; background-color: ${colors.helpBoxBg}; border-radius: 8px;`,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER
         });
         
-        // Warning icon (⚠)
+        // Warning icon (⚠) - yellow/orange warning color (theme-independent)
         const icon = new St.Label({
             text: '⚠',
             style: 'font-size: 24pt; color: rgb(255, 193, 7);'
@@ -1349,7 +1360,7 @@ export class ZoneEditor {
         
         const titleLabel = new St.Label({
             text: title,
-            style: 'font-size: 12pt; font-weight: bold; color: white;'
+            style: `font-size: 12pt; font-weight: bold; color: ${colors.textPrimary};`
         });
         titleLabel.clutter_text.line_wrap = true;
         titleLabel.clutter_text.ellipsize = 0; // NONE
@@ -1357,7 +1368,7 @@ export class ZoneEditor {
         
         const messageLabel = new St.Label({
             text: message,
-            style: 'font-size: 10pt; color: #e0e0e0;'
+            style: `font-size: 10pt; color: ${colors.textSecondary};`
         });
         messageLabel.clutter_text.line_wrap = true;
         messageLabel.clutter_text.ellipsize = 0; // NONE
@@ -1460,9 +1471,10 @@ export class ZoneEditor {
         const monitor = Main.layoutManager.currentMonitor;
         const themeContext = St.ThemeContext.get_for_stage(global.stage);
         const scaleFactor = themeContext.scale_factor;
+        const colors = this._themeManager.getColors();
         
         this._toolbar = new St.BoxLayout({
-            style: 'spacing: 12px; padding: 16px; background-color: rgba(30, 30, 30, 0.95); border-radius: 8px;',
+            style: `spacing: 12px; padding: 16px; background-color: ${colors.toolbarBg}; border-radius: 8px;`,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.END
         });
@@ -1477,49 +1489,38 @@ export class ZoneEditor {
         );
         this._toolbar.width = toolbarWidth;
         
-        // Get system accent color for buttons
-        const accentColor = this._getAccentColor();
-        const accentHex = this._rgbToHex(accentColor.red, accentColor.green, accentColor.blue);
-        
-        // Calculate lighter accent color for hover (brighten by 15%)
-        const accentHoverHex = this._rgbToHex(
-            Math.min(1, accentColor.red * 1.15),
-            Math.min(1, accentColor.green * 1.15),
-            Math.min(1, accentColor.blue * 1.15)
-        );
-        
         // Save button - uses system accent color
         const saveButton = new St.Button({
             label: 'Save Layout',
             style_class: 'button',
-            style: `padding: 8px 24px; background-color: ${accentHex}; color: white; border-radius: 4px; font-weight: bold;`
+            style: `padding: 8px 24px; background-color: ${colors.accentHex}; color: white; border-radius: 4px; font-weight: bold;`
         });
         saveButton.connect('clicked', () => this._onSave());
         
         // Hover effect for Save button
         saveButton.connect('enter-event', () => {
-            saveButton.style = `padding: 8px 24px; background-color: ${accentHoverHex}; color: white; border-radius: 4px; font-weight: bold;`;
+            saveButton.style = `padding: 8px 24px; background-color: ${colors.accentHexHover}; color: white; border-radius: 4px; font-weight: bold;`;
         });
         saveButton.connect('leave-event', () => {
-            saveButton.style = `padding: 8px 24px; background-color: ${accentHex}; color: white; border-radius: 4px; font-weight: bold;`;
+            saveButton.style = `padding: 8px 24px; background-color: ${colors.accentHex}; color: white; border-radius: 4px; font-weight: bold;`;
         });
         
         this._toolbar.add_child(saveButton);
         
-        // Cancel button - uses neutral gray
+        // Cancel button - uses neutral theme-aware color
         const cancelButton = new St.Button({
             label: 'Cancel',
             style_class: 'button',
-            style: 'padding: 8px 24px; background-color: rgba(80, 80, 80, 0.9); color: white; border-radius: 4px;'
+            style: `padding: 8px 24px; background-color: ${colors.buttonBg}; color: ${colors.buttonText}; border-radius: 4px;`
         });
         cancelButton.connect('clicked', () => this._onCancel());
         
-        // Hover effect for Cancel button - lighten gray
+        // Hover effect for Cancel button
         cancelButton.connect('enter-event', () => {
-            cancelButton.style = 'padding: 8px 24px; background-color: rgba(100, 100, 100, 0.9); color: white; border-radius: 4px;';
+            cancelButton.style = `padding: 8px 24px; background-color: ${colors.buttonBgHover}; color: ${colors.buttonText}; border-radius: 4px;`;
         });
         cancelButton.connect('leave-event', () => {
-            cancelButton.style = 'padding: 8px 24px; background-color: rgba(80, 80, 80, 0.9); color: white; border-radius: 4px;';
+            cancelButton.style = `padding: 8px 24px; background-color: ${colors.buttonBg}; color: ${colors.buttonText}; border-radius: 4px;`;
         });
         
         this._toolbar.add_child(cancelButton);

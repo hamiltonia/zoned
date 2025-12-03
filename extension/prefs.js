@@ -17,6 +17,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
      * @param {Adw.PreferencesWindow} window - The preferences window
      */
     fillPreferencesWindow(window) {
+        // Get settings first
+        const settings = this.getSettings();
+        
         // Create a preferences page
         const page = new Adw.PreferencesPage({
             title: 'General',
@@ -24,7 +27,36 @@ export default class ZonedPreferences extends ExtensionPreferences {
         });
         window.add(page);
 
-        // Create a preferences group
+        // Create appearance group
+        const appearanceGroup = new Adw.PreferencesGroup({
+            title: 'Appearance',
+            description: 'UI theme and color preferences',
+        });
+        page.add(appearanceGroup);
+
+        // UI Theme preference (Light/Dark/System)
+        const themeRow = new Adw.ComboRow({
+            title: 'UI Theme',
+            subtitle: 'Color scheme for extension dialogs and UI',
+        });
+        
+        const themeModel = new Gtk.StringList();
+        themeModel.splice(0, 0, ['System', 'Light', 'Dark']);
+        themeRow.set_model(themeModel);
+        
+        // Map display names to setting values
+        const themeMapping = ['system', 'light', 'dark'];
+        const currentTheme = settings.get_string('ui-theme');
+        themeRow.set_selected(themeMapping.indexOf(currentTheme));
+        
+        themeRow.connect('notify::selected', () => {
+            const newTheme = themeMapping[themeRow.get_selected()];
+            settings.set_string('ui-theme', newTheme);
+        });
+        
+        appearanceGroup.add(themeRow);
+
+        // Create layout management group
         const group = new Adw.PreferencesGroup({
             title: 'Layout Management',
             description: 'Create and manage custom window layouts',
@@ -32,7 +64,6 @@ export default class ZonedPreferences extends ExtensionPreferences {
         page.add(group);
 
         // Add "Apply layout globally" switch
-        const settings = this.getSettings();
         const applyGloballyRow = new Adw.SwitchRow({
             title: 'Apply one layout to all spaces',
             subtitle: 'When enabled, layouts apply to all monitors and workspaces. When disabled, you can choose specific spaces in the layout picker.',

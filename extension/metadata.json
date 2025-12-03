@@ -8,5 +8,6 @@
     "49"
   ],
   "url": "https://github.com/hamiltonia/zoned",
-  "settings-schema": "org.gnome.shell.extensions.zoned"
+  "settings-schema": "org.gnome.shell.extensions.zoned",
+  "stylesheet": "stylesheet.css"
 }
