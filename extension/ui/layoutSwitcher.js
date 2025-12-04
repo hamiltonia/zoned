@@ -47,6 +47,71 @@ export class LayoutSwitcher {
         
         // Card bottom bar configuration
         this._CARD_BOTTOM_BAR_DEFAULT_OPACITY = 255 * .25;  // ~25% of 255 (range: 0-255)
+        this._CARD_BOTTOM_BAR_MIN_HEIGHT = 36;  // Minimum height for readability
+        this._CARD_BOTTOM_BAR_RATIO = 0.20;     // 20% of card height
+        
+        // Debug mode configuration
+        this._debugMode = this._settings.get_boolean('debug-layout-rects');
+        this._DEBUG_COLORS = {
+            container: 'rgba(255, 0, 0, 0.8)',      // Red - main container
+            section: 'rgba(0, 0, 255, 0.8)',        // Blue - sections (top bar, templates, custom)
+            row: 'rgba(0, 255, 0, 0.8)',            // Green - rows of cards
+            card: 'rgba(255, 255, 0, 0.8)',         // Yellow - individual cards
+            spacer: 'rgba(255, 0, 255, 0.8)'        // Magenta - spacers/gaps
+        };
+        
+        // Minimum dialog dimensions (80% of 1024x768)
+        this._MIN_DIALOG_WIDTH = Math.floor(1024 * 0.8);   // 819
+        this._MIN_DIALOG_HEIGHT = Math.floor(768 * 0.8);   // 614
+        this._DIALOG_ASPECT_RATIO = 16 / 9;
+        
+        // Resize state
+        this._isResizing = false;
+        this._resizeStartX = 0;
+        this._resizeStartY = 0;
+        this._resizeStartWidth = 0;
+        this._resizeStartHeight = 0;
+        this._resizeCorner = null; // 'nw', 'ne', 'sw', 'se'
+        this._currentDialogWidth = null;
+        this._currentDialogHeight = null;
+    }
+
+    /**
+     * Add debug border to an element if debug mode is enabled
+     * @param {St.Widget} actor - The widget to add debug border to
+     * @param {string} type - Type of element: 'container', 'section', 'row', 'card', 'spacer'
+     * @param {string} [label] - Optional label to display
+     * @private
+     */
+    _addDebugRect(actor, type, label = '') {
+        if (!this._debugMode) return;
+        
+        const color = this._DEBUG_COLORS[type] || 'rgba(128, 128, 128, 0.8)';
+        const borderWidth = type === 'card' ? 1 : 2;
+        
+        // Add debug border to existing style
+        const existingStyle = actor.style || '';
+        actor.style = existingStyle + ` border: ${borderWidth}px solid ${color} !important;`;
+        
+        // Add debug label if provided
+        if (label) {
+            logger.debug(`[DEBUG RECT] ${type}: ${label}`);
+        }
+    }
+
+    /**
+     * Toggle debug mode and refresh dialog
+     * @private
+     */
+    _toggleDebugMode() {
+        this._debugMode = !this._debugMode;
+        this._settings.set_boolean('debug-layout-rects', this._debugMode);
+        logger.info(`Debug mode: ${this._debugMode ? 'ON' : 'OFF'}`);
+        
+        // Refresh the dialog to apply/remove debug rects
+        if (this._dialog) {
+            this._refreshDialog();
+        }
     }
 
 
@@ -71,6 +136,10 @@ export class LayoutSwitcher {
 
         this._createDialog();
         this._connectKeyEvents();
+
+        // Clear any stale override dimensions
+        this._overrideDialogWidth = null;
+        this._overrideDialogHeight = null;
     }
 
     /**
@@ -94,85 +163,119 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Calculate card dimensions based on monitor height (height-first approach)
-     * Always uses 5 columns to ensure consistent layout
+     * Calculate card dimensions dynamically based on available space
+     * 
+     * Target layout:
+     * - Templates: 1 row × 5 columns
+     * - Custom Layouts: 2 rows × 5 columns (scrollbar only if >10 layouts)
+     * 
      * @private
      */
     _calculateCardDimensions(monitor) {
-        const COLUMNS = 5;  // Always 5 columns for both templates and custom layouts
-        const MIN_CARD_WIDTH = 160;
-        const MAX_CARD_WIDTH = 350;  // Empirically tested: 340px fits at 200% scaling
+        const COLUMNS = 5;
+        const TEMPLATE_ROWS = 1;
+        const CUSTOM_ROWS = 2;
+        const TOTAL_ROWS = TEMPLATE_ROWS + CUSTOM_ROWS;  // 3 rows of cards
         
-        // Get display scale factor to convert physical pixels to logical pixels
+        // Get display scale factor
         const themeContext = St.ThemeContext.get_for_stage(global.stage);
         const scaleFactor = themeContext.scale_factor;
         
-        // Convert monitor dimensions from physical to logical pixels for CSS calculations
-        // At 200% scaling: 3840 physical -> 1920 logical (what CSS sees)
+        // Use logical pixels (already scaled by GNOME)
         const logicalWidth = monitor.width / scaleFactor;
         const logicalHeight = monitor.height / scaleFactor;
         
-        logger.info(`[SCALE] Physical: ${monitor.width}×${monitor.height}, Logical: ${logicalWidth}×${logicalHeight}, Scale: ${scaleFactor}x`);
+        logger.info(`[SCALE] Monitor: ${logicalWidth}×${logicalHeight} logical, Scale: ${scaleFactor}x`);
         
-        // Layout constants for height calculation
-        const TOP_BAR = 60;
-        const SECTION_HEADER = 40;
-        const SECTION_GAP = 32;
-        const CREATE_BUTTON = 80;
-        const DIALOG_PADDING = 64;
+        // ========================================
+        // DIALOG DIMENSIONS (as % of screen)
+        // ========================================
+        const DIALOG_WIDTH_RATIO = 0.85;   // 85% of screen width
+        const DIALOG_HEIGHT_RATIO = 0.90;  // 90% of screen height
         
-        // Calculate max dialog height (90% of screen for more vertical space)
-        const maxDialogHeight = Math.floor(logicalHeight * 0.90);
+        let dialogWidth = Math.floor(logicalWidth * DIALOG_WIDTH_RATIO);
+        let dialogHeight = Math.floor(logicalHeight * DIALOG_HEIGHT_RATIO);
         
-        // Fixed height budget (everything except card rows)
-        const fixedHeight = TOP_BAR + (2 * SECTION_HEADER) + SECTION_GAP + CREATE_BUTTON + DIALOG_PADDING;
+        // Check for override dimensions (from resize operation)
+        if (this._overrideDialogWidth) {
+            dialogWidth = this._overrideDialogWidth;
+            dialogHeight = this._overrideDialogHeight;
+        }
+
+        // ========================================
+        // FIXED ELEMENTS (calculate as ratios of dialog or reasonable minimums)
+        // ========================================
+        const TOP_BAR_HEIGHT = Math.max(50, Math.floor(dialogHeight * 0.06));
+        const SECTION_HEADER_HEIGHT = Math.max(30, Math.floor(dialogHeight * 0.04));
+        const CREATE_BUTTON_HEIGHT = Math.max(50, Math.floor(dialogHeight * 0.06));
         
-        // Available height for 3 rows of cards (1 template row + 2 custom layout rows)
-        const availableForCards = maxDialogHeight - fixedHeight;
-        const rowHeight = availableForCards / 3;
+        // Padding and gaps as % of dialog dimensions
+        const CONTAINER_PADDING = Math.floor(dialogWidth * 0.015);  // ~1.5% each side
+        const SECTION_PADDING = Math.floor(dialogWidth * 0.012);    // ~1.2% each side
+        const SECTION_GAP = Math.floor(dialogHeight * 0.025);       // ~2.5% vertical gap
+        const ROW_GAP = Math.floor(dialogHeight * 0.015);           // ~1.5% between rows
+        const CARD_GAP = Math.floor(dialogWidth * 0.012);           // ~1.2% between cards
         
-        // HEIGHT-FIRST APPROACH: Calculate card height from available vertical space
-        // Card is full-bleed 16:9, no internal padding needed
-        const cardHeight = Math.floor(rowHeight - 16);  // 16px gap between rows
+        // Reserve space for scrollbar (only appears when >10 custom layouts)
+        const SCROLLBAR_RESERVE = Math.floor(dialogWidth * 0.02);   // ~2% for scrollbar
         
-        // Calculate card width FROM height maintaining 16:9 aspect ratio
-        const heightDerivedWidth = Math.floor(cardHeight * (16 / 9));
+        // ========================================
+        // CALCULATE AVAILABLE SPACE
+        // ========================================
         
-        // HORIZONTAL CONSTRAINT: Calculate max width that allows 5 cards to fit
-        // Account for all horizontal spacing (must match _calculateDialogWidth logic)
-        const CARD_GAP = 24;  // Match this._CARD_GAP from _createDialog
-        const CONTAINER_PADDING_HORIZONTAL = 30 + 19;  // LEFT + RIGHT
-        const CONTENTBOX_MARGIN_HORIZONTAL = 0 + (-8);  // LEFT + RIGHT
-        const SCROLLVIEW_PADDING_RIGHT = 0;
-        const GRID_ROW_PADDING_HORIZONTAL = 0 + 0;  // LEFT + RIGHT
+        // Vertical: What's left after fixed elements
+        const fixedHeight = TOP_BAR_HEIGHT + 
+                           (2 * SECTION_HEADER_HEIGHT) +  // Templates + Custom headers
+                           SECTION_GAP +                   // Gap between sections
+                           CREATE_BUTTON_HEIGHT +
+                           (2 * CONTAINER_PADDING);        // Top + bottom padding
         
-        const availableWidth = logicalWidth - CONTAINER_PADDING_HORIZONTAL - 
-                               CONTENTBOX_MARGIN_HORIZONTAL - SCROLLVIEW_PADDING_RIGHT - 
-                               GRID_ROW_PADDING_HORIZONTAL;
+        const availableHeightForCards = dialogHeight - fixedHeight;
+        const rowGapTotal = (TOTAL_ROWS - 1) * ROW_GAP;
+        const heightPerRow = Math.floor((availableHeightForCards - rowGapTotal) / TOTAL_ROWS);
         
-        const gapTotal = (COLUMNS - 1) * CARD_GAP;
-        const maxCardWidthForHorizontalFit = Math.floor((availableWidth - gapTotal) / COLUMNS);
+        // Horizontal: What's left after padding and gaps
+        const horizontalPadding = (2 * CONTAINER_PADDING) + (2 * SECTION_PADDING) + SCROLLBAR_RESERVE;
+        const availableWidthForCards = dialogWidth - horizontalPadding;
+        const cardGapTotal = (COLUMNS - 1) * CARD_GAP;
+        const widthPerCard = Math.floor((availableWidthForCards - cardGapTotal) / COLUMNS);
         
-        // Use the SMALLER of height-derived or horizontal constraint to ensure cards fit both ways
-        const constrainedWidth = Math.min(heightDerivedWidth, maxCardWidthForHorizontalFit);
+        // ========================================
+        // CALCULATE CARD SIZE (fit both constraints)
+        // ========================================
         
-        // Clamp card width to reasonable bounds
-        const clampedCardWidth = Math.max(MIN_CARD_WIDTH, Math.min(MAX_CARD_WIDTH, constrainedWidth));
+        // From height constraint (16:9 aspect ratio)
+        const cardHeightFromRows = heightPerRow;
+        const cardWidthFromHeight = Math.floor(cardHeightFromRows * (16 / 9));
         
-        // Recalculate card height if we clamped the width (maintain 16:9)
-        const finalCardHeight = Math.floor(clampedCardWidth * (9 / 16));
+        // Use the smaller to ensure fit in both dimensions
+        const cardWidth = Math.min(widthPerCard, cardWidthFromHeight);
+        const cardHeight = Math.floor(cardWidth * (9 / 16));
         
-        // Preview fills card edge-to-edge (full-bleed)
-        const finalPreviewWidth = clampedCardWidth;
-        const finalPreviewHeight = finalCardHeight;
+        logger.info(`[CALC] Available: ${availableWidthForCards}×${availableHeightForCards}`);
+        logger.info(`[CALC] Per card slot: ${widthPerCard}×${heightPerRow}`);
+        logger.info(`[FINAL] Card: ${cardWidth}×${cardHeight}, Gaps: ${CARD_GAP}h/${ROW_GAP}v`);
         
-        logger.info(`[FINAL] Card dimensions: ${clampedCardWidth}×${finalCardHeight}px`);
+        // Store calculated spacing for use in other methods
+        this._calculatedSpacing = {
+            containerPadding: CONTAINER_PADDING,
+            sectionPadding: SECTION_PADDING,
+            sectionGap: SECTION_GAP,
+            cardGap: CARD_GAP,
+            rowGap: ROW_GAP,
+            scrollbarReserve: SCROLLBAR_RESERVE,
+            topBarHeight: TOP_BAR_HEIGHT,
+            sectionHeaderHeight: SECTION_HEADER_HEIGHT,
+            createButtonHeight: CREATE_BUTTON_HEIGHT,
+            dialogWidth: dialogWidth,
+            dialogHeight: dialogHeight
+        };
         
         return {
-            cardWidth: clampedCardWidth,
-            cardHeight: finalCardHeight,
-            previewWidth: finalPreviewWidth,
-            previewHeight: finalPreviewHeight,
+            cardWidth: cardWidth,
+            cardHeight: cardHeight,
+            previewWidth: cardWidth,
+            previewHeight: cardHeight,
             customColumns: COLUMNS
         };
     }
@@ -229,51 +332,9 @@ export class LayoutSwitcher {
         const monitor = Main.layoutManager.currentMonitor;
 
         // ============================================================================
-        // DISPLAY SCALE DETECTION - For logging purposes
+        // Calculate adaptive dimensions FIRST (before setting spacing variables)
+        // This populates this._calculatedSpacing with dynamic values
         // ============================================================================
-        
-        // Get display scale factor (1.0 = 100%, 2.0 = 200%, etc.)
-        const themeContext = St.ThemeContext.get_for_stage(global.stage);
-        const scaleFactor = themeContext.scale_factor;
-        
-        logger.info(`Display scale factor detected: ${scaleFactor}x (${scaleFactor * 100}%)`);
-        logger.info(`Monitor dimensions (logical pixels): ${monitor.width}×${monitor.height}`);
-        
-        // ============================================================================
-        // SPACING CONFIGURATION - Values in logical pixels (automatically scaled by GNOME)
-        // ============================================================================
-        // NOTE: Monitor dimensions are already in logical pixels which account for display
-        // scaling. At 200% scale, a 1920x1080 physical display becomes 960x540 logical.
-        // Therefore, spacing should also be in logical pixels (no manual scaling needed).
-        // ============================================================================
-        
-        // CONTAINER STYLING (controls dialog appearance)
-        this._CONTAINER_BORDER_RADIUS = 16;   // Dialog corner radius (set to 0 for sharp corners & flush scrollbar)
-        
-        // CONTAINER PADDING (controls dialog outer padding)
-        this._CONTAINER_PADDING_LEFT = 30;    // Dialog container left padding
-        this._CONTAINER_PADDING_RIGHT = 19;   // Dialog container right padding (set to 0 to position scrollbar at edge)
-        this._CONTAINER_PADDING_TOP = 32;     // Dialog container top padding
-        this._CONTAINER_PADDING_BOTTOM = 32;  // Dialog container bottom padding
-        
-        // EXTERNAL SPACING (controls alignment with topBar and dialog edges)
-        this._CONTENTBOX_MARGIN_LEFT = 0;     // contentBox left margin (negative pulls left to align with topBar)
-        this._CONTENTBOX_MARGIN_RIGHT = -8;   // contentBox right margin (accounts for scrollbar space)
-        this._SCROLLVIEW_PADDING_RIGHT = 0;   // scrollView right padding (scrollbar spacing)
-        
-        // INTERNAL SPACING (controls card grid positioning within blue debug boxes)
-        this._GRID_ROW_PADDING_LEFT = 0;      // Blue box internal left padding
-        this._GRID_ROW_PADDING_RIGHT = 0;     // Blue box internal right padding
-        this._GRID_ROW_PADDING_TOP = 2;       // Blue box internal top padding
-        this._GRID_ROW_PADDING_BOTTOM = 2;    // Blue box internal bottom padding
-        
-        // CARD SPACING
-        this._CARD_GAP = 24;                  // Horizontal gap between cards in a row
-        this._ROW_GAP = 24;                   // Vertical gap between rows of cards
-        
-        // ============================================================================
-
-        // Calculate adaptive dimensions
         const dims = this._calculateCardDimensions(monitor);
         this._cardWidth = dims.cardWidth;
         this._cardHeight = dims.cardHeight;
@@ -281,11 +342,55 @@ export class LayoutSwitcher {
         this._previewHeight = dims.previewHeight;
         this._customColumns = dims.customColumns;
         
-        const dialogWidth = this._calculateDialogWidth(this._cardWidth);
-        const dialogHeight = this._calculateDialogHeight(monitor, this._cardHeight);
+        // ============================================================================
+        // USE CALCULATED SPACING (from _calculateCardDimensions)
+        // All values are dynamically computed based on dialog/screen size
+        // ============================================================================
+        const spacing = this._calculatedSpacing;
+        
+        // Container padding (from calculated values)
+        this._CONTAINER_PADDING_LEFT = spacing.containerPadding;
+        this._CONTAINER_PADDING_RIGHT = spacing.containerPadding;
+        this._CONTAINER_PADDING_TOP = spacing.containerPadding;
+        this._CONTAINER_PADDING_BOTTOM = spacing.containerPadding;
+        
+        // External spacing
+        this._CONTENTBOX_MARGIN_LEFT = 0;
+        this._CONTENTBOX_MARGIN_RIGHT = 0;
+        this._SCROLLVIEW_PADDING_RIGHT = 0;
+        
+        // Internal spacing
+        this._GRID_ROW_PADDING_LEFT = 0;
+        this._GRID_ROW_PADDING_RIGHT = 0;
+        this._GRID_ROW_PADDING_TOP = 2;
+        this._GRID_ROW_PADDING_BOTTOM = 2;
+        
+        // Card spacing (from calculated values)
+        this._CARD_GAP = spacing.cardGap;
+        this._ROW_GAP = spacing.rowGap;
+        
+        // Section spacing (from calculated values)
+        this._SECTION_GAP = spacing.sectionGap;
+        this._SECTION_PADDING = spacing.sectionPadding;
+        this._SECTION_BORDER_RADIUS = Math.floor(spacing.containerPadding * 0.8);  // Proportional
+        
+        // Scrollbar reserve (from calculated values)
+        this._SCROLLBAR_RESERVE = spacing.scrollbarReserve;
+        
+        // Typography (scale with card size)
+        this._SECTION_TITLE_SIZE = `${Math.max(12, Math.floor(this._cardHeight * 0.12))}px`;
+        this._CARD_LABEL_SIZE = `${Math.max(10, Math.floor(this._cardHeight * 0.09))}px`;
+        
+        // Dialog dimensions (from calculated values)
+        const dialogWidth = spacing.dialogWidth;
+        const dialogHeight = spacing.dialogHeight;
+        
+        // Container border radius (proportional)
+        this._CONTAINER_BORDER_RADIUS = Math.floor(spacing.containerPadding * 0.8);
         
         logger.info(`Card dimensions: ${this._cardWidth}×${this._cardHeight}, ` +
                    `Dialog: ${dialogWidth}×${dialogHeight}`);
+        logger.info(`Spacing - Container: ${spacing.containerPadding}, Card gap: ${spacing.cardGap}, Row gap: ${spacing.rowGap}`);
 
         // Background overlay - translucent, click to close
         this._dialog = new St.Bin({
@@ -324,40 +429,49 @@ export class LayoutSwitcher {
 
         // Top section: Monitor & Workspace selector
         const topBar = this._createTopBar();
+        this._addDebugRect(topBar, 'section', 'Top Bar');
         container.add_child(topBar);
 
-        // Scrollable content area (using _SCROLLVIEW_PADDING_RIGHT variable)
-        const scrollView = new St.ScrollView({
-            style: `flex: 1; margin-top: 24px; padding-right: ${this._SCROLLVIEW_PADDING_RIGHT}px;`,
-            overlay_scrollbars: true,
-            hscrollbar_policy: St.PolicyType.NEVER,
-            vscrollbar_policy: St.PolicyType.AUTOMATIC,
-            x_expand: true,
-            y_expand: true
-        });
-
-        // Content container (using _CONTENTBOX_MARGIN_LEFT and _CONTENTBOX_MARGIN_RIGHT variables)
-        const contentBox = new St.BoxLayout({
-            vertical: true,
-            style: `spacing: 32px; margin-left: ${this._CONTENTBOX_MARGIN_LEFT}px; margin-right: ${this._CONTENTBOX_MARGIN_RIGHT}px;`
-        });
-
-        // Templates section
+        // Templates section (fixed, no scroll - only 5 items)
         const templatesSection = this._createTemplatesSection();
-        contentBox.add_child(templatesSection);
+        templatesSection.style += ` margin-top: ${this._SECTION_GAP}px;`;
+        this._addDebugRect(templatesSection, 'section', 'Templates Section');
+        container.add_child(templatesSection);
 
-        // Custom layouts section
+        // Custom layouts section (scrollable - 0-N items)
         const customSection = this._createCustomLayoutsSection();
-        contentBox.add_child(customSection);
-
-        scrollView.add_child(contentBox);
-        container.add_child(scrollView);
+        customSection.style += ` margin-top: ${this._SECTION_GAP}px;`;
+        this._addDebugRect(customSection, 'section', 'Custom Layouts Section');
+        container.add_child(customSection);
 
         // Bottom: Create new layout button
         const createButton = this._createNewLayoutButton();
+        this._addDebugRect(createButton, 'section', 'Create Button');
         container.add_child(createButton);
 
-        this._dialog.set_child(container);
+        // Add debug rect to main container
+        this._addDebugRect(container, 'container', 'Main Dialog Container');
+
+        // Store container reference for resize operations
+        this._container = container;
+        
+        // Store current dimensions for resize
+        this._currentDialogWidth = dialogWidth;
+        this._currentDialogHeight = dialogHeight;
+
+        // Create wrapper with resize handles
+        const wrapper = new St.Widget({
+            layout_manager: new Clutter.BinLayout(),
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        
+        wrapper.add_child(container);
+        
+        // Add resize handles (visible in debug mode, always functional)
+        this._addResizeHandles(wrapper, container);
+
+        this._dialog.set_child(wrapper);
 
         // Add to stage - size to current monitor, not combined screen
         Main.uiGroup.add_child(this._dialog);
@@ -368,7 +482,234 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Create "Spaces" section with collapsible monitor and workspace selectors
+     * Add resize handles to the dialog corners
+     * @param {St.Widget} wrapper - Wrapper widget for resize handles
+     * @param {St.Widget} container - Main dialog container
+     * @private
+     */
+    _addResizeHandles(wrapper, container) {
+        const handleSize = 24;
+        const corners = ['nw', 'ne', 'sw', 'se'];
+        
+        this._resizeHandles = {};
+        
+        corners.forEach(corner => {
+            const handle = new St.Widget({
+                style: `width: ${handleSize}px; height: ${handleSize}px; ` +
+                       `background-color: ${this._debugMode ? 'rgba(255, 0, 0, 0.5)' : 'transparent'}; ` +
+                       `border-radius: 4px;`,
+                reactive: true,
+                track_hover: true
+            });
+            
+            // Position handle at corner
+            switch (corner) {
+                case 'nw':
+                    handle.x_align = Clutter.ActorAlign.START;
+                    handle.y_align = Clutter.ActorAlign.START;
+                    break;
+                case 'ne':
+                    handle.x_align = Clutter.ActorAlign.END;
+                    handle.y_align = Clutter.ActorAlign.START;
+                    break;
+                case 'sw':
+                    handle.x_align = Clutter.ActorAlign.START;
+                    handle.y_align = Clutter.ActorAlign.END;
+                    break;
+                case 'se':
+                    handle.x_align = Clutter.ActorAlign.END;
+                    handle.y_align = Clutter.ActorAlign.END;
+                    break;
+            }
+            
+            // Cursor change on hover
+            handle.connect('enter-event', () => {
+                handle.style = `width: ${handleSize}px; height: ${handleSize}px; ` +
+                              `background-color: rgba(255, 165, 0, 0.6); ` +
+                              `border-radius: 4px;`;
+                global.display.set_cursor(Meta.Cursor.SE_RESIZE);
+            });
+            
+            handle.connect('leave-event', () => {
+                if (!this._isResizing) {
+                    handle.style = `width: ${handleSize}px; height: ${handleSize}px; ` +
+                                  `background-color: ${this._debugMode ? 'rgba(255, 0, 0, 0.5)' : 'transparent'}; ` +
+                                  `border-radius: 4px;`;
+                    global.display.set_cursor(Meta.Cursor.DEFAULT);
+                }
+            });
+            
+            // Start resize on mouse press
+            handle.connect('button-press-event', (actor, event) => {
+                if (event.get_button() === 1) { // Left click
+                    this._startResize(corner, event);
+                    return Clutter.EVENT_STOP;
+                }
+                return Clutter.EVENT_PROPAGATE;
+            });
+            
+            this._resizeHandles[corner] = handle;
+            wrapper.add_child(handle);
+        });
+    }
+
+    /**
+     * Start a resize operation
+     * @param {string} corner - Which corner is being dragged ('nw', 'ne', 'sw', 'se')
+     * @param {Clutter.Event} event - The mouse event
+     * @private
+     */
+    _startResize(corner, event) {
+        this._isResizing = true;
+        this._resizeCorner = corner;
+        
+        const [x, y] = event.get_coords();
+        this._resizeStartX = x;
+        this._resizeStartY = y;
+        this._resizeStartWidth = this._currentDialogWidth;
+        this._resizeStartHeight = this._currentDialogHeight;
+        
+        logger.info(`Starting resize from ${corner} corner, size: ${this._resizeStartWidth}×${this._resizeStartHeight}`);
+        
+        // Connect global mouse events for tracking
+        this._resizeMotionId = global.stage.connect('motion-event', (actor, event) => {
+            return this._onResizeMotion(event);
+        });
+        
+        this._resizeButtonReleaseId = global.stage.connect('button-release-event', (actor, event) => {
+            if (event.get_button() === 1) {
+                this._endResize();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+    }
+
+    /**
+     * Handle mouse motion during resize
+     * @param {Clutter.Event} event - The mouse motion event
+     * @private
+     */
+    _onResizeMotion(event) {
+        if (!this._isResizing) return Clutter.EVENT_PROPAGATE;
+        
+        const [x, y] = event.get_coords();
+        const deltaX = x - this._resizeStartX;
+        const deltaY = y - this._resizeStartY;
+        
+        // Calculate new dimensions based on which corner
+        let newWidth = this._resizeStartWidth;
+        let newHeight = this._resizeStartHeight;
+        
+        switch (this._resizeCorner) {
+            case 'se': // Bottom-right - most common
+                newWidth = this._resizeStartWidth + deltaX;
+                break;
+            case 'sw': // Bottom-left
+                newWidth = this._resizeStartWidth - deltaX;
+                break;
+            case 'ne': // Top-right
+                newWidth = this._resizeStartWidth + deltaX;
+                break;
+            case 'nw': // Top-left
+                newWidth = this._resizeStartWidth - deltaX;
+                break;
+        }
+        
+        // Apply minimum constraints
+        newWidth = Math.max(this._MIN_DIALOG_WIDTH, newWidth);
+        
+        // Maintain aspect ratio
+        newHeight = Math.floor(newWidth / this._DIALOG_ASPECT_RATIO);
+        
+        // Update container size directly (live preview)
+        if (this._container) {
+            this._container.style = this._container.style.replace(
+                /width:\s*\d+px/,
+                `width: ${newWidth}px`
+            ).replace(
+                /height:\s*\d+px/,
+                `height: ${newHeight}px`
+            );
+        }
+        
+        return Clutter.EVENT_STOP;
+    }
+
+    /**
+     * End a resize operation and rebuild the dialog
+     * @private
+     */
+    _endResize() {
+        if (!this._isResizing) return;
+        
+        this._isResizing = false;
+        global.display.set_cursor(Meta.Cursor.DEFAULT);
+        
+        // Disconnect motion events
+        if (this._resizeMotionId) {
+            global.stage.disconnect(this._resizeMotionId);
+            this._resizeMotionId = null;
+        }
+        if (this._resizeButtonReleaseId) {
+            global.stage.disconnect(this._resizeButtonReleaseId);
+            this._resizeButtonReleaseId = null;
+        }
+        
+        // Get final dimensions from container
+        if (this._container) {
+            const styleMatch = this._container.style.match(/width:\s*(\d+)px/);
+            if (styleMatch) {
+                const newWidth = parseInt(styleMatch[1]);
+                const newHeight = Math.floor(newWidth / this._DIALOG_ASPECT_RATIO);
+                
+                logger.info(`Resize complete: ${newWidth}×${newHeight}`);
+                
+                // Store new dimensions and rebuild with recalculated card sizes
+                this._currentDialogWidth = newWidth;
+                this._currentDialogHeight = newHeight;
+                
+                // Rebuild dialog with new dimensions
+                this._rebuildWithNewSize(newWidth, newHeight);
+            }
+        }
+    }
+
+    /**
+     * Rebuild the dialog with new dimensions
+     * Recalculates card sizes to fit the new dialog size
+     * @param {number} newWidth - New dialog width
+     * @param {number} newHeight - New dialog height
+     * @private
+     */
+    _rebuildWithNewSize(newWidth, newHeight) {
+        // Store current state
+        const wasWorkspace = this._currentWorkspace;
+        const wasSelectedIndex = this._selectedCardIndex;
+        
+        // Store new size to use in calculations
+        this._overrideDialogWidth = newWidth;
+        this._overrideDialogHeight = newHeight;
+        
+        // Refresh dialog
+        this.hide();
+        this._currentWorkspace = wasWorkspace;
+        this.show();
+        
+        // Restore selection
+        if (wasSelectedIndex >= 0 && wasSelectedIndex < this._allCards.length) {
+            this._selectedCardIndex = wasSelectedIndex;
+            this._updateCardFocus();
+        }
+        
+        // Clear override after rebuild
+        this._overrideDialogWidth = null;
+        this._overrideDialogHeight = null;
+    }
+
+    /**
+     * Create "Spaces" section with compact pill-style workspace selector + monitor picker
+     * Redesigned for professional appearance with minimal footprint
      * @private
      */
     _createTopBar() {
@@ -377,27 +718,352 @@ export class LayoutSwitcher {
         // Read global apply setting
         this._applyGlobally = this._settings.get_boolean('apply-layout-globally');
         
-        const spacesSection = new St.BoxLayout({
-            vertical: true,
-            style: `spacing: 12px; padding-bottom: 20px; border-bottom: 1px solid ${colors.border};`
+        // Compact horizontal bar design (not a card)
+        this._spacesSection = new St.BoxLayout({
+            vertical: false,
+            style: `
+                padding: 12px 16px;
+                spacing: 20px;
+            `,
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER
         });
 
-        // Header row with title and checkbox
-        const header = this._createSpacesHeader();
-        spacesSection.add_child(header);
+        // Left side: Monitor dropdown + "Apply to:" label + workspace pills
+        const leftGroup = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 16px;',
+            y_align: Clutter.ActorAlign.CENTER
+        });
 
-        // Collapsible content (monitor dropdown + workspace cards)
-        this._spacesContent = this._createSpacesContent();
-        spacesSection.add_child(this._spacesContent);
+        // Monitor dropdown (compact pill style)
+        const monitorPill = this._createMonitorPill();
+        leftGroup.add_child(monitorPill);
 
-        // Set initial collapsed state based on checkbox
-        this._updateSpacesExpansion();
+        // Separator
+        const separator = new St.Widget({
+            style: `width: 1px; height: 24px; background-color: ${colors.divider};`,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        leftGroup.add_child(separator);
 
-        return spacesSection;
+        // Workspace label + pills
+        const workspaceGroup = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 12px;',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        const applyLabel = new St.Label({
+            text: 'Workspace:',
+            style: `font-size: 13px; font-weight: 500; color: ${colors.textMuted};`,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        workspaceGroup.add_child(applyLabel);
+
+        // Workspace pills (compact buttons)
+        const workspacePills = this._createWorkspacePills();
+        workspaceGroup.add_child(workspacePills);
+
+        leftGroup.add_child(workspaceGroup);
+        this._spacesSection.add_child(leftGroup);
+
+        // Spacer
+        const spacer = new St.Widget({ x_expand: true });
+        this._spacesSection.add_child(spacer);
+
+        // Right side: "Apply to all" checkbox
+        const checkboxGroup = this._createGlobalCheckbox();
+        this._spacesSection.add_child(checkboxGroup);
+
+        return this._spacesSection;
     }
 
     /**
-     * Create Spaces header with title and "apply to all" checkbox
+     * Create compact monitor pill dropdown
+     * @private
+     */
+    _createMonitorPill() {
+        const colors = this._themeManager.getColors();
+        const monitors = Main.layoutManager.monitors;
+        const primaryIndex = Main.layoutManager.primaryIndex;
+        
+        this._selectedMonitorIndex = primaryIndex;
+        
+        const container = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 8px;',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        const label = new St.Label({
+            text: 'Monitor:',
+            style: `font-size: 13px; font-weight: 500; color: ${colors.textMuted};`,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        container.add_child(label);
+
+        // Monitor pill button
+        this._monitorPillBtn = new St.Button({
+            style: `padding: 6px 14px; ` +
+                   `border-radius: 16px; ` +
+                   `background-color: ${colors.inputBg}; ` +
+                   `border: 1px solid ${colors.borderLight};`,
+            reactive: true,
+            track_hover: true
+        });
+
+        const btnContent = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 6px;',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        // Monitor icon
+        const icon = new St.Icon({
+            icon_name: 'video-display-symbolic',
+            style_class: 'system-status-icon',
+            icon_size: 14
+        });
+        btnContent.add_child(icon);
+
+        this._monitorPillLabel = new St.Label({
+            text: monitors.length > 1 ? 'Primary' : 'Display',
+            style: `font-size: 12px; color: ${colors.textSecondary};`,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        btnContent.add_child(this._monitorPillLabel);
+
+        // Dropdown arrow
+        const arrow = new St.Label({
+            text: '▾',
+            style: `font-size: 10px; color: ${colors.textMuted};`,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        btnContent.add_child(arrow);
+
+        this._monitorPillBtn.set_child(btnContent);
+
+        // Hover effect
+        this._monitorPillBtn.connect('enter-event', () => {
+            const c = this._themeManager.getColors();
+            this._monitorPillBtn.style = `padding: 6px 14px; ` +
+                   `border-radius: 16px; ` +
+                   `background-color: ${c.inputBg}; ` +
+                   `border: 1px solid ${c.accentHex};`;
+        });
+
+        this._monitorPillBtn.connect('leave-event', () => {
+            const c = this._themeManager.getColors();
+            this._monitorPillBtn.style = `padding: 6px 14px; ` +
+                   `border-radius: 16px; ` +
+                   `background-color: ${c.inputBg}; ` +
+                   `border: 1px solid ${c.borderLight};`;
+        });
+
+        this._monitorPillBtn.connect('clicked', () => {
+            this._toggleMonitorDropdown();
+        });
+
+        container.add_child(this._monitorPillBtn);
+        this._monitorPillContainer = container;
+
+        return container;
+    }
+
+    /**
+     * Create compact pill-style workspace buttons
+     * @private
+     */
+    _createWorkspacePills() {
+        const colors = this._themeManager.getColors();
+        
+        const container = new St.BoxLayout({
+            vertical: false,
+            style: `spacing: 8px; 
+                    background-color: ${colors.inputBg}; 
+                    border-radius: 20px; 
+                    padding: 4px;`,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        const nWorkspaces = global.workspace_manager.get_n_workspaces();
+        this._workspaceButtons = [];
+
+        for (let i = 0; i < nWorkspaces; i++) {
+            const isActive = i === this._currentWorkspace;
+            
+            const pill = new St.Button({
+                style_class: 'workspace-pill',
+                style: `padding: 6px 16px; ` +
+                       `border-radius: 16px; ` +
+                       `background-color: ${isActive ? colors.accentHex : 'transparent'}; ` +
+                       `color: ${isActive ? 'white' : colors.textMuted}; ` +
+                       `font-size: 12px; ` +
+                       `font-weight: ${isActive ? '600' : '500'};`,
+                reactive: true,
+                track_hover: true
+            });
+
+            const label = new St.Label({
+                text: `${i + 1}`,
+                y_align: Clutter.ActorAlign.CENTER
+            });
+            pill.set_child(label);
+
+            // Store for later reference
+            pill._workspaceIndex = i;
+            pill._label = label;
+
+            // Hover effects
+            pill.connect('enter-event', () => {
+                if (i !== this._currentWorkspace) {
+                    const c = this._themeManager.getColors();
+                    pill.style = `padding: 6px 16px; ` +
+                                `border-radius: 16px; ` +
+                                `background-color: ${c.accentRGBA(0.3)}; ` +
+                                `color: ${c.textPrimary}; ` +
+                                `font-size: 12px; ` +
+                                `font-weight: 500;`;
+                }
+            });
+
+            pill.connect('leave-event', () => {
+                if (i !== this._currentWorkspace) {
+                    const c = this._themeManager.getColors();
+                    pill.style = `padding: 6px 16px; ` +
+                                `border-radius: 16px; ` +
+                                `background-color: transparent; ` +
+                                `color: ${c.textMuted}; ` +
+                                `font-size: 12px; ` +
+                                `font-weight: 500;`;
+                }
+            });
+
+            pill.connect('clicked', () => {
+                this._onWorkspacePillClicked(i);
+            });
+
+            this._workspaceButtons.push(pill);
+            container.add_child(pill);
+        }
+
+        return container;
+    }
+
+    /**
+     * Handle workspace pill click
+     * @private
+     */
+    _onWorkspacePillClicked(workspaceIndex) {
+        const colors = this._themeManager.getColors();
+        
+        // Update previous active pill
+        this._workspaceButtons.forEach((pill, index) => {
+            const isActive = index === workspaceIndex;
+            pill.style = `padding: 6px 16px; ` +
+                        `border-radius: 16px; ` +
+                        `background-color: ${isActive ? colors.accentHex : 'transparent'}; ` +
+                        `color: ${isActive ? 'white' : colors.textMuted}; ` +
+                        `font-size: 12px; ` +
+                        `font-weight: ${isActive ? '600' : '500'};`;
+        });
+
+        this._currentWorkspace = workspaceIndex;
+        logger.debug(`Switched to workspace ${workspaceIndex}`);
+        
+        // Refresh layout cards to show current workspace's active layout
+        this._refreshDialog();
+    }
+
+    /**
+     * Create "Apply to all" checkbox group
+     * @private
+     */
+    _createGlobalCheckbox() {
+        const colors = this._themeManager.getColors();
+        
+        const container = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 8px;',
+            y_align: Clutter.ActorAlign.CENTER,
+            reactive: true
+        });
+
+        // Label
+        const label = new St.Label({
+            text: 'Apply to all workspaces',
+            style: `font-size: 12px; color: ${colors.textMuted};`,
+            y_align: Clutter.ActorAlign.CENTER,
+            reactive: true
+        });
+
+        // Checkbox
+        this._applyGloballyCheckbox = new St.Button({
+            style_class: 'checkbox',
+            style: `width: 18px; height: 18px; ` +
+                   `border: 2px solid ${this._applyGlobally ? colors.accentHex : colors.textMuted}; ` +
+                   `border-radius: 3px; ` +
+                   `background-color: ${this._applyGlobally ? colors.accentHex : 'transparent'};`,
+            reactive: true,
+            track_hover: true,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        // Add checkmark when checked
+        if (this._applyGlobally) {
+            const checkmark = new St.Label({
+                text: '✓',
+                style: `color: ${colors.isDark ? '#1a202c' : 'white'}; font-size: 12px; font-weight: bold;`,
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER
+            });
+            this._applyGloballyCheckbox.set_child(checkmark);
+        }
+
+        // Toggle handler
+        const toggleCheckbox = () => {
+            this._applyGlobally = !this._applyGlobally;
+            this._settings.set_boolean('apply-layout-globally', this._applyGlobally);
+            
+            const c = this._themeManager.getColors();
+            
+            this._applyGloballyCheckbox.style = `width: 18px; height: 18px; ` +
+                   `border: 2px solid ${this._applyGlobally ? c.accentHex : c.textMuted}; ` +
+                   `border-radius: 3px; ` +
+                   `background-color: ${this._applyGlobally ? c.accentHex : 'transparent'};`;
+            
+            if (this._applyGlobally) {
+                const checkmark = new St.Label({
+                    text: '✓',
+                    style: `color: ${c.isDark ? '#1a202c' : 'white'}; font-size: 12px; font-weight: bold;`,
+                    x_align: Clutter.ActorAlign.CENTER,
+                    y_align: Clutter.ActorAlign.CENTER
+                });
+                this._applyGloballyCheckbox.set_child(checkmark);
+            } else {
+                this._applyGloballyCheckbox.set_child(null);
+            }
+        };
+
+        label.connect('button-press-event', () => {
+            toggleCheckbox();
+            return Clutter.EVENT_STOP;
+        });
+
+        this._applyGloballyCheckbox.connect('clicked', () => {
+            toggleCheckbox();
+            return Clutter.EVENT_STOP;
+        });
+
+        container.add_child(label);
+        container.add_child(this._applyGloballyCheckbox);
+
+        return container;
+    }
+
+    /**
+     * Create Spaces header with title and "apply to all" checkbox (legacy - kept for reference)
      * @private
      */
     _createSpacesHeader() {
@@ -410,10 +1076,10 @@ export class LayoutSwitcher {
             y_align: Clutter.ActorAlign.CENTER
         });
 
-        // "Spaces" title
+        // "Spaces" title (matches other section headers)
         const title = new St.Label({
             text: 'Spaces',
-            style: `font-size: 16pt; color: ${colors.textPrimary}; font-weight: bold;`,
+            style: `font-size: 11pt; font-weight: 600; color: ${colors.textMuted};`,
             y_align: Clutter.ActorAlign.CENTER
         });
         header.add_child(title);
@@ -517,7 +1183,7 @@ export class LayoutSwitcher {
     _createSpacesContent() {
         const content = new St.BoxLayout({
             vertical: false,
-            style: 'spacing: 16px;',
+            style: 'spacing: 16px; margin-top: 16px;',
             clip_to_allocation: true
         });
 
@@ -918,36 +1584,37 @@ export class LayoutSwitcher {
     _createTemplatesSection() {
         const colors = this._themeManager.getColors();
         
-        // Outer section card with depth
+        // Outer section card with depth - using configurable spacing
         const section = new St.BoxLayout({
             vertical: true,
             style: `
                 background-color: ${colors.sectionBg};
                 border: 1px solid ${colors.sectionBorder};
-                border-radius: 16px;
-                padding: 20px;
+                border-radius: ${this._SECTION_BORDER_RADIUS}px;
+                padding: ${this._SECTION_PADDING}px;
                 box-shadow: ${colors.sectionShadow};
             `
         });
 
-        // Section header
+        // Section header - larger font for better hierarchy
         const header = new St.Label({
             text: 'Templates',
             style: `
-                font-size: 11pt;
+                font-size: ${this._SECTION_TITLE_SIZE};
                 font-weight: 600;
                 color: ${colors.textMuted};
-                margin-bottom: 16px;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
+                margin-bottom: 20px;
             `
         });
         section.add_child(header);
 
         // Template cards in horizontal row (using spacing variables)
+        // Use scrollbar reserve for padding-right to match Custom Layouts section width
+        const scrollbarClearance = this._SCROLLBAR_RESERVE || Math.floor(this._cardWidth * 0.15);
+        
         const templatesRow = new St.BoxLayout({
             vertical: false,
-            style: `spacing: ${this._CARD_GAP}px; padding-left: ${this._GRID_ROW_PADDING_LEFT}px; padding-right: ${this._GRID_ROW_PADDING_RIGHT}px; padding-top: ${this._GRID_ROW_PADDING_TOP}px; padding-bottom: ${this._GRID_ROW_PADDING_BOTTOM}px;`
+            style: `spacing: ${this._CARD_GAP}px; padding-left: ${this._GRID_ROW_PADDING_LEFT}px; padding-right: ${scrollbarClearance}px; padding-top: ${this._GRID_ROW_PADDING_TOP}px; padding-bottom: ${this._GRID_ROW_PADDING_BOTTOM}px;`
         });
 
         const templates = this._templateManager.getBuiltinTemplates();
@@ -955,10 +1622,13 @@ export class LayoutSwitcher {
 
         templates.forEach((template, index) => {
             const card = this._createTemplateCard(template, currentLayout, index);
+            this._addDebugRect(card, 'card', `Template: ${template.name}`);
             templatesRow.add_child(card);
             this._allCards.push({ card, layout: template, isTemplate: true });
         });
 
+        // Add debug rect to templates row
+        this._addDebugRect(templatesRow, 'row', 'Templates Row');
         section.add_child(templatesRow);
 
         return section;
@@ -1093,34 +1763,36 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Create custom layouts section with visual depth
+     * Create custom layouts section with visual depth and internal scrolling
+     * This section expands to fill available space and scrolls internally
      * @private
      */
     _createCustomLayoutsSection() {
         const colors = this._themeManager.getColors();
         
-        // Outer section card with depth
+        // Outer section card with depth - expands to fill remaining space
+        // Uses configurable spacing variables for consistency with Templates section
         const section = new St.BoxLayout({
             vertical: true,
+            x_expand: true,
+            y_expand: true,
             style: `
                 background-color: ${colors.sectionBg};
                 border: 1px solid ${colors.sectionBorder};
-                border-radius: 16px;
-                padding: 20px;
+                border-radius: ${this._SECTION_BORDER_RADIUS}px;
+                padding: ${this._SECTION_PADDING}px;
                 box-shadow: ${colors.sectionShadow};
             `
         });
 
-        // Section header
+        // Section header (fixed, does not scroll) - uses configurable font size
         const header = new St.Label({
             text: 'Custom Layouts',
             style: `
-                font-size: 11pt;
+                font-size: ${this._SECTION_TITLE_SIZE};
                 font-weight: 600;
                 color: ${colors.textMuted};
                 margin-bottom: 16px;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
             `
         });
         section.add_child(header);
@@ -1160,9 +1832,19 @@ export class LayoutSwitcher {
 
             section.add_child(emptyState);
         } else {
+            // Internal scrollable area for custom layouts (only this scrolls)
+            const scrollView = new St.ScrollView({
+                overlay_scrollbars: true,
+                hscrollbar_policy: St.PolicyType.NEVER,
+                vscrollbar_policy: St.PolicyType.AUTOMATIC,
+                x_expand: true,
+                y_expand: true
+            });
+
             // Grid of custom layouts
             const grid = this._createCustomLayoutGrid(customLayouts, currentLayout);
-            section.add_child(grid);
+            scrollView.add_child(grid);
+            section.add_child(scrollView);
         }
 
         return section;
@@ -1173,15 +1855,20 @@ export class LayoutSwitcher {
      * @private
      */
     _createCustomLayoutGrid(layouts, currentLayout) {
-        const COLUMNS = this._customColumns;  // Use adaptive columns (5-7)
+        const COLUMNS = this._customColumns;  // Always 5 columns
+        
+        // Use dynamically calculated scrollbar reserve (from _calculateCardDimensions)
+        const scrollbarClearance = this._SCROLLBAR_RESERVE || Math.floor(this._cardWidth * 0.15);
+        
         const container = new St.BoxLayout({
             vertical: true,
-            style: `spacing: ${this._ROW_GAP}px;`
+            style: `spacing: ${this._ROW_GAP}px; padding-right: ${scrollbarClearance}px;`
         });
 
         let currentRow = null;
         const templateCount = this._templateManager.getBuiltinTemplates().length;
         
+        let rowNumber = 0;
         layouts.forEach((layout, index) => {
             const col = index % COLUMNS;
 
@@ -1190,11 +1877,14 @@ export class LayoutSwitcher {
                     vertical: false,
                     style: `spacing: ${this._CARD_GAP}px; padding-left: ${this._GRID_ROW_PADDING_LEFT}px; padding-right: ${this._GRID_ROW_PADDING_RIGHT}px; padding-top: ${this._GRID_ROW_PADDING_TOP}px; padding-bottom: ${this._GRID_ROW_PADDING_BOTTOM}px;`
                 });
+                this._addDebugRect(currentRow, 'row', `Custom Row ${rowNumber}`);
+                rowNumber++;
                 container.add_child(currentRow);
             }
 
             const cardIndex = templateCount + index;
             const card = this._createCustomLayoutCard(layout, currentLayout, cardIndex);
+            this._addDebugRect(card, 'card', `Custom: ${layout.name}`);
             currentRow.add_child(card);
             this._allCards.push({ card, layout, isTemplate: false });
         });
@@ -1331,6 +2021,7 @@ export class LayoutSwitcher {
 
     /**
      * Create card bottom bar with name and action buttons
+     * Height scales proportionally with card size for better readability
      * @param {string} name - Layout name to display
      * @param {boolean} isTemplate - True for template cards, false for custom layouts
      * @param {object} layout - Layout object for button handlers
@@ -1340,9 +2031,15 @@ export class LayoutSwitcher {
         const colors = this._themeManager.getColors();
         const accentRGB = colors.accentRGBA(0.6);
         
+        // Calculate proportional bottom bar height
+        const bottomBarHeight = Math.max(
+            this._CARD_BOTTOM_BAR_MIN_HEIGHT,
+            Math.floor(this._cardHeight * this._CARD_BOTTOM_BAR_RATIO)
+        );
+        
         const bottomBar = new St.Widget({
             layout_manager: new Clutter.BinLayout(),
-            style: 'height: 32px;',
+            style: `height: ${bottomBarHeight}px;`,
             y_align: Clutter.ActorAlign.END,
             x_expand: true
         });
@@ -1519,6 +2216,7 @@ export class LayoutSwitcher {
 
     /**
      * Create visual zone preview using Cairo
+     * Grey fill for zones, accent color only for grid lines (borders)
      * @private
      */
     _createZonePreview(zones, width, height) {
@@ -1531,6 +2229,7 @@ export class LayoutSwitcher {
         });
 
         const accentColor = colors.accent;
+        const isDark = colors.isDark;
 
         canvas.connect('repaint', () => {
             try {
@@ -1564,17 +2263,14 @@ export class LayoutSwitcher {
                     const zoneW = zone.w * w;
                     const zoneH = zone.h * h;
 
-                    // Fill
-                    cr.setSourceRGBA(
-                        accentColor.red,
-                        accentColor.green,
-                        accentColor.blue,
-                        0.3
-                    );
+                    // Fill with grey (not accent color)
+                    const greyValue = isDark ? 0.5 : 0.4;  // Grey intensity
+                    const greyAlpha = isDark ? 0.35 : 0.25;  // Grey alpha
+                    cr.setSourceRGBA(greyValue, greyValue, greyValue, greyAlpha);
                     cr.rectangle(x, y, zoneW, zoneH);
                     cr.fill();
 
-                    // Border
+                    // Border/grid lines use accent color
                     cr.setSourceRGBA(
                         accentColor.red,
                         accentColor.green,
@@ -1911,6 +2607,13 @@ export class LayoutSwitcher {
         this._keyPressId = global.stage.connect('key-press-event', (actor, event) => {
             const symbol = event.get_key_symbol();
             const modifiers = event.get_state();
+            const ctrlPressed = (modifiers & Clutter.ModifierType.CONTROL_MASK) !== 0;
+
+            // Ctrl+D = Toggle debug mode
+            if (ctrlPressed && (symbol === Clutter.KEY_d || symbol === Clutter.KEY_D)) {
+                this._toggleDebugMode();
+                return Clutter.EVENT_STOP;
+            }
 
             switch (symbol) {
                 case Clutter.KEY_Escape:

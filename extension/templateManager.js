@@ -59,6 +59,20 @@ const BUILTIN_TEMPLATES = {
             { name: 'Main', x: 0.0, y: 0.0, w: 0.7, h: 1.0 },
             { name: 'Side', x: 0.7, y: 0.0, w: 0.3, h: 1.0 }
         ]
+    },
+    sixths: {
+        id: 'sixths',
+        name: 'Sixths',
+        icon: '⊡',  // Unicode grid icon
+        description: '2×3 grid layout',
+        zones: [
+            { name: 'Top Left', x: 0.0, y: 0.0, w: 0.333, h: 0.5 },
+            { name: 'Top Center', x: 0.333, y: 0.0, w: 0.334, h: 0.5 },
+            { name: 'Top Right', x: 0.667, y: 0.0, w: 0.333, h: 0.5 },
+            { name: 'Bottom Left', x: 0.0, y: 0.5, w: 0.333, h: 0.5 },
+            { name: 'Bottom Center', x: 0.333, y: 0.5, w: 0.334, h: 0.5 },
+            { name: 'Bottom Right', x: 0.667, y: 0.5, w: 0.333, h: 0.5 }
+        ]
     }
 };
 
@@ -69,7 +83,7 @@ const BUILTIN_TEMPLATES = {
 export class TemplateManager {
     constructor() {
         this._templates = { ...BUILTIN_TEMPLATES };
-        logger.info('TemplateManager initialized with 4 built-in templates');
+        logger.info('TemplateManager initialized with 5 built-in templates');
     }
 
     /**

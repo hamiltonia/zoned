@@ -118,5 +118,16 @@
       </description>
     </key>
     
+    <!-- Debug Settings -->
+    <key name="debug-layout-rects" type="b">
+      <default>false</default>
+      <summary>Show debug layout rectangles</summary>
+      <description>
+        When enabled, shows colored debug borders around all layout elements 
+        in the layout switcher dialog to help visualize layout issues.
+        Red=container, Blue=section, Green=row, Yellow=card, Magenta=spacer.
+      </description>
+    </key>
+    
   </schema>
 </schemalist>

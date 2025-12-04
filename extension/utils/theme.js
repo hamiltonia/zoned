@@ -163,6 +163,9 @@ export class ThemeManager {
                 this._rgbaWithAlpha(accent, 0.2),
             zoneBorder: accentHex,
             
+            // Zone preview grey fill (accent color only for grid lines)
+            zoneFillGrey: isDark ? 'rgba(128, 128, 128, 0.35)' : 'rgba(100, 100, 100, 0.25)',
+            
             // Canvas/drawing area background
             canvasBg: isDark ? '#1a1a1a' : '#f5f5f5'
         };
