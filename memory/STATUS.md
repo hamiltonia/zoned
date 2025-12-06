@@ -1,6 +1,6 @@
 # Zoned Implementation Status
 
-**Last Updated:** 2025-11-27  
+**Last Updated:** 2025-12-06  
 **Version:** Pre-release (active development)
 
 ---
@@ -53,6 +53,22 @@ These components are implemented and unlikely to change significantly:
     - Root cause: Attempting to reopen same dialog instance after closing
     - Solution: Create NEW dialog instance when returning from ZoneEditor
     - Impact: Eliminated event loop recursion completely
+
+- **LayoutSwitcher Tier System** (`ui/layoutSwitcher/tierConfig.js`) **NEW 2025-12-06**
+  - Resolution-based tier selection for responsive layout picker sizing
+  - 5 tiers: TINY, SMALL, MEDIUM, LARGE, XLARGE
+  - Auto-selection based on logical pixel height (after scale factor)
+  - User-configurable via Preferences → Appearance → "Layout Picker Size"
+  - Debug tools: Ctrl+T (cycle tiers), Ctrl+D (debug rects), Ctrl+O (overlay)
+  - **GSettings key:** `debug-force-tier` (0=auto, 1-5=forced tier)
+  
+- **LayoutSwitcher Grid Alignment** (`ui/layoutSwitcher/sectionFactory.js`) **FIXED 2025-12-06**
+  - Fixed symmetric left/right margins for card rows
+  - Fixed partial row alignment (rows with <5 cards now align with full rows)
+  - Both Templates and Custom Layouts sections use consistent alignment
+  - Spacers (invisible widgets) fill partial rows to maintain grid structure
+  - Debug mode shows magenta spacers for troubleshooting
+  - Scrollbar positioning improved (overlay scrollbars enabled)
 
 ---
 

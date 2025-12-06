@@ -129,5 +129,25 @@
       </description>
     </key>
     
+    <key name="debug-layout-overlay" type="b">
+      <default>false</default>
+      <summary>Show debug measurement overlay</summary>
+      <description>
+        When enabled, shows a debug overlay with calculated dimensions,
+        tier information, and validation results for layout debugging.
+      </description>
+    </key>
+    
+    <key name="option-force-tier" type="i">
+      <default>0</default>
+      <range min="0" max="5"/>
+      <summary>Force specific layout tier</summary>
+      <description>
+        Override automatic tier selection for testing. 
+        0=auto (default), 1=tiny, 2=small, 3=medium, 4=large, 5=xlarge.
+        Use Ctrl+T in layout switcher to cycle through tiers.
+      </description>
+    </key>
+    
   </schema>
 </schemalist>

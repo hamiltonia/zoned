@@ -56,6 +56,27 @@ export default class ZonedPreferences extends ExtensionPreferences {
         
         appearanceGroup.add(themeRow);
 
+        // Layout Picker Size (Tier) preference
+        const tierRow = new Adw.ComboRow({
+            title: 'Layout Picker Size',
+            subtitle: 'Card and dialog size in the layout picker. Auto selects based on screen resolution.',
+        });
+        
+        const tierModel = new Gtk.StringList();
+        tierModel.splice(0, 0, ['Auto', 'Tiny', 'Small', 'Medium', 'Large', 'Extra Large']);
+        tierRow.set_model(tierModel);
+        
+        // Get current tier setting (0=auto, 1=tiny, 2=small, 3=medium, 4=large, 5=xlarge)
+        const currentTier = settings.get_int('option-force-tier');
+        tierRow.set_selected(currentTier);
+        
+        tierRow.connect('notify::selected', () => {
+            const newTier = tierRow.get_selected();
+            settings.set_int('option-force-tier', newTier);
+        });
+        
+        appearanceGroup.add(tierRow);
+
         // Create layout management group
         const group = new Adw.PreferencesGroup({
             title: 'Layout Management',

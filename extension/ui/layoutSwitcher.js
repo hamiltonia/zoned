@@ -28,6 +28,7 @@ import { ThemeManager } from '../utils/theme.js';
 import { createTemplatesSection, createCustomLayoutsSection, createNewLayoutButton } from './layoutSwitcher/sectionFactory.js';
 import { createTopBar } from './layoutSwitcher/topBar.js';
 import { addResizeHandles, rebuildWithNewSize } from './layoutSwitcher/resizeHandler.js';
+import { selectTier, calculateDialogDimensions, validateDimensions, generateDebugText, TIER_NAMES } from './layoutSwitcher/tierConfig.js';
 
 const logger = createLogger('LayoutSwitcher');
 
@@ -71,7 +72,7 @@ export class LayoutSwitcher {
         // Minimum dialog dimensions (80% of 1024x768)
         this._MIN_DIALOG_WIDTH = Math.floor(1024 * 0.8);
         this._MIN_DIALOG_HEIGHT = Math.floor(768 * 0.8);
-        this._DIALOG_ASPECT_RATIO = 16 / 9;
+        // Note: Dialog aspect ratio is now content-driven, not fixed
         
         // Resize state
         this._isResizing = false;
@@ -85,8 +86,9 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Add debug border to an element if debug mode is enabled
-     * @param {St.Widget} actor - The widget to add debug border to
+     * Add debug outline to an element if debug mode is enabled
+     * Uses CSS outline instead of border to avoid affecting layout
+     * @param {St.Widget} actor - The widget to add debug outline to
      * @param {string} type - Type of element
      * @param {string} [label] - Optional label to display
      */
@@ -94,10 +96,11 @@ export class LayoutSwitcher {
         if (!this._debugMode) return;
         
         const color = this._DEBUG_COLORS[type] || 'rgba(128, 128, 128, 0.8)';
-        const borderWidth = type === 'card' ? 1 : 2;
+        const outlineWidth = type === 'card' ? 1 : 2;
         
         const existingStyle = actor.style || '';
-        actor.style = existingStyle + ` border: ${borderWidth}px solid ${color} !important;`;
+        // Use outline instead of border - outline doesn't affect layout/box model
+        actor.style = existingStyle + ` outline: ${outlineWidth}px solid ${color} !important;`;
         
         if (label) {
             logger.debug(`[DEBUG RECT] ${type}: ${label}`);
@@ -155,6 +158,13 @@ export class LayoutSwitcher {
 
         this._disconnectKeyEvents();
 
+        // Clean up debug overlay (added to uiGroup separately)
+        if (this._debugOverlay) {
+            Main.uiGroup.remove_child(this._debugOverlay);
+            this._debugOverlay.destroy();
+            this._debugOverlay = null;
+        }
+
         Main.uiGroup.remove_child(dialog);
         dialog.destroy();
 
@@ -162,89 +172,174 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Calculate card dimensions dynamically based on available space
+     * Calculate card dimensions using tier-based sizing
+     * 
+     * Algorithm: Tier-based approach
+     * 1. Select tier based on logical screen height (or forced tier for debugging)
+     * 2. Use fixed values from tier configuration
+     * 3. Calculate dialog dimensions from tier values
+     * 
+     * This guarantees:
+     * - 5 columns for templates and custom layouts
+     * - 2 full custom layout rows visible without cutoff
+     * - Equal left/right margins
+     * - 16:9 cards (the aesthetic that matters)
+     * - Predictable, testable layouts per resolution tier
      */
     _calculateCardDimensions(monitor) {
-        const COLUMNS = 5;
-        const TEMPLATE_ROWS = 1;
-        const CUSTOM_ROWS = 2;
-        const TOTAL_ROWS = TEMPLATE_ROWS + CUSTOM_ROWS;
-        
         const themeContext = St.ThemeContext.get_for_stage(global.stage);
         const scaleFactor = themeContext.scale_factor;
         
         const logicalWidth = monitor.width / scaleFactor;
         const logicalHeight = monitor.height / scaleFactor;
         
+        // Store for debug overlay
+        this._logicalScreenWidth = logicalWidth;
+        this._logicalScreenHeight = logicalHeight;
+        this._scaleFactor = scaleFactor;
+        
         logger.info(`[SCALE] Monitor: ${logicalWidth}×${logicalHeight} logical, Scale: ${scaleFactor}x`);
         
-        const DIALOG_WIDTH_RATIO = 0.85;
-        const DIALOG_HEIGHT_RATIO = 0.90;
+        // Get forced tier from settings (0 = auto)
+        const forceTier = this._settings.get_int('option-force-tier');
         
-        let dialogWidth = Math.floor(logicalWidth * DIALOG_WIDTH_RATIO);
-        let dialogHeight = Math.floor(logicalHeight * DIALOG_HEIGHT_RATIO);
+        // Select tier based on logical screen height
+        const tier = selectTier(logicalHeight, forceTier);
+        this._currentTier = tier;
         
-        if (this._overrideDialogWidth) {
-            dialogWidth = this._overrideDialogWidth;
-            dialogHeight = this._overrideDialogHeight;
+        // Calculate dialog dimensions from tier
+        const dims = calculateDialogDimensions(tier);
+        
+        // Validate against screen bounds
+        const validation = validateDimensions(dims, logicalWidth, logicalHeight);
+        this._lastValidation = validation;
+        
+        if (!validation.valid) {
+            logger.warn(`[TIER] Validation issues: ${validation.issues.join(', ')}`);
         }
-
-        const TOP_BAR_HEIGHT = Math.max(50, Math.floor(dialogHeight * 0.06));
-        const SECTION_HEADER_HEIGHT = Math.max(30, Math.floor(dialogHeight * 0.04));
-        const CREATE_BUTTON_HEIGHT = Math.max(50, Math.floor(dialogHeight * 0.06));
         
-        const CONTAINER_PADDING = Math.floor(dialogWidth * 0.015);
-        const SECTION_PADDING = Math.floor(dialogWidth * 0.012);
-        const SECTION_GAP = Math.floor(dialogHeight * 0.025);
-        const ROW_GAP = Math.floor(dialogHeight * 0.015);
-        const CARD_GAP = Math.floor(dialogWidth * 0.012);
-        const SCROLLBAR_RESERVE = Math.floor(dialogWidth * 0.02);
-        
-        const fixedHeight = TOP_BAR_HEIGHT + 
-                           (2 * SECTION_HEADER_HEIGHT) +
-                           SECTION_GAP +
-                           CREATE_BUTTON_HEIGHT +
-                           (2 * CONTAINER_PADDING);
-        
-        const availableHeightForCards = dialogHeight - fixedHeight;
-        const rowGapTotal = (TOTAL_ROWS - 1) * ROW_GAP;
-        const heightPerRow = Math.floor((availableHeightForCards - rowGapTotal) / TOTAL_ROWS);
-        
-        const horizontalPadding = (2 * CONTAINER_PADDING) + (2 * SECTION_PADDING) + SCROLLBAR_RESERVE;
-        const availableWidthForCards = dialogWidth - horizontalPadding;
-        const cardGapTotal = (COLUMNS - 1) * CARD_GAP;
-        const widthPerCard = Math.floor((availableWidthForCards - cardGapTotal) / COLUMNS);
-        
-        const cardHeightFromRows = heightPerRow;
-        const cardWidthFromHeight = Math.floor(cardHeightFromRows * (16 / 9));
-        
-        const cardWidth = Math.min(widthPerCard, cardWidthFromHeight);
-        const cardHeight = Math.floor(cardWidth * (9 / 16));
-        
-        logger.info(`[CALC] Available: ${availableWidthForCards}×${availableHeightForCards}`);
-        logger.info(`[FINAL] Card: ${cardWidth}×${cardHeight}, Gaps: ${CARD_GAP}h/${ROW_GAP}v`);
-        
+        // Store calculated spacing for use by other components
+        // Map tier values to the expected _calculatedSpacing format
         this._calculatedSpacing = {
-            containerPadding: CONTAINER_PADDING,
-            sectionPadding: SECTION_PADDING,
-            sectionGap: SECTION_GAP,
-            cardGap: CARD_GAP,
-            rowGap: ROW_GAP,
-            scrollbarReserve: SCROLLBAR_RESERVE,
-            topBarHeight: TOP_BAR_HEIGHT,
-            sectionHeaderHeight: SECTION_HEADER_HEIGHT,
-            createButtonHeight: CREATE_BUTTON_HEIGHT,
-            dialogWidth: dialogWidth,
-            dialogHeight: dialogHeight
+            containerPadding: dims.containerPadding,
+            sectionPadding: dims.sectionPadding,
+            sectionGap: dims.sectionGap,
+            cardGap: dims.cardGap,
+            rowGap: dims.rowGap,
+            scrollbarReserve: 0,  // Scrollbar overlays content
+            topBarHeight: dims.topBarHeight,
+            sectionHeaderHeight: dims.sectionHeaderHeight,
+            sectionHeaderMargin: dims.sectionHeaderMargin,
+            createButtonHeight: dims.buttonHeight,
+            createButtonMargin: dims.buttonMargin,
+            internalMargin: dims.internalMargin,
+            dialogWidth: dims.dialogWidth,
+            dialogHeight: dims.dialogHeight,
+            // Store full dims for debug overlay
+            _dims: dims
         };
+        
+        logger.info(`[TIER] ${tier.name}: Card ${dims.cardWidth}×${dims.cardHeight}, Dialog ${dims.dialogWidth}×${dims.dialogHeight}`);
         
         return {
-            cardWidth: cardWidth,
-            cardHeight: cardHeight,
-            previewWidth: cardWidth,
-            previewHeight: cardHeight,
-            customColumns: COLUMNS
+            cardWidth: dims.cardWidth,
+            cardHeight: dims.cardHeight,
+            previewWidth: dims.cardWidth,
+            previewHeight: dims.cardHeight,
+            customColumns: 5
         };
+    }
+
+    /**
+     * Cycle to next tier (for debugging)
+     * Ctrl+T cycles through: auto → TINY → SMALL → MEDIUM → LARGE → XLARGE → auto
+     */
+    _cycleTier() {
+        const currentForce = this._settings.get_int('option-force-tier');
+        const nextForce = (currentForce + 1) % 6;  // 0-5 then wrap to 0
+        
+        this._settings.set_int('option-force-tier', nextForce);
+        
+        const tierName = TIER_NAMES[nextForce];
+        logger.info(`[TIER] Cycling to: ${tierName}`);
+        
+        // Refresh dialog with new tier
+        this._refreshDialog();
+    }
+
+    /**
+     * Toggle debug overlay visibility
+     */
+    _toggleDebugOverlay() {
+        const current = this._settings.get_boolean('debug-layout-overlay');
+        this._settings.set_boolean('debug-layout-overlay', !current);
+        logger.info(`Debug overlay: ${!current ? 'ON' : 'OFF'}`);
+        
+        if (this._dialog) {
+            this._refreshDialog();
+        }
+    }
+
+    /**
+     * Create debug overlay showing tier info and measurements
+     * @returns {St.BoxLayout} The debug overlay widget
+     */
+    _createDebugOverlay() {
+        const dims = this._calculatedSpacing._dims;
+        const validation = this._lastValidation;
+        const forceTier = this._settings.get_int('option-force-tier');
+        const tierMode = forceTier === 0 ? 'auto' : 'forced';
+        
+        // Generate debug text
+        const debugText = generateDebugText(
+            dims, 
+            validation, 
+            this._logicalScreenWidth, 
+            this._logicalScreenHeight, 
+            this._scaleFactor
+        );
+        
+        const overlay = new St.BoxLayout({
+            vertical: true,
+            style: `
+                background-color: rgba(0, 0, 0, 0.85);
+                padding: 12px 16px;
+                border-radius: 6px;
+                margin: 8px;
+                border: 1px solid rgba(0, 255, 0, 0.5);
+            `,
+            x_align: Clutter.ActorAlign.START
+        });
+        
+        // Header
+        const header = new St.Label({
+            text: `🔧 DEBUG OVERLAY (${tierMode})`,
+            style: 'color: #0f0; font-size: 11px; font-weight: bold; font-family: monospace; margin-bottom: 8px;'
+        });
+        overlay.add_child(header);
+        
+        // Info lines
+        const lines = debugText.split('\n');
+        lines.forEach(line => {
+            let color = '#0f0';
+            if (line.includes('✗')) color = '#f00';
+            if (line.includes('TIER:')) color = '#0ff';
+            
+            const label = new St.Label({
+                text: line,
+                style: `color: ${color}; font-size: 10px; font-family: monospace; line-height: 1.4;`
+            });
+            overlay.add_child(label);
+        });
+        
+        // Keyboard shortcuts hint
+        const shortcuts = new St.Label({
+            text: 'Ctrl+D=rects | Ctrl+T=tier | Ctrl+O=overlay',
+            style: 'color: #888; font-size: 9px; font-family: monospace; margin-top: 8px;'
+        });
+        overlay.add_child(shortcuts);
+        
+        return overlay;
     }
 
     /**
@@ -316,13 +411,14 @@ export class LayoutSwitcher {
             return Clutter.EVENT_PROPAGATE;
         });
 
-        // Main container
+        // Main container - no left/right padding, sections extend to edges
+        // Sections use their own internal padding for card margins
         const container = new St.BoxLayout({
             vertical: true,
             style: `background-color: ${colors.containerBg}; ` +
                    `border-radius: ${this._CONTAINER_BORDER_RADIUS}px; ` +
-                   `padding-left: ${this._CONTAINER_PADDING_LEFT}px; ` +
-                   `padding-right: ${this._CONTAINER_PADDING_RIGHT}px; ` +
+                   `padding-left: 0px; ` +
+                   `padding-right: 0px; ` +
                    `padding-top: ${this._CONTAINER_PADDING_TOP}px; ` +
                    `padding-bottom: ${this._CONTAINER_PADDING_BOTTOM}px; ` +
                    `width: ${dialogWidth}px; ` +
@@ -350,6 +446,14 @@ export class LayoutSwitcher {
         this._addDebugRect(createButton, 'section', 'Create Button');
         container.add_child(createButton);
 
+        // Add debug overlay if enabled (positioned outside dialog for clean screenshots)
+        const showDebugOverlay = this._settings.get_boolean('debug-layout-overlay');
+        if (showDebugOverlay && this._calculatedSpacing._dims) {
+            this._debugOverlay = this._createDebugOverlay();
+            // Position in top-left corner of screen
+            this._debugOverlay.set_position(monitor.x + 20, monitor.y + 20);
+        }
+
         this._addDebugRect(container, 'container', 'Main Dialog Container');
 
         this._container = container;
@@ -371,6 +475,11 @@ export class LayoutSwitcher {
         Main.uiGroup.add_child(this._dialog);
         this._dialog.set_position(monitor.x, monitor.y);
         this._dialog.set_size(monitor.width, monitor.height);
+
+        // Add debug overlay to uiGroup (outside dialog for clean screenshots)
+        if (this._debugOverlay) {
+            Main.uiGroup.add_child(this._debugOverlay);
+        }
 
         this._dialog.grab_key_focus();
     }
@@ -579,8 +688,21 @@ export class LayoutSwitcher {
             const modifiers = event.get_state();
             const ctrlPressed = (modifiers & Clutter.ModifierType.CONTROL_MASK) !== 0;
 
+            // Ctrl+D: Toggle debug rectangles
             if (ctrlPressed && (symbol === Clutter.KEY_d || symbol === Clutter.KEY_D)) {
                 this._toggleDebugMode();
+                return Clutter.EVENT_STOP;
+            }
+            
+            // Ctrl+T: Cycle through tiers (for debugging)
+            if (ctrlPressed && (symbol === Clutter.KEY_t || symbol === Clutter.KEY_T)) {
+                this._cycleTier();
+                return Clutter.EVENT_STOP;
+            }
+            
+            // Ctrl+O: Toggle debug overlay
+            if (ctrlPressed && (symbol === Clutter.KEY_o || symbol === Clutter.KEY_O)) {
+                this._toggleDebugOverlay();
                 return Clutter.EVENT_STOP;
             }
 

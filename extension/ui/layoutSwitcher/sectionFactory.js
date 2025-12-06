@@ -49,17 +49,17 @@ export function createTemplatesSection(ctx) {
     });
     section.add_child(header);
 
-    // Template cards in horizontal row (using spacing variables)
-    // Use scrollbar reserve for padding-right to match Custom Layouts section width
-    const scrollbarClearance = ctx._SCROLLBAR_RESERVE || Math.floor(ctx._cardWidth * 0.15);
-    
-    const templatesRow = new St.BoxLayout({
-        vertical: false,
-        style: `spacing: ${ctx._CARD_GAP}px; padding-left: ${ctx._GRID_ROW_PADDING_LEFT}px; padding-right: ${scrollbarClearance}px; padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`
-    });
-
     const templates = ctx._templateManager.getBuiltinTemplates();
     const currentLayout = ctx._getCurrentLayout();
+    
+    // Template cards in horizontal row - uses natural width (5 templates = 5 cards always)
+    // Matches Custom Layouts rows which also use natural width
+    const templatesRow = new St.BoxLayout({
+        vertical: false,
+        x_expand: false,
+        x_align: Clutter.ActorAlign.CENTER,  // Center the row
+        style: `spacing: ${ctx._CARD_GAP}px; padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`
+    });
 
     templates.forEach((template, index) => {
         const card = createTemplateCard(ctx, template, currentLayout, index);
@@ -85,7 +85,7 @@ export function createCustomLayoutsSection(ctx) {
     const colors = ctx._themeManager.getColors();
     
     // Outer section card with depth - expands to fill remaining space
-    // Uses configurable spacing variables for consistency with Templates section
+    // Uses symmetric padding for consistent alignment with Templates
     const section = new St.BoxLayout({
         vertical: true,
         x_expand: true,
@@ -165,7 +165,8 @@ export function createCustomLayoutsSection(ctx) {
 }
 
 /**
- * Create grid of custom layout cards
+ * Create grid of custom layout cards using fixed-width rows
+ * All rows have explicit width set to ensure uniform alignment when centered
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {Array} layouts - Array of custom layout definitions
  * @param {Object} currentLayout - Currently active layout
@@ -174,25 +175,36 @@ export function createCustomLayoutsSection(ctx) {
 export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
     const COLUMNS = ctx._customColumns;  // Always 5 columns
     
-    // Use dynamically calculated scrollbar reserve (from _calculateCardDimensions)
-    const scrollbarClearance = ctx._SCROLLBAR_RESERVE || Math.floor(ctx._cardWidth * 0.15);
+    // Calculate fixed row width: 5 cards + 4 gaps
+    const fixedRowWidth = (COLUMNS * ctx._cardWidth) + ((COLUMNS - 1) * ctx._CARD_GAP);
     
+    logger.info(`[GRID] Creating grid with COLUMNS=${COLUMNS}, layouts=${layouts.length}, fixedRowWidth=${fixedRowWidth}`);
+    
+    // Container holds all rows, centered
     const container = new St.BoxLayout({
         vertical: true,
-        style: `spacing: ${ctx._ROW_GAP}px; padding-right: ${scrollbarClearance}px;`
+        x_expand: false,
+        x_align: Clutter.ActorAlign.CENTER,
+        style: `spacing: ${ctx._ROW_GAP}px;`
     });
+    
+    ctx._addDebugRect(container, 'row', 'Custom Grid Container');
 
     let currentRow = null;
     const templateCount = ctx._templateManager.getBuiltinTemplates().length;
+    const totalRows = Math.ceil(layouts.length / COLUMNS);
     
     let rowNumber = 0;
     layouts.forEach((layout, index) => {
         const col = index % COLUMNS;
+        const isLastCard = index === layouts.length - 1;
 
         if (col === 0) {
+            // Create row - uses natural width (spacers ensure all rows have same width)
             currentRow = new St.BoxLayout({
                 vertical: false,
-                style: `spacing: ${ctx._CARD_GAP}px; padding-left: ${ctx._GRID_ROW_PADDING_LEFT}px; padding-right: ${ctx._GRID_ROW_PADDING_RIGHT}px; padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`
+                x_expand: false,
+                style: `spacing: ${ctx._CARD_GAP}px; padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`
             });
             ctx._addDebugRect(currentRow, 'row', `Custom Row ${rowNumber}`);
             rowNumber++;
@@ -204,6 +216,30 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
         ctx._addDebugRect(card, 'card', `Custom: ${layout.name}`);
         currentRow.add_child(card);
         ctx._allCards.push({ card, layout, isTemplate: false });
+        
+        // After the last card, add spacers to fill the row
+        if (isLastCard) {
+            const cardsInRow = col + 1;
+            const spacersNeeded = COLUMNS - cardsInRow;
+            
+            if (spacersNeeded > 0) {
+                logger.info(`[SPACER] Row ${rowNumber - 1}: Adding ${spacersNeeded} spacers (${cardsInRow} cards)`);
+                for (let i = 0; i < spacersNeeded; i++) {
+                    const spacer = new St.Widget({
+                        width: ctx._cardWidth,
+                        height: ctx._cardHeight,
+                        // Make visible in debug mode for troubleshooting
+                        opacity: ctx._debugMode ? 128 : 0,
+                        style: ctx._debugMode 
+                            ? `background-color: rgba(255, 0, 255, 0.5); border: 2px dashed magenta;`
+                            : '',
+                        reactive: false
+                    });
+                    currentRow.add_child(spacer);
+                    ctx._addDebugRect(spacer, 'spacer', `Spacer ${i + 1} of ${spacersNeeded}`);
+                }
+            }
+        }
     });
 
     return container;

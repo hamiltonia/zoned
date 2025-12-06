@@ -135,29 +135,32 @@ export function onResizeMotion(ctx, event) {
     const deltaY = y - ctx._resizeStartY;
     
     // Calculate new dimensions based on which corner
+    // Content-driven sizing: width and height resize independently
     let newWidth = ctx._resizeStartWidth;
     let newHeight = ctx._resizeStartHeight;
     
     switch (ctx._resizeCorner) {
         case 'se': // Bottom-right - most common
             newWidth = ctx._resizeStartWidth + deltaX;
+            newHeight = ctx._resizeStartHeight + deltaY;
             break;
         case 'sw': // Bottom-left
             newWidth = ctx._resizeStartWidth - deltaX;
+            newHeight = ctx._resizeStartHeight + deltaY;
             break;
         case 'ne': // Top-right
             newWidth = ctx._resizeStartWidth + deltaX;
+            newHeight = ctx._resizeStartHeight - deltaY;
             break;
         case 'nw': // Top-left
             newWidth = ctx._resizeStartWidth - deltaX;
+            newHeight = ctx._resizeStartHeight - deltaY;
             break;
     }
     
     // Apply minimum constraints
     newWidth = Math.max(ctx._MIN_DIALOG_WIDTH, newWidth);
-    
-    // Maintain aspect ratio
-    newHeight = Math.floor(newWidth / ctx._DIALOG_ASPECT_RATIO);
+    newHeight = Math.max(ctx._MIN_DIALOG_HEIGHT, newHeight);
     
     // Update container size directly (live preview)
     if (ctx._container) {
@@ -193,12 +196,14 @@ export function endResize(ctx) {
         ctx._resizeButtonReleaseId = null;
     }
     
-    // Get final dimensions from container
+    // Get final dimensions from container (both width and height, content-driven)
     if (ctx._container) {
-        const styleMatch = ctx._container.style.match(/width:\s*(\d+)px/);
-        if (styleMatch) {
-            const newWidth = parseInt(styleMatch[1]);
-            const newHeight = Math.floor(newWidth / ctx._DIALOG_ASPECT_RATIO);
+        const widthMatch = ctx._container.style.match(/width:\s*(\d+)px/);
+        const heightMatch = ctx._container.style.match(/height:\s*(\d+)px/);
+        
+        if (widthMatch && heightMatch) {
+            const newWidth = parseInt(widthMatch[1]);
+            const newHeight = parseInt(heightMatch[1]);
             
             logger.info(`Resize complete: ${newWidth}×${newHeight}`);
             
