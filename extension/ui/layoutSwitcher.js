@@ -748,14 +748,179 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Handle delete layout click - show confirmation
+     * Handle delete layout click - show inline confirmation
+     * Uses simple overlay instead of ModalDialog to avoid modal conflicts
      */
     _onDeleteClicked(layout) {
         logger.info(`Delete clicked for layout: ${layout.name}`);
         
-        // TODO: Implement confirmation dialog and actual deletion
-        logger.warn('Delete not yet implemented - this is a prototype');
-        this._zoneOverlay.showMessage(`Delete feature coming soon`);
+        // Create confirmation overlay
+        this._showDeleteConfirmation(layout);
+    }
+
+    /**
+     * Show inline delete confirmation dialog
+     * @param {Object} layout - Layout to delete
+     */
+    _showDeleteConfirmation(layout) {
+        // Remove any existing confirmation
+        if (this._confirmOverlay) {
+            this._confirmOverlay.destroy();
+            this._confirmOverlay = null;
+        }
+
+        const colors = this._themeManager.getColors();
+
+        // Semi-transparent backdrop
+        const backdrop = new St.Bin({
+            style: 'background-color: rgba(0, 0, 0, 0.5);',
+            reactive: true,
+            x_expand: true,
+            y_expand: true
+        });
+
+        // Confirmation box
+        const confirmBox = new St.BoxLayout({
+            vertical: true,
+            style: `background-color: ${colors.containerBg}; ` +
+                   `border-radius: 12px; ` +
+                   `padding: 24px; ` +
+                   `min-width: 300px; ` +
+                   `border: 1px solid ${colors.border};`,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: false,
+            y_expand: false
+        });
+
+        // Title
+        const title = new St.Label({
+            text: 'Delete Layout',
+            style: `color: ${colors.textPrimary}; font-size: 16px; font-weight: bold; margin-bottom: 12px;`
+        });
+        confirmBox.add_child(title);
+
+        // Message
+        const message = new St.Label({
+            text: `Are you sure you want to delete "${layout.name}"?\n\nThis action cannot be undone.`,
+            style: `color: ${colors.textSecondary}; font-size: 13px; margin-bottom: 20px;`
+        });
+        message.clutter_text.line_wrap = true;
+        confirmBox.add_child(message);
+
+        // Buttons
+        const buttonBox = new St.BoxLayout({
+            style: 'spacing: 12px;',
+            x_align: Clutter.ActorAlign.END
+        });
+
+        // Cancel button
+        const cancelBtn = new St.Button({
+            label: 'Cancel',
+            style: `background-color: ${colors.buttonBg}; ` +
+                   `color: ${colors.buttonText}; ` +
+                   `padding: 8px 20px; ` +
+                   `border-radius: 6px; ` +
+                   `font-weight: 500;`,
+            reactive: true,
+            track_hover: true
+        });
+        cancelBtn.connect('clicked', () => {
+            this._hideDeleteConfirmation();
+        });
+        buttonBox.add_child(cancelBtn);
+
+        // Delete button (destructive red)
+        const deleteBtn = new St.Button({
+            label: 'Delete',
+            style: `background-color: #c01c28; ` +
+                   `color: white; ` +
+                   `padding: 8px 20px; ` +
+                   `border-radius: 6px; ` +
+                   `font-weight: 500;`,
+            reactive: true,
+            track_hover: true
+        });
+        deleteBtn.connect('clicked', () => {
+            this._hideDeleteConfirmation();
+            
+            // Perform delete
+            if (this._layoutManager.deleteLayout(layout.id)) {
+                logger.info(`Layout deleted: ${layout.name}`);
+                this._zoneOverlay.showMessage(`Deleted: ${layout.name}`);
+                this._refreshDialog();
+            } else {
+                logger.error(`Failed to delete layout: ${layout.name}`);
+                this._zoneOverlay.showMessage(`Failed to delete layout`);
+            }
+        });
+        buttonBox.add_child(deleteBtn);
+
+        confirmBox.add_child(buttonBox);
+
+        // Wrapper to center the box
+        const wrapper = new St.Bin({
+            style: 'background-color: rgba(0, 0, 0, 0.5);',
+            x_expand: true,
+            y_expand: true,
+            x_align: Clutter.ActorAlign.FILL,
+            y_align: Clutter.ActorAlign.FILL,
+            child: confirmBox,
+            reactive: true
+        });
+
+        // Set confirmBox alignment within wrapper
+        wrapper.set_child(new St.BoxLayout({
+            x_expand: true,
+            y_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER
+        }));
+        wrapper.get_child().add_child(confirmBox);
+
+        // Click on backdrop to cancel
+        wrapper.connect('button-press-event', (actor, event) => {
+            const [clickX, clickY] = event.get_coords();
+            const boxAlloc = confirmBox.get_transformed_extents();
+            
+            const isOutside = clickX < boxAlloc.origin.x ||
+                              clickX > boxAlloc.origin.x + boxAlloc.size.width ||
+                              clickY < boxAlloc.origin.y ||
+                              clickY > boxAlloc.origin.y + boxAlloc.size.height;
+            
+            if (isOutside) {
+                this._hideDeleteConfirmation();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_STOP;
+        });
+
+        // Add overlay on top of the dialog container
+        this._confirmOverlay = wrapper;
+        this._dialog.add_child(wrapper);
+        
+        // Position overlay to cover the dialog
+        wrapper.set_position(0, 0);
+        const [dialogW, dialogH] = this._dialog.get_size();
+        wrapper.set_size(dialogW, dialogH);
+
+        // Focus the cancel button
+        cancelBtn.grab_key_focus();
+    }
+
+    /**
+     * Hide the delete confirmation overlay
+     */
+    _hideDeleteConfirmation() {
+        if (this._confirmOverlay) {
+            this._confirmOverlay.destroy();
+            this._confirmOverlay = null;
+        }
+        
+        // Return focus to dialog
+        if (this._dialog) {
+            this._dialog.grab_key_focus();
+        }
     }
 
     /**

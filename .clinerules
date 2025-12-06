@@ -20,16 +20,17 @@
 
 ## Git Workflow and Attribution
 - **CRITICAL**: ALWAYS ask for user approval before executing `git commit`
+- **CRITICAL**: Do NOT automatically prompt for commits after making changes - wait for user to explicitly request a commit
 - **Workflow**:
-  1. After making changes, use `git add` to stage the modified files
-  2. Prepare a descriptive commit message that includes "Created by Cline" or "Modified by Cline"
-  3. Present the staged changes and proposed commit message to the user
-  4. Use `ask_followup_question` to explicitly request approval to commit
+  1. Make the requested code changes
+  2. Inform user changes are complete and ready for testing
+  3. **Wait for user to request a commit** (do not auto-prompt)
+  4. When user asks to commit: stage files, prepare message, and ask for approval
   5. Only execute `git commit` after receiving explicit user approval
   6. If user declines, leave changes staged for manual handling
 - **Attribution Format**: Include "Created by Cline" or "Modified by Cline" in all commit messages
 - **Example**: "Fix shell configuration - Modified by Cline" or "Add memory bank entry - Created by Cline"
-- **Rationale**: This balances automation (prepared commits with good messages) with user control (review before finalizing)
+- **Rationale**: User controls the commit cadence - they may want to batch changes or test first
 
 ## Testing and Deployment
 - **CRITICAL**: NEVER execute `make install`, `make compile-schema`, or any deployment commands without explicit user permission
