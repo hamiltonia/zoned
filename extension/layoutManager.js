@@ -50,6 +50,7 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import { createLogger } from './utils/debug.js';
+import { TemplateManager } from './templateManager.js';
 
 const logger = createLogger('LayoutManager');
 
@@ -372,22 +373,45 @@ export class LayoutManager {
         const savedLayoutId = this._settings.get_string('current-layout-id');
         const savedZoneIndex = this._settings.get_int('current-zone-index');
         
-        // Try to restore saved layout
-        if (savedLayoutId && this.setLayout( savedLayoutId)) {
+        // Try to restore saved layout from persistent layouts first
+        if (savedLayoutId && this.setLayout(savedLayoutId)) {
             // Validate zone index
             if (this._currentLayout && savedZoneIndex >= 0 && 
                 savedZoneIndex < this._currentLayout.zones.length) {
                 this._currentZoneIndex = savedZoneIndex;
                 logger.info(`Restored state: ${savedLayoutId}, zone ${savedZoneIndex}`);
             }
-        } else {
-            // Fall back to first layout
-            if (this._layouts.length > 0) {
-                this._currentLayout = this._layouts[0];
-                this._currentZoneIndex = 0;
-                logger.info(`Using default layout: ${this._currentLayout.id}`);
-                this._saveState();
+            return;
+        }
+        
+        // If ID starts with "template-", recreate from template
+        if (savedLayoutId && savedLayoutId.startsWith('template-')) {
+            const templateId = savedLayoutId.replace('template-', '');
+            try {
+                const templateManager = new TemplateManager();
+                const layout = templateManager.createLayoutFromTemplate(templateId);
+                if (layout) {
+                    this.registerLayoutTemporary(layout);
+                    this._currentLayout = layout;
+                    this._currentZoneIndex = 0;
+                    // Validate zone index
+                    if (savedZoneIndex >= 0 && savedZoneIndex < layout.zones.length) {
+                        this._currentZoneIndex = savedZoneIndex;
+                    }
+                    logger.info(`Restored template layout: ${savedLayoutId}, zone ${this._currentZoneIndex}`);
+                    return;
+                }
+            } catch (e) {
+                logger.warn(`Failed to restore template '${templateId}': ${e}`);
             }
+        }
+        
+        // Fall back to first layout
+        if (this._layouts.length > 0) {
+            this._currentLayout = this._layouts[0];
+            this._currentZoneIndex = 0;
+            logger.info(`Using default layout: ${this._currentLayout.id}`);
+            this._saveState();
         }
     }
 
@@ -822,6 +846,35 @@ export class LayoutManager {
      */
     getAllLayoutsOrdered() {
         return this._layouts; // Already ordered by _applyLayoutOrder() 
+    }
+
+    /**
+     * Register a layout temporarily in memory (not persisted to disk)
+     * Used for template-derived layouts that shouldn't clutter custom layouts
+     * 
+     * @param {Object} layout - The layout to register
+     * @returns {boolean} True if registered successfully
+     */
+    registerLayoutTemporary(layout) {
+        // Validate layout structure
+        if (!this._validateLayout(layout)) {
+            logger.error('Cannot register invalid layout');
+            return false;
+        }
+        
+        // Check if already registered
+        const existingIndex = this._layouts.findIndex(l => l.id === layout.id);
+        if (existingIndex >= 0) {
+            // Update existing entry
+            this._layouts[existingIndex] = layout;
+            logger.debug(`Updated temporary layout: ${layout.id}`);
+        } else {
+            // Add to in-memory array only (not saved to disk)
+            this._layouts.push(layout);
+            logger.info(`Registered temporary layout: ${layout.id}`);
+        }
+        
+        return true;
     }
 
     /**

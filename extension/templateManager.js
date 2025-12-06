@@ -123,7 +123,7 @@ export class TemplateManager {
         }
 
         const layout = {
-            id: `layout-${Date.now()}`,
+            id: `template-${templateId}`,  // Stable ID for persistence across reloads
             name: template.name,
             zones: JSON.parse(JSON.stringify(template.zones)) // Deep copy
         };

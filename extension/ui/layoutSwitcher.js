@@ -534,10 +534,21 @@ export class LayoutSwitcher {
 
     /**
      * Check if a layout is currently active
+     * Handles both custom layouts and templates
      */
     _isLayoutActive(layout, currentLayout) {
         if (!currentLayout || !layout) return false;
-        return layout.id === currentLayout.id;
+        
+        // Direct match (custom layouts or already-applied templates)
+        if (layout.id === currentLayout.id) return true;
+        
+        // Template match: template.id='focus' matches currentLayout.id='template-focus'
+        if (currentLayout.id.startsWith('template-')) {
+            const activeTemplateId = currentLayout.id.replace('template-', '');
+            return layout.id === activeTemplateId;
+        }
+        
+        return false;
     }
 
     /**
@@ -547,6 +558,10 @@ export class LayoutSwitcher {
         logger.info(`Template clicked: ${template.name}`);
 
         const layout = this._templateManager.createLayoutFromTemplate(template.id);
+        
+        // Register the template-derived layout in memory (not persisted to disk)
+        // This allows setLayout() to find it without cluttering custom layouts
+        this._layoutManager.registerLayoutTemporary(layout);
         
         this._applyLayout(layout);
         this._zoneOverlay.showMessage(`Switched to: ${template.name}`);
