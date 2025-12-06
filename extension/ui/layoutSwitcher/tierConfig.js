@@ -42,14 +42,15 @@ export const TIERS = {
         sectionPadding: 8,    // Padding inside section containers
         sectionGap: 12,       // Gap between sections (templates, custom)
         containerPadding: 8,  // Top/bottom padding of main dialog container
-        // Fixed UI elements (topBarHeight increased for future monitor thumbnails)
-        topBarHeight: 60,
+        // Fixed UI elements (topBarHeight sized for workspace thumbnails)
+        topBarHeight: 72,     // Increased to fit 16:9 workspace thumbnails
         sectionHeaderHeight: 24,
         sectionHeaderMargin: 8,
         buttonHeight: 40,
         buttonMargin: 12,
-        // Workspace thumbnails (16:9)
-        workspaceThumb: { w: 36, h: 20 },
+        // Workspace thumbnails (16:9 aspect ratio, scaled to fit in topBar)
+        workspaceThumb: { w: 64, h: 36 },
+        workspaceThumbGap: 6, // Gap between workspace thumbnails
         // Border radius
         containerRadius: 8,
         sectionRadius: 6,
@@ -67,14 +68,15 @@ export const TIERS = {
         sectionPadding: 12,
         sectionGap: 14,
         containerPadding: 12,
-        // Fixed UI elements (topBarHeight increased for future monitor thumbnails)
-        topBarHeight: 70,
+        // Fixed UI elements (topBarHeight sized for workspace thumbnails)
+        topBarHeight: 84,     // Increased to fit 16:9 workspace thumbnails
         sectionHeaderHeight: 28,
         sectionHeaderMargin: 12,
         buttonHeight: 46,
         buttonMargin: 14,
-        // Workspace thumbnails (16:9)
-        workspaceThumb: { w: 48, h: 27 },
+        // Workspace thumbnails (16:9 aspect ratio, scaled to fit in topBar)
+        workspaceThumb: { w: 80, h: 45 },
+        workspaceThumbGap: 8, // Gap between workspace thumbnails
         // Border radius
         containerRadius: 10,
         sectionRadius: 8,
@@ -92,14 +94,15 @@ export const TIERS = {
         sectionPadding: 14,
         sectionGap: 16,
         containerPadding: 14,
-        // Fixed UI elements (topBarHeight increased for future monitor thumbnails)
-        topBarHeight: 80,
+        // Fixed UI elements (topBarHeight sized for workspace thumbnails)
+        topBarHeight: 96,     // Increased to fit 16:9 workspace thumbnails
         sectionHeaderHeight: 30,
         sectionHeaderMargin: 14,
         buttonHeight: 50,
         buttonMargin: 16,
-        // Workspace thumbnails (16:9)
-        workspaceThumb: { w: 56, h: 32 },
+        // Workspace thumbnails (16:9 aspect ratio, scaled to fit in topBar)
+        workspaceThumb: { w: 96, h: 54 },
+        workspaceThumbGap: 10, // Gap between workspace thumbnails
         // Border radius
         containerRadius: 12,
         sectionRadius: 10,
@@ -117,14 +120,15 @@ export const TIERS = {
         sectionPadding: 16,
         sectionGap: 18,
         containerPadding: 16,
-        // Fixed UI elements (topBarHeight increased for future monitor thumbnails)
-        topBarHeight: 90,
+        // Fixed UI elements (topBarHeight sized for workspace thumbnails)
+        topBarHeight: 108,    // Increased to fit 16:9 workspace thumbnails
         sectionHeaderHeight: 30,
         sectionHeaderMargin: 16,
         buttonHeight: 50,
         buttonMargin: 16,
-        // Workspace thumbnails (16:9)
-        workspaceThumb: { w: 64, h: 36 },
+        // Workspace thumbnails (16:9 aspect ratio, scaled to fit in topBar)
+        workspaceThumb: { w: 112, h: 63 },
+        workspaceThumbGap: 12, // Gap between workspace thumbnails
         // Border radius
         containerRadius: 14,
         sectionRadius: 12,
@@ -142,14 +146,15 @@ export const TIERS = {
         sectionPadding: 20,
         sectionGap: 22,
         containerPadding: 20,
-        // Fixed UI elements (topBarHeight increased for future monitor thumbnails)
-        topBarHeight: 100,
+        // Fixed UI elements (topBarHeight sized for workspace thumbnails)
+        topBarHeight: 120,    // Increased to fit 16:9 workspace thumbnails
         sectionHeaderHeight: 34,
         sectionHeaderMargin: 18,
         buttonHeight: 54,
         buttonMargin: 18,
-        // Workspace thumbnails (16:9)
-        workspaceThumb: { w: 72, h: 40 },
+        // Workspace thumbnails (16:9 aspect ratio, scaled to fit in topBar)
+        workspaceThumb: { w: 128, h: 72 },
+        workspaceThumbGap: 14, // Gap between workspace thumbnails
         // Border radius
         containerRadius: 16,
         sectionRadius: 14,

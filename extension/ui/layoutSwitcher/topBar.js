@@ -4,9 +4,10 @@
  * Responsible for:
  * - Top bar container with horizontal layout
  * - Monitor pill dropdown selector
- * - Workspace pill buttons (1, 2, 3, 4...)
+ * - Workspace thumbnail buttons (16:9 with zone preview)
  * - "Apply to all workspaces" global checkbox
  * - Monitor dropdown menu and selection handling
+ * - Disabled state for workspace thumbnails when applying globally
  * 
  * Part of the LayoutSwitcher module split for maintainability.
  */
@@ -15,6 +16,7 @@ import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { createLogger } from '../../utils/debug.js';
+import { createZonePreview } from './cardFactory.js';
 
 const logger = createLogger('TopBar');
 
@@ -185,103 +187,193 @@ export function createMonitorPill(ctx) {
 }
 
 /**
- * Create compact pill-style workspace buttons
+ * Create workspace thumbnails with 16:9 zone previews
+ * Shows the currently applied layout for each workspace
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.BoxLayout} The workspace pills container
+ * @returns {St.BoxLayout} The workspace thumbnails container
  */
-export function createWorkspacePills(ctx) {
+export function createWorkspaceThumbnails(ctx) {
     const colors = ctx._themeManager.getColors();
+    const tier = ctx._currentTier;
+    const thumbW = tier.workspaceThumb.w;
+    const thumbH = tier.workspaceThumb.h;
+    const thumbGap = tier.workspaceThumbGap || 8;
+    const thumbRadius = Math.max(2, tier.cardRadius);
+    
+    // Determine if thumbnails should be disabled (when applying globally)
+    const isDisabled = ctx._applyGlobally;
     
     const container = new St.BoxLayout({
         vertical: false,
-        style: `spacing: 8px; 
-                background-color: ${colors.inputBg}; 
-                border-radius: 20px; 
-                padding: 4px;`,
+        style: `spacing: ${thumbGap}px;`,
         y_align: Clutter.ActorAlign.CENTER
     });
 
     const nWorkspaces = global.workspace_manager.get_n_workspaces();
     ctx._workspaceButtons = [];
 
+    // Get the current layout to show in all thumbnails
+    // (Same for all workspaces until per-workspace layouts are implemented)
+    const currentLayout = ctx._getCurrentLayout();
+
     for (let i = 0; i < nWorkspaces; i++) {
         const isActive = i === ctx._currentWorkspace;
         
-        const pill = new St.Button({
-            style_class: 'workspace-pill',
-            style: `padding: 6px 16px; ` +
-                   `border-radius: 16px; ` +
-                   `background-color: ${isActive ? colors.accentHex : 'transparent'}; ` +
-                   `color: ${isActive ? 'white' : colors.textMuted}; ` +
-                   `font-size: 12px; ` +
-                   `font-weight: ${isActive ? '600' : '500'};`,
-            reactive: true,
-            track_hover: true
+        // Workspace thumbnail button
+        const thumb = new St.Button({
+            style_class: 'workspace-thumbnail',
+            style: getWorkspaceThumbnailStyle(ctx, isActive, isDisabled, thumbW, thumbH, thumbRadius),
+            reactive: !isDisabled,
+            track_hover: !isDisabled,
+            can_focus: !isDisabled
         });
-
-        const label = new St.Label({
+        
+        // Container for layering (preview + badge)
+        const thumbContainer = new St.Widget({
+            layout_manager: new Clutter.BinLayout(),
+            width: thumbW,
+            height: thumbH,
+            clip_to_allocation: true,
+            style: `border-radius: ${thumbRadius}px;`
+        });
+        
+        // Zone preview layer
+        const previewContainer = new St.Bin({
+            x_align: Clutter.ActorAlign.FILL,
+            y_align: Clutter.ActorAlign.FILL,
+            x_expand: true,
+            y_expand: true,
+            clip_to_allocation: true,
+            style: `border-radius: ${thumbRadius}px;`
+        });
+        
+        // Get zones for this workspace (currently same as current layout)
+        const zones = currentLayout?.zones || [];
+        
+        const preview = createZonePreview(ctx, zones, thumbW, thumbH);
+        previewContainer.set_child(preview);
+        thumbContainer.add_child(previewContainer);
+        
+        // Workspace number badge (overlaid in corner)
+        const badge = new St.Label({
             text: `${i + 1}`,
-            y_align: Clutter.ActorAlign.CENTER
+            style: `font-size: 9px; ` +
+                   `font-weight: 700; ` +
+                   `color: white; ` +
+                   `background-color: rgba(0, 0, 0, 0.6); ` +
+                   `border-radius: 3px; ` +
+                   `padding: 1px 4px; ` +
+                   `margin: 2px;`,
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.START
         });
-        pill.set_child(label);
-
+        thumbContainer.add_child(badge);
+        
+        // Disabled overlay (when applying globally)
+        if (isDisabled) {
+            const disabledOverlay = new St.Bin({
+                style: `background-color: rgba(0, 0, 0, 0.4); border-radius: ${thumbRadius}px;`,
+                x_expand: true,
+                y_expand: true
+            });
+            thumbContainer.add_child(disabledOverlay);
+        }
+        
+        thumb.set_child(thumbContainer);
+        
         // Store for later reference
-        pill._workspaceIndex = i;
-        pill._label = label;
+        thumb._workspaceIndex = i;
+        thumb._isDisabled = isDisabled;
+        
+        if (!isDisabled) {
+            // Hover effects (only when not disabled)
+            thumb.connect('enter-event', () => {
+                if (i !== ctx._currentWorkspace) {
+                    thumb.style = getWorkspaceThumbnailStyle(ctx, false, false, thumbW, thumbH, thumbRadius, true);
+                }
+            });
 
-        // Hover effects
-        pill.connect('enter-event', () => {
-            if (i !== ctx._currentWorkspace) {
-                const c = ctx._themeManager.getColors();
-                pill.style = `padding: 6px 16px; ` +
-                            `border-radius: 16px; ` +
-                            `background-color: ${c.accentRGBA(0.3)}; ` +
-                            `color: ${c.textPrimary}; ` +
-                            `font-size: 12px; ` +
-                            `font-weight: 500;`;
-            }
-        });
+            thumb.connect('leave-event', () => {
+                if (i !== ctx._currentWorkspace) {
+                    thumb.style = getWorkspaceThumbnailStyle(ctx, false, false, thumbW, thumbH, thumbRadius, false);
+                }
+            });
 
-        pill.connect('leave-event', () => {
-            if (i !== ctx._currentWorkspace) {
-                const c = ctx._themeManager.getColors();
-                pill.style = `padding: 6px 16px; ` +
-                            `border-radius: 16px; ` +
-                            `background-color: transparent; ` +
-                            `color: ${c.textMuted}; ` +
-                            `font-size: 12px; ` +
-                            `font-weight: 500;`;
-            }
-        });
+            thumb.connect('clicked', () => {
+                onWorkspaceThumbnailClicked(ctx, i);
+            });
+        }
 
-        pill.connect('clicked', () => {
-            onWorkspacePillClicked(ctx, i);
-        });
-
-        ctx._workspaceButtons.push(pill);
-        container.add_child(pill);
+        ctx._workspaceButtons.push(thumb);
+        container.add_child(thumb);
     }
+    
+    // Store container reference for updating disabled state
+    ctx._workspaceThumbnailsContainer = container;
 
     return container;
 }
 
 /**
- * Handle workspace pill click
+ * Get workspace thumbnail style based on state
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param {boolean} isActive - Whether this workspace is selected
+ * @param {boolean} isDisabled - Whether thumbnails are disabled (applying globally)
+ * @param {number} width - Thumbnail width
+ * @param {number} height - Thumbnail height
+ * @param {number} radius - Border radius
+ * @param {boolean} isHovered - Whether the thumbnail is being hovered
+ * @returns {string} CSS style string
+ */
+function getWorkspaceThumbnailStyle(ctx, isActive, isDisabled, width, height, radius, isHovered = false) {
+    const colors = ctx._themeManager.getColors();
+    
+    let baseStyle = `width: ${width}px; height: ${height}px; ` +
+                    `border-radius: ${radius}px; ` +
+                    `padding: 0; overflow: hidden; `;
+    
+    if (isDisabled) {
+        // Disabled state: muted appearance, no border highlight
+        baseStyle += `background-color: ${colors.cardBg}; ` +
+                     `border: 2px solid ${colors.borderLight}; ` +
+                     `opacity: 0.5;`;
+    } else if (isActive) {
+        // Active state: accent border and subtle background
+        baseStyle += `background-color: ${colors.accentRGBA(0.15)}; ` +
+                     `border: 2px solid ${colors.accentHex}; ` +
+                     `box-shadow: 0 0 0 1px ${colors.accentRGBA(0.3)};`;
+    } else if (isHovered) {
+        // Hover state: accent border, slightly highlighted
+        baseStyle += `background-color: ${colors.accentRGBA(0.1)}; ` +
+                     `border: 2px solid ${colors.accentHex};`;
+    } else {
+        // Default state: subtle border
+        baseStyle += `background-color: ${colors.cardBg}; ` +
+                     `border: 2px solid ${colors.borderLight};`;
+    }
+    
+    return baseStyle;
+}
+
+/**
+ * Handle workspace thumbnail click
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {number} workspaceIndex - Index of clicked workspace
  */
-export function onWorkspacePillClicked(ctx, workspaceIndex) {
-    const colors = ctx._themeManager.getColors();
+export function onWorkspaceThumbnailClicked(ctx, workspaceIndex) {
+    // Don't respond if disabled
+    if (ctx._applyGlobally) return;
     
-    // Update previous active pill
-    ctx._workspaceButtons.forEach((pill, index) => {
+    const colors = ctx._themeManager.getColors();
+    const tier = ctx._currentTier;
+    const thumbW = tier.workspaceThumb.w;
+    const thumbH = tier.workspaceThumb.h;
+    const thumbRadius = Math.max(2, tier.cardRadius);
+    
+    // Update all thumbnail styles
+    ctx._workspaceButtons.forEach((thumb, index) => {
         const isActive = index === workspaceIndex;
-        pill.style = `padding: 6px 16px; ` +
-                    `border-radius: 16px; ` +
-                    `background-color: ${isActive ? colors.accentHex : 'transparent'}; ` +
-                    `color: ${isActive ? 'white' : colors.textMuted}; ` +
-                    `font-size: 12px; ` +
-                    `font-weight: ${isActive ? '600' : '500'};`;
+        thumb.style = getWorkspaceThumbnailStyle(ctx, isActive, false, thumbW, thumbH, thumbRadius);
     });
 
     ctx._currentWorkspace = workspaceIndex;
@@ -290,6 +382,55 @@ export function onWorkspacePillClicked(ctx, workspaceIndex) {
     // Refresh layout cards to show current workspace's active layout
     ctx._refreshDialog();
 }
+
+/**
+ * Update workspace thumbnails disabled state
+ * Called when "Apply to all workspaces" checkbox is toggled
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ */
+export function updateWorkspaceThumbnailsDisabledState(ctx) {
+    const isDisabled = ctx._applyGlobally;
+    const tier = ctx._currentTier;
+    const thumbW = tier.workspaceThumb.w;
+    const thumbH = tier.workspaceThumb.h;
+    const thumbRadius = Math.max(2, tier.cardRadius);
+    
+    ctx._workspaceButtons.forEach((thumb, index) => {
+        const isActive = index === ctx._currentWorkspace;
+        thumb.style = getWorkspaceThumbnailStyle(ctx, isActive, isDisabled, thumbW, thumbH, thumbRadius);
+        thumb.reactive = !isDisabled;
+        thumb.track_hover = !isDisabled;
+        thumb.can_focus = !isDisabled;
+        thumb._isDisabled = isDisabled;
+        
+        // Update disabled overlay visibility
+        const container = thumb.get_child();
+        if (container) {
+            const children = container.get_children();
+            // Find existing disabled overlay (last child if present)
+            const lastChild = children[children.length - 1];
+            if (lastChild && lastChild.style?.includes('rgba(0, 0, 0, 0.4)')) {
+                // Remove existing overlay
+                container.remove_child(lastChild);
+                lastChild.destroy();
+            }
+            
+            // Add new overlay if disabled
+            if (isDisabled) {
+                const disabledOverlay = new St.Bin({
+                    style: `background-color: rgba(0, 0, 0, 0.4); border-radius: ${thumbRadius}px;`,
+                    x_expand: true,
+                    y_expand: true
+                });
+                container.add_child(disabledOverlay);
+            }
+        }
+    });
+}
+
+// Keep old function name as alias for backwards compatibility
+export const createWorkspacePills = createWorkspaceThumbnails;
+export const onWorkspacePillClicked = onWorkspaceThumbnailClicked;
 
 /**
  * Create "Apply to all" checkbox group
@@ -360,6 +501,9 @@ export function createGlobalCheckbox(ctx) {
         } else {
             ctx._applyGloballyCheckbox.set_child(null);
         }
+        
+        // Update workspace thumbnails disabled state
+        updateWorkspaceThumbnailsDisabledState(ctx);
     };
 
     label.connect('button-press-event', () => {
