@@ -356,6 +356,7 @@ export class LayoutSwitcher {
         this._previewWidth = dims.previewWidth;
         this._previewHeight = dims.previewHeight;
         this._customColumns = dims.customColumns;
+        this._cardRadius = this._currentTier.cardRadius;
         
         // Apply calculated spacing
         const spacing = this._calculatedSpacing;
@@ -788,6 +789,7 @@ export class LayoutSwitcher {
         const accentHex = colors.accentHex;
         const accentRGBAActive = colors.accentRGBA(0.3);
         const accentRGBAFocus = colors.accentRGBA(0.4);
+        const cardRadius = this._cardRadius;
 
         this._allCards.forEach((cardObj, index) => {
             const isFocused = index === this._selectedCardIndex;
@@ -795,18 +797,18 @@ export class LayoutSwitcher {
             const isActive = this._isLayoutActive(cardObj.layout, currentLayout);
 
             if (isFocused) {
-                cardObj.card.style = `padding: 0; border-radius: 8px; ` +
+                cardObj.card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
                                     `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
                                     `background-color: ${accentRGBAFocus}; ` +
                                     `border: 2px solid ${accentHex}; ` +
                                     `box-shadow: 0 0 0 3px ${accentHex}, 0 4px 12px rgba(0, 0, 0, 0.3);`;
             } else if (isActive) {
-                cardObj.card.style = `padding: 0; border-radius: 8px; ` +
+                cardObj.card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
                                     `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
                                     `background-color: ${accentRGBAActive}; ` +
                                     `border: 2px solid ${accentHex};`;
             } else {
-                cardObj.card.style = `padding: 0; border-radius: 8px; ` +
+                cardObj.card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
                                     `width: ${this._cardWidth}px; height: ${this._cardHeight}px; ` +
                                     `background-color: ${colors.cardBg}; ` +
                                     `border: 2px solid transparent;`;

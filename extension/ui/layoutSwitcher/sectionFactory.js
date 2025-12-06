@@ -247,6 +247,7 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
 
 /**
  * Create "Create new layout" button
+ * Scales proportionally with tier size
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @returns {St.Button} The create button widget
  */
@@ -254,13 +255,28 @@ export function createNewLayoutButton(ctx) {
     const colors = ctx._themeManager.getColors();
     const accentHex = colors.accentHex;
     const accentHexHover = colors.accentHexHover;
+    
+    // Use tier-based sizing
+    const buttonHeight = ctx._calculatedSpacing.createButtonHeight;
+    const buttonMargin = ctx._calculatedSpacing.createButtonMargin;
+    const cardRadius = ctx._cardRadius;
+    
+    // Scale padding proportionally with button height
+    // Base: 16px vertical at 50px height = 0.32 ratio
+    // Base: 32px horizontal at 50px height = 0.64 ratio
+    const verticalPadding = Math.floor(buttonHeight * 0.32);
+    const horizontalPadding = Math.floor(buttonHeight * 0.64);
+    
+    // Scale font size proportionally
+    // Base: 13pt at 50px height = 0.26 ratio
+    const fontSize = Math.max(10, Math.floor(buttonHeight * 0.26));
 
     const button = new St.Button({
         style_class: 'create-new-button',
-        style: `padding: 16px 32px; ` +
+        style: `padding: ${verticalPadding}px ${horizontalPadding}px; ` +
                `background-color: ${accentHex}; ` +
-               `border-radius: 8px; ` +
-               `margin-top: 16px;`,
+               `border-radius: ${cardRadius}px; ` +
+               `margin-top: ${buttonMargin}px;`,
         x_align: Clutter.ActorAlign.CENTER,
         reactive: true,
         track_hover: true
@@ -268,7 +284,7 @@ export function createNewLayoutButton(ctx) {
 
     const label = new St.Label({
         text: '✚ Create new layout',
-        style: 'color: white; font-size: 13pt; font-weight: bold;'
+        style: `color: white; font-size: ${fontSize}pt; font-weight: bold;`
     });
     button.set_child(label);
 
@@ -276,19 +292,19 @@ export function createNewLayoutButton(ctx) {
         ctx._onCreateNewLayoutClicked();
     });
 
-    // Hover effects
+    // Hover effects - use same tier-based values
     button.connect('enter-event', () => {
-        button.style = `padding: 16px 32px; ` +
+        button.style = `padding: ${verticalPadding}px ${horizontalPadding}px; ` +
                       `background-color: ${accentHexHover}; ` +
-                      `border-radius: 8px; ` +
-                      `margin-top: 16px;`;
+                      `border-radius: ${cardRadius}px; ` +
+                      `margin-top: ${buttonMargin}px;`;
     });
 
     button.connect('leave-event', () => {
-        button.style = `padding: 16px 32px; ` +
+        button.style = `padding: ${verticalPadding}px ${horizontalPadding}px; ` +
                       `background-color: ${accentHex}; ` +
-                      `border-radius: 8px; ` +
-                      `margin-top: 16px;`;
+                      `border-radius: ${cardRadius}px; ` +
+                      `margin-top: ${buttonMargin}px;`;
     });
 
     return button;

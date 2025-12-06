@@ -29,11 +29,12 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
     const isActive = ctx._isLayoutActive(template, currentLayout);
     const accentHex = colors.accentHex;
     const accentRGBA = colors.accentRGBA(0.3);
+    const cardRadius = ctx._cardRadius;
 
     const card = new St.Button({
         style_class: 'template-card',
         style: `padding: 0; ` +
-               `border-radius: 8px; ` +
+               `border-radius: ${cardRadius}px; ` +
                `width: ${ctx._cardWidth}px; ` +
                `height: ${ctx._cardHeight}px; ` +
                `overflow: hidden; ` +
@@ -51,7 +52,7 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
         x_expand: true,
         y_expand: true,
         clip_to_allocation: true,
-        style: 'border-radius: 8px;'  // Match card border-radius for proper clipping
+        style: `border-radius: ${cardRadius}px;`  // Match card border-radius for proper clipping
     });
 
     // Zone preview background (wrapped in constraining container)
@@ -61,7 +62,7 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
         x_expand: true,
         y_expand: true,
         clip_to_allocation: true,
-        style: 'border-radius: 8px 8px 0 0;'  // Round top corners only
+        style: `border-radius: ${cardRadius}px ${cardRadius}px 0 0;`  // Round top corners only
     });
     
     const preview = createZonePreview(
@@ -96,7 +97,7 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
     card.connect('enter-event', () => {
         if (!isActive) {
             const c = ctx._themeManager.getColors();
-            card.style = `padding: 0; border-radius: 8px; ` +
+            card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
                         `width: ${ctx._cardWidth}px; height: ${ctx._cardHeight}px; ` +
                         `overflow: hidden; ` +
                         `background-color: ${c.accentRGBA(0.35)}; border: 2px solid ${c.accentHex}; ` +
@@ -123,7 +124,7 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
     card.connect('leave-event', () => {
         if (!isActive) {
             const c = ctx._themeManager.getColors();
-            card.style = `padding: 0; border-radius: 8px; ` +
+            card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
                         `width: ${ctx._cardWidth}px; height: ${ctx._cardHeight}px; ` +
                         `overflow: hidden; ` +
                         `background-color: ${c.cardBgTemplate}; border: 2px solid transparent;`;
@@ -162,11 +163,12 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
     const isActive = ctx._isLayoutActive(layout, currentLayout);
     const accentHex = colors.accentHex;
     const accentRGBA = colors.accentRGBA(0.3);
+    const cardRadius = ctx._cardRadius;
 
     const card = new St.Button({
         style_class: 'custom-layout-card',
         style: `padding: 0; ` +
-               `border-radius: 8px; ` +
+               `border-radius: ${cardRadius}px; ` +
                `width: ${ctx._cardWidth}px; ` +
                `height: ${ctx._cardHeight}px; ` +
                `overflow: hidden; ` +
@@ -184,7 +186,7 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
         x_expand: true,
         y_expand: true,
         clip_to_allocation: true,
-        style: 'border-radius: 8px;'  // Match card border-radius for proper clipping
+        style: `border-radius: ${cardRadius}px;`  // Match card border-radius for proper clipping
     });
 
     // Zone preview background (wrapped in constraining container)
@@ -194,7 +196,7 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
         x_expand: true,
         y_expand: true,
         clip_to_allocation: true,
-        style: 'border-radius: 8px 8px 0 0;'  // Round top corners only
+        style: `border-radius: ${cardRadius}px ${cardRadius}px 0 0;`  // Round top corners only
     });
     
     const preview = createZonePreview(
@@ -228,7 +230,7 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
     card.connect('enter-event', () => {
         if (!isActive) {
             const c = ctx._themeManager.getColors();
-            card.style = `padding: 0; border-radius: 8px; ` +
+            card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
                         `width: ${ctx._cardWidth}px; height: ${ctx._cardHeight}px; ` +
                         `overflow: hidden; ` +
                         `background-color: ${c.accentRGBA(0.35)}; border: 2px solid ${c.accentHex}; ` +
@@ -255,7 +257,7 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
     card.connect('leave-event', () => {
         if (!isActive) {
             const c = ctx._themeManager.getColors();
-            card.style = `padding: 0; border-radius: 8px; ` +
+            card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
                         `width: ${ctx._cardWidth}px; height: ${ctx._cardHeight}px; ` +
                         `overflow: hidden; ` +
                         `background-color: ${c.cardBg}; border: 2px solid transparent;`;
@@ -292,13 +294,20 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
  */
 export function createCardBottomBar(ctx, name, isTemplate, layout) {
     const colors = ctx._themeManager.getColors();
-    const accentRGB = colors.accentRGBA(0.6);
+    const cardRadius = ctx._cardRadius;
+    
+    // Use grey for bottom bar instead of accent color (accent only for selection rects)
+    // Higher opacity (0.85) for better readability
+    const greyBg = colors.isDark ? 'rgba(100, 100, 100, 0.85)' : 'rgba(80, 80, 80, 0.85)';
     
     // Calculate proportional bottom bar height
     const bottomBarHeight = Math.max(
         ctx._CARD_BOTTOM_BAR_MIN_HEIGHT,
         Math.floor(ctx._cardHeight * ctx._CARD_BOTTOM_BAR_RATIO)
     );
+    
+    // Bottom bar radius is slightly smaller than card radius to fit inside
+    const bottomBarRadius = Math.max(4, cardRadius - 2);
     
     const bottomBar = new St.Widget({
         layout_manager: new Clutter.BinLayout(),
@@ -307,10 +316,11 @@ export function createCardBottomBar(ctx, name, isTemplate, layout) {
         x_expand: true
     });
 
-    // Background in accent color - subtle by default, more opaque on hover
+    // Background in grey - subtle by default, more opaque on hover
+    // Accent color is only used for selection rects
     const background = new St.Bin({
-        style: `background-color: ${accentRGB}; ` +
-               'border-radius: 0 0 6px 6px;',
+        style: `background-color: ${greyBg}; ` +
+               `border-radius: 0 0 ${bottomBarRadius}px ${bottomBarRadius}px;`,
         x_expand: true,
         y_expand: true,
         opacity: ctx._CARD_BOTTOM_BAR_DEFAULT_OPACITY
@@ -480,6 +490,7 @@ export function createCardBottomBar(ctx, name, isTemplate, layout) {
 /**
  * Create visual zone preview using Cairo
  * Grey fill for zones, accent color only for grid lines (borders)
+ * Zones are inset by 2px to avoid clipping at rounded corners
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {Array} zones - Array of zone definitions
  * @param {number} width - Preview width
@@ -488,9 +499,11 @@ export function createCardBottomBar(ctx, name, isTemplate, layout) {
  */
 export function createZonePreview(ctx, zones, width, height) {
     const colors = ctx._themeManager.getColors();
+    const cardRadius = ctx._cardRadius;
     
+    // Canvas background is transparent so card accent color shows through on hover/selection
     const canvas = new St.DrawingArea({
-        style: `background-color: ${colors.canvasBg};`,
+        style: `background-color: transparent;`,
         x_expand: true,
         y_expand: true
     });
@@ -503,32 +516,18 @@ export function createZonePreview(ctx, zones, width, height) {
             const cr = canvas.get_context();
             const [w, h] = canvas.get_surface_size();
 
-            // Create rounded rectangle clipping path for top corners only
-            // (bottom corners are covered by the bottom bar)
-            const radius = 8;
-            const degrees = Math.PI / 180.0;
-            
-            cr.newPath();
-            // Top-right corner (rounded)
-            cr.arc(w - radius, radius, radius, -90 * degrees, 0 * degrees);
-            // Right edge
-            cr.lineTo(w, h);
-            // Bottom edge (no rounding)
-            cr.lineTo(0, h);
-            // Left edge
-            cr.lineTo(0, radius);
-            // Top-left corner (rounded)
-            cr.arc(radius, radius, radius, 180 * degrees, 270 * degrees);
-            cr.closePath();
-            
-            // Apply clipping - all subsequent drawing will be constrained to this path
-            cr.clip();
+            // Inset margin to avoid clipping at rounded corners
+            // This creates a visual border around the zone preview
+            const inset = 4;
+            const drawW = w - (inset * 2);  // Available width for zones
+            const drawH = h - (inset * 2);  // Available height for zones
 
             zones.forEach((zone) => {
-                const x = zone.x * w;
-                const y = zone.y * h;
-                const zoneW = zone.w * w;
-                const zoneH = zone.h * h;
+                // Calculate zone position within the inset area
+                const x = inset + (zone.x * drawW);
+                const y = inset + (zone.y * drawH);
+                const zoneW = zone.w * drawW;
+                const zoneH = zone.h * drawH;
 
                 // Fill with grey (not accent color)
                 const greyValue = isDark ? 0.5 : 0.4;  // Grey intensity
@@ -537,13 +536,9 @@ export function createZonePreview(ctx, zones, width, height) {
                 cr.rectangle(x, y, zoneW, zoneH);
                 cr.fill();
 
-                // Border/grid lines use accent color
-                cr.setSourceRGBA(
-                    accentColor.red,
-                    accentColor.green,
-                    accentColor.blue,
-                    0.8
-                );
+                // Border/grid lines use grey (accent color only for selection rects)
+                const borderGrey = isDark ? 0.7 : 0.35;  // Visible but not accent
+                cr.setSourceRGBA(borderGrey, borderGrey, borderGrey, 0.9);
                 cr.setLineWidth(1);
                 cr.rectangle(x, y, zoneW, zoneH);
                 cr.stroke();

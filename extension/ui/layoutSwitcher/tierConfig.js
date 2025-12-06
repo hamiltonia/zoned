@@ -53,7 +53,7 @@ export const TIERS = {
         // Border radius
         containerRadius: 8,
         sectionRadius: 6,
-        cardRadius: 6,
+        cardRadius: 4,  // Reduced for more square appearance
     },
     SMALL: {
         name: 'SMALL',
@@ -78,7 +78,7 @@ export const TIERS = {
         // Border radius
         containerRadius: 10,
         sectionRadius: 8,
-        cardRadius: 8,
+        cardRadius: 4,  // Reduced for more square appearance
     },
     MEDIUM: {
         name: 'MEDIUM',
@@ -103,7 +103,7 @@ export const TIERS = {
         // Border radius
         containerRadius: 12,
         sectionRadius: 10,
-        cardRadius: 8,
+        cardRadius: 4,  // Reduced for more square appearance
     },
     LARGE: {
         name: 'LARGE',
@@ -128,7 +128,7 @@ export const TIERS = {
         // Border radius
         containerRadius: 14,
         sectionRadius: 12,
-        cardRadius: 8,
+        cardRadius: 4,  // Reduced for more square appearance
     },
     XLARGE: {
         name: 'XLARGE',
@@ -153,7 +153,7 @@ export const TIERS = {
         // Border radius
         containerRadius: 16,
         sectionRadius: 14,
-        cardRadius: 10,
+        cardRadius: 4,  // Reduced for more square appearance
     }
 };
 
