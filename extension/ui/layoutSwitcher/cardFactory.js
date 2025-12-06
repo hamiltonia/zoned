@@ -220,6 +220,12 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
         ctx._onLayoutClicked(layout);
     });
 
+    // Propagate scroll events to parent ScrollView
+    // This ensures mouse wheel scrolling works when hovering over cards
+    card.connect('scroll-event', () => {
+        return Clutter.EVENT_PROPAGATE;
+    });
+
     // Store bottom bar reference for hover handling
     card._bottomBar = bottomBar;
     card._nameLabel = bottomBar._nameLabel;

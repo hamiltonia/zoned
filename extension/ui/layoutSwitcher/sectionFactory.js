@@ -90,6 +90,7 @@ export function createCustomLayoutsSection(ctx) {
         vertical: true,
         x_expand: true,
         y_expand: true,
+        reactive: true,  // Must be reactive to receive events
         style: `
             background-color: ${colors.sectionBg};
             border: 1px solid ${colors.sectionBorder};
@@ -97,6 +98,43 @@ export function createCustomLayoutsSection(ctx) {
             padding: ${ctx._SECTION_PADDING}px;
             box-shadow: ${colors.sectionShadow};
         `
+    });
+
+    // Store reference to section for scroll handling
+    let sectionScrollView = null;
+    
+    // Handle scroll events on the entire section (not just scrollView)
+    // This catches scrolls over header and empty areas too
+    section.connect('scroll-event', (actor, event) => {
+        if (!sectionScrollView) return Clutter.EVENT_PROPAGATE;
+        
+        const direction = event.get_scroll_direction();
+        
+        // Get adjustment
+        let adjustment = sectionScrollView.vadjustment;
+        if (!adjustment && typeof sectionScrollView.get_vscroll_bar === 'function') {
+            const vbar = sectionScrollView.get_vscroll_bar();
+            if (vbar) adjustment = vbar.get_adjustment();
+        }
+        
+        if (!adjustment) return Clutter.EVENT_STOP;
+        
+        const scrollAmount = ctx._cardHeight + ctx._ROW_GAP;
+        const maxScroll = adjustment.upper - adjustment.page_size;
+        
+        if (direction === Clutter.ScrollDirection.UP) {
+            adjustment.value = Math.max(0, adjustment.value - scrollAmount);
+        } else if (direction === Clutter.ScrollDirection.DOWN) {
+            adjustment.value = Math.min(maxScroll, adjustment.value + scrollAmount);
+        } else if (direction === Clutter.ScrollDirection.SMOOTH) {
+            const [dx, dy] = event.get_scroll_delta();
+            if (dy !== 0) {
+                const smoothAmount = dy * scrollAmount * 0.3;
+                adjustment.value = Math.max(0, Math.min(maxScroll, adjustment.value + smoothAmount));
+            }
+        }
+        
+        return Clutter.EVENT_STOP;
     });
 
     // Section header (fixed, does not scroll) - uses configurable font size
@@ -114,6 +152,9 @@ export function createCustomLayoutsSection(ctx) {
     // Custom layout cards
     const customLayouts = ctx._getCustomLayouts();
     const currentLayout = ctx._getCurrentLayout();
+
+    // Reset scrollView reference
+    ctx._customLayoutsScrollView = null;
 
     if (customLayouts.length === 0) {
         // Empty state (styled within the section card)
@@ -155,8 +196,49 @@ export function createCustomLayoutsSection(ctx) {
             y_expand: true
         });
 
+        // Store references for scroll handling
+        ctx._customLayoutsScrollView = scrollView;
+        sectionScrollView = scrollView;  // Set local ref for section scroll handler
+
+        // Handle scroll events manually using captured-event
+        // This ensures mouse wheel works even when hovering over St.Button cards
+        scrollView.connect('captured-event', (actor, event) => {
+            if (event.type() === Clutter.EventType.SCROLL) {
+                const direction = event.get_scroll_direction();
+                
+                // Get adjustment (try multiple methods for compatibility)
+                let adjustment = scrollView.vadjustment;
+                if (!adjustment && typeof scrollView.get_vscroll_bar === 'function') {
+                    const vbar = scrollView.get_vscroll_bar();
+                    if (vbar) adjustment = vbar.get_adjustment();
+                }
+                
+                if (!adjustment) return Clutter.EVENT_PROPAGATE;
+                
+                const scrollAmount = ctx._cardHeight + ctx._ROW_GAP;
+                const maxScroll = adjustment.upper - adjustment.page_size;
+                
+                if (direction === Clutter.ScrollDirection.UP) {
+                    adjustment.value = Math.max(0, adjustment.value - scrollAmount);
+                    return Clutter.EVENT_STOP;
+                } else if (direction === Clutter.ScrollDirection.DOWN) {
+                    adjustment.value = Math.min(maxScroll, adjustment.value + scrollAmount);
+                    return Clutter.EVENT_STOP;
+                } else if (direction === Clutter.ScrollDirection.SMOOTH) {
+                    const [dx, dy] = event.get_scroll_delta();
+                    if (dy !== 0) {
+                        const smoothAmount = dy * scrollAmount * 0.5;
+                        adjustment.value = Math.max(0, Math.min(maxScroll, adjustment.value + smoothAmount));
+                        return Clutter.EVENT_STOP;
+                    }
+                }
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
         // Grid of custom layouts
         const grid = createCustomLayoutGrid(ctx, customLayouts, currentLayout);
+        
         scrollView.add_child(grid);
         section.add_child(scrollView);
     }
@@ -178,7 +260,7 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
     // Calculate fixed row width: 5 cards + 4 gaps
     const fixedRowWidth = (COLUMNS * ctx._cardWidth) + ((COLUMNS - 1) * ctx._CARD_GAP);
     
-    logger.info(`[GRID] Creating grid with COLUMNS=${COLUMNS}, layouts=${layouts.length}, fixedRowWidth=${fixedRowWidth}`);
+    logger.debug(`[GRID] Creating grid with COLUMNS=${COLUMNS}, layouts=${layouts.length}, fixedRowWidth=${fixedRowWidth}`);
     
     // Container holds all rows, centered
     const container = new St.BoxLayout({
@@ -223,7 +305,7 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
             const spacersNeeded = COLUMNS - cardsInRow;
             
             if (spacersNeeded > 0) {
-                logger.info(`[SPACER] Row ${rowNumber - 1}: Adding ${spacersNeeded} spacers (${cardsInRow} cards)`);
+                logger.debug(`[SPACER] Row ${rowNumber - 1}: Adding ${spacersNeeded} spacers (${cardsInRow} cards)`);
                 for (let i = 0; i < spacersNeeded; i++) {
                     const spacer = new St.Widget({
                         width: ctx._cardWidth,

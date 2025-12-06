@@ -17,6 +17,7 @@
  */
 
 import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { createLogger } from '../utils/debug.js';
@@ -150,25 +151,44 @@ export class LayoutSwitcher {
     hide() {
         if (!this._dialog) return;
 
-        const dialog = this._dialog;
-        this._dialog = null;
-        this._workspaceButtons = [];
-        this._allCards = [];
-        this._selectedCardIndex = -1;
+        try {
+            const dialog = this._dialog;
+            
+            // Disconnect key events BEFORE clearing this._dialog reference
+            this._disconnectKeyEvents();
+            
+            this._dialog = null;
+            this._workspaceButtons = [];
+            this._allCards = [];
+            this._selectedCardIndex = -1;
 
-        this._disconnectKeyEvents();
+            // Release modal grab FIRST before any other cleanup
+            if (this._modalGrabbed) {
+                try {
+                    Main.popModal(dialog);
+                } catch (e) {
+                    logger.warn(`Error in popModal: ${e.message}`);
+                }
+                this._modalGrabbed = false;
+            }
 
-        // Clean up debug overlay (added to uiGroup separately)
-        if (this._debugOverlay) {
-            Main.uiGroup.remove_child(this._debugOverlay);
-            this._debugOverlay.destroy();
-            this._debugOverlay = null;
+            // Clean up debug overlay (added to uiGroup separately)
+            if (this._debugOverlay) {
+                Main.uiGroup.remove_child(this._debugOverlay);
+                this._debugOverlay.destroy();
+                this._debugOverlay = null;
+            }
+
+            Main.uiGroup.remove_child(dialog);
+            dialog.destroy();
+
+            logger.debug('Layout editor hidden');
+        } catch (e) {
+            logger.error(`Error hiding dialog: ${e.message}`);
+            // Force cleanup
+            this._dialog = null;
+            this._modalGrabbed = false;
         }
-
-        Main.uiGroup.remove_child(dialog);
-        dialog.destroy();
-
-        logger.debug('Layout editor hidden');
     }
 
     /**
@@ -404,10 +424,23 @@ export class LayoutSwitcher {
             y_align: Clutter.ActorAlign.CENTER
         });
 
+        // Click on background (outside container) dismisses the dialog
+        // Use coordinate check since event.get_source() isn't reliable with modal
         this._dialog.connect('button-press-event', (actor, event) => {
-            if (event.get_source() === this._dialog) {
-                this.hide();
-                return Clutter.EVENT_STOP;
+            const [clickX, clickY] = event.get_coords();
+            const containerAlloc = this._container ? this._container.get_transformed_extents() : null;
+            
+            if (containerAlloc) {
+                // Check if click is outside the container bounds
+                const isOutside = clickX < containerAlloc.origin.x ||
+                                  clickX > containerAlloc.origin.x + containerAlloc.size.width ||
+                                  clickY < containerAlloc.origin.y ||
+                                  clickY > containerAlloc.origin.y + containerAlloc.size.height;
+                
+                if (isOutside) {
+                    this.hide();
+                    return Clutter.EVENT_STOP;
+                }
             }
             return Clutter.EVENT_PROPAGATE;
         });
@@ -483,6 +516,80 @@ export class LayoutSwitcher {
         }
 
         this._dialog.grab_key_focus();
+
+        // Push modal to grab all input and prevent events from reaching windows behind
+        this._modalGrabbed = Main.pushModal(this._dialog, {
+            actionMode: imports.gi.Shell.ActionMode.NORMAL,
+        });
+        
+        if (!this._modalGrabbed) {
+            logger.warn('Failed to grab modal - input may leak to windows behind');
+        }
+
+        // Scroll to active custom layout card if it's off-screen
+        this._scrollToActiveCard();
+    }
+
+    /**
+     * Scroll the custom layouts ScrollView to make the active card visible
+     * Called after dialog creation to ensure selected layouts in row 3+ are visible
+     */
+    _scrollToActiveCard() {
+        // Only proceed if we have a scrollView and cards
+        if (!this._customLayoutsScrollView || this._allCards.length === 0) {
+            return;
+        }
+
+        const currentLayout = this._getCurrentLayout();
+        if (!currentLayout) return;
+
+        // Find the active card index among custom layouts only (skip templates)
+        const templateCount = this._templateManager.getBuiltinTemplates().length;
+        let activeCustomIndex = -1;
+
+        for (let i = templateCount; i < this._allCards.length; i++) {
+            const cardObj = this._allCards[i];
+            if (this._isLayoutActive(cardObj.layout, currentLayout)) {
+                activeCustomIndex = i - templateCount;
+                break;
+            }
+        }
+
+        if (activeCustomIndex < 0) return;
+
+        // Calculate which row the active card is in (0-indexed)
+        const COLUMNS = this._customColumns;
+        const activeRow = Math.floor(activeCustomIndex / COLUMNS);
+
+        // Only scroll if the card is in row 2 or later (row 0 and 1 should be visible)
+        if (activeRow < 2) return;
+
+        // Row height = card height + row gap + padding
+        const rowHeight = this._cardHeight + this._ROW_GAP + this._GRID_ROW_PADDING_TOP + this._GRID_ROW_PADDING_BOTTOM;
+        const targetScrollY = Math.max(0, (activeRow - 1) * rowHeight);
+        const scrollView = this._customLayoutsScrollView;
+        
+        // Use timeout to ensure layout is complete
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+            try {
+                // Get adjustment (try multiple methods for compatibility)
+                let adjustment = scrollView?.vadjustment;
+                if (!adjustment && scrollView && typeof scrollView.get_vscroll_bar === 'function') {
+                    const vbar = scrollView.get_vscroll_bar();
+                    if (vbar) adjustment = vbar.get_adjustment();
+                }
+                
+                if (adjustment) {
+                    const maxScroll = adjustment.upper - adjustment.page_size;
+                    if (maxScroll > 0) {
+                        adjustment.value = Math.min(targetScrollY, maxScroll);
+                    }
+                }
+            } catch (e) {
+                logger.error(`Error scrolling to active card: ${e.message}`);
+            }
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     /**
@@ -697,9 +804,11 @@ export class LayoutSwitcher {
 
     /**
      * Connect keyboard event handlers
+     * Note: When modal is active, keyboard events go to the modal actor (this._dialog)
+     * not to global.stage, so we connect directly to the dialog
      */
     _connectKeyEvents() {
-        this._keyPressId = global.stage.connect('key-press-event', (actor, event) => {
+        this._keyPressId = this._dialog.connect('key-press-event', (actor, event) => {
             const symbol = event.get_key_symbol();
             const modifiers = event.get_state();
             const ctrlPressed = (modifiers & Clutter.ModifierType.CONTROL_MASK) !== 0;
@@ -850,8 +959,12 @@ export class LayoutSwitcher {
      * Disconnect keyboard event handlers
      */
     _disconnectKeyEvents() {
-        if (this._keyPressId) {
-            global.stage.disconnect(this._keyPressId);
+        if (this._keyPressId && this._dialog) {
+            try {
+                this._dialog.disconnect(this._keyPressId);
+            } catch (e) {
+                // Dialog may already be destroyed
+            }
             this._keyPressId = null;
         }
     }
