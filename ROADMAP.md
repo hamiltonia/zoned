@@ -11,15 +11,17 @@
 The following items need to be completed before v1.0 release:
 
 ### Core Features
-- [ ] **Delete custom layout** - Implement deletion for user-created layouts
-- [ ] **Child dialog behavior** - LayoutSettingsDialog should be a child of LayoutSwitcher (not dismiss parent)
-- [ ] **Current layout background** - LayoutSwitcher background should show the current layout preview
+- [x] **Delete custom layout** - Implement deletion for user-created layouts ✅
+- [x] **Current layout background** - LayoutSwitcher card backgrounds show accent when selected/hovered ✅
+- [x] **Modal handling fix** - Fixed popModal() to pass grab object correctly ✅
+- [x] **Preview background z-order** - LayoutPreviewBackground stays visible behind both LayoutSwitcher and LayoutSettingsDialog ✅
 - [ ] **Monitor & workspace UI** - Implement monitor selector and workspace mode UI
 - [ ] **Layout keyboard shortcuts** - Add keyboard shortcuts to activate specific layouts (in layout settings)
 - [ ] **Duplicate custom layouts** - Allow duplicating custom layouts (not just templates)
 
 ### UX/UI
-- [ ] **Card bottom bar redesign** - Single "edit" button that opens layout settings for duplicate/delete/edit actions
+- [x] **Card top bar design** - Grey header with name (left) and circular edit button (right), zone preview below ✅
+- [x] **Edit button click isolation** - Edit icon no longer triggers layout activation ✅
 
 ### Code Quality
 - [ ] **Log cleanup** - Final review of code for debug logs that can be removed
@@ -83,7 +85,8 @@ The following items need to be completed before v1.0 release:
 
 ## Post-v1 Roadmap
 
-### v1.1: Multi-Workspace Support
+### v1.1: Enhanced UX & Multi-Workspace Support
+- **Child dialog behavior** - LayoutSettingsDialog as inline panel within LayoutSwitcher (modal-on-modal alternative)
 - Per-workspace layout state
 - Workspace switcher integration
 

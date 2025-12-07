@@ -79,7 +79,7 @@ export class ThemeManager {
             // Backgrounds
             modalOverlay: 'rgba(0, 0, 0, 0.7)',  // Always dark - modal overlays dim the background
             containerBg: isDark ? 'rgba(40, 40, 40, 0.98)' : 'rgba(250, 250, 250, 0.98)',
-            cardBg: isDark ? 'rgba(60, 60, 60, 0.5)' : 'rgba(255, 255, 255, 0.9)',
+            cardBg: isDark ? 'rgba(68, 68, 68, 1)' : 'rgba(200, 200, 200, 1)',  // Dark grey for dark theme, light grey for light theme
             cardBgActive: isDark ? 'rgba(40, 40, 40, 0.8)' : 'rgba(245, 245, 245, 0.9)',
             cardBgTemplate: isDark ? 'rgba(40, 40, 40, 0.8)' : 'rgba(248, 248, 248, 0.9)',
             toolbarBg: isDark ? 'rgba(30, 30, 30, 0.95)' : 'rgba(240, 240, 240, 0.95)',

@@ -24,6 +24,7 @@ import { createLogger } from '../utils/debug.js';
 import { TemplateManager } from '../templateManager.js';
 import { LayoutSettingsDialog } from './layoutSettingsDialog.js';
 import { ThemeManager } from '../utils/theme.js';
+import { LayoutPreviewBackground } from './layoutPreviewBackground.js';
 
 // Import split modules (UI construction delegated to these)
 import { createTemplatesSection, createCustomLayoutsSection, createNewLayoutButton } from './layoutSwitcher/sectionFactory.js';
@@ -52,14 +53,9 @@ export class LayoutSwitcher {
         this._workspaceButtons = [];
         
         // Keyboard navigation state
-        this._allCards = [];
-        this._selectedCardIndex = -1;
-        
-        // Card bottom bar configuration
-        this._CARD_BOTTOM_BAR_DEFAULT_OPACITY = 255 * .25;
-        this._CARD_BOTTOM_BAR_MIN_HEIGHT = 36;
-        this._CARD_BOTTOM_BAR_RATIO = 0.20;
-        
+this._allCards = [];
+this._selectedCardIndex = -1;
+
         // Debug mode configuration
         this._debugMode = this._settings.get_boolean('debug-layout-rects');
         this._DEBUG_COLORS = {
@@ -125,31 +121,50 @@ export class LayoutSwitcher {
      * Show the layout editor dialog
      */
     show() {
+        logger.info(`[MODAL] show() called - current state: dialog=${!!this._dialog}, modalGrabbed=${this._modalGrabbed}`);
+        
         if (this._dialog) {
+            logger.warn('[MODAL] show() called but dialog exists - calling hide() first');
             this.hide();
             return;
         }
 
         this._allCards = [];
         this._selectedCardIndex = -1;
+        this._hoveredLayout = null;  // Track currently hovered layout for preview
 
         this._currentWorkspace = global.workspace_manager.get_active_workspace_index();
         this._workspaceMode = this._settings.get_boolean('use-per-workspace-layouts');
 
         logger.info(`Layout editor shown (workspace mode: ${this._workspaceMode})`);
 
+        // Create preview background BEFORE the dialog (so it's behind)
+        const currentLayout = this._getCurrentLayout();
+        this._previewBackground = new LayoutPreviewBackground(this._settings, () => {
+            // Background click callback - dismiss the dialog
+            this.hide();
+        });
+        this._previewBackground.show(currentLayout);
+
         this._createDialog();
         this._connectKeyEvents();
 
         this._overrideDialogWidth = null;
         this._overrideDialogHeight = null;
+        
+        logger.info(`[MODAL] show() complete - modalGrabbed=${this._modalGrabbed}`);
     }
 
     /**
      * Hide the layout editor dialog
      */
     hide() {
-        if (!this._dialog) return;
+        logger.info(`[MODAL] hide() called - current state: dialog=${!!this._dialog}, modalGrabbed=${this._modalGrabbed}`);
+        
+        if (!this._dialog) {
+            logger.warn('[MODAL] hide() called but no dialog exists - ignoring');
+            return;
+        }
 
         try {
             const dialog = this._dialog;
@@ -161,15 +176,23 @@ export class LayoutSwitcher {
             this._workspaceButtons = [];
             this._allCards = [];
             this._selectedCardIndex = -1;
+            this._hoveredLayout = null;
 
             // Release modal grab FIRST before any other cleanup
+            // IMPORTANT: popModal expects the Clutter.Grab object returned by pushModal,
+            // not the dialog actor. this._modalGrabbed holds the grab object.
             if (this._modalGrabbed) {
+                logger.info('[MODAL] Calling Main.popModal() with grab object');
                 try {
-                    Main.popModal(dialog);
+                    Main.popModal(this._modalGrabbed);
+                    logger.info('[MODAL] Main.popModal() succeeded');
                 } catch (e) {
-                    logger.warn(`Error in popModal: ${e.message}`);
+                    logger.error(`[MODAL] Main.popModal() FAILED: ${e.message}`);
+                    logger.error(`[MODAL] Stack trace: ${e.stack || 'N/A'}`);
                 }
-                this._modalGrabbed = false;
+                this._modalGrabbed = null;
+            } else {
+                logger.warn('[MODAL] hide() called but modalGrabbed was false - skip popModal');
             }
 
             // Clean up debug overlay (added to uiGroup separately)
@@ -179,15 +202,23 @@ export class LayoutSwitcher {
                 this._debugOverlay = null;
             }
 
+            // Clean up preview background
+            if (this._previewBackground) {
+                this._previewBackground.destroy();
+                this._previewBackground = null;
+            }
+
             Main.uiGroup.remove_child(dialog);
             dialog.destroy();
 
-            logger.debug('Layout editor hidden');
+            logger.info('[MODAL] hide() complete - dialog destroyed');
         } catch (e) {
-            logger.error(`Error hiding dialog: ${e.message}`);
+            logger.error(`[MODAL] Error hiding dialog: ${e.message}`);
+            logger.error(`[MODAL] Stack trace: ${e.stack || 'N/A'}`);
             // Force cleanup
             this._dialog = null;
-            this._modalGrabbed = false;
+            this._modalGrabbed = null;
+            this._previewBackground = null;
         }
     }
 
@@ -414,12 +445,12 @@ export class LayoutSwitcher {
         
         logger.info(`Card dimensions: ${this._cardWidth}×${this._cardHeight}, Dialog: ${dialogWidth}×${dialogHeight}`);
 
-        // Background overlay
+        // Background overlay - transparent since we have the preview background behind
         this._dialog = new St.Bin({
             style_class: 'modal-dialog',
             reactive: true,
             can_focus: true,
-            style: `background-color: ${colors.modalOverlay};`,
+            style: `background-color: transparent;`,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER
         });
@@ -518,12 +549,21 @@ export class LayoutSwitcher {
         this._dialog.grab_key_focus();
 
         // Push modal to grab all input and prevent events from reaching windows behind
-        this._modalGrabbed = Main.pushModal(this._dialog, {
-            actionMode: imports.gi.Shell.ActionMode.NORMAL,
-        });
-        
-        if (!this._modalGrabbed) {
-            logger.warn('Failed to grab modal - input may leak to windows behind');
+        logger.info('[MODAL] Calling Main.pushModal() for LayoutSwitcher');
+        try {
+            this._modalGrabbed = Main.pushModal(this._dialog, {
+                actionMode: imports.gi.Shell.ActionMode.NORMAL,
+            });
+            
+            if (this._modalGrabbed) {
+                logger.info('[MODAL] Main.pushModal() succeeded - modalGrabbed=true');
+            } else {
+                logger.error('[MODAL] Main.pushModal() returned false - modal grab FAILED');
+            }
+        } catch (e) {
+            logger.error(`[MODAL] Main.pushModal() threw exception: ${e.message}`);
+            logger.error(`[MODAL] Stack trace: ${e.stack || 'N/A'}`);
+            this._modalGrabbed = null;
         }
 
         // Scroll to active custom layout card if it's off-screen
@@ -690,23 +730,27 @@ export class LayoutSwitcher {
 
     /**
      * Handle edit layout click - open settings dialog
+     * Keeps switcher visible but releases modal to settings dialog
      */
     _onEditLayoutClicked(layout) {
-        logger.info(`Edit layout clicked: ${layout.name}`);
+        logger.info(`[MODAL] _onEditLayoutClicked: ${layout.name}`);
 
-        this.hide();
+        // Release modal but keep UI visible - settings dialog will have its own modal
+        this._releaseModalForSettings();
 
         const settingsDialog = new LayoutSettingsDialog(
             layout,
             this._layoutManager,
             this._settings,
             (updatedLayout) => {
-                logger.info(`Settings dialog completed for: ${layout.name}`);
-                this.show();
+                logger.info(`[MODAL] Settings save callback firing for: ${layout.name}`);
+                // Refresh and re-acquire modal
+                this._refreshAfterSettings();
             },
             () => {
-                logger.info('Settings dialog canceled');
-                this.show();
+                logger.info(`[MODAL] Settings cancel callback firing`);
+                // Re-acquire modal
+                this._reacquireModalAfterSettings();
             }
         );
         settingsDialog.open();
@@ -714,9 +758,10 @@ export class LayoutSwitcher {
 
     /**
      * Handle edit template click - create duplicate and open editor
+     * Keeps switcher visible but releases modal to settings dialog
      */
     _onEditTemplateClicked(template) {
-        logger.info(`Edit template clicked: ${template.name} - creating duplicate`);
+        logger.info(`[MODAL] _onEditTemplateClicked: ${template.name}`);
 
         const newLayout = {
             id: `layout-${Date.now()}`,
@@ -725,23 +770,25 @@ export class LayoutSwitcher {
         };
 
         this._layoutManager.saveLayout(newLayout);
-
-        this.hide();
-
-        logger.info(`Created duplicate layout: ${newLayout.name}`);
+        logger.info(`[MODAL] Created duplicate layout: ${newLayout.name}`);
         this._zoneOverlay.showMessage(`Created: ${newLayout.name}`);
+
+        // Release modal but keep UI visible - settings dialog will have its own modal
+        this._releaseModalForSettings();
 
         const settingsDialog = new LayoutSettingsDialog(
             newLayout,
             this._layoutManager,
             this._settings,
             (updatedLayout) => {
-                logger.info(`Duplicate layout saved: ${updatedLayout ? updatedLayout.name : 'deleted'}`);
-                this.show();
+                logger.info(`[MODAL] Template duplicate save callback firing`);
+                // Refresh to show the new layout card
+                this._refreshAfterSettings();
             },
             () => {
-                logger.info('Duplicate layout editing canceled');
-                this.show();
+                logger.info(`[MODAL] Template duplicate cancel callback firing`);
+                // Refresh to show the new layout card (it was already created)
+                this._refreshAfterSettings();
             }
         );
         settingsDialog.open();
@@ -1068,6 +1115,12 @@ export class LayoutSwitcher {
         }
 
         this._updateCardFocus();
+        
+        // Update preview background to show the selected layout
+        if (this._selectedCardIndex >= 0 && this._selectedCardIndex < this._allCards.length) {
+            const selectedLayout = this._allCards[this._selectedCardIndex].layout;
+            this._updatePreviewBackground(selectedLayout);
+        }
     }
 
     /**
@@ -1106,6 +1159,42 @@ export class LayoutSwitcher {
     }
 
     /**
+     * Update the preview background to show a specific layout
+     * Called when hovering over cards or navigating with keyboard
+     * @param {Object} layout - Layout to preview (with zones array)
+     */
+    _updatePreviewBackground(layout) {
+        if (!this._previewBackground) return;
+        
+        this._hoveredLayout = layout;
+        this._previewBackground.setLayout(layout);
+    }
+
+    /**
+     * Handle card hover - update the preview background
+     * Called from cardFactory when mouse enters a card
+     * @param {Object} layout - Layout being hovered
+     */
+    _onCardHover(layout) {
+        this._updatePreviewBackground(layout);
+    }
+
+    /**
+     * Handle card hover end - revert to current/selected layout
+     * Called from cardFactory when mouse leaves a card
+     */
+    _onCardHoverEnd() {
+        // If there's a keyboard-selected card, show that; otherwise show current active layout
+        if (this._selectedCardIndex >= 0 && this._selectedCardIndex < this._allCards.length) {
+            const selectedLayout = this._allCards[this._selectedCardIndex].layout;
+            this._updatePreviewBackground(selectedLayout);
+        } else {
+            const currentLayout = this._getCurrentLayout();
+            this._updatePreviewBackground(currentLayout);
+        }
+    }
+
+    /**
      * Apply layout at given card index
      */
     _applyCardAtIndex(index) {
@@ -1136,30 +1225,115 @@ export class LayoutSwitcher {
 
     /**
      * Handle create new layout click
+     * Keeps switcher visible but releases modal to settings dialog
      */
     _onCreateNewLayoutClicked() {
-        logger.info("Create new layout clicked");
+        logger.info(`[MODAL] _onCreateNewLayoutClicked`);
 
-        this.hide();
+        // Release modal but keep UI visible - settings dialog will have its own modal
+        this._releaseModalForSettings();
 
         const settingsDialog = new LayoutSettingsDialog(
             null,
             this._layoutManager,
             this._settings,
             (newLayout) => {
+                logger.info(`[MODAL] New layout save callback firing`);
                 if (newLayout) {
-                    logger.info(`New layout created: ${newLayout.name}`);
+                    logger.info(`[MODAL] New layout created: ${newLayout.name}`);
                     this._applyLayout(newLayout);
                 }
-                this.show();
+                // Refresh to show the new layout card
+                this._refreshAfterSettings();
             },
             () => {
-                logger.info("Create new layout canceled");
-                this.show();
+                logger.info(`[MODAL] New layout cancel callback firing`);
+                // Re-acquire modal (no new content was created)
+                this._reacquireModalAfterSettings();
             }
         );
-
         settingsDialog.open();
+    }
+
+    /**
+     * Release modal so settings dialog can have it, but keep UI visible
+     * Called before opening LayoutSettingsDialog
+     * @private
+     */
+    _releaseModalForSettings() {
+        logger.info('[MODAL] _releaseModalForSettings - releasing modal but keeping UI');
+        
+        // Disconnect key events temporarily
+        this._disconnectKeyEvents();
+        
+        // Release modal grab
+        if (this._modalGrabbed) {
+            try {
+                Main.popModal(this._modalGrabbed);
+                logger.info('[MODAL] Modal released for settings dialog');
+            } catch (e) {
+                logger.error(`[MODAL] Error releasing modal: ${e.message}`);
+            }
+            this._modalGrabbed = null;
+        }
+        
+        // NOTE: Keep preview background visible - it provides the backdrop
+        // for both LayoutSwitcher and LayoutSettingsDialog
+    }
+
+    /**
+     * Re-acquire modal after settings dialog closes
+     * Called when settings is canceled (no content changes needed)
+     * @private
+     */
+    _reacquireModalAfterSettings() {
+        logger.info('[MODAL] _reacquireModalAfterSettings - re-acquiring modal');
+        
+        if (!this._dialog) {
+            logger.warn('[MODAL] No dialog exists - cannot re-acquire modal');
+            return;
+        }
+        
+        // NOTE: Preview background stays visible throughout - no need to touch it
+        
+        // Re-acquire modal
+        try {
+            this._modalGrabbed = Main.pushModal(this._dialog, {
+                actionMode: imports.gi.Shell.ActionMode.NORMAL,
+            });
+            
+            if (this._modalGrabbed) {
+                logger.info('[MODAL] Modal re-acquired successfully');
+            } else {
+                logger.error('[MODAL] Failed to re-acquire modal');
+            }
+        } catch (e) {
+            logger.error(`[MODAL] Error re-acquiring modal: ${e.message}`);
+            this._modalGrabbed = null;
+        }
+        
+        // Reconnect key events
+        this._connectKeyEvents();
+        
+        // Return focus to dialog
+        if (this._dialog) {
+            this._dialog.grab_key_focus();
+        }
+    }
+
+    /**
+     * Refresh dialog content and re-acquire modal after settings saves/edits
+     * Called when settings is saved (content may have changed)
+     * @private
+     */
+    _refreshAfterSettings() {
+        logger.info('[MODAL] _refreshAfterSettings - refreshing content and re-acquiring modal');
+        
+        // Full refresh - hide and show to rebuild with any changes
+        const wasWorkspace = this._currentWorkspace;
+        this.hide();
+        this._currentWorkspace = wasWorkspace;
+        this.show();
     }
 
     /**

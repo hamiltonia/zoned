@@ -6,6 +6,7 @@
  * - Handles METADATA (name, settings) separate from GEOMETRY (zones)
  * - Uses ZoneEditor for geometry editing
  * - Enforces settings-first approach (name required before save)
+ * - Uses custom UI framework (not ModalDialog) for z-order control
  * 
  * Modes:
  * - Create: layout=null (new layout, starts with no zones)
@@ -22,11 +23,10 @@
  * - Delete button for existing layouts
  */
 
-import GObject from 'gi://GObject';
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import GLib from 'gi://GLib';
-import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { createLogger } from '../utils/debug.js';
 import { ThemeManager } from '../utils/theme.js';
 import { ZoneEditor } from './zoneEditor.js';
@@ -40,14 +40,13 @@ const logger = createLogger('LayoutSettingsDialog');
  * Separates metadata editing (name, padding, shortcut) from geometry editing (zones).
  * This enforces a settings-first approach where users must name their layout
  * before saving.
+ * 
+ * Uses custom UI framework (Main.uiGroup + pushModal) for full z-order control,
+ * allowing layout preview background to show behind the dialog.
  */
-export const LayoutSettingsDialog = GObject.registerClass(
-class LayoutSettingsDialog extends ModalDialog.ModalDialog {
-    _init(layout, layoutManager, settings, onSave, onCancel) {
-        super._init({ styleClass: 'layout-settings-dialog' });
-
+export class LayoutSettingsDialog {
+    constructor(layout, layoutManager, settings, onSave, onCancel) {
         this._isNewLayout = (layout === null);
-        this._isReopening = false;  // Flag to prevent re-entrance
         
         // Create working copy to avoid mutating input
         this._layout = layout ? JSON.parse(JSON.stringify(layout)) : {
@@ -61,87 +60,387 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
         this._onSaveCallback = onSave;
         this._onCancelCallback = onCancel;
         
-        // UI elements (will be created in _buildUI)
+        // UI elements
+        this._container = null;
+        this._dialogCard = null;
         this._nameEntry = null;
         this._layoutStatusLabel = null;
         this._paddingEntry = null;
         this._shortcutButton = null;
         this._saveButton = null;
-
-        this._buildUI();
+        
+        this._modal = null;
+        this._visible = false;
+        this._closing = false;  // Re-entrance guard
 
         logger.debug(`LayoutSettingsDialog created (${this._isNewLayout ? 'CREATE' : 'EDIT'} mode)`);
     }
 
     /**
-     * Apply CSS custom properties to dialog for stylesheet theming
-     * Uses dialogLayout which is the actual container element
-     * @private
-     */
-    _applyCSSVariables() {
-        const colors = this._themeManager.getColors();
-        
-        // Use dialogLayout instead of _dialog (which doesn't exist in GNOME's ModalDialog)
-        if (this.dialogLayout) {
-            const style = this.dialogLayout.get_style();
-            this.dialogLayout.set_style(
-                (style || '') +
-                `--zoned-container-bg: ${colors.containerBg}; ` +
-                `--zoned-card-bg: ${colors.cardBg}; ` +
-                `--zoned-text-primary: ${colors.textPrimary}; ` +
-                `--zoned-text-secondary: ${colors.textSecondary}; ` +
-                `--zoned-text-muted: ${colors.textMuted}; ` +
-                `--zoned-accent: ${colors.accentHex}; ` +
-                `--zoned-button-bg: ${colors.buttonBg}; ` +
-                `--zoned-button-text: ${colors.buttonText}; ` +
-                `--zoned-button-bg-hover: ${colors.buttonBgHover}; ` +
-                `--zoned-accent-hover: ${colors.accentHexHover}; ` +
-                `--zoned-border: ${colors.border};`
-            );
-            
-            // Apply theme class
-            const themeClass = colors.isDark ? 'zoned-theme-dark' : 'zoned-theme-light';
-            this.dialogLayout.add_style_class_name(themeClass);
-            
-            logger.debug(`Applied CSS variables and theme class: ${themeClass} to dialogLayout`);
-        } else {
-            logger.error('ModalDialog.dialogLayout not available');
-        }
-    }
-    
-    /**
-     * Override open() to apply CSS variables when dialog is shown
-     * @override
+     * Open the dialog
      */
     open() {
-        super.open();
-        // Apply CSS variables to dialogLayout
-        this._applyCSSVariables();
+        if (this._visible) {
+            logger.warn('LayoutSettingsDialog already visible');
+            return;
+        }
+
+        const monitor = Main.layoutManager.currentMonitor;
+        const colors = this._themeManager.getColors();
+
+        // Create full-screen container (transparent, catches clicks outside dialog)
+        // NOTE: Preview background is provided by the parent (e.g., LayoutSwitcher)
+        // when opened from there, so this container should be transparent
+        this._container = new St.Widget({
+            reactive: true,
+            x: monitor.x,
+            y: monitor.y,
+            width: monitor.width,
+            height: monitor.height,
+            style: `background-color: transparent;`
+        });
+
+        // Click on container (outside dialog) dismisses
+        // Use coordinate check since event.get_source() isn't reliable with modal
+        this._container.connect('button-press-event', (actor, event) => {
+            const [clickX, clickY] = event.get_coords();
+            const cardAlloc = this._dialogCard ? this._dialogCard.get_transformed_extents() : null;
+            
+            if (cardAlloc) {
+                // Check if click is outside the dialog card bounds
+                const isOutside = clickX < cardAlloc.origin.x ||
+                                  clickX > cardAlloc.origin.x + cardAlloc.size.width ||
+                                  clickY < cardAlloc.origin.y ||
+                                  clickY > cardAlloc.origin.y + cardAlloc.size.height;
+                
+                if (isOutside) {
+                    this._onCancel();
+                    return Clutter.EVENT_STOP;
+                }
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        // Build the dialog card
+        this._buildDialogCard(colors);
+
+        // Center the dialog card
+        const cardWidth = 420;
+        const cardHeight = this._dialogCard.get_preferred_height(cardWidth)[1] || 500;
+        this._dialogCard.set_position(
+            Math.floor((monitor.width - cardWidth) / 2),
+            Math.floor((monitor.height - cardHeight) / 2)
+        );
+
+        this._container.add_child(this._dialogCard);
+        Main.uiGroup.add_child(this._container);
+
+        // Push modal to capture input
+        this._modal = Main.pushModal(this._container, {
+            actionMode: 1  // Shell.ActionMode.NORMAL
+        });
+
+        // Connect key handler for ESC
+        this._keyPressId = this._container.connect('key-press-event', (actor, event) => {
+            const symbol = event.get_key_symbol();
+            if (symbol === Clutter.KEY_Escape) {
+                this._onCancel();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        this._visible = true;
+
+        // Focus the name entry
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            if (this._nameEntry) {
+                this._nameEntry.grab_key_focus();
+            }
+            return GLib.SOURCE_REMOVE;
+        });
+
+        logger.debug('LayoutSettingsDialog opened');
     }
 
     /**
-     * Create a styled input field with inset appearance
+     * Close the dialog
+     */
+    close() {
+        if (!this._visible || this._closing) {
+            return;
+        }
+        this._closing = true;
+
+        // Pop modal - pass the Clutter.Grab object returned by pushModal
+        if (this._modal) {
+            Main.popModal(this._modal);
+            this._modal = null;
+        }
+
+        // Disconnect key handler
+        if (this._keyPressId && this._container) {
+            this._container.disconnect(this._keyPressId);
+            this._keyPressId = null;
+        }
+
+        // Destroy container
+        if (this._container) {
+            Main.uiGroup.remove_child(this._container);
+            this._container.destroy();
+            this._container = null;
+        }
+
+        this._visible = false;
+        logger.debug('LayoutSettingsDialog closed');
+    }
+
+    /**
+     * Build the dialog card UI
      * @param {Object} colors - Theme colors
-     * @param {Object} options - Input options
-     * @returns {St.Entry} Styled entry widget
      * @private
      */
-    _createStyledInput(colors, options = {}) {
-        const entry = new St.Entry({
-            text: options.text || '',
-            hint_text: options.hintText || '',
-            can_focus: true,
+    _buildDialogCard(colors) {
+        // Main dialog card
+        this._dialogCard = new St.BoxLayout({
+            vertical: true,
+            reactive: true,
             style: `
-                min-width: ${options.minWidth || '200px'};
-                background-color: ${colors.inputBg};
-                color: ${colors.textPrimary};
-                border: 1px solid ${colors.inputBorder};
-                border-radius: 6px;
-                padding: 8px 12px;
-                box-shadow: ${colors.inputShadowInset};
+                background-color: ${colors.containerBg};
+                border-radius: 16px;
+                padding: 24px;
+                min-width: 420px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
             `
         });
-        return entry;
+
+        // Stop clicks from propagating through dialog
+        this._dialogCard.connect('button-press-event', () => Clutter.EVENT_STOP);
+
+        // Title
+        const title = this._isNewLayout ? 'New Layout' : `Edit Layout: ${this._layout.name}`;
+        const titleLabel = new St.Label({
+            text: title,
+            style: `
+                font-weight: bold; 
+                font-size: 14pt; 
+                margin-bottom: 20px; 
+                color: ${colors.textPrimary};
+            `
+        });
+        this._dialogCard.add_child(titleLabel);
+
+        // ============================================
+        // SECTION 1: Layout Information
+        // ============================================
+        const infoSection = this._createSection(colors, 'Layout Information');
+
+        // Name input row
+        const nameBox = new St.BoxLayout({
+            vertical: false,
+            style: 'margin-bottom: 12px;'
+        });
+
+        const nameLabel = new St.Label({
+            text: 'Name:',
+            style: `
+                font-size: 11pt; 
+                padding-top: 8px; 
+                color: ${colors.textPrimary}; 
+                min-width: 70px;
+            `,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        nameBox.add_child(nameLabel);
+
+        this._nameEntry = this._createStyledInput(colors, {
+            text: this._layout.name || '',
+            hintText: 'Layout name (required)',
+            minWidth: '280px'
+        });
+        this._nameEntry.clutter_text.connect('text-changed', () => {
+            this._updateSaveButton();
+        });
+        nameBox.add_child(this._nameEntry);
+
+        infoSection.add_child(nameBox);
+
+        // Zone status row
+        const statusBox = new St.BoxLayout({
+            vertical: false
+        });
+
+        const statusLabelPrefix = new St.Label({
+            text: 'Zones:',
+            style: `font-size: 11pt; color: ${colors.textPrimary}; min-width: 70px;`
+        });
+        statusBox.add_child(statusLabelPrefix);
+
+        this._layoutStatusLabel = new St.Label({
+            text: this._getLayoutStatus(),
+            style: `font-size: 11pt; color: ${colors.textMuted};`
+        });
+        statusBox.add_child(this._layoutStatusLabel);
+
+        infoSection.add_child(statusBox);
+        this._dialogCard.add_child(infoSection);
+
+        // ============================================
+        // SECTION 2: Layout Editor
+        // ============================================
+        const editorSection = this._createSection(colors, 'Zone Editor');
+
+        const editorDescription = new St.Label({
+            text: 'Define the zones for your layout using the visual editor.',
+            style: `
+                font-size: 10pt; 
+                color: ${colors.textSecondary}; 
+                margin-bottom: 12px; 
+                line-height: 1.4;
+            `
+        });
+        editorDescription.clutter_text.line_wrap = true;
+        editorSection.add_child(editorDescription);
+
+        // "Edit Layout..." button
+        const editButton = this._createButton(colors, 'Edit Layout...', () => {
+            this._openZoneEditor();
+        });
+        editorSection.add_child(editButton);
+
+        this._dialogCard.add_child(editorSection);
+
+        // ============================================
+        // SECTION 3: Settings
+        // ============================================
+        const settingsSection = this._createSection(colors, 'Settings');
+
+        // Padding field
+        const paddingBox = new St.BoxLayout({
+            vertical: false,
+            style: 'margin-bottom: 12px;'
+        });
+
+        const paddingLabel = new St.Label({
+            text: 'Padding:',
+            style: `
+                font-size: 11pt; 
+                padding-top: 8px; 
+                color: ${colors.textPrimary}; 
+                min-width: 70px;
+            `,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        paddingBox.add_child(paddingLabel);
+
+        this._paddingEntry = this._createStyledInput(colors, {
+            text: String(this._layout.padding || 8),
+            minWidth: '80px'
+        });
+        paddingBox.add_child(this._paddingEntry);
+
+        const paddingUnit = new St.Label({
+            text: 'pixels',
+            style: `
+                font-size: 11pt; 
+                color: ${colors.textMuted}; 
+                padding-top: 8px;
+                margin-left: 8px;
+            `,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        paddingBox.add_child(paddingUnit);
+
+        settingsSection.add_child(paddingBox);
+
+        // Divider
+        const divider = new St.Widget({
+            style: `
+                height: 1px;
+                background-color: ${colors.divider};
+                margin: 8px 0;
+            `
+        });
+        settingsSection.add_child(divider);
+
+        // Keyboard shortcut field
+        const shortcutBox = new St.BoxLayout({
+            vertical: false
+        });
+
+        const shortcutLabel = new St.Label({
+            text: 'Shortcut:',
+            style: `
+                font-size: 11pt; 
+                padding-top: 6px; 
+                color: ${colors.textPrimary}; 
+                min-width: 70px;
+            `,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        shortcutBox.add_child(shortcutLabel);
+
+        this._shortcutButton = this._createButton(colors, 
+            this._layout.shortcut || 'Click to record',
+            () => this._recordShortcut(),
+            { padding: '6px 16px' }
+        );
+        shortcutBox.add_child(this._shortcutButton);
+
+        const shortcutHint = new St.Label({
+            text: '(Not yet implemented)',
+            style: `
+                font-size: 9pt; 
+                color: ${colors.textMuted}; 
+                padding-top: 8px;
+                margin-left: 8px;
+            `,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        shortcutBox.add_child(shortcutHint);
+
+        settingsSection.add_child(shortcutBox);
+        this._dialogCard.add_child(settingsSection);
+
+        // ============================================
+        // Button Row
+        // ============================================
+        const buttonRow = new St.BoxLayout({
+            vertical: false,
+            style: 'margin-top: 20px;',
+            x_align: Clutter.ActorAlign.END
+        });
+
+        // Delete button (for existing layouts)
+        if (!this._isNewLayout) {
+            const deleteButton = this._createButton(colors, 'Delete', () => {
+                this._onDelete();
+            });
+            deleteButton.style += 'margin-right: auto;';  // Push to left
+            buttonRow.add_child(deleteButton);
+        }
+
+        // Spacer
+        const spacer = new St.Widget({ x_expand: true });
+        buttonRow.add_child(spacer);
+
+        // Cancel button
+        const cancelButton = this._createButton(colors, 'Cancel', () => {
+            this._onCancel();
+        });
+        cancelButton.style += 'margin-right: 12px;';
+        buttonRow.add_child(cancelButton);
+
+        // Save button
+        this._saveButton = this._createButton(colors, 'Save', () => {
+            this._onSave();
+        }, { accent: true });
+        buttonRow.add_child(this._saveButton);
+
+        this._dialogCard.add_child(buttonRow);
+
+        // Initial save button state
+        this._updateSaveButton();
     }
 
     /**
@@ -160,7 +459,6 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
                 border-radius: 12px;
                 padding: 16px;
                 margin-bottom: 12px;
-                box-shadow: ${colors.sectionShadow};
             `
         });
 
@@ -183,264 +481,84 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
     }
 
     /**
-     * Build the dialog UI
+     * Create a styled input field with inset appearance
+     * @param {Object} colors - Theme colors
+     * @param {Object} options - Input options
+     * @returns {St.Entry} Styled entry widget
      * @private
      */
-    _buildUI() {
-        const colors = this._themeManager.getColors();
-        
-        // Apply CSS custom properties to dialog root for stylesheet
-        // These variables are used by stylesheet.css to theme ModalDialog internals
-        this._applyCSSVariables();
-
-        
-        // Title
-        const title = this._isNewLayout ? 'New Layout' : `Edit Layout: ${this._layout.name}`;
-        const titleLabel = new St.Label({
-            text: title,
-            style: `font-weight: bold; font-size: 14pt; margin-bottom: 16px; color: ${colors.textPrimary};`
-        });
-        this.contentLayout.add_child(titleLabel);
-
-        // ============================================
-        // SECTION 1: Layout Information
-        // ============================================
-        const infoSection = this._createSection(colors, 'Layout Information');
-
-        // Name input row
-        const nameBox = new St.BoxLayout({
-            vertical: false,
-            style: 'spacing: 12px; margin-bottom: 12px;'
-        });
-
-        const nameLabel = new St.Label({
-            text: 'Name:',
-            style: `font-size: 11pt; padding-top: 8px; color: ${colors.textPrimary}; min-width: 70px;`,
-            y_align: Clutter.ActorAlign.CENTER
-        });
-        nameBox.add_child(nameLabel);
-
-        this._nameEntry = this._createStyledInput(colors, {
-            text: this._layout.name || '',
-            hintText: 'Layout name (required)',
-            minWidth: '280px'
-        });
-        this._nameEntry.clutter_text.connect('text-changed', () => {
-            this._updateSaveButton();
-        });
-        nameBox.add_child(this._nameEntry);
-
-        infoSection.add_child(nameBox);
-
-        // Zone status row
-        const statusBox = new St.BoxLayout({
-            vertical: false,
-            style: 'spacing: 12px;'
-        });
-
-        const statusLabelPrefix = new St.Label({
-            text: 'Zones:',
-            style: `font-size: 11pt; color: ${colors.textPrimary}; min-width: 70px;`
-        });
-        statusBox.add_child(statusLabelPrefix);
-
-        this._layoutStatusLabel = new St.Label({
-            text: this._getLayoutStatus(),
-            style: `font-size: 11pt; color: ${colors.textMuted};`
-        });
-        statusBox.add_child(this._layoutStatusLabel);
-
-        infoSection.add_child(statusBox);
-        this.contentLayout.add_child(infoSection);
-
-        // ============================================
-        // SECTION 2: Layout Editor
-        // ============================================
-        const editorSection = this._createSection(colors, 'Zone Editor');
-
-        const editorDescription = new St.Label({
-            text: 'Define the zones for your layout using the visual editor.',
-            style: `font-size: 10pt; color: ${colors.textSecondary}; margin-bottom: 12px; line-height: 1.4;`
-        });
-        editorDescription.clutter_text.line_wrap = true;
-        editorSection.add_child(editorDescription);
-
-        // "Edit Layout..." button (neutral style - accent only on focus)
-        const editButtonNormalStyle = `
-            padding: 10px 24px; 
-            background-color: ${colors.buttonBg}; 
-            color: ${colors.buttonText}; 
-            border-radius: 6px;
-            border: 1px solid ${colors.sectionBorder};
-        `;
-        const editButtonHoverStyle = `
-            padding: 10px 24px; 
-            background-color: ${colors.buttonBgHover}; 
-            color: ${colors.buttonText}; 
-            border-radius: 6px;
-            border: 1px solid ${colors.sectionBorder};
-        `;
-        const editButton = new St.Button({
-            label: 'Edit Layout...',
-            style_class: 'button',
-            style: editButtonNormalStyle,
-            can_focus: true
-        });
-        editButton.connect('clicked', () => this._openZoneEditor());
-        this._addButtonHover(editButton, editButtonNormalStyle, editButtonHoverStyle);
-        editorSection.add_child(editButton);
-
-        this.contentLayout.add_child(editorSection);
-
-        // ============================================
-        // SECTION 3: Settings
-        // ============================================
-        const settingsSection = this._createSection(colors, 'Settings');
-
-        // Padding field
-        const paddingBox = new St.BoxLayout({
-            vertical: false,
-            style: 'spacing: 12px; margin-bottom: 12px;'
-        });
-
-        const paddingLabel = new St.Label({
-            text: 'Padding:',
-            style: `font-size: 11pt; padding-top: 8px; color: ${colors.textPrimary}; min-width: 70px;`,
-            y_align: Clutter.ActorAlign.CENTER
-        });
-        paddingBox.add_child(paddingLabel);
-
-        this._paddingEntry = this._createStyledInput(colors, {
-            text: String(this._layout.padding || 8),
-            minWidth: '80px'
-        });
-        paddingBox.add_child(this._paddingEntry);
-
-        const paddingUnit = new St.Label({
-            text: 'pixels',
-            style: `font-size: 11pt; color: ${colors.textMuted}; padding-top: 8px;`,
-            y_align: Clutter.ActorAlign.CENTER
-        });
-        paddingBox.add_child(paddingUnit);
-
-        settingsSection.add_child(paddingBox);
-
-        // Divider
-        const divider = new St.Widget({
+    _createStyledInput(colors, options = {}) {
+        const entry = new St.Entry({
+            text: options.text || '',
+            hint_text: options.hintText || '',
+            can_focus: true,
             style: `
-                height: 1px;
-                background-color: ${colors.divider};
-                margin: 8px 0;
+                min-width: ${options.minWidth || '200px'};
+                background-color: ${colors.inputBg};
+                color: ${colors.textPrimary};
+                border: 1px solid ${colors.inputBorder};
+                border-radius: 6px;
+                padding: 8px 12px;
             `
         });
-        settingsSection.add_child(divider);
+        return entry;
+    }
 
-        // Keyboard shortcut field
-        const shortcutBox = new St.BoxLayout({
-            vertical: false,
-            style: 'spacing: 12px;'
-        });
+    /**
+     * Create a styled button with hover effects
+     * @param {Object} colors - Theme colors
+     * @param {string} label - Button label
+     * @param {Function} onClick - Click handler
+     * @param {Object} options - Optional styling options
+     * @returns {St.Button}
+     * @private
+     */
+    _createButton(colors, label, onClick, options = {}) {
+        const padding = options.padding || '10px 24px';
+        const isAccent = options.accent || false;
 
-        const shortcutLabel = new St.Label({
-            text: 'Shortcut:',
-            style: `font-size: 11pt; padding-top: 6px; color: ${colors.textPrimary}; min-width: 70px;`,
-            y_align: Clutter.ActorAlign.CENTER
-        });
-        shortcutBox.add_child(shortcutLabel);
+        const normalBg = isAccent ? colors.accentHex : colors.buttonBg;
+        const hoverBg = isAccent ? colors.accentHexHover : colors.buttonBgHover;
+        const textColor = isAccent ? 'white' : colors.buttonText;
 
-        const shortcutNormalStyle = `
-            padding: 6px 16px; 
-            background-color: ${colors.inputBg}; 
-            color: ${colors.buttonText}; 
+        const normalStyle = `
+            padding: ${padding}; 
+            background-color: ${normalBg}; 
+            color: ${textColor}; 
             border-radius: 6px;
-            border: 1px solid ${colors.inputBorder};
+            border: 1px solid ${colors.sectionBorder};
         `;
-        const shortcutHoverStyle = `
-            padding: 6px 16px; 
-            background-color: ${colors.buttonBgHover}; 
-            color: ${colors.buttonText}; 
+        const hoverStyle = `
+            padding: ${padding}; 
+            background-color: ${hoverBg}; 
+            color: ${textColor}; 
             border-radius: 6px;
-            border: 1px solid ${colors.inputBorder};
+            border: 1px solid ${colors.sectionBorder};
         `;
-        this._shortcutButton = new St.Button({
-            label: this._layout.shortcut || 'Click to record',
+
+        const button = new St.Button({
+            label: label,
             style_class: 'button',
-            style: shortcutNormalStyle
+            style: normalStyle,
+            can_focus: true
         });
-        this._shortcutButton.connect('clicked', () => this._recordShortcut());
-        this._addButtonHover(this._shortcutButton, shortcutNormalStyle, shortcutHoverStyle);
-        shortcutBox.add_child(this._shortcutButton);
 
-        const shortcutHint = new St.Label({
-            text: '(Not yet implemented)',
-            style: `font-size: 9pt; color: ${colors.textMuted}; padding-top: 8px;`,
-            y_align: Clutter.ActorAlign.CENTER
-        });
-        shortcutBox.add_child(shortcutHint);
-
-        settingsSection.add_child(shortcutBox);
-        this.contentLayout.add_child(settingsSection);
-
-        // Add buttons using ModalDialog's button system
-        const buttons = [
-            {
-                label: 'Cancel',
-                action: () => this._onCancel(),
-                key: Clutter.KEY_Escape
-            },
-            {
-                label: 'Save',
-                action: () => this._onSave()
-            }
-        ];
-
-        // Add delete button for existing layouts
-        if (!this._isNewLayout) {
-            buttons.unshift({
-                label: 'Delete',
-                action: () => this._onDelete()
-            });
-        }
-
-        this.setButtons(buttons);
+        button.connect('clicked', onClick);
         
-        // Apply theme to button layout and individual buttons (must happen after setButtons)
-        // NOTE: ModalDialog uses 'buttonLayout' (no underscore), not '_buttonLayout'
-        if (this.buttonLayout) {
-            this.buttonLayout.style = `background-color: ${colors.containerBg}; padding: 16px; padding-top: 0;`;
-            
-            // Style individual buttons with hover states
-            const buttonActors = this.buttonLayout.get_children();
-            logger.debug(`Found ${buttonActors.length} buttons, isDark: ${colors.isDark}`);
-            buttonActors.forEach((button, index) => {
-                // Delete button gets same neutral styling as other buttons
-                if (index === 0 && !this._isNewLayout) {
-                    const normalStyle = `background-color: ${colors.buttonBg}; color: ${colors.buttonText}; padding: 8px 24px; border-radius: 6px;`;
-                    const hoverStyle = `background-color: ${colors.buttonBgHover}; color: ${colors.buttonText}; padding: 8px 24px; border-radius: 6px;`;
-                    button.style = normalStyle;
-                    this._addButtonHover(button, normalStyle, hoverStyle);
-                }
-                // Save button gets neutral styling (same as Cancel - accent only on focus)
-                else if (index === buttonActors.length - 1) {
-                    const normalStyle = `background-color: ${colors.buttonBg}; color: ${colors.buttonText}; padding: 8px 24px; border-radius: 6px;`;
-                    const hoverStyle = `background-color: ${colors.buttonBgHover}; color: ${colors.buttonText}; padding: 8px 24px; border-radius: 6px;`;
-                    button.style = normalStyle;
-                    this._saveButton = button;
-                    this._addButtonHover(button, normalStyle, hoverStyle);
-                }
-                // Cancel button gets neutral styling
-                else {
-                    const normalStyle = `background-color: ${colors.buttonBg}; color: ${colors.buttonText}; padding: 8px 24px; border-radius: 6px;`;
-                    const hoverStyle = `background-color: ${colors.buttonBgHover}; color: ${colors.buttonText}; padding: 8px 24px; border-radius: 6px;`;
-                    button.style = normalStyle;
-                    this._addButtonHover(button, normalStyle, hoverStyle);
-                }
-            });
-        } else {
-            logger.error('buttonLayout not found - buttons not styled');
-        }
+        button.connect('enter-event', () => {
+            button.style = hoverStyle;
+            return Clutter.EVENT_PROPAGATE;
+        });
+        button.connect('leave-event', () => {
+            button.style = normalStyle;
+            return Clutter.EVENT_PROPAGATE;
+        });
 
-        logger.debug('LayoutSettingsDialog UI built');
+        // Store styles for updating later
+        button._normalStyle = normalStyle;
+        button._hoverStyle = hoverStyle;
+
+        return button;
     }
 
     /**
@@ -462,7 +580,7 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
      * @private
      */
     _validateForSave() {
-        const name = this._nameEntry.get_text().trim();
+        const name = this._nameEntry?.get_text().trim();
         if (!name) {
             return false;
         }
@@ -479,7 +597,13 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
      * @private
      */
     _updateSaveButton() {
-        logger.debug(`Validation: ${this._validateForSave() ? 'can save' : 'cannot save'}`);
+        if (!this._saveButton) return;
+        
+        const canSave = this._validateForSave();
+        this._saveButton.reactive = canSave;
+        this._saveButton.opacity = canSave ? 255 : 128;
+        
+        logger.debug(`Validation: ${canSave ? 'can save' : 'cannot save'}`);
     }
 
     /**
@@ -494,6 +618,12 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
         const currentPadding = this._paddingEntry.get_text();
         const layoutData = JSON.parse(JSON.stringify(this._layout));
         
+        // Store callbacks before closing
+        const savedOnSave = this._onSaveCallback;
+        const savedOnCancel = this._onCancelCallback;
+        const layoutManager = this._layoutManager;
+        const settings = this._settings;
+        
         this.close();
 
         const layoutForEditor = (layoutData.zones.length > 0) ? layoutData : null;
@@ -504,8 +634,8 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
         
         const editor = new ZoneEditor(
             layoutForEditor,
-            this._layoutManager,
-            this._settings,
+            layoutManager,
+            settings,
             (editedLayout) => {
                 // CRITICAL: Set flag FIRST to prevent race condition
                 if (saveCallbackExecuted) {
@@ -525,10 +655,10 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
                 GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
                     const newDialog = new LayoutSettingsDialog(
                         layoutData,
-                        this._layoutManager,
-                        this._settings,
-                        this._onSaveCallback,
-                        this._onCancelCallback
+                        layoutManager,
+                        settings,
+                        savedOnSave,
+                        savedOnCancel
                     );
                     newDialog.open();
                     return GLib.SOURCE_REMOVE;
@@ -548,10 +678,10 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
                 GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
                     const newDialog = new LayoutSettingsDialog(
                         layoutData,
-                        this._layoutManager,
-                        this._settings,
-                        this._onSaveCallback,
-                        this._onCancelCallback
+                        layoutManager,
+                        settings,
+                        savedOnSave,
+                        savedOnCancel
                     );
                     newDialog.open();
                     return GLib.SOURCE_REMOVE;
@@ -652,31 +782,21 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
      * @private
      */
     _onCancel() {
+        // Prevent multiple invocations
+        if (this._closing || !this._visible) {
+            return;
+        }
+        
         logger.info('LayoutSettingsDialog canceled');
+        
+        // Save callback before closing (since close clears state)
+        const callback = this._onCancelCallback;
         
         this.close();
 
-        if (this._onCancelCallback) {
-            this._onCancelCallback();
+        if (callback) {
+            callback();
         }
-    }
-
-    /**
-     * Add hover effect to a button using enter/leave events
-     * @param {St.Button} button - Button to add hover effect to
-     * @param {string} normalStyle - Style when not hovered
-     * @param {string} hoverStyle - Style when hovered
-     * @private
-     */
-    _addButtonHover(button, normalStyle, hoverStyle) {
-        button.connect('enter-event', () => {
-            button.style = hoverStyle;
-            return Clutter.EVENT_PROPAGATE;
-        });
-        button.connect('leave-event', () => {
-            button.style = normalStyle;
-            return Clutter.EVENT_PROPAGATE;
-        });
     }
 
     /**
@@ -687,4 +807,4 @@ class LayoutSettingsDialog extends ModalDialog.ModalDialog {
     _generateId() {
         return `layout-${Date.now()}`;
     }
-});
+}

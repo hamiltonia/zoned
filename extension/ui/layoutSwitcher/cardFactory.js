@@ -1,10 +1,17 @@
 /**
  * CardFactory - Creates layout card UI elements
  * 
+ * Card Design:
+ * - Full grey background (rgba(68, 68, 68, 1))
+ * - Compact header: layout name (left) + icon-only edit button (right)
+ * - Zone preview: 85% width, 75% height, centered below header
+ * - Click card to apply, click edit icon to edit/duplicate
+ * - Hover effects: card border accent, icon brightens to white
+ * 
  * Responsible for:
  * - Template cards (built-in layouts with duplicate button)
- * - Custom layout cards (user layouts with edit/delete)
- * - Card bottom bars with action buttons
+ * - Custom layout cards (user layouts with edit button)
+ * - Card headers with name and edit button
  * - Zone preview rendering (Cairo canvas)
  * 
  * Part of the LayoutSwitcher module split for maintainability.
@@ -17,7 +24,8 @@ import { createLogger } from '../../utils/debug.js';
 const logger = createLogger('CardFactory');
 
 /**
- * Create a template card with zone preview and hover bar
+ * Create a template card with full-card grey background
+ * Header at top (name + edit button), small preview below
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {Object} template - Template definition
  * @param {Object} currentLayout - Currently active layout
@@ -30,6 +38,9 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
     const accentHex = colors.accentHex;
     const accentRGBA = colors.accentRGBA(0.3);
     const cardRadius = ctx._cardRadius;
+    
+    // Theme-aware card background (dark grey for dark theme, light grey for light theme)
+    const cardBg = colors.cardBg;
 
     const card = new St.Button({
         style_class: 'template-card',
@@ -40,60 +51,63 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
                `overflow: hidden; ` +
                `${isActive ? 
                    `background-color: ${accentRGBA}; border: 2px solid ${accentHex};` : 
-                   `background-color: ${colors.cardBgTemplate}; border: 2px solid transparent;`}`,
+                   `background-color: ${cardBg}; border: 2px solid transparent;`}`,
         reactive: true,
         track_hover: true,
         clip_to_allocation: true
     });
 
-    // Container for layering (preview + bottom bar) - MUST have border-radius to clip properly
-    const container = new St.Widget({
-        layout_manager: new Clutter.BinLayout(),
+    // Use BoxLayout for vertical stacking (header + preview area)
+    const container = new St.BoxLayout({
+        vertical: true,
         x_expand: true,
         y_expand: true,
         clip_to_allocation: true,
-        style: `border-radius: ${cardRadius}px;`  // Match card border-radius for proper clipping
+        style: `border-radius: ${cardRadius}px; padding: 6px 8px 8px 8px;`
     });
 
-    // Zone preview background (wrapped in constraining container)
+    // Header row with name and edit button
+    const header = createCardHeader(ctx, template.name, true, template);
+    container.add_child(header);
+
+    // Calculate preview size proportionally (accounts for scaling and tiers)
+    // Use 85% of card width for the preview
+    const previewWidth = Math.floor(ctx._cardWidth * 0.85);
+    // Use 75% of card height for the preview (more space with reduced header padding)
+    const previewHeight = Math.floor(ctx._cardHeight * 0.75);
+
+    // Zone preview - explicit size, centered in remaining space
     const previewContainer = new St.Bin({
-        x_align: Clutter.ActorAlign.FILL,
-        y_align: Clutter.ActorAlign.FILL,
+        x_align: Clutter.ActorAlign.CENTER,
+        y_align: Clutter.ActorAlign.CENTER,
         x_expand: true,
         y_expand: true,
-        clip_to_allocation: true,
-        style: `border-radius: ${cardRadius}px ${cardRadius}px 0 0;`  // Round top corners only
+        clip_to_allocation: true
     });
     
     const preview = createZonePreview(
         ctx,
         template.zones,
-        ctx._previewWidth,
-        ctx._previewHeight
+        previewWidth,
+        previewHeight
     );
+    // Set explicit size on the DrawingArea
+    preview.set_size(previewWidth, previewHeight);
     
     previewContainer.set_child(preview);
     container.add_child(previewContainer);
 
-    // Bottom bar with name and buttons
-    const bottomBar = createCardBottomBar(ctx, template.name, true, template);
-    container.add_child(bottomBar);
-
     card.set_child(container);
 
-    // Click card to apply
+    // Click card to apply layout
     card.connect('clicked', () => {
         ctx._onTemplateClicked(template);
         return Clutter.EVENT_STOP;
     });
 
-    // Store bottom bar reference for hover handling
-    card._bottomBar = bottomBar;
-    card._nameLabel = bottomBar._nameLabel;
-    card._buttonBox = bottomBar._buttonBox;
     card._isActive = isActive;
 
-    // Hover effects for card border + bottom bar transition
+    // Hover effects for card border only
     card.connect('enter-event', () => {
         if (!isActive) {
             const c = ctx._themeManager.getColors();
@@ -103,55 +117,31 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
                         `background-color: ${c.accentRGBA(0.35)}; border: 2px solid ${c.accentHex}; ` +
                         `box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);`;
         }
-        // Smooth transition: fade in background, hide name, show buttons
-        card._bottomBar._background.ease({
-            opacity: 255,
-            duration: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD
-        });
-        card._nameLabel.ease({
-            opacity: 0,
-            duration: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD
-        });
-        card._buttonBox.ease({
-            opacity: 255,
-            duration: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD
-        });
+        // Update preview background to show this template's layout
+        if (ctx._onCardHover) {
+            ctx._onCardHover(template);
+        }
     });
 
     card.connect('leave-event', () => {
         if (!isActive) {
-            const c = ctx._themeManager.getColors();
             card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
                         `width: ${ctx._cardWidth}px; height: ${ctx._cardHeight}px; ` +
                         `overflow: hidden; ` +
-                        `background-color: ${c.cardBgTemplate}; border: 2px solid transparent;`;
+                        `background-color: ${cardBg}; border: 2px solid transparent;`;
         }
-        // Smooth transition: fade out background to default opacity, show name, hide buttons
-        card._bottomBar._background.ease({
-            opacity: ctx._CARD_BOTTOM_BAR_DEFAULT_OPACITY,
-            duration: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD
-        });
-        card._nameLabel.ease({
-            opacity: 255,
-            duration: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD
-        });
-        card._buttonBox.ease({
-            opacity: 0,
-            duration: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD
-        });
+        // Revert preview background
+        if (ctx._onCardHoverEnd) {
+            ctx._onCardHoverEnd();
+        }
     });
 
     return card;
 }
 
 /**
- * Create a custom layout card with zone preview and hover bar
+ * Create a custom layout card with theme-aware background
+ * Header at top (name + edit button), small preview below
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {Object} layout - Layout definition
  * @param {Object} currentLayout - Currently active layout
@@ -164,6 +154,9 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
     const accentHex = colors.accentHex;
     const accentRGBA = colors.accentRGBA(0.3);
     const cardRadius = ctx._cardRadius;
+    
+    // Theme-aware card background (dark grey for dark theme, light grey for light theme)
+    const cardBg = colors.cardBg;
 
     const card = new St.Button({
         style_class: 'custom-layout-card',
@@ -174,65 +167,67 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
                `overflow: hidden; ` +
                `${isActive ? 
                    `background-color: ${accentRGBA}; border: 2px solid ${accentHex};` : 
-                   `background-color: ${colors.cardBg}; border: 2px solid transparent;`}`,
+                   `background-color: ${cardBg}; border: 2px solid transparent;`}`,
         reactive: true,
         track_hover: true,
         clip_to_allocation: true
     });
 
-    // Container for layering (preview + bottom bar) - MUST have border-radius to match card
-    const container = new St.Widget({
-        layout_manager: new Clutter.BinLayout(),
+    // Use BoxLayout for vertical stacking (header + preview area)
+    const container = new St.BoxLayout({
+        vertical: true,
         x_expand: true,
         y_expand: true,
         clip_to_allocation: true,
-        style: `border-radius: ${cardRadius}px;`  // Match card border-radius for proper clipping
+        style: `border-radius: ${cardRadius}px; padding: 6px 8px 8px 8px;`
     });
 
-    // Zone preview background (wrapped in constraining container)
+    // Header row with name and edit button
+    const header = createCardHeader(ctx, layout.name, false, layout);
+    container.add_child(header);
+
+    // Calculate preview size proportionally (accounts for scaling and tiers)
+    // Use 85% of card width for the preview
+    const previewWidth = Math.floor(ctx._cardWidth * 0.85);
+    // Use 75% of card height for the preview (more space with reduced header padding)
+    const previewHeight = Math.floor(ctx._cardHeight * 0.75);
+
+    // Zone preview - explicit size, centered in remaining space
     const previewContainer = new St.Bin({
-        x_align: Clutter.ActorAlign.FILL,
-        y_align: Clutter.ActorAlign.FILL,
+        x_align: Clutter.ActorAlign.CENTER,
+        y_align: Clutter.ActorAlign.CENTER,
         x_expand: true,
         y_expand: true,
-        clip_to_allocation: true,
-        style: `border-radius: ${cardRadius}px ${cardRadius}px 0 0;`  // Round top corners only
+        clip_to_allocation: true
     });
     
     const preview = createZonePreview(
         ctx,
         layout.zones,
-        ctx._previewWidth,
-        ctx._previewHeight
+        previewWidth,
+        previewHeight
     );
+    // Set explicit size on the DrawingArea
+    preview.set_size(previewWidth, previewHeight);
     
     previewContainer.set_child(preview);
     container.add_child(previewContainer);
 
-    // Bottom bar with name and buttons
-    const bottomBar = createCardBottomBar(ctx, layout.name, false, layout);
-    container.add_child(bottomBar);
-
     card.set_child(container);
 
-    // Click to apply
+    // Click to apply layout
     card.connect('clicked', () => {
         ctx._onLayoutClicked(layout);
     });
 
     // Propagate scroll events to parent ScrollView
-    // This ensures mouse wheel scrolling works when hovering over cards
     card.connect('scroll-event', () => {
         return Clutter.EVENT_PROPAGATE;
     });
 
-    // Store bottom bar reference for hover handling
-    card._bottomBar = bottomBar;
-    card._nameLabel = bottomBar._nameLabel;
-    card._buttonBox = bottomBar._buttonBox;
     card._isActive = isActive;
 
-    // Hover effects for card border + bottom bar transition
+    // Hover effects for card border only
     card.connect('enter-event', () => {
         if (!isActive) {
             const c = ctx._themeManager.getColors();
@@ -242,261 +237,133 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
                         `background-color: ${c.accentRGBA(0.35)}; border: 2px solid ${c.accentHex}; ` +
                         `box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);`;
         }
-        // Smooth transition: fade in background, hide name, show buttons
-        card._bottomBar._background.ease({
-            opacity: 255,
-            duration: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD
-        });
-        card._nameLabel.ease({
-            opacity: 0,
-            duration: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD
-        });
-        card._buttonBox.ease({
-            opacity: 255,
-            duration: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD
-        });
+        // Update preview background to show this layout
+        if (ctx._onCardHover) {
+            ctx._onCardHover(layout);
+        }
     });
 
     card.connect('leave-event', () => {
         if (!isActive) {
-            const c = ctx._themeManager.getColors();
             card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
                         `width: ${ctx._cardWidth}px; height: ${ctx._cardHeight}px; ` +
                         `overflow: hidden; ` +
-                        `background-color: ${c.cardBg}; border: 2px solid transparent;`;
+                        `background-color: ${cardBg}; border: 2px solid transparent;`;
         }
-        // Smooth transition: fade out background to default opacity, show name, hide buttons
-        card._bottomBar._background.ease({
-            opacity: ctx._CARD_BOTTOM_BAR_DEFAULT_OPACITY,
-            duration: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD
-        });
-        card._nameLabel.ease({
-            opacity: 255,
-            duration: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD
-        });
-        card._buttonBox.ease({
-            opacity: 0,
-            duration: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD
-        });
+        // Revert preview background
+        if (ctx._onCardHoverEnd) {
+            ctx._onCardHoverEnd();
+        }
     });
 
     return card;
 }
 
 /**
- * Create card bottom bar with name and action buttons
- * Height scales proportionally with card size for better readability
+ * Create card header with name (left) and edit button (right)
+ * No background - relies on full-card grey background
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {string} name - Layout name to display
- * @param {boolean} isTemplate - True for template cards, false for custom layouts
+ * @param {boolean} isTemplate - True for template cards (duplicate), false for custom layouts (edit)
  * @param {object} layout - Layout object for button handlers
- * @returns {St.Widget} The bottom bar widget
+ * @returns {St.BoxLayout} The header widget
  */
-export function createCardBottomBar(ctx, name, isTemplate, layout) {
-    const colors = ctx._themeManager.getColors();
-    const cardRadius = ctx._cardRadius;
-    
-    // Use grey for bottom bar instead of accent color (accent only for selection rects)
-    // Higher opacity (0.85) for better readability
-    const greyBg = colors.isDark ? 'rgba(100, 100, 100, 0.85)' : 'rgba(80, 80, 80, 0.85)';
-    
-    // Calculate proportional bottom bar height
-    const bottomBarHeight = Math.max(
-        ctx._CARD_BOTTOM_BAR_MIN_HEIGHT,
-        Math.floor(ctx._cardHeight * ctx._CARD_BOTTOM_BAR_RATIO)
-    );
-    
-    // Bottom bar radius is slightly smaller than card radius to fit inside
-    const bottomBarRadius = Math.max(4, cardRadius - 2);
-    
-    const bottomBar = new St.Widget({
-        layout_manager: new Clutter.BinLayout(),
-        style: `height: ${bottomBarHeight}px;`,
-        y_align: Clutter.ActorAlign.END,
-        x_expand: true
-    });
-
-    // Background in grey - subtle by default, more opaque on hover
-    // Accent color is only used for selection rects
-    const background = new St.Bin({
-        style: `background-color: ${greyBg}; ` +
-               `border-radius: 0 0 ${bottomBarRadius}px ${bottomBarRadius}px;`,
+export function createCardHeader(ctx, name, isTemplate, layout) {
+    const header = new St.BoxLayout({
+        vertical: false,
         x_expand: true,
-        y_expand: true,
-        opacity: ctx._CARD_BOTTOM_BAR_DEFAULT_OPACITY
+        y_align: Clutter.ActorAlign.START
     });
-    bottomBar.add_child(background);
 
-    // Name label layer (visible by default, hidden on hover)
+    // Name label (left-aligned)
     const nameLabel = new St.Label({
         text: name,
-        style: 'color: white; font-size: 11px; font-weight: 600; text-align: center;',
-        x_align: Clutter.ActorAlign.CENTER,
+        style: 'color: white; font-size: 11px; font-weight: 500;',
+        x_align: Clutter.ActorAlign.START,
         y_align: Clutter.ActorAlign.CENTER,
-        x_expand: true,
-        opacity: 255
+        x_expand: true
     });
-    bottomBar.add_child(nameLabel);
+    header.add_child(nameLabel);
 
-    // Buttons layer (hidden by default, shown on hover)
-    const buttonBox = new St.BoxLayout({
-        vertical: false,
-        x_align: Clutter.ActorAlign.FILL,
-        y_align: Clutter.ActorAlign.CENTER,
-        x_expand: true,
-        opacity: 0
+    // Icon-only edit button (no background, just the icon)
+    const editButton = new St.Button({
+        style_class: 'card-edit-button',
+        style: `background-color: transparent; padding: 0; min-width: 16px; min-height: 16px;`,
+        reactive: true,
+        track_hover: true,
+        y_align: Clutter.ActorAlign.CENTER
     });
 
-    if (isTemplate) {
-        // Template: Single full-width "Duplicate" button with icon
-        const duplicateBtn = new St.Button({
-            style_class: 'card-action-button',
-            style: 'color: white; font-size: 11px; font-weight: 600; ' +
-                   'padding: 0 16px; background-color: transparent;',
-            reactive: true,
-            track_hover: true,
-            x_align: Clutter.ActorAlign.CENTER,
-            x_expand: true
-        });
+    const editIcon = new St.Icon({
+        icon_name: 'document-edit-symbolic',
+        style_class: 'system-status-icon',
+        icon_size: 14,
+        style: 'color: rgba(255, 255, 255, 0.6);'
+    });
+    editButton.set_child(editIcon);
 
-        const btnContent = new St.BoxLayout({
-            vertical: false,
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER,
-            style: 'spacing: 6px;',
-            x_expand: false
-        });
+    // Hover effect - change icon color to white
+    editButton.connect('enter-event', () => {
+        editIcon.style = 'color: rgba(255, 255, 255, 1);';
+    });
+    
+    editButton.connect('leave-event', () => {
+        editIcon.style = 'color: rgba(255, 255, 255, 0.6);';
+    });
 
-        const icon = new St.Icon({
-            icon_name: 'edit-copy-symbolic',
-            style_class: 'system-status-icon',
-            icon_size: 14
-        });
-        btnContent.add_child(icon);
-
-        const label = new St.Label({
-            text: 'Duplicate',
-            y_align: Clutter.ActorAlign.CENTER
-        });
-        btnContent.add_child(label);
-
-        duplicateBtn.set_child(btnContent);
-
-        duplicateBtn.connect('clicked', (btn) => {
+    // Click handler - duplicate for templates, edit for custom layouts
+    // Use button-press-event instead of clicked to prevent event propagation to parent card
+    editButton.connect('button-press-event', () => {
+        if (isTemplate) {
             ctx._onEditTemplateClicked(layout);
-            return Clutter.EVENT_STOP;
-        });
-
-        buttonBox.add_child(duplicateBtn);
-    } else {
-        // Custom layout: Split Edit / Delete buttons with icons
-        const editBtn = new St.Button({
-            style_class: 'card-action-button',
-            style: 'color: white; font-size: 11px; font-weight: 600; ' +
-                   'padding: 0 12px; background-color: transparent;',
-            reactive: true,
-            track_hover: true,
-            x_align: Clutter.ActorAlign.CENTER,
-            x_expand: true
-        });
-
-        const editContent = new St.BoxLayout({
-            vertical: false,
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER,
-            style: 'spacing: 6px;',
-            x_expand: false
-        });
-
-        const editIcon = new St.Icon({
-            icon_name: 'document-edit-symbolic',
-            style_class: 'system-status-icon',
-            icon_size: 14
-        });
-        editContent.add_child(editIcon);
-
-        const editLabel = new St.Label({
-            text: 'Edit',
-            y_align: Clutter.ActorAlign.CENTER
-        });
-        editContent.add_child(editLabel);
-
-        editBtn.set_child(editContent);
-
-        editBtn.connect('clicked', (btn) => {
+        } else {
             ctx._onEditLayoutClicked(layout);
-            return Clutter.EVENT_STOP;
-        });
+        }
+        return Clutter.EVENT_STOP;  // Prevents card from receiving the click
+    });
 
-        // Vertical separator
-        const separator = new St.Widget({
-            style: 'width: 1px; background-color: rgba(255, 255, 255, 0.3);',
-            y_expand: true
-        });
+    header.add_child(editButton);
 
-        const deleteBtn = new St.Button({
-            style_class: 'card-action-button',
-            style: 'color: white; font-size: 11px; font-weight: 600; ' +
-                   'padding: 0 12px; background-color: transparent;',
-            reactive: true,
-            track_hover: true,
-            x_align: Clutter.ActorAlign.CENTER,
-            x_expand: true
-        });
+    return header;
+}
 
-        const deleteContent = new St.BoxLayout({
-            vertical: false,
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER,
-            style: 'spacing: 6px;',
-            x_expand: false
-        });
-
-        const deleteIcon = new St.Icon({
-            icon_name: 'edit-delete-symbolic',
-            style_class: 'system-status-icon',
-            icon_size: 14
-        });
-        deleteContent.add_child(deleteIcon);
-
-        const deleteLabel = new St.Label({
-            text: 'Delete',
-            y_align: Clutter.ActorAlign.CENTER
-        });
-        deleteContent.add_child(deleteLabel);
-
-        deleteBtn.set_child(deleteContent);
-
-        deleteBtn.connect('clicked', (btn) => {
-            ctx._onDeleteClicked(layout);
-            return Clutter.EVENT_STOP;
-        });
-
-        buttonBox.add_child(editBtn);
-        buttonBox.add_child(separator);
-        buttonBox.add_child(deleteBtn);
-    }
-
-    bottomBar.add_child(buttonBox);
-
-    // Store references for hover handling
-    bottomBar._nameLabel = nameLabel;
-    bottomBar._buttonBox = buttonBox;
-    bottomBar._background = background;
-
-    return bottomBar;
+/**
+ * Helper: Draw a rounded rectangle path using Cairo arcs
+ * @param {Cairo.Context} cr - Cairo context
+ * @param {number} x - X position
+ * @param {number} y - Y position  
+ * @param {number} w - Width
+ * @param {number} h - Height
+ * @param {number} r - Corner radius
+ */
+function roundedRect(cr, x, y, w, h, r) {
+    const pi = Math.PI;
+    // Clamp radius to half of smallest dimension
+    r = Math.min(r, w / 2, h / 2);
+    
+    cr.newPath();
+    // Top-left corner
+    cr.arc(x + r, y + r, r, pi, 1.5 * pi);
+    // Top edge
+    cr.lineTo(x + w - r, y);
+    // Top-right corner
+    cr.arc(x + w - r, y + r, r, 1.5 * pi, 2 * pi);
+    // Right edge
+    cr.lineTo(x + w, y + h - r);
+    // Bottom-right corner
+    cr.arc(x + w - r, y + h - r, r, 0, 0.5 * pi);
+    // Bottom edge
+    cr.lineTo(x + r, y + h);
+    // Bottom-left corner
+    cr.arc(x + r, y + h - r, r, 0.5 * pi, pi);
+    // Left edge
+    cr.closePath();
 }
 
 /**
  * Create visual zone preview using Cairo
- * Grey fill for zones, accent color only for grid lines (borders)
- * Zones are inset by 2px to avoid clipping at rounded corners
+ * Bubbly 3D zone tiles with rounded corners, flat fill, top highlight, and shadow
+ * Zones are inset to create visible gaps where card background shows through
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {Array} zones - Array of zone definitions
  * @param {number} width - Preview width
@@ -522,11 +389,16 @@ export function createZonePreview(ctx, zones, width, height) {
             const cr = canvas.get_context();
             const [w, h] = canvas.get_surface_size();
 
-            // Inset margin to avoid clipping at rounded corners
-            // This creates a visual border around the zone preview
-            const inset = 4;
+            // Larger inset for visible transparent gaps between zones
+            // Card background color shows through these gaps
+            const inset = 8;
             const drawW = w - (inset * 2);  // Available width for zones
             const drawH = h - (inset * 2);  // Available height for zones
+            
+            // Bubbly settings
+            const cornerRadius = 4;  // Rounded corners for bubbly feel
+            const shadowOffset = 2;
+            const highlightHeight = 2;
 
             zones.forEach((zone) => {
                 // Calculate zone position within the inset area
@@ -534,19 +406,42 @@ export function createZonePreview(ctx, zones, width, height) {
                 const y = inset + (zone.y * drawH);
                 const zoneW = zone.w * drawW;
                 const zoneH = zone.h * drawH;
+                
+                // Gap between zones for transparent edge effect
+                const gap = 2;
+                const zx = x + gap;
+                const zy = y + gap;
+                const zw = zoneW - (gap * 2);
+                const zh = zoneH - (gap * 2);
 
-                // Fill with grey (not accent color)
-                const greyValue = isDark ? 0.5 : 0.4;  // Grey intensity
-                const greyAlpha = isDark ? 0.35 : 0.25;  // Grey alpha
-                cr.setSourceRGBA(greyValue, greyValue, greyValue, greyAlpha);
-                cr.rectangle(x, y, zoneW, zoneH);
+                // 1. Draw shadow (offset down-right, rounded)
+                cr.setSourceRGBA(0, 0, 0, isDark ? 0.35 : 0.2);
+                roundedRect(cr, zx + shadowOffset, zy + shadowOffset, zw, zh, cornerRadius);
                 cr.fill();
 
-                // Border/grid lines use grey (accent color only for selection rects)
-                const borderGrey = isDark ? 0.7 : 0.35;  // Visible but not accent
-                cr.setSourceRGBA(borderGrey, borderGrey, borderGrey, 0.9);
+                // 2. Flat zone fill (single solid color - no gradient)
+                const fillGrey = isDark ? 0.45 : 0.55;
+                const fillAlpha = isDark ? 0.9 : 0.85;
+                cr.setSourceRGBA(fillGrey, fillGrey, fillGrey, fillAlpha);
+                roundedRect(cr, zx, zy, zw, zh, cornerRadius);
+                cr.fill();
+
+                // 3. Top edge highlight (bright line at top, follows rounded corners)
+                // Draw as a thin rounded rect clipped to top portion
+                cr.save();
+                roundedRect(cr, zx, zy, zw, zh, cornerRadius);
+                cr.clip();
+                const highlightAlpha = isDark ? 0.45 : 0.55;
+                cr.setSourceRGBA(1, 1, 1, highlightAlpha);
+                cr.rectangle(zx, zy, zw, highlightHeight);
+                cr.fill();
+                cr.restore();
+
+                // 4. Subtle border for definition (rounded)
+                const borderGrey = isDark ? 0.3 : 0.35;
+                cr.setSourceRGBA(borderGrey, borderGrey, borderGrey, 0.5);
                 cr.setLineWidth(1);
-                cr.rectangle(x, y, zoneW, zoneH);
+                roundedRect(cr, zx, zy, zw, zh, cornerRadius);
                 cr.stroke();
             });
 
