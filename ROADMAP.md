@@ -17,7 +17,7 @@ The following items need to be completed before v1.0 release:
 - [x] **Preview background z-order** - LayoutPreviewBackground stays visible behind both LayoutSwitcher and LayoutSettingsDialog ✅
 - [ ] **Monitor & workspace UI** - Implement monitor selector and workspace mode UI
 - [ ] **Layout keyboard shortcuts** - Add keyboard shortcuts to activate specific layouts (in layout settings)
-- [ ] **Duplicate custom layouts** - Allow duplicating custom layouts (not just templates)
+- [x] **Duplicate custom layouts** - Allow duplicating custom layouts (not just templates)
 
 ### UX/UI
 - [x] **Card top bar design** - Grey header with name (left) and circular edit button (right), zone preview below ✅
