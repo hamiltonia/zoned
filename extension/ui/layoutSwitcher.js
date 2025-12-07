@@ -757,38 +757,35 @@ this._selectedCardIndex = -1;
     }
 
     /**
-     * Handle edit template click - create duplicate and open editor
+     * Handle edit template click - open settings dialog for template viewing
+     * Templates show Duplicate button only (no Save/Delete, disabled Name)
      * Keeps switcher visible but releases modal to settings dialog
      */
     _onEditTemplateClicked(template) {
         logger.info(`[MODAL] _onEditTemplateClicked: ${template.name}`);
 
-        const newLayout = {
-            id: `layout-${Date.now()}`,
-            name: `${template.name} - Copy`,
-            zones: JSON.parse(JSON.stringify(template.zones))
-        };
-
-        this._layoutManager.saveLayout(newLayout);
-        logger.info(`[MODAL] Created duplicate layout: ${newLayout.name}`);
-        this._zoneOverlay.showMessage(`Created: ${newLayout.name}`);
-
+        // Pass template directly - don't create duplicate until user clicks Duplicate
+        // LayoutSettingsDialog will detect it's a template via _detectIsTemplate()
+        
         // Release modal but keep UI visible - settings dialog will have its own modal
         this._releaseModalForSettings();
 
         const settingsDialog = new LayoutSettingsDialog(
-            newLayout,
+            template,  // Pass template directly, not a duplicate
             this._layoutManager,
             this._settings,
-            (updatedLayout) => {
-                logger.info(`[MODAL] Template duplicate save callback firing`);
-                // Refresh to show the new layout card
+            (newLayout) => {
+                logger.info(`[MODAL] Template settings callback firing`);
+                // If a layout was created (via Duplicate), refresh to show it
+                if (newLayout) {
+                    this._zoneOverlay.showMessage(`Created: ${newLayout.name}`);
+                }
                 this._refreshAfterSettings();
             },
             () => {
-                logger.info(`[MODAL] Template duplicate cancel callback firing`);
-                // Refresh to show the new layout card (it was already created)
-                this._refreshAfterSettings();
+                logger.info(`[MODAL] Template settings cancel callback firing`);
+                // Re-acquire modal (no changes were made)
+                this._reacquireModalAfterSettings();
             }
         );
         settingsDialog.open();

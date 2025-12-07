@@ -152,6 +152,38 @@ export class ConfirmDialog extends ModalDialog.ModalDialog {
                 default: this._options.destructive  // Confirm is default for destructive actions
             }
         ]);
+        
+        // Apply destructive styling to confirm button if requested
+        // The confirm button is the second button in the button layout
+        if (this._options.destructive && this.buttonLayout) {
+            const buttons = this.buttonLayout.get_children();
+            if (buttons.length >= 2) {
+                const confirmButton = buttons[1];
+                // Red destructive styling matching layoutSwitcher's delete confirmation
+                confirmButton.style = `
+                    background-color: #c01c28;
+                    color: white;
+                    border: none;
+                `;
+                // Also style on hover
+                confirmButton.connect('enter-event', () => {
+                    confirmButton.style = `
+                        background-color: #a01720;
+                        color: white;
+                        border: none;
+                    `;
+                    return Clutter.EVENT_PROPAGATE;
+                });
+                confirmButton.connect('leave-event', () => {
+                    confirmButton.style = `
+                        background-color: #c01c28;
+                        color: white;
+                        border: none;
+                    `;
+                    return Clutter.EVENT_PROPAGATE;
+                });
+            }
+        }
 
         logger.debug('ConfirmDialog UI built');
     }

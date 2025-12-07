@@ -22,6 +22,7 @@ The following items need to be completed before v1.0 release:
 ### UX/UI
 - [x] **Card top bar design** - Grey header with name (left) and circular edit button (right), zone preview below ✅
 - [x] **Edit button click isolation** - Edit icon no longer triggers layout activation ✅
+- [x] **LayoutSettingsDialog FancyZones redesign** - Template detection, destructive delete button, spinner/dropdown consistency, descriptive shortcut label ✅
 
 ### Code Quality
 - [ ] **Log cleanup** - Final review of code for debug logs that can be removed
