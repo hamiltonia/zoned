@@ -194,14 +194,14 @@ const ShortcutCaptureRow = GObject.registerClass({
         
         log(`ShortcutCaptureRow._init for key: ${settingsKey}`);
         
-        // Main content box (vertical)
+        // Main content box (vertical) - match Adw.ActionRow padding
         const mainBox = new Gtk.Box({
             orientation: Gtk.Orientation.VERTICAL,
-            spacing: 4,
-            margin_top: 12,
-            margin_bottom: 12,
+            spacing: 2,
+            margin_top: 6,
+            margin_bottom: 6,
             margin_start: 12,
-            margin_end: 12,
+            margin_end: 6,
         });
         
         // Header row: Title + icons
@@ -360,13 +360,11 @@ const ShortcutCaptureRow = GObject.registerClass({
         
         if (this._isCapturing) {
             this._shortcutLabel.set_label('Press keys...');
-            this._shortcutLabel.remove_css_class('dim-label');
-            this._shortcutLabel.add_css_class('accent');
+            this._shortcutLabel.add_css_class('capturing');
             this._editButton.add_css_class('suggested-action');
         } else {
             this._shortcutLabel.set_label(label);
-            this._shortcutLabel.add_css_class('dim-label');
-            this._shortcutLabel.remove_css_class('accent');
+            this._shortcutLabel.remove_css_class('capturing');
             this._editButton.remove_css_class('suggested-action');
         }
         
@@ -568,6 +566,31 @@ const ShortcutCaptureRow = GObject.registerClass({
 
 export default class ZonedPreferences extends ExtensionPreferences {
     /**
+     * Apply theme override to Libadwaita StyleManager
+     * This ensures the preferences window honors the ui-theme setting
+     * @param {string} themePref - Theme preference ('system', 'light', 'dark')
+     */
+    _applyTheme(themePref) {
+        const styleManager = Adw.StyleManager.get_default();
+        
+        switch (themePref) {
+            case 'light':
+                styleManager.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT);
+                log(`Theme applied: FORCE_LIGHT`);
+                break;
+            case 'dark':
+                styleManager.set_color_scheme(Adw.ColorScheme.FORCE_DARK);
+                log(`Theme applied: FORCE_DARK`);
+                break;
+            case 'system':
+            default:
+                styleManager.set_color_scheme(Adw.ColorScheme.DEFAULT);
+                log(`Theme applied: DEFAULT (system)`);
+                break;
+        }
+    }
+
+    /**
      * Fill preferences window
      * @param {Adw.PreferencesWindow} window - The preferences window
      */
@@ -578,6 +601,10 @@ export default class ZonedPreferences extends ExtensionPreferences {
         const settings = this.getSettings();
         log('Settings object obtained');
         
+        // Apply current theme setting to the preferences window
+        const currentThemePref = settings.get_string('ui-theme');
+        this._applyTheme(currentThemePref);
+        
         // Add CSS provider for custom styling
         const cssProvider = new Gtk.CssProvider();
         cssProvider.load_from_data(`
@@ -586,10 +613,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
                 font-size: 13px;
                 color: @accent_color;
             }
-            .shortcut-text.dim-label {
-                color: alpha(@theme_text_color, 0.55);
-            }
-            .shortcut-text.accent {
+            .shortcut-text.capturing {
                 color: @accent_color;
                 font-weight: bold;
             }
@@ -633,6 +657,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         themeRow.connect('notify::selected', () => {
             const newTheme = themeMapping[themeRow.get_selected()];
             settings.set_string('ui-theme', newTheme);
+            // Apply theme immediately to this preferences window
+            this._applyTheme(newTheme);
         });
         
         appearanceGroup.add(themeRow);
@@ -718,8 +744,16 @@ export default class ZonedPreferences extends ExtensionPreferences {
 
         const aboutRow = new Adw.ActionRow({
             title: 'Zoned',
-            subtitle: 'Version 1.0 (Pre-release)\nGitHub: github.com/hamiltonia/zoned',
+            subtitle: 'Version 1.0 (Pre-release)',
         });
+        
+        // Add GitHub link button
+        const githubButton = new Gtk.LinkButton({
+            label: 'GitHub',
+            uri: 'https://github.com/hamiltonia/zoned',
+            valign: Gtk.Align.CENTER,
+        });
+        aboutRow.add_suffix(githubButton);
         aboutGroup.add(aboutRow);
         
         log('=== fillPreferencesWindow complete ===');
