@@ -182,6 +182,48 @@ export class ConflictDetector {
     }
 
     /**
+     * Fix a single conflict by disabling the conflicting GNOME binding
+     * @param {string} zonedAction - The Zoned action key (e.g., 'cycle-zone-left')
+     * @returns {Object} Result of fix attempt
+     */
+    fixSingleConflict(zonedAction) {
+        const conflict = this._conflicts.find(c => c.zonedAction === zonedAction);
+        
+        if (!conflict) {
+            logger.warn(`No conflict found for action: ${zonedAction}`);
+            return { success: false, error: 'No conflict found' };
+        }
+
+        try {
+            const schema = new Gio.Settings({ schema: conflict.gnomeSchema });
+            
+            // Backup current value
+            const currentValue = schema.get_strv(conflict.gnomeKey);
+            const backup = { [`${conflict.gnomeSchema}:${conflict.gnomeKey}`]: currentValue };
+
+            // Disable the conflicting GNOME binding
+            schema.set_strv(conflict.gnomeKey, []);
+            
+            logger.info(`Fixed single conflict: Disabled ${conflict.gnomeDescription}`);
+            
+            // Re-detect conflicts to update internal state
+            this.detectConflicts();
+            
+            return {
+                success: true,
+                fixed: {
+                    action: conflict.gnomeDescription,
+                    binding: conflict.gnomeBinding
+                },
+                backup
+            };
+        } catch (error) {
+            logger.error(`Failed to fix conflict for ${zonedAction}: ${error}`);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
      * Automatically fix conflicts by disabling conflicting GNOME bindings
      * @returns {Object} Results of fix attempt
      */
@@ -218,6 +260,12 @@ export class ConflictDetector {
                     logger.error(`Failed to fix ${conflict.gnomeDescription}: ${error}`);
                 }
             });
+            
+            // Sync all settings to ensure changes are visible to other processes (prefs.js)
+            if (results.fixed.length > 0) {
+                Gio.Settings.sync();
+                logger.debug('Synced GSettings after fixing conflicts');
+            }
         } catch (error) {
             logger.error(`Error in autoFixConflicts: ${error}`);
         }

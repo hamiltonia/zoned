@@ -9,6 +9,7 @@ import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 import Gdk from 'gi://Gdk';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
@@ -238,14 +239,22 @@ const ShortcutCaptureRow = GObject.registerClass({
         titleLabel.add_css_class('title');
         headerBox.append(titleLabel);
         
-        // Conflict warning icon (hidden by default)
-        this._warningIcon = new Gtk.Image({
+        // Conflict warning button (hidden by default) - clickable to fix
+        this._warningButton = new Gtk.Button({
             icon_name: 'dialog-warning-symbolic',
             visible: false,
-            tooltip_text: '',
+            tooltip_text: 'Click to resolve conflict',
+            valign: Gtk.Align.CENTER,
         });
-        this._warningIcon.add_css_class('warning');
-        headerBox.append(this._warningIcon);
+        this._warningButton.add_css_class('flat');
+        this._warningButton.add_css_class('warning');
+        this._warningButton.connect('clicked', () => {
+            this._showConflictDialog();
+        });
+        headerBox.append(this._warningButton);
+        
+        // Store conflict info for dialog
+        this._currentConflict = null;
         
         // Edit button (pencil icon)
         this._editButton = new Gtk.Button({
@@ -343,6 +352,12 @@ const ShortcutCaptureRow = GObject.registerClass({
             this._updateDisplay();
         });
         
+        // Listen for conflict count changes (reverse sync from panel menu "Fix All")
+        this._conflictCountChangedId = this._settings.connect('changed::keybinding-conflict-count', () => {
+            log(`Conflict count changed externally for ${this._settingsKey}, refreshing display`);
+            this._updateDisplay();
+        });
+        
         log(`ShortcutCaptureRow initialized for ${settingsKey}`);
     }
     
@@ -395,11 +410,13 @@ const ShortcutCaptureRow = GObject.registerClass({
         // Check for conflicts
         const conflict = checkConflicts(current, this._settingsKey);
         if (conflict) {
-            this._warningIcon.visible = true;
-            this._warningIcon.tooltip_text = `Conflicts with: ${conflict.name}\n(${conflict.schema})`;
+            this._currentConflict = conflict;
+            this._warningButton.visible = true;
+            this._warningButton.tooltip_text = `Conflicts with: ${conflict.name}\nClick to fix`;
             log(`Conflict detected: ${conflict.name}`);
         } else {
-            this._warningIcon.visible = false;
+            this._currentConflict = null;
+            this._warningButton.visible = false;
         }
     }
     
@@ -571,6 +588,98 @@ const ShortcutCaptureRow = GObject.registerClass({
     }
     
     /**
+     * Show conflict resolution dialog
+     */
+    _showConflictDialog() {
+        if (!this._currentConflict) {
+            log('No conflict to show');
+            return;
+        }
+        
+        const conflict = this._currentConflict;
+        log(`Showing conflict dialog for: ${conflict.name}`);
+        
+        // Get toplevel window for dialog parent
+        const root = this.get_root();
+        
+        // Create alert dialog
+        const dialog = new Adw.AlertDialog({
+            heading: 'Keyboard Shortcut Conflict',
+            body: `This shortcut conflicts with:\n\n<b>${conflict.name}</b>\n\nDisabling the GNOME shortcut will allow Zoned to use this key combination.`,
+            body_use_markup: true,
+        });
+        
+        dialog.add_response('cancel', 'Cancel');
+        dialog.add_response('fix', 'Disable GNOME Shortcut');
+        dialog.set_response_appearance('fix', Adw.ResponseAppearance.SUGGESTED);
+        dialog.set_default_response('fix');
+        
+        dialog.connect('response', (dlg, response) => {
+            if (response === 'fix') {
+                this._fixConflict(conflict);
+            }
+        });
+        
+        dialog.present(root);
+    }
+    
+    /**
+     * Fix a single conflict by disabling the GNOME shortcut
+     * @param {Object} conflict - Conflict info object
+     */
+    _fixConflict(conflict) {
+        log(`Fixing conflict: disabling ${conflict.schema}:${conflict.key}`);
+        
+        try {
+            const schema = new Gio.Settings({ schema: conflict.schema });
+            schema.set_strv(conflict.key, []);
+            
+            log(`Successfully disabled ${conflict.name}`);
+            
+            // Update display to reflect resolved conflict
+            this._updateDisplay();
+            
+            // Signal to extension that conflicts changed (trigger panel update)
+            // Use small delay to ensure GSettings write is complete
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+                this._signalConflictChange();
+                return GLib.SOURCE_REMOVE;
+            });
+        } catch (e) {
+            log(`Error fixing conflict: ${e.message}`);
+        }
+    }
+    
+    /**
+     * Signal to extension that conflict state has changed
+     * Updates keybinding-conflict-count to trigger panel refresh
+     */
+    _signalConflictChange() {
+        // Count current conflicts across all bindings
+        let conflictCount = 0;
+        
+        for (const binding of KEYBINDINGS) {
+            const values = this._settings.get_strv(binding.key);
+            if (values.length > 0 && checkConflicts(values[0], binding.key)) {
+                conflictCount++;
+            }
+        }
+        
+        // Also check enhanced bindings if enabled
+        if (this._settings.get_boolean('enhanced-window-management-enabled')) {
+            for (const binding of ENHANCED_KEYBINDINGS) {
+                const values = this._settings.get_strv(binding.key);
+                if (values.length > 0 && checkConflicts(values[0], binding.key)) {
+                    conflictCount++;
+                }
+            }
+        }
+        
+        log(`Signaling conflict count change: ${conflictCount}`);
+        this._settings.set_int('keybinding-conflict-count', conflictCount);
+    }
+    
+    /**
      * Clean up
      */
     destroy() {
@@ -578,6 +687,10 @@ const ShortcutCaptureRow = GObject.registerClass({
         if (this._settingsChangedId) {
             this._settings.disconnect(this._settingsChangedId);
             this._settingsChangedId = null;
+        }
+        if (this._conflictCountChangedId) {
+            this._settings.disconnect(this._conflictCountChangedId);
+            this._conflictCountChangedId = null;
         }
         super.destroy();
     }
@@ -816,6 +929,48 @@ export default class ZonedPreferences extends ExtensionPreferences {
         });
         aboutRow.add_suffix(githubButton);
         aboutGroup.add(aboutRow);
+        
+        // Check if we should scroll to a specific section (set by panel menu)
+        const scrollTarget = settings.get_string('prefs-scroll-target');
+        if (scrollTarget) {
+            log(`Scroll target requested: ${scrollTarget}`);
+            
+            // Clear the scroll target so it doesn't persist
+            settings.set_string('prefs-scroll-target', '');
+            
+            // Scroll to the appropriate section after window is shown
+            // Use a small delay to ensure the window is fully rendered
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                if (scrollTarget === 'keyboard-shortcuts') {
+                    // Scroll to keyboard shortcuts group
+                    kbGroup.grab_focus();
+                    log('Scrolled to keyboard shortcuts section');
+                } else if (scrollTarget === 'enhanced-shortcuts') {
+                    // Scroll to enhanced shortcuts and expand it
+                    enhancedExpander.set_expanded(true);
+                    enhancedExpander.grab_focus();
+                    log('Scrolled to enhanced shortcuts section');
+                }
+                return GLib.SOURCE_REMOVE;
+            });
+        }
+        
+        // Watch for close request from extension (when "Fix All" is used from panel menu)
+        const closeRequestSignal = settings.connect('changed::prefs-close-requested', () => {
+            if (settings.get_boolean('prefs-close-requested')) {
+                log('Close requested by extension, closing prefs window');
+                // Reset the flag
+                settings.set_boolean('prefs-close-requested', false);
+                // Close the window
+                window.close();
+            }
+        });
+        
+        // Clean up signal handler when window closes
+        window.connect('close-request', () => {
+            settings.disconnect(closeRequestSignal);
+            return false; // Allow window to close
+        });
         
         log('=== fillPreferencesWindow complete ===');
     }

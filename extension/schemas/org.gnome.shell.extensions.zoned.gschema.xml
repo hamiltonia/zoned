@@ -46,7 +46,7 @@
     
     <!-- Enhanced Windows Management (optional feature) -->
     <key name="enhanced-window-management-enabled" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Enable enhanced window management</summary>
       <description>
         When enabled, adds Windows-like minimize/maximize shortcuts (Super+Down/Up).
@@ -159,6 +159,36 @@
         Override automatic tier selection for testing. 
         0=auto (default), 1=tiny, 2=small, 3=medium, 4=large, 5=xlarge.
         Use Ctrl+T in layout switcher to cycle through tiers.
+      </description>
+    </key>
+    
+    <!-- Keybinding Conflict Detection -->
+    <key name="keybinding-conflict-count" type="i">
+      <default>0</default>
+      <summary>Number of keybinding conflicts</summary>
+      <description>
+        Used for signaling between preferences and extension when conflicts change.
+        Updated by prefs.js after any shortcut change, watched by extension to update panel icon.
+      </description>
+    </key>
+    
+    <key name="prefs-scroll-target" type="s">
+      <default>""</default>
+      <summary>Preferences scroll target</summary>
+      <description>
+        When set, preferences window will scroll to and highlight this section on open.
+        Values: "keyboard-shortcuts", "enhanced-shortcuts", or empty string.
+        Reset to empty after use.
+      </description>
+    </key>
+    
+    <key name="prefs-close-requested" type="b">
+      <default>false</default>
+      <summary>Request preferences window to close</summary>
+      <description>
+        When set to true by extension, preferences window should close itself.
+        Used when panel menu fixes conflicts while prefs is open.
+        Prefs resets this to false after closing.
       </description>
     </key>
     

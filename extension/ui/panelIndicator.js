@@ -11,6 +11,7 @@
 import GObject from 'gi://GObject';
 import St from 'gi://St';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import { createLogger } from '../utils/debug.js';
@@ -20,7 +21,7 @@ const logger = createLogger('PanelIndicator');
 
 export const PanelIndicator = GObject.registerClass(
 class ZonedPanelIndicator extends PanelMenu.Button {
-    _init(layoutManager, conflictDetector, layoutEditor, notificationManager, zoneOverlay) {
+    _init(layoutManager, conflictDetector, layoutEditor, notificationManager, zoneOverlay, settings) {
         super._init(0.0, 'Zoned Indicator', false);
 
         this._layoutManager = layoutManager;
@@ -28,6 +29,7 @@ class ZonedPanelIndicator extends PanelMenu.Button {
         this._layoutSwitcher = layoutEditor;
         this._notificationManager = notificationManager;
         this._zoneOverlay = zoneOverlay;
+        this._settings = settings;
         this._hasConflicts = false;
 
         // Create icon with reduced padding - using custom SVG
@@ -45,6 +47,14 @@ class ZonedPanelIndicator extends PanelMenu.Button {
 
         // Build menu
         this._buildMenu();
+        
+        // Re-detect conflicts every time the menu opens
+        this.menu.connect('open-state-changed', (menu, isOpen) => {
+            if (isOpen) {
+                this._conflictDetector.detectConflicts();
+                this.setConflictStatus(this._conflictDetector.hasConflicts());
+            }
+        });
     }
 
     /**
@@ -193,7 +203,6 @@ class ZonedPanelIndicator extends PanelMenu.Button {
             const command = `gnome-extensions prefs ${extensionId}`;
             
             // Execute command
-            const GLib = imports.gi.GLib;
             GLib.spawn_command_line_async(command);
             
             logger.info('Opened extension preferences');
@@ -233,6 +242,12 @@ class ZonedPanelIndicator extends PanelMenu.Button {
             this._conflictDetector.detectConflicts();
             this.setConflictStatus(this._conflictDetector.hasConflicts());
             
+            // Request prefs window to close (simpler than trying to sync state)
+            if (this._settings) {
+                this._settings.set_boolean('prefs-close-requested', true);
+                logger.debug('Requested prefs window to close');
+            }
+            
             logger.info(`Fixed ${results.fixed.length} conflicts`);
         }
         
@@ -247,7 +262,7 @@ class ZonedPanelIndicator extends PanelMenu.Button {
     }
 
     /**
-     * Show conflict details
+     * Show conflict details - opens settings scrolled to keyboard shortcuts
      * @private
      */
     _showConflictDetails() {
@@ -258,16 +273,26 @@ class ZonedPanelIndicator extends PanelMenu.Button {
             return;
         }
 
-        // Log conflicts (dialog removed - will add proper UI in future sprint)
+        // Log conflicts for debugging
         logger.info(`${conflicts.length} keybinding conflict(s) detected:`);
         conflicts.forEach((conflict, index) => {
             logger.info(`  ${index + 1}. ${conflict.zonedBinding} - ${conflict.gnomeDescription}`);
         });
         
-        this._notificationManager.show(
-            `${conflicts.length} conflict${conflicts.length !== 1 ? 's' : ''} detected. Use "Fix Conflicts" to resolve.`,
-            3000
-        );
+        // Set scroll target so prefs opens at the keyboard shortcuts section
+        if (this._settings) {
+            // Determine which section to scroll to based on first conflict
+            const firstConflict = conflicts[0];
+            const isEnhancedConflict = firstConflict.zonedAction === 'minimize-window' || 
+                                       firstConflict.zonedAction === 'maximize-window';
+            const scrollTarget = isEnhancedConflict ? 'enhanced-shortcuts' : 'keyboard-shortcuts';
+            
+            this._settings.set_string('prefs-scroll-target', scrollTarget);
+            logger.debug(`Set prefs-scroll-target to: ${scrollTarget}`);
+        }
+        
+        // Open settings
+        this._openSettings();
     }
 
     /**

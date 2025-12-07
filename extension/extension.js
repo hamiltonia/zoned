@@ -45,6 +45,7 @@ export default class ZonedExtension extends Extension {
         this._panelIndicator = null;
         this._keybindingManager = null;
         this._workspaceSwitchedSignal = null;
+        this._conflictCountSignal = null;
         
         logger.info('Extension constructed');
     }
@@ -98,18 +99,26 @@ export default class ZonedExtension extends Extension {
             );
             logger.debug('LayoutSwitcher initialized');
 
-            // Initialize PanelIndicator
+            // Initialize PanelIndicator (pass settings for scroll-target support)
             this._panelIndicator = new PanelIndicator(
                 this._layoutManager,
                 this._conflictDetector,
                 this._layoutSwitcher,
                 this._notificationManager,
-                this._zoneOverlay
+                this._zoneOverlay,
+                this._settings
             );
             Main.panel.addToStatusArea('zoned-indicator', this._panelIndicator);
             
             // Set conflict status in panel
             this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
+            
+            // Watch for conflict count changes from prefs (prefs runs in separate process)
+            this._conflictCountSignal = this._settings.connect('changed::keybinding-conflict-count', () => {
+                logger.debug('Conflict count changed by prefs, re-detecting...');
+                this._conflictDetector.detectConflicts();
+                this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
+            });
             logger.debug('PanelIndicator initialized');
 
             // Initialize KeybindingManager (with zone overlay)
@@ -186,6 +195,13 @@ export default class ZonedExtension extends Extension {
                 global.workspace_manager.disconnect(this._workspaceSwitchedSignal);
                 this._workspaceSwitchedSignal = null;
                 logger.debug('Workspace handler disconnected');
+            }
+
+            // Disconnect conflict count watcher
+            if (this._conflictCountSignal && this._settings) {
+                this._settings.disconnect(this._conflictCountSignal);
+                this._conflictCountSignal = null;
+                logger.debug('Conflict count watcher disconnected');
             }
 
             // Destroy UI components
