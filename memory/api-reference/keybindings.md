@@ -13,6 +13,46 @@ Complete reference for Zoned keyboard shortcuts and keybinding customization.
 **Note:** `Super` is the Windows key (⊞) on most keyboards.
 **Note:** Zones can be arranged horizontally or vertically, so "previous/next" is more accurate than "left/right".
 
+## Enhanced Windows Management (Optional)
+
+These shortcuts provide Windows-like minimize/maximize behavior and are **disabled by default**. Enable them via Settings → "Enhanced Windows Management" toggle.
+
+| Shortcut | Action | Settings Key | Description |
+|----------|--------|--------------|-------------|
+| `Super+Down` | Minimize / Restore | `minimize-window` | Minimize focused window. Press again to restore. |
+| `Super+Up` | Maximize / Restore | `maximize-window` | Restore minimized window, or toggle maximize on focused window. |
+
+### Behavior Details
+
+**Super+Down (Minimize):**
+- If a window is focused: Minimizes it and tracks it internally
+- If no window is focused: Restores the last minimized window (if any)
+- Pressing again while the same window is minimized will restore it
+
+**Super+Up (Maximize/Restore):**
+- If a window was minimized with Super+Down: Restores it
+- If a window is focused and NOT maximized: Maximizes it
+- If a window is focused and IS maximized: Unmaximizes (floats) it
+
+### Why Optional?
+
+These shortcuts conflict with default GNOME keybindings:
+- `Super+Up` conflicts with GNOME's maximize
+- `Super+Down` may conflict with GNOME's minimize (if enabled)
+
+By making this feature opt-in, users can:
+1. Avoid unexpected behavior changes
+2. Keep using GNOME defaults if preferred
+3. Explicitly choose to override when they want Windows-like behavior
+
+### Enable via Settings
+
+1. Open GNOME Extensions app
+2. Click the settings icon for Zoned
+3. Scroll to "Enhanced Windows Management" section
+4. Toggle "Enable Enhanced Windows Management" ON
+5. The section expands to show customizable shortcuts
+
 ## Customizing Keybindings
 
 ### Via Preferences UI (Recommended)

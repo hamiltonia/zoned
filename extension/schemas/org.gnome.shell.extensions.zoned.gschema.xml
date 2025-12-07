@@ -44,6 +44,35 @@
       </description>
     </key>
     
+    <!-- Enhanced Windows Management (optional feature) -->
+    <key name="enhanced-window-management-enabled" type="b">
+      <default>false</default>
+      <summary>Enable enhanced window management</summary>
+      <description>
+        When enabled, adds Windows-like minimize/maximize shortcuts (Super+Down/Up).
+        Super+Down minimizes a window; pressing again restores it.
+        Super+Up restores a minimized window, or toggles maximize on normal windows.
+      </description>
+    </key>
+    
+    <key name="minimize-window" type="as">
+      <default>['&lt;Super&gt;Down']</default>
+      <summary>Minimize or restore window</summary>
+      <description>
+        Minimize the focused window. If pressed again while the same window is 
+        minimized, restore it. Requires enhanced-window-management-enabled.
+      </description>
+    </key>
+    
+    <key name="maximize-window" type="as">
+      <default>['&lt;Super&gt;Up']</default>
+      <summary>Restore or toggle maximize</summary>
+      <description>
+        If a window was minimized with Super+Down, restore it. Otherwise, toggle 
+        between maximized and floating state. Requires enhanced-window-management-enabled.
+      </description>
+    </key>
+    
     <!-- Layout Picker Settings -->
     <key name="layout-picker-size" type="d">
       <default>0.8</default>

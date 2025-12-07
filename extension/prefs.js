@@ -44,6 +44,25 @@ const KEYBINDINGS = [
 ];
 
 /**
+ * Enhanced Windows Management keybindings (optional feature)
+ * These are only active when enhanced-window-management-enabled is true
+ */
+const ENHANCED_KEYBINDINGS = [
+    {
+        key: 'minimize-window',
+        title: 'Minimize / Restore',
+        subtitle: 'Minimize focused window. Press again to restore.',
+        default: '<Super>Down',
+    },
+    {
+        key: 'maximize-window',
+        title: 'Maximize / Restore',
+        subtitle: 'Restore minimized window, or toggle maximize on focused window.',
+        default: '<Super>Up',
+    },
+];
+
+/**
  * Convert Gtk accelerator string to human-readable format
  * e.g., '<Super>Left' -> 'Super + ←'
  */
@@ -734,6 +753,48 @@ export default class ZonedPreferences extends ExtensionPreferences {
             kbGroup.add(row);
         }
         log('All shortcut rows created');
+
+        // Enhanced Windows Management section (collapsible)
+        const enhancedGroup = new Adw.PreferencesGroup({
+            title: 'Enhanced Windows Management',
+            description: 'Optional Windows-like minimize/maximize behavior. May conflict with default GNOME shortcuts.',
+        });
+        page.add(enhancedGroup);
+
+        // Use ExpanderRow for collapsible content tied to the enable switch
+        const enhancedExpander = new Adw.ExpanderRow({
+            title: 'Enable Enhanced Windows Management',
+            subtitle: 'Super+Down minimizes (press again to restore). Super+Up restores or toggles maximize.',
+            show_enable_switch: true,
+        });
+        
+        // Bind the enable switch to the setting
+        settings.bind(
+            'enhanced-window-management-enabled',
+            enhancedExpander,
+            'enable-expansion',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        
+        // Set initial expanded state based on setting
+        enhancedExpander.set_expanded(settings.get_boolean('enhanced-window-management-enabled'));
+        
+        enhancedGroup.add(enhancedExpander);
+
+        // Add shortcut rows inside the expander
+        log(`Creating ${ENHANCED_KEYBINDINGS.length} enhanced shortcut rows`);
+        for (const binding of ENHANCED_KEYBINDINGS) {
+            log(`Creating enhanced row for: ${binding.key}`);
+            const row = new ShortcutCaptureRow({
+                title: binding.title,
+                subtitle: binding.subtitle,
+                settings: settings,
+                settingsKey: binding.key,
+                defaultAccelerator: binding.default,
+            });
+            enhancedExpander.add_row(row);
+        }
+        log('Enhanced shortcut rows created');
 
         // Add about group
         const aboutGroup = new Adw.PreferencesGroup({
