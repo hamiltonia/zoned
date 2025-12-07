@@ -16,7 +16,7 @@ The following items need to be completed before v1.0 release:
 - [x] **Modal handling fix** - Fixed popModal() to pass grab object correctly ✅
 - [x] **Preview background z-order** - LayoutPreviewBackground stays visible behind both LayoutSwitcher and LayoutSettingsDialog ✅
 - [ ] **Monitor & workspace UI** - Implement monitor selector and workspace mode UI
-- [ ] **Layout keyboard shortcuts** - Add keyboard shortcuts to activate specific layouts (in layout settings)
+- [x] **Layout keyboard shortcuts** - Add keyboard shortcuts to activate specific layouts (in layout settings)
 - [x] **Duplicate custom layouts** - Allow duplicating custom layouts (not just templates)
 
 ### UX/UI
