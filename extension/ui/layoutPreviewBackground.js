@@ -177,9 +177,10 @@ export class LayoutPreviewBackground {
         const accentFill = colors.accentRGBA(0.25);
 
         zones.forEach((zone, index) => {
-            // Calculate pixel coordinates
-            const x = monitor.x + (zone.x * monitor.width);
-            const y = monitor.y + (zone.y * monitor.height);
+            // Calculate pixel coordinates relative to overlay
+            // (overlay is already positioned at monitor.x, monitor.y)
+            const x = zone.x * monitor.width;
+            const y = zone.y * monitor.height;
             const width = zone.w * monitor.width;
             const height = zone.h * monitor.height;
 
