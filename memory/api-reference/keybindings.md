@@ -4,22 +4,33 @@ Complete reference for Zoned keyboard shortcuts and keybinding customization.
 
 ## Default Keybindings
 
-### Zone Management
-
-| Shortcut | Action | Description |
-|----------|--------|-------------|
-| `Super+Left` | Cycle Zone Left | Move window to previous zone in current layout |
-| `Super+Right` | Cycle Zone Right | Move window to next zone in current layout |
-| `Super+grave` | Layout Picker | Open layout selection dialog |
+| Shortcut | Action | Settings Key | Description |
+|----------|--------|--------------|-------------|
+| `Super+grave` | Open Layout Picker | `show-layout-picker` | Open layout selection dialog (press 1-9 for quick select) |
+| `Super+Left` | Move to Previous Zone | `cycle-zone-left` | Move window to previous zone in current layout |
+| `Super+Right` | Move to Next Zone | `cycle-zone-right` | Move window to next zone in current layout |
 
 **Note:** `Super` is the Windows key (⊞) on most keyboards.
+**Note:** Zones can be arranged horizontally or vertically, so "previous/next" is more accurate than "left/right".
 
-### Window Management
+## Customizing Keybindings
 
-| Shortcut | Action | Description |
-|----------|--------|-------------|
-| `Super+Up` | Maximize/Restore | Toggle window maximize state |
-| `Super+Down` | Minimize | Minimize focused window |
+### Via Preferences UI (Recommended)
+
+1. Open GNOME Extensions app
+2. Click the settings icon for Zoned
+3. Find the "Keyboard Shortcuts" section
+4. Click any shortcut button to change it
+5. Press your desired key combination
+6. Press **Escape** to cancel
+7. Press **Backspace** to disable the shortcut
+8. Click the ↩ reset button to restore default
+
+**Features:**
+- Visual feedback during capture ("Press a shortcut...")
+- Conflict detection with GNOME system shortcuts (warning icon)
+- Reset to default button (only shown when modified)
+- Friendly key names (Super + ← instead of `<Super>Left`)
 
 ## Keybinding Behavior
 
@@ -56,38 +67,8 @@ Zone 1 (Left) →[Super+Right]→ Zone 2 (Right) →[Super+Right]→ Zone 1 (Lef
 **Selection Effects:**
 - Switches to selected layout
 - Resets to first zone in new layout
-- Shows notification: "Switched to: [Layout Name
-
-]"
+- Shows notification: "Switched to: [Layout Name]"
 - Saves to GSettings
-
-### Maximize/Restore
-
-**Super+Up behavior:**
-
-1. **If window is not maximized:**
-   - Maximizes the focused window
-   - Shows notification: "Maximized"
-
-2. **If window is already maximized:**
-   - Restores to previous size/position
-   - Shows notification: "Restored"
-
-3. **If no focused window:**
-   - Attempts to restore most recent minimized window
-   - Shows notification: "Restored" (if successful)
-
-### Minimize
-
-**Super+Down behavior:**
-
-1. **If window is focused:**
-   - Minimizes the window
-   - Shows notification: "Minimized"
-
-2. **If no focused window:**
-   - No action taken
-   - No notification shown
 
 ## Customizing Keybindings
 
@@ -100,6 +81,11 @@ Keybindings are defined in the GSettings schema and can be customized.
 
 **Default schema:**
 ```xml
+<key name="show-layout-picker" type="as">
+    <default>['&lt;Super&gt;grave']</default>
+    <summary>Open layout picker</summary>
+</key>
+
 <key name="cycle-zone-left" type="as">
     <default>['&lt;Super&gt;Left']</default>
     <summary>Cycle to previous zone</summary>
@@ -108,21 +94,6 @@ Keybindings are defined in the GSettings schema and can be customized.
 <key name="cycle-zone-right" type="as">
     <default>['&lt;Super&gt;Right']</default>
     <summary>Cycle to next zone</summary>
-</key>
-
-<key name="show-layout-picker" type="as">
-    <default>['&lt;Super&gt;grave']</default>
-    <summary>Open layout picker</summary>
-</key>
-
-<key name="minimize-window" type="as">
-    <default>['&lt;Super&gt;Down']</default>
-    <summary>Minimize window</summary>
-</key>
-
-<key name="maximize-window" type="as">
-    <default>['&lt;Super&gt;Up']</default>
-    <summary>Maximize or restore window</summary>
 </key>
 ```
 
@@ -375,4 +346,4 @@ Potential keybinding features for future versions:
 - Zone preview overlay
 
 ---
-*Last Updated: 2025-11-21*
+*Last Updated: 2025-12-07*

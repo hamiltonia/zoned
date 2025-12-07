@@ -44,22 +44,6 @@
       </description>
     </key>
     
-    <key name="minimize-window" type="as">
-      <default>['&lt;Super&gt;Down']</default>
-      <summary>Minimize window</summary>
-      <description>
-        Minimize the currently focused window.
-      </description>
-    </key>
-    
-    <key name="maximize-window" type="as">
-      <default>['&lt;Super&gt;Up']</default>
-      <summary>Maximize or restore window</summary>
-      <description>
-        Toggle maximize state of the focused window, or restore a minimized window.
-      </description>
-    </key>
-    
     <!-- Layout Picker Settings -->
     <key name="layout-picker-size" type="d">
       <default>0.8</default>

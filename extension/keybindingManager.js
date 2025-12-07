@@ -56,17 +56,6 @@ export class KeybindingManager {
             this._onShowLayoutSwitcher.bind(this)
         );
 
-        // Window management
-        this._registerKeybinding(
-            'minimize-window',
-            this._onMinimizeWindow.bind(this)
-        );
-
-        this._registerKeybinding(
-            'maximize-window',
-            this._onMaximizeWindow.bind(this)
-        );
-
         logger.info(`Registered ${this._registeredKeys.length} keybindings`);
     }
 
@@ -181,67 +170,6 @@ export class KeybindingManager {
             this._layoutSwitcher.show();
         } else {
             logger.warn('Layout editor not available');
-        }
-    }
-
-    /**
-     * Handler: Minimize window (Super+Down)
-     * @private
-     */
-    _onMinimizeWindow() {
-        logger.debug('Minimize window triggered');
-
-        const window = this._windowManager.getFocusedWindow();
-        if (!window) {
-            logger.debug('No focused window to minimize');
-            return;
-        }
-
-        this._windowManager.minimizeWindow(window);
-        
-        // Show center-screen notification for user action
-        if (this._zoneOverlay) {
-            this._zoneOverlay.showMessage('Minimized');
-        }
-    }
-
-    /**
-     * Handler: Maximize/restore window (Super+Up)
-     * @private
-     */
-    _onMaximizeWindow() {
-        logger.debug('Maximize window triggered');
-
-        const window = this._windowManager.getFocusedWindow();
-        
-        // First, try to restore any minimized window
-        const restored = this._windowManager.restoreMinimizedWindow();
-        if (restored) {
-            // Show center-screen notification for user action
-            if (this._zoneOverlay) {
-                this._zoneOverlay.showMessage('Restored');
-            }
-            return;
-        }
-        
-        // If no minimized window and no focused window, nothing to do
-        if (!window) {
-            logger.debug('No window to maximize or restore');
-            return;
-        }
-
-        // Handle the focused window
-        const wasMaximized = window.maximized_horizontally || window.maximized_vertically;
-
-        this._windowManager.maximizeWindow(window);
-
-        // Show center-screen notification for user action
-        if (this._zoneOverlay) {
-            if (wasMaximized) {
-                this._zoneOverlay.showMessage('Unmaximized');
-            } else {
-                this._zoneOverlay.showMessage('Maximized');
-            }
         }
     }
 

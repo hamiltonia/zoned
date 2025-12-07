@@ -57,22 +57,6 @@ export class ConflictDetector {
                 }
             ]);
 
-            this._checkBinding('maximize-window', '<Super>Up', [
-                {
-                    schema: wmSettings,
-                    key: 'maximize',
-                    description: 'GNOME: Maximize window'
-                }
-            ]);
-
-            this._checkBinding('minimize-window', '<Super>Down', [
-                {
-                    schema: wmSettings,
-                    key: 'minimize',
-                    description: 'GNOME: Minimize window'
-                }
-            ]);
-
             logger.info(`Detected ${this._conflicts.length} keybinding conflicts`);
         } catch (error) {
             logger.error(`Error detecting conflicts: ${error}`);
