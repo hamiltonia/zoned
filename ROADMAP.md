@@ -1,6 +1,6 @@
 # Zoned Development Roadmap
 
-**Last Updated:** 2025-12-06  
+**Last Updated:** 2025-12-07  
 **Current Status:** Pre-release (active development)  
 **Current Branch:** `initial_dev`
 
@@ -15,9 +15,29 @@ The following items need to be completed before v1.0 release:
 - [x] **Current layout background** - LayoutSwitcher card backgrounds show accent when selected/hovered ✅
 - [x] **Modal handling fix** - Fixed popModal() to pass grab object correctly ✅
 - [x] **Preview background z-order** - LayoutPreviewBackground stays visible behind both LayoutSwitcher and LayoutSettingsDialog ✅
-- [ ] **Monitor & workspace UI** - Implement monitor selector and workspace mode UI
+- [ ] **Per-space layouts** - Different layouts for different workspaces/monitors (see spec below)
 - [x] **Layout keyboard shortcuts** - Add keyboard shortcuts to activate specific layouts (in layout settings)
 - [x] **Duplicate custom layouts** - Allow duplicating custom layouts (not just templates)
+
+### Per-Space Layouts Feature (Major)
+See: `memory/development/per-space-layouts-spec.md`
+
+**Phase 1: State Foundation + UI Preview** ✅ (2025-12-07)
+- [x] Create `SpatialStateManager` class
+- [x] Add GSettings keys: `spatial-state-map`, `last-selected-layout`
+- [x] Workspace thumbnails show per-space layout preview
+- [x] Workspace click → select for config; double-click → switch workspace
+- [x] Auto-switch layout on workspace change (via `workspace-switched` signal)
+- [x] Settings sync between LayoutSwitcher checkbox and prefs.js switch
+- [ ] Multi-monitor support (needs testing)
+
+**Phase 2: Keybinding Context Awareness**
+- [ ] Zone cycling respects current space context
+- [ ] Track zone index per-space (not just per-layout)
+
+**Phase 3: Quick Layout Shortcuts**
+- [ ] `Super+Ctrl+Alt+1-9` activates layouts by position
+- [ ] Apply to focused window's space
 
 ### UX/UI
 - [x] **Card top bar design** - Grey header with name (left) and circular edit button (right), zone preview below ✅

@@ -65,6 +65,23 @@ export class LayoutManager {
         this._layouts = [];
         this._currentLayout = null;
         this._currentZoneIndex = 0;
+        this._spatialStateManager = null;
+    }
+
+    /**
+     * Set the spatial state manager for per-space layout support
+     * @param {SpatialStateManager} manager - The spatial state manager instance
+     */
+    setSpatialStateManager(manager) {
+        this._spatialStateManager = manager;
+    }
+
+    /**
+     * Get the spatial state manager
+     * @returns {SpatialStateManager|null} The spatial state manager
+     */
+    getSpatialStateManager() {
+        return this._spatialStateManager;
     }
 
     /**
@@ -239,10 +256,100 @@ export class LayoutManager {
 
     /**
      * Get the currently active layout
+     * When spaceKey is provided and per-workspace mode is enabled, returns the layout for that space
+     * @param {string|null} spaceKey - Optional space key for per-space mode
      * @returns {Object|null} The current layout
      */
-    getCurrentLayout() {
+    getCurrentLayout(spaceKey = null) {
+        // Check if per-workspace mode is enabled and we have spatial state manager
+        const perSpaceEnabled = this._settings.get_boolean('use-per-workspace-layouts');
+        
+        if (perSpaceEnabled && spaceKey && this._spatialStateManager) {
+            const state = this._spatialStateManager.getState(spaceKey);
+            const layout = this._layouts.find(l => l.id === state.layoutId);
+            return layout || this._currentLayout || this._layouts[0];
+        }
+        
         return this._currentLayout;
+    }
+
+    /**
+     * Get layout for a specific space
+     * @param {string} spaceKey - Space key (connector:workspace)
+     * @returns {Object|null} The layout for the space
+     */
+    getLayoutForSpace(spaceKey) {
+        if (!this._spatialStateManager) {
+            return this._currentLayout;
+        }
+        
+        const state = this._spatialStateManager.getState(spaceKey);
+        const layout = this._layouts.find(l => l.id === state.layoutId);
+        
+        if (!layout) {
+            logger.warn(`Layout '${state.layoutId}' not found for space ${spaceKey}, using fallback`);
+            return this._currentLayout || this._layouts[0];
+        }
+        
+        return layout;
+    }
+
+    /**
+     * Set layout for a specific space (per-workspace mode)
+     * @param {string} spaceKey - Space key (connector:workspace)
+     * @param {string} layoutId - Layout ID to assign
+     * @returns {boolean} True if set successfully
+     */
+    setLayoutForSpace(spaceKey, layoutId) {
+        if (!this._spatialStateManager) {
+            logger.warn('SpatialStateManager not initialized');
+            return false;
+        }
+        
+        const layout = this._layouts.find(l => l.id === layoutId);
+        if (!layout) {
+            logger.warn(`Layout '${layoutId}' not found`);
+            return false;
+        }
+        
+        this._spatialStateManager.setState(spaceKey, layoutId, 0);
+        logger.info(`Set layout '${layoutId}' for space ${spaceKey}`);
+        
+        return true;
+    }
+
+    /**
+     * Get zone index for a specific space
+     * @param {string} spaceKey - Space key
+     * @returns {number} Zone index
+     */
+    getZoneIndexForSpace(spaceKey) {
+        if (!this._spatialStateManager) {
+            return this._currentZoneIndex;
+        }
+        
+        const state = this._spatialStateManager.getState(spaceKey);
+        const layout = this.getLayoutForSpace(spaceKey);
+        
+        // Validate zone index against layout
+        if (layout && layout.zones) {
+            return this._spatialStateManager.validateZoneIndex(state.zoneIndex, layout.zones.length);
+        }
+        
+        return state.zoneIndex;
+    }
+
+    /**
+     * Get current zone for a specific space
+     * @param {string} spaceKey - Space key
+     * @returns {Object|null} The zone geometry
+     */
+    getZoneForSpace(spaceKey) {
+        const layout = this.getLayoutForSpace(spaceKey);
+        if (!layout || !layout.zones) return null;
+        
+        const zoneIndex = this.getZoneIndexForSpace(spaceKey);
+        return layout.zones[zoneIndex] || layout.zones[0];
     }
 
     /**
@@ -326,9 +433,19 @@ export class LayoutManager {
     /**
      * Cycle to the next or previous zone
      * @param {number} direction - 1 for next, -1 for previous
+     * @param {string|null} spaceKey - Optional space key for per-space mode
      * @returns {Object|null} The new current zone
      */
-    cycleZone(direction) {
+    cycleZone(direction, spaceKey = null) {
+        // Check if per-workspace mode is enabled
+        const perSpaceEnabled = this._settings.get_boolean('use-per-workspace-layouts');
+        
+        // Use per-space cycling if enabled and spaceKey provided
+        if (perSpaceEnabled && spaceKey && this._spatialStateManager) {
+            return this.cycleZoneForSpace(direction, spaceKey);
+        }
+        
+        // Global mode cycling
         if (!this._currentLayout || !this._currentLayout.zones) {
             logger.warn('No current layout to cycle zones');
             return null;
@@ -343,6 +460,39 @@ export class LayoutManager {
         
         this._saveState();
         return this.getCurrentZone();
+    }
+
+    /**
+     * Cycle to the next or previous zone for a specific space
+     * @param {number} direction - 1 for next, -1 for previous
+     * @param {string} spaceKey - Space key (connector:workspace)
+     * @returns {Object|null} The new current zone
+     */
+    cycleZoneForSpace(direction, spaceKey) {
+        if (!this._spatialStateManager) {
+            logger.warn('SpatialStateManager not initialized');
+            return null;
+        }
+        
+        const layout = this.getLayoutForSpace(spaceKey);
+        if (!layout || !layout.zones) {
+            logger.warn(`No layout found for space ${spaceKey}`);
+            return null;
+        }
+        
+        const numZones = layout.zones.length;
+        const currentState = this._spatialStateManager.getState(spaceKey);
+        const currentIndex = this._spatialStateManager.validateZoneIndex(currentState.zoneIndex, numZones);
+        
+        // Calculate new zone index with wraparound
+        const newIndex = (currentIndex + direction + numZones) % numZones;
+        
+        // Update spatial state
+        this._spatialStateManager.setZoneIndex(spaceKey, newIndex);
+        
+        logger.info(`Space ${spaceKey}: Cycled to zone ${newIndex + 1}/${numZones}`);
+        
+        return layout.zones[newIndex];
     }
 
     /**

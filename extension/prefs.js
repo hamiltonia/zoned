@@ -823,16 +823,22 @@ export default class ZonedPreferences extends ExtensionPreferences {
         });
         page.add(group);
 
-        // Add "Apply layout globally" switch
+        // Add "Per-space layouts" switch
+        // Note: Setting is 'use-per-workspace-layouts' but UI inverts it for UX clarity
+        // "Apply globally" ON = per-workspace OFF, "Apply globally" OFF = per-workspace ON
         const applyGloballyRow = new Adw.SwitchRow({
             title: 'Apply one layout to all spaces',
-            subtitle: 'When enabled, layouts apply to all monitors and workspaces. When disabled, you can choose specific spaces in the layout picker.',
+            subtitle: 'When enabled, layouts apply to all monitors and workspaces. When disabled, each workspace can have its own layout.',
         });
+        
+        // Use INVERT_BOOLEAN flag so the UI switch is inverted
+        // Switch ON (apply globally) = use-per-workspace-layouts FALSE
+        // Switch OFF (per-space) = use-per-workspace-layouts TRUE
         settings.bind(
-            'apply-layout-globally',
+            'use-per-workspace-layouts',
             applyGloballyRow,
             'active',
-            Gio.SettingsBindFlags.DEFAULT
+            Gio.SettingsBindFlags.INVERT_BOOLEAN
         );
         group.add(applyGloballyRow);
 

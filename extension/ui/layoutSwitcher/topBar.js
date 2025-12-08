@@ -5,7 +5,7 @@
  * - Top bar container with horizontal layout
  * - Monitor pill dropdown selector
  * - Workspace thumbnail buttons (16:9 with zone preview)
- * - "Apply to all workspaces" global checkbox
+ * - "Apply one layout to all spaces" checkbox (synced with prefs)
  * - Monitor dropdown menu and selection handling
  * - Disabled state for workspace thumbnails when applying globally
  * 
@@ -29,8 +29,10 @@ const logger = createLogger('TopBar');
 export function createTopBar(ctx) {
     const colors = ctx._themeManager.getColors();
     
-    // Read global apply setting
-    ctx._applyGlobally = ctx._settings.get_boolean('apply-layout-globally');
+    // Read global apply setting (inverted from use-per-workspace-layouts)
+    // applyGlobally=true means per-workspace=false (global mode)
+    // applyGlobally=false means per-workspace=true (per-space mode)
+    ctx._applyGlobally = !ctx._settings.get_boolean('use-per-workspace-layouts');
     
     // Compact horizontal bar design (not a card)
     ctx._spacesSection = new St.BoxLayout({
@@ -212,12 +214,27 @@ export function createWorkspaceThumbnails(ctx) {
     const nWorkspaces = global.workspace_manager.get_n_workspaces();
     ctx._workspaceButtons = [];
 
-    // Get the current layout to show in all thumbnails
-    // (Same for all workspaces until per-workspace layouts are implemented)
-    const currentLayout = ctx._getCurrentLayout();
+    // Check if per-workspace mode is enabled
+    const perSpaceEnabled = ctx._settings.get_boolean('use-per-workspace-layouts');
 
     for (let i = 0; i < nWorkspaces; i++) {
         const isActive = i === ctx._currentWorkspace;
+        
+        // Get layout for this specific workspace (per-space mode or global)
+        let workspaceLayout;
+        if (perSpaceEnabled) {
+            // Get layout for this workspace on selected monitor
+            const spatialManager = ctx._layoutManager.getSpatialStateManager();
+            if (spatialManager) {
+                const spaceKey = spatialManager.makeKey(ctx._selectedMonitorIndex, i);
+                workspaceLayout = ctx._layoutManager.getLayoutForSpace(spaceKey);
+            } else {
+                workspaceLayout = ctx._getCurrentLayout();
+            }
+        } else {
+            // Global mode: same layout for all
+            workspaceLayout = ctx._getCurrentLayout();
+        }
         
         // Workspace thumbnail button
         const thumb = new St.Button({
@@ -247,8 +264,8 @@ export function createWorkspaceThumbnails(ctx) {
             style: `border-radius: ${thumbRadius}px;`
         });
         
-        // Get zones for this workspace (currently same as current layout)
-        const zones = currentLayout?.zones || [];
+        // Get zones for this workspace (per-space aware)
+        const zones = workspaceLayout?.zones || [];
         
         const preview = createZonePreview(ctx, zones, thumbW, thumbH);
         previewContainer.set_child(preview);
@@ -356,15 +373,27 @@ function getWorkspaceThumbnailStyle(ctx, isActive, isDisabled, width, height, ra
 }
 
 /**
- * Handle workspace thumbnail click
+ * Handle workspace thumbnail click - select workspace for configuration
+ * Single-click: Select workspace in UI (for assigning layouts)
+ * Double-click: Actually switch to that GNOME workspace
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {number} workspaceIndex - Index of clicked workspace
  */
 export function onWorkspaceThumbnailClicked(ctx, workspaceIndex) {
-    // Don't respond if disabled
-    if (ctx._applyGlobally) return;
+    // Don't respond if disabled (global mode)
+    if (ctx._applyGlobally) {
+        return;
+    }
     
-    const colors = ctx._themeManager.getColors();
+    // If clicking the already-selected workspace, switch to that actual GNOME workspace
+    if (ctx._currentWorkspace === workspaceIndex) {
+        const workspace = global.workspace_manager.get_workspace_by_index(workspaceIndex);
+        if (workspace) {
+            workspace.activate(global.get_current_time());
+        }
+        return;
+    }
+    
     const tier = ctx._currentTier;
     const thumbW = tier.workspaceThumb.w;
     const thumbH = tier.workspaceThumb.h;
@@ -377,10 +406,18 @@ export function onWorkspaceThumbnailClicked(ctx, workspaceIndex) {
     });
 
     ctx._currentWorkspace = workspaceIndex;
-    logger.debug(`Switched to workspace ${workspaceIndex}`);
     
-    // Refresh layout cards to show current workspace's active layout
-    ctx._refreshDialog();
+    // Update the preview background to show layouts for the newly selected workspace
+    if (ctx._previewBackground) {
+        const layout = ctx._getLayoutForWorkspace(workspaceIndex);
+        ctx._previewBackground.setLayout(layout);
+    }
+    
+    // Update which layout cards show as "active" for this workspace
+    // Don't do full refresh - just update active states
+    if (ctx._allCards && ctx._allCards.length > 0) {
+        ctx._updateCardFocus();
+    }
 }
 
 /**
@@ -447,9 +484,9 @@ export function createGlobalCheckbox(ctx) {
         reactive: true
     });
 
-    // Label
+    // Label - matches prefs.js text
     const label = new St.Label({
-        text: 'Apply to all workspaces',
+        text: 'Apply one layout to all spaces',
         style: `font-size: 12px; color: ${colors.textMuted};`,
         y_align: Clutter.ActorAlign.CENTER,
         reactive: true
@@ -478,10 +515,11 @@ export function createGlobalCheckbox(ctx) {
         ctx._applyGloballyCheckbox.set_child(checkmark);
     }
 
-    // Toggle handler
+    // Toggle handler - updates use-per-workspace-layouts (inverted)
     const toggleCheckbox = () => {
         ctx._applyGlobally = !ctx._applyGlobally;
-        ctx._settings.set_boolean('apply-layout-globally', ctx._applyGlobally);
+        // Write inverted value: applyGlobally=true means per-workspace=false
+        ctx._settings.set_boolean('use-per-workspace-layouts', !ctx._applyGlobally);
         
         const c = ctx._themeManager.getColors();
         

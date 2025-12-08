@@ -144,7 +144,11 @@ this._selectedCardIndex = -1;
             // Background click callback - dismiss the dialog
             this.hide();
         });
-        this._previewBackground.show(currentLayout);
+        // Set layout manager reference for per-space layout lookups
+        this._previewBackground.setLayoutManager(this._layoutManager);
+        // Pass null for monitor index - it will default to current monitor
+        // _selectedMonitorIndex isn't set until createTopBar() is called
+        this._previewBackground.show(currentLayout, null);
 
         this._createDialog();
         this._connectKeyEvents();
@@ -652,23 +656,28 @@ this._selectedCardIndex = -1;
 
     /**
      * Get layout for a specific workspace
+     * Uses SpatialStateManager for per-space layout storage
      */
     _getLayoutForWorkspace(workspaceIndex) {
         try {
-            const mapString = this._settings.get_string('workspace-layout-map');
-            const map = JSON.parse(mapString);
-            const layoutId = map[workspaceIndex.toString()];
-            
-            if (layoutId) {
-                const layouts = this._layoutManager.getAllLayouts();
-                const layout = layouts.find(l => l.id === layoutId);
+            // Use SpatialStateManager for per-space layout storage
+            const spatialManager = this._layoutManager.getSpatialStateManager();
+            if (spatialManager) {
+                // Get the selected monitor index (default to 0 if not set)
+                const monitorIndex = this._selectedMonitorIndex ?? 0;
+                const spaceKey = spatialManager.makeKey(monitorIndex, workspaceIndex);
+                
+                // Get layout for this space
+                const layout = this._layoutManager.getLayoutForSpace(spaceKey);
                 if (layout) return layout;
             }
         } catch (e) {
             logger.warn('Error getting workspace layout:', e);
         }
 
-        return this._templateManager.createLayoutFromTemplate('halves');
+        // Fallback to global current layout or halves template
+        const currentLayout = this._layoutManager.getCurrentLayout();
+        return currentLayout || this._templateManager.createLayoutFromTemplate('halves');
     }
 
     /**
@@ -973,19 +982,30 @@ this._selectedCardIndex = -1;
     _applyLayout(layout) {
         if (this._workspaceMode) {
             try {
-                const mapString = this._settings.get_string('workspace-layout-map');
-                const map = JSON.parse(mapString);
-                map[this._currentWorkspace.toString()] = layout.id;
-                this._settings.set_string('workspace-layout-map', JSON.stringify(map));
-                
-                const activeWorkspace = global.workspace_manager.get_active_workspace_index();
-                if (activeWorkspace === this._currentWorkspace) {
+                // Use SpatialStateManager for per-space layout storage
+                const spatialManager = this._layoutManager.getSpatialStateManager();
+                if (spatialManager) {
+                    // Get the selected monitor index (default to 0 if not set)
+                    const monitorIndex = this._selectedMonitorIndex ?? 0;
+                    const spaceKey = spatialManager.makeKey(monitorIndex, this._currentWorkspace);
+                    
+                    // Save to spatial state
+                    this._layoutManager.setLayoutForSpace(spaceKey, layout.id);
+                    
+                    // If this is the active workspace, also update the current layout
+                    const activeWorkspace = global.workspace_manager.get_active_workspace_index();
+                    if (activeWorkspace === this._currentWorkspace) {
+                        this._layoutManager.setLayout(layout.id);
+                    }
+                    
+                    logger.info(`Applied layout ${layout.id} to space ${spaceKey}`);
+                } else {
+                    // Fallback: just set layout globally
                     this._layoutManager.setLayout(layout.id);
+                    logger.warn(`SpatialStateManager not available, applied layout ${layout.id} globally`);
                 }
-                
-                logger.info(`Applied layout ${layout.id} to workspace ${this._currentWorkspace}`);
             } catch (e) {
-                logger.error('Error applying layout to workspace:', e);
+                logger.error('Error applying layout to space:', e);
             }
         } else {
             this._layoutManager.setLayout(layout.id);

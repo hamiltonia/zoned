@@ -18,6 +18,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {WindowManager} from './windowManager.js';
 import {LayoutManager} from './layoutManager.js';
+import {SpatialStateManager} from './spatialStateManager.js';
 import {TemplateManager} from './templateManager.js';
 import {KeybindingManager} from './keybindingManager.js';
 import {NotificationManager} from './ui/notificationManager.js';
@@ -37,6 +38,7 @@ export default class ZonedExtension extends Extension {
         this._settings = null;
         this._windowManager = null;
         this._layoutManager = null;
+        this._spatialStateManager = null;
         this._templateManager = null;
         this._notificationManager = null;
         this._layoutSwitcher = null;
@@ -73,6 +75,11 @@ export default class ZonedExtension extends Extension {
                 throw new Error('Failed to load layouts');
             }
             logger.debug('LayoutManager initialized');
+
+            // Initialize SpatialStateManager (per-space layout state)
+            this._spatialStateManager = new SpatialStateManager(this._settings);
+            this._layoutManager.setSpatialStateManager(this._spatialStateManager);
+            logger.debug('SpatialStateManager initialized');
 
             // Initialize ConflictDetector
             this._conflictDetector = new ConflictDetector(this._settings);
@@ -234,6 +241,12 @@ export default class ZonedExtension extends Extension {
             }
 
             // Destroy managers
+            if (this._spatialStateManager) {
+                this._spatialStateManager.destroy();
+                this._spatialStateManager = null;
+                logger.debug('SpatialStateManager destroyed');
+            }
+
             if (this._layoutManager) {
                 this._layoutManager.destroy();
                 this._layoutManager = null;
@@ -258,54 +271,53 @@ export default class ZonedExtension extends Extension {
 
     /**
      * Setup workspace switching handler
-     * Automatically switches layouts when workspace changes (if workspace mode enabled)
+     * Uses SpatialStateManager for per-space layout state when workspace mode enabled
      * @private
      */
     _setupWorkspaceHandler() {
         // Connect to workspace-switched signal
+        // Signal signature: (manager, from, to, direction) where from/to are INTEGER indices
         this._workspaceSwitchedSignal = global.workspace_manager.connect(
             'workspace-switched',
-            (manager, from, to) => {
-                // Only auto-switch if workspace mode is enabled
+            (manager, from, to, direction) => {
+                // Only react if workspace mode is enabled
                 const workspaceMode = this._settings.get_boolean('use-per-workspace-layouts');
                 if (!workspaceMode) {
                     return;
                 }
 
-                const toIndex = to.index();
-                logger.debug(`Workspace switched to ${toIndex}`);
+                // 'to' is already an integer index, NOT a workspace object
+                const toIndex = to;
 
-                // Get layout for this workspace
+                // Use SpatialStateManager for per-space state
                 try {
-                    const mapString = this._settings.get_string('workspace-layout-map');
-                    const map = JSON.parse(mapString);
-                    const layoutId = map[toIndex.toString()];
+                    const spaceKey = this._spatialStateManager.makeKey(
+                        Main.layoutManager.primaryIndex,
+                        toIndex
+                    );
 
-                    if (layoutId) {
-                        // Switch to the assigned layout
-                        const success = this._layoutManager.setLayout(layoutId);
-                        if (success) {
-                            const layout = this._layoutManager.getCurrentLayout();
-                            logger.info(`Auto-switched to layout: ${layout.name} for workspace ${toIndex}`);
-                            
-                            // Show notification
-                            this._zoneOverlay.showMessage(`Workspace ${toIndex + 1}: ${layout.name}`);
-                        }
+                    const state = this._spatialStateManager.getState(spaceKey);
+                    const layoutId = state.layoutId;
+
+                    // Switch to the assigned layout
+                    const layout = this._layoutManager.getAllLayouts().find(l => l.id === layoutId);
+                    if (layout) {
+                        this._layoutManager.setLayout(layoutId);
+                        // Show notification with workspace number
+                        this._zoneOverlay.showMessage(`Workspace ${toIndex + 1}: ${layout.name}`);
                     } else {
-                        // No layout assigned - use halves as default
-                        const layouts = this._layoutManager.getAllLayouts();
-                        const halvesLayout = layouts.find(l => l.id === 'halves');
-                        if (halvesLayout) {
-                            this._layoutManager.setLayout('halves');
-                            logger.debug(`No layout assigned for workspace ${toIndex}, using halves`);
-                        }
+                        // Layout not found - use fallback
+                        const fallbackId = 'halves';
+                        this._layoutManager.setLayout(fallbackId);
+                        logger.warn(`Layout '${layoutId}' not found, using fallback`);
+                        this._zoneOverlay.showMessage(`Workspace ${toIndex + 1}: Halves (fallback)`);
                     }
                 } catch (e) {
-                    logger.error(`Error switching layout for workspace ${toIndex}:`, e);
+                    logger.error(`Error switching layout for workspace ${toIndex}: ${e}`);
                 }
             }
         );
 
-        logger.debug('Workspace switching handler setup');
+        logger.debug('Workspace switching handler setup (using SpatialStateManager)');
     }
 }

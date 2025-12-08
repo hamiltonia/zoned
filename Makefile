@@ -54,18 +54,20 @@ install:
 	@mkdir -p $(INSTALL_DIR)
 	@cp -r $(EXTENSION_DIR)/* $(INSTALL_DIR)/
 	@$(SED_INPLACE) 's/^const DEBUG = .*/const DEBUG = false;/' $(INSTALL_DIR)/utils/debug.js
+	@glib-compile-schemas $(INSTALL_DIR)/schemas/
 	@printf "$(COLOR_SUCCESS)✓ Installation complete: $(INSTALL_DIR)$(COLOR_RESET)\n"
 	@printf "$(COLOR_INFO)  DEBUG logging: disabled$(COLOR_RESET)\n"
-	@printf "$(COLOR_WARN)⚠ Don't forget to compile the schema: make compile-schema$(COLOR_RESET)\n"
+	@printf "$(COLOR_SUCCESS)✓ Schema compiled$(COLOR_RESET)\n"
 
 install-dev:
 	@printf "$(COLOR_INFO)Installing Zoned extension (development mode)...$(COLOR_RESET)\n"
 	@mkdir -p $(INSTALL_DIR)
 	@cp -r $(EXTENSION_DIR)/* $(INSTALL_DIR)/
 	@$(SED_INPLACE) 's/^const DEBUG = .*/const DEBUG = true;/' $(INSTALL_DIR)/utils/debug.js
+	@glib-compile-schemas $(INSTALL_DIR)/schemas/
 	@printf "$(COLOR_SUCCESS)✓ Installation complete: $(INSTALL_DIR)$(COLOR_RESET)\n"
 	@printf "$(COLOR_INFO)  DEBUG logging: enabled$(COLOR_RESET)\n"
-	@printf "$(COLOR_WARN)⚠ Don't forget to compile the schema: make compile-schema$(COLOR_RESET)\n"
+	@printf "$(COLOR_SUCCESS)✓ Schema compiled$(COLOR_RESET)\n"
 
 uninstall:
 	@printf "$(COLOR_INFO)Uninstalling Zoned extension...$(COLOR_RESET)\n"

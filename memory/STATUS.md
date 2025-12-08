@@ -1,6 +1,6 @@
 # Zoned Implementation Status
 
-**Last Updated:** 2025-12-06  
+**Last Updated:** 2025-12-07  
 **Version:** Pre-release (active development)
 
 ---
@@ -98,6 +98,80 @@ These components exist and work, but may undergo architectural changes:
 
 ---
 
+## 🚀 In Progress (Next Major Feature)
+
+### Per-Space Layouts **IMPLEMENTATION IN PROGRESS 2025-12-07**
+
+**Spec:** `memory/development/per-space-layouts-spec.md`  
+**Status:** Phases 1-4 implemented, Phase 5 (polish) remaining
+
+Different layouts for different workspaces and monitors. When disabled (default), all spaces share one global layout. When enabled, each workspace×monitor combination ("space") can have its own layout.
+
+**Key Components:**
+- **SpatialStateManager** (`spatialStateManager.js`) ✅ IMPLEMENTED
+  - Core class for managing per-space layout state
+  - SpaceKey format: `"connector:workspaceIndex"` (e.g., "DP-1:1", "eDP-1:0")
+  - Methods: getMonitorConnector(), makeKey(), getCurrentSpaceKey(), getState(), setState()
+  - Persists to GSettings `spatial-state-map` key
+  - Migration from old `workspace-layout-map` format
+
+- **GSettings Schema Updates** ✅ IMPLEMENTED
+  - `spatial-state-map` - JSON string for per-space state
+  - `last-selected-layout` - Fallback layout ID
+  - `quick-layout-1` through `quick-layout-9` - Keybindings for Super+Ctrl+Alt+1-9
+  - `workspace-layout-map` marked deprecated
+
+- **LayoutManager Integration** ✅ IMPLEMENTED
+  - `getSpatialStateManager()` / `setSpatialStateManager()` methods
+  - `getCurrentLayout(spaceKey)` - Per-space layout queries
+  - `getLayoutForSpace(spaceKey)` - Get layout for specific space
+  - `setLayoutForSpace(spaceKey, layoutId)` - Set layout for specific space
+  - `cycleZone(direction, spaceKey)` - Space-aware zone cycling
+
+- **KeybindingManager Updates** ✅ IMPLEMENTED
+  - `_getSpaceKeyFromWindow(window)` - Get space context from focused window
+  - Zone cycling (Super+Alt+arrows) now space-aware
+  - Quick layout shortcuts registered (Super+Ctrl+Alt+1-9)
+
+- **Multi-Monitor Preview** ✅ IMPLEMENTED (Phase 3)
+  - `LayoutPreviewBackground` now creates overlays for ALL monitors
+  - Each monitor shows its own layout when per-space mode enabled
+  - Selected monitor has bright zones, others are dimmed
+  - `setLayoutManager()` method for per-space lookups
+
+- **TopBar Workspace Thumbnails** ✅ IMPLEMENTED
+  - Each workspace thumbnail shows the layout for that specific workspace×monitor space
+  - Monitor selector dropdown tracks `_selectedMonitorIndex`
+  - Single click: Select workspace for configuration
+  - Double click (same workspace): Switch to that GNOME workspace
+
+- **Workspace Switch Handler** ✅ FIXED (2025-12-07)
+  - Fixed `workspace-switched` signal handler in extension.js
+  - Bug: Was calling `to.index()` but `to` is already an integer, not a workspace object
+  - Now correctly looks up per-space layout and auto-applies on workspace change
+  - Shows "Workspace N: Layout Name" notification
+
+- **Settings Sync** ✅ IMPLEMENTED (2025-12-07)
+  - `use-per-workspace-layouts` is the ONE setting (default: false = global mode)
+  - LayoutSwitcher checkbox "Apply one layout to all spaces" reads/writes inverted value
+  - prefs.js switch and LayoutSwitcher checkbox stay in sync
+
+**Implementation Status by Phase:**
+- ✅ Phase 1: State Foundation (SpatialStateManager, schema, integration)
+- ✅ Phase 2: Keybinding Context Awareness (space-aware zone cycling)
+- ✅ Phase 3: Multi-Monitor Preview (all monitors show layouts)
+- ✅ Phase 4: Quick Layout Shortcuts (Super+Ctrl+Alt+1-9)
+- 🚧 Phase 5: Polish (testing, edge cases)
+
+**Remaining Work (Phase 5):**
+- Multi-monitor testing (layout preview per monitor)
+- Monitor hotplug handling (retain state when monitors reconnect)
+- Zone index validation (clamp to valid range)
+- Handle deleted layouts in spatial state
+- Error recovery and edge cases
+
+---
+
 ## 📋 Planned (Not Yet Implemented)
 
 Features/components in planning or design phase:
@@ -117,11 +191,6 @@ Features/components in planning or design phase:
   - Undo/Redo with history
   - Keyboard-only editing mode
   - Zone margin controls
-  
-- **Multi-Monitor Enhancements**
-  - Per-monitor layout assignments
-  - Monitor selector in picker UI
-  - Cross-monitor zones (stretch goal)
 
 ---
 

@@ -6,6 +6,8 @@
  * of the selected/hovered layout.
  * 
  * Features:
+ * - Multi-monitor support: shows preview on all monitors
+ * - Per-space layouts: each monitor shows its own layout in per-workspace mode
  * - Full-screen zone rectangles with accent-colored borders
  * - Zone numbers displayed in each zone
  * - No edge grab handles (read-only preview)
@@ -38,108 +40,184 @@ export class LayoutPreviewBackground {
         this._themeManager = new ThemeManager(settings);
         this._onBackgroundClick = onBackgroundClick;
         
-        this._overlay = null;
-        this._zoneActors = [];
-        this._currentLayout = null;
+        // Multi-monitor support: overlay and zones per monitor
+        this._monitorOverlays = [];  // Array of {overlay, zoneActors, currentLayout, monitorIndex}
+        this._selectedMonitorIndex = 0;
         this._visible = false;
+        
+        // Optional references for per-space support
+        this._layoutManager = null;
+        this._spatialStateManager = null;
         
         logger.debug('LayoutPreviewBackground created');
     }
 
     /**
-     * Show the preview background
-     * @param {Object} layout - Initial layout to display (optional)
+     * Set layout manager reference for per-space layout lookups
+     * @param {LayoutManager} layoutManager
      */
-    show(layout = null) {
+    setLayoutManager(layoutManager) {
+        this._layoutManager = layoutManager;
+        this._spatialStateManager = layoutManager?.getSpatialStateManager?.() || null;
+    }
+
+    /**
+     * Show the preview background on all monitors
+     * @param {Object} layout - Initial layout for selected monitor (optional)
+     * @param {number} selectedMonitorIndex - Which monitor is being configured (default: current)
+     */
+    show(layout = null, selectedMonitorIndex = null) {
         if (this._visible) {
             logger.warn('LayoutPreviewBackground already visible');
             return;
         }
 
-        const monitor = Main.layoutManager.currentMonitor;
         const colors = this._themeManager.getColors();
+        const monitors = Main.layoutManager.monitors;
+        
+        // Determine selected monitor
+        if (selectedMonitorIndex !== null) {
+            this._selectedMonitorIndex = selectedMonitorIndex;
+        } else {
+            this._selectedMonitorIndex = Main.layoutManager.currentMonitor.index;
+        }
 
-        // Create full-screen overlay
-        this._overlay = new St.Widget({
-            reactive: true,
-            x: monitor.x,
-            y: monitor.y,
-            width: monitor.width,
-            height: monitor.height,
-            style: `background-color: ${colors.modalOverlay};`
-        });
+        // Create overlay for each monitor
+        for (let i = 0; i < monitors.length; i++) {
+            const monitor = monitors[i];
+            const isSelected = (i === this._selectedMonitorIndex);
+            
+            // Create full-screen overlay for this monitor
+            const overlay = new St.Widget({
+                reactive: true,
+                x: monitor.x,
+                y: monitor.y,
+                width: monitor.width,
+                height: monitor.height,
+                style: `background-color: ${colors.modalOverlay};`
+            });
 
-        // Click on overlay to dismiss
-        this._overlay.connect('button-press-event', (actor, event) => {
-            if (this._onBackgroundClick) {
-                this._onBackgroundClick();
-            }
-            return Clutter.EVENT_STOP;
-        });
+            // Click on any overlay to dismiss
+            overlay.connect('button-press-event', (actor, event) => {
+                if (this._onBackgroundClick) {
+                    this._onBackgroundClick();
+                }
+                return Clutter.EVENT_STOP;
+            });
 
-        // Add to uiGroup (below any dialogs that get added later)
-        Main.uiGroup.add_child(this._overlay);
+            // Add to uiGroup
+            Main.uiGroup.add_child(overlay);
+            
+            this._monitorOverlays.push({
+                overlay: overlay,
+                zoneActors: [],
+                currentLayout: null,
+                monitorIndex: i,
+                monitor: monitor
+            });
+        }
+        
         this._visible = true;
 
-        // Set initial layout if provided
+        // Set initial layout for selected monitor
         if (layout) {
             this.setLayout(layout);
         }
+        
+        // In per-space mode, show layouts for other monitors too
+        this._updateOtherMonitorLayouts();
 
-        logger.debug('LayoutPreviewBackground shown');
+        logger.debug(`LayoutPreviewBackground shown on ${monitors.length} monitors`);
     }
 
     /**
-     * Hide and destroy the preview background
+     * Hide and destroy the preview background on all monitors
      */
     hide() {
-        if (!this._visible || !this._overlay) {
+        if (!this._visible) {
             return;
         }
 
-        this._clearZones();
+        // Clean up all monitor overlays
+        for (const monitorData of this._monitorOverlays) {
+            this._clearZonesForMonitor(monitorData);
+            
+            if (monitorData.overlay.get_parent()) {
+                Main.uiGroup.remove_child(monitorData.overlay);
+            }
+            monitorData.overlay.destroy();
+        }
         
-        Main.uiGroup.remove_child(this._overlay);
-        this._overlay.destroy();
-        this._overlay = null;
+        this._monitorOverlays = [];
         this._visible = false;
-        this._currentLayout = null;
 
         logger.debug('LayoutPreviewBackground hidden');
     }
+    
+    /**
+     * Update layouts on non-selected monitors (for per-space mode)
+     * @private
+     */
+    _updateOtherMonitorLayouts() {
+        const perSpaceEnabled = this._settings.get_boolean('use-per-workspace-layouts');
+        
+        if (!perSpaceEnabled || !this._layoutManager || !this._spatialStateManager) {
+            return;
+        }
+        
+        for (const monitorData of this._monitorOverlays) {
+            if (monitorData.monitorIndex === this._selectedMonitorIndex) {
+                continue;  // Selected monitor is handled by setLayout()
+            }
+            
+            // Get the layout for this monitor's space
+            const spaceKey = this._spatialStateManager.makeKey(monitorData.monitorIndex);
+            const layout = this._layoutManager.getLayoutForSpace(spaceKey);
+            
+            if (layout) {
+                this._setLayoutForMonitorImmediate(monitorData, layout);
+            }
+        }
+    }
 
     /**
-     * Update the displayed layout with a fast fade transition
+     * Update the displayed layout on the selected monitor with a fast fade transition
      * @param {Object} layout - Layout to display (with zones array)
      */
     setLayout(layout) {
-        if (!this._visible || !this._overlay) {
+        if (!this._visible || this._monitorOverlays.length === 0) {
             logger.warn('Cannot setLayout - preview not visible');
             return;
         }
 
-        // Skip if same layout
-        if (this._currentLayout && layout && this._currentLayout.id === layout.id) {
+        const monitorData = this._monitorOverlays.find(m => m.monitorIndex === this._selectedMonitorIndex);
+        if (!monitorData) {
+            logger.warn(`Cannot setLayout - no overlay for monitor ${this._selectedMonitorIndex}`);
             return;
         }
 
-        this._currentLayout = layout;
+        // Skip if same layout
+        if (monitorData.currentLayout && layout && monitorData.currentLayout.id === layout.id) {
+            return;
+        }
+
+        monitorData.currentLayout = layout;
 
         // Fade out existing zones
-        if (this._zoneActors.length > 0) {
-            this._fadeOutZones(() => {
-                this._clearZones();
+        if (monitorData.zoneActors.length > 0) {
+            this._fadeOutZonesForMonitor(monitorData, () => {
+                this._clearZonesForMonitor(monitorData);
                 if (layout && layout.zones) {
-                    this._createZones(layout.zones);
-                    this._fadeInZones();
+                    this._createZonesForMonitor(monitorData, layout.zones);
+                    this._fadeInZonesForMonitor(monitorData);
                 }
             });
         } else {
             // No existing zones, just create new ones
-            this._clearZones();
+            this._clearZonesForMonitor(monitorData);
             if (layout && layout.zones) {
-                this._createZones(layout.zones);
-                this._fadeInZones();
+                this._createZonesForMonitor(monitorData, layout.zones);
+                this._fadeInZonesForMonitor(monitorData);
             }
         }
     }
@@ -149,36 +227,67 @@ export class LayoutPreviewBackground {
      * @param {Object} layout - Layout to display
      */
     setLayoutImmediate(layout) {
-        if (!this._visible || !this._overlay) {
+        if (!this._visible || this._monitorOverlays.length === 0) {
             return;
         }
 
-        this._currentLayout = layout;
-        this._clearZones();
+        const monitorData = this._monitorOverlays.find(m => m.monitorIndex === this._selectedMonitorIndex);
+        if (!monitorData) return;
+        
+        this._setLayoutForMonitorImmediate(monitorData, layout);
+    }
+    
+    /**
+     * Set layout immediately for a specific monitor
+     * @param {Object} monitorData - Monitor data object from _monitorOverlays
+     * @param {Object} layout - Layout to display
+     * @private
+     */
+    _setLayoutForMonitorImmediate(monitorData, layout) {
+        monitorData.currentLayout = layout;
+        this._clearZonesForMonitor(monitorData);
 
         if (layout && layout.zones) {
-            this._createZones(layout.zones);
+            this._createZonesForMonitor(monitorData, layout.zones);
             // Set full opacity immediately
-            this._zoneActors.forEach(actor => {
+            monitorData.zoneActors.forEach(actor => {
                 actor.opacity = 255;
             });
         }
     }
+    
+    /**
+     * Set the selected monitor index and optionally update its layout
+     * @param {number} monitorIndex - Monitor index to select
+     * @param {Object} layout - Optional layout to display on that monitor
+     */
+    setSelectedMonitor(monitorIndex, layout = null) {
+        this._selectedMonitorIndex = monitorIndex;
+        if (layout) {
+            this.setLayout(layout);
+        }
+    }
 
     /**
-     * Create zone actors for the given zones
+     * Create zone actors for the given zones on a specific monitor
+     * @param {Object} monitorData - Monitor data object
      * @param {Array} zones - Array of zone definitions {x, y, w, h, name}
+     * @param {boolean} dimmed - Whether to show zones dimmed (for non-selected monitors)
      * @private
      */
-    _createZones(zones) {
-        const monitor = Main.layoutManager.currentMonitor;
+    _createZonesForMonitor(monitorData, zones, dimmed = false) {
+        const monitor = monitorData.monitor;
+        const isSelected = (monitorData.monitorIndex === this._selectedMonitorIndex);
         const colors = this._themeManager.getColors();
         const accentHex = colors.accentHex;
-        const accentFill = colors.accentRGBA(0.25);
+        
+        // Non-selected monitors get dimmed zones
+        const fillOpacity = isSelected ? 0.25 : 0.12;
+        const borderOpacity = isSelected ? 1.0 : 0.4;
+        const accentFill = colors.accentRGBA(fillOpacity);
 
         zones.forEach((zone, index) => {
             // Calculate pixel coordinates relative to overlay
-            // (overlay is already positioned at monitor.x, monitor.y)
             const x = zone.x * monitor.width;
             const y = zone.y * monitor.height;
             const width = zone.w * monitor.width;
@@ -197,16 +306,20 @@ export class LayoutPreviewBackground {
                     background-color: ${accentFill};
                     border: 3px solid ${accentHex};
                     border-radius: 4px;
+                    opacity: ${borderOpacity};
                 `,
                 opacity: 0  // Start invisible for fade-in
             });
 
-            // Zone number label (large, centered)
+            // Zone number label (smaller for non-selected monitors)
+            const fontSize = isSelected ? '72pt' : '36pt';
+            const textOpacity = isSelected ? 1.0 : 0.6;
+            
             const label = new St.Label({
                 text: `${index + 1}`,
                 style: `
-                    font-size: 72pt;
-                    color: white;
+                    font-size: ${fontSize};
+                    color: rgba(255, 255, 255, ${textOpacity});
                     font-weight: bold;
                     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
                 `,
@@ -230,33 +343,35 @@ export class LayoutPreviewBackground {
             labelBin.set_position(0, 0);
             labelBin.set_size(width - (gap * 2), height - (gap * 2));
 
-            this._overlay.add_child(zoneActor);
-            this._zoneActors.push(zoneActor);
+            monitorData.overlay.add_child(zoneActor);
+            monitorData.zoneActors.push(zoneActor);
         });
 
-        logger.debug(`Created ${zones.length} zone preview actors`);
+        logger.debug(`Created ${zones.length} zone preview actors on monitor ${monitorData.monitorIndex}`);
     }
 
     /**
-     * Clear all zone actors
+     * Clear all zone actors for a specific monitor
+     * @param {Object} monitorData - Monitor data object
      * @private
      */
-    _clearZones() {
-        this._zoneActors.forEach(actor => {
-            if (actor.get_parent() === this._overlay) {
-                this._overlay.remove_child(actor);
+    _clearZonesForMonitor(monitorData) {
+        monitorData.zoneActors.forEach(actor => {
+            if (actor.get_parent() === monitorData.overlay) {
+                monitorData.overlay.remove_child(actor);
             }
             actor.destroy();
         });
-        this._zoneActors = [];
+        monitorData.zoneActors = [];
     }
 
     /**
-     * Fade in zone actors
+     * Fade in zone actors for a specific monitor
+     * @param {Object} monitorData - Monitor data object
      * @private
      */
-    _fadeInZones() {
-        this._zoneActors.forEach(actor => {
+    _fadeInZonesForMonitor(monitorData) {
+        monitorData.zoneActors.forEach(actor => {
             actor.ease({
                 opacity: 255,
                 duration: FADE_DURATION_MS,
@@ -266,23 +381,24 @@ export class LayoutPreviewBackground {
     }
 
     /**
-     * Fade out zone actors then call callback
+     * Fade out zone actors for a specific monitor then call callback
+     * @param {Object} monitorData - Monitor data object
      * @param {Function} callback - Called when fade completes
      * @private
      */
-    _fadeOutZones(callback) {
-        if (this._zoneActors.length === 0) {
+    _fadeOutZonesForMonitor(monitorData, callback) {
+        if (monitorData.zoneActors.length === 0) {
             callback();
             return;
         }
 
         let completed = 0;
-        const total = this._zoneActors.length;
+        const total = monitorData.zoneActors.length;
 
-        this._zoneActors.forEach(actor => {
+        monitorData.zoneActors.forEach(actor => {
             actor.ease({
                 opacity: 0,
-                duration: FADE_DURATION_MS / 2,  // Fade out faster
+                duration: FADE_DURATION_MS / 2,
                 mode: Clutter.AnimationMode.EASE_IN_QUAD,
                 onComplete: () => {
                     completed++;
@@ -295,14 +411,15 @@ export class LayoutPreviewBackground {
     }
 
     /**
-     * Bring the overlay to the front (below modal dialog)
+     * Bring all overlays to the front (below modal dialog)
      * Used when dialog order changes
      */
     raise() {
-        if (this._overlay && this._overlay.get_parent()) {
-            // Keep at bottom of uiGroup children
-            const parent = this._overlay.get_parent();
-            parent.set_child_below_sibling(this._overlay, null);
+        for (const monitorData of this._monitorOverlays) {
+            if (monitorData.overlay && monitorData.overlay.get_parent()) {
+                const parent = monitorData.overlay.get_parent();
+                parent.set_child_below_sibling(monitorData.overlay, null);
+            }
         }
     }
 

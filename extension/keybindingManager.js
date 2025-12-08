@@ -32,6 +32,9 @@ export class KeybindingManager {
         this._zoneOverlay = zoneOverlay;
         this._registeredKeys = [];
         this._enhancedWindowManagementKeys = ['minimize-window', 'maximize-window'];
+        this._quickLayoutKeys = ['quick-layout-1', 'quick-layout-2', 'quick-layout-3', 
+                                  'quick-layout-4', 'quick-layout-5', 'quick-layout-6',
+                                  'quick-layout-7', 'quick-layout-8', 'quick-layout-9'];
         this._settingsChangedId = null;
     }
 
@@ -61,6 +64,9 @@ export class KeybindingManager {
         // Enhanced window management (optional)
         this._registerEnhancedWindowManagement();
 
+        // Quick layout shortcuts (Super+Ctrl+Alt+1-9)
+        this._registerQuickLayoutShortcuts();
+
         // Listen for settings changes to toggle enhanced window management
         this._settingsChangedId = this._settings.connect(
             'changed::enhanced-window-management-enabled',
@@ -68,6 +74,21 @@ export class KeybindingManager {
         );
 
         logger.info(`Registered ${this._registeredKeys.length} keybindings`);
+    }
+
+    /**
+     * Register quick layout shortcuts (Super+Ctrl+Alt+1-9)
+     * @private
+     */
+    _registerQuickLayoutShortcuts() {
+        logger.info('Registering quick layout shortcuts...');
+
+        for (let i = 1; i <= 9; i++) {
+            this._registerKeybinding(
+                `quick-layout-${i}`,
+                () => this._onQuickLayout(i)
+            );
+        }
     }
 
     /**
@@ -169,6 +190,22 @@ export class KeybindingManager {
     }
 
     /**
+     * Get space key from focused window for per-space mode
+     * @param {Meta.Window} window - The window to get space context from
+     * @returns {string|null} Space key if per-workspace mode enabled, null otherwise
+     * @private
+     */
+    _getSpaceKeyFromWindow(window) {
+        const perSpaceEnabled = this._settings.get_boolean('use-per-workspace-layouts');
+        if (!perSpaceEnabled || !window) return null;
+
+        const spatialStateManager = this._layoutManager.getSpatialStateManager();
+        if (!spatialStateManager) return null;
+
+        return spatialStateManager.getSpaceKeyForWindow(window);
+    }
+
+    /**
      * Handler: Cycle to previous zone (Super+Left)
      * @private
      */
@@ -181,7 +218,10 @@ export class KeybindingManager {
             return;
         }
 
-        const zone = this._layoutManager.cycleZone(-1);
+        // Get space context for per-workspace mode
+        const spaceKey = this._getSpaceKeyFromWindow(window);
+
+        const zone = this._layoutManager.cycleZone(-1, spaceKey);
         if (!zone) {
             logger.warn('Failed to cycle to previous zone');
             return;
@@ -189,8 +229,11 @@ export class KeybindingManager {
 
         this._windowManager.moveWindowToZone(window, zone);
 
-        const layout = this._layoutManager.getCurrentLayout();
-        const zoneIndex = this._layoutManager.getCurrentZoneIndex();
+        // Get layout info (space-aware if per-workspace mode)
+        const layout = this._layoutManager.getCurrentLayout(spaceKey);
+        const zoneIndex = spaceKey 
+            ? this._layoutManager.getZoneIndexForSpace(spaceKey)
+            : this._layoutManager.getCurrentZoneIndex();
         const totalZones = layout.zones.length;
 
         // Show zone overlay (center-screen notification for user action)
@@ -212,7 +255,10 @@ export class KeybindingManager {
             return;
         }
 
-        const zone = this._layoutManager.cycleZone(1);
+        // Get space context for per-workspace mode
+        const spaceKey = this._getSpaceKeyFromWindow(window);
+
+        const zone = this._layoutManager.cycleZone(1, spaceKey);
         if (!zone) {
             logger.warn('Failed to cycle to next zone');
             return;
@@ -220,8 +266,11 @@ export class KeybindingManager {
 
         this._windowManager.moveWindowToZone(window, zone);
 
-        const layout = this._layoutManager.getCurrentLayout();
-        const zoneIndex = this._layoutManager.getCurrentZoneIndex();
+        // Get layout info (space-aware if per-workspace mode)
+        const layout = this._layoutManager.getCurrentLayout(spaceKey);
+        const zoneIndex = spaceKey 
+            ? this._layoutManager.getZoneIndexForSpace(spaceKey)
+            : this._layoutManager.getCurrentZoneIndex();
         const totalZones = layout.zones.length;
 
         // Show zone overlay (center-screen notification for user action)
@@ -241,6 +290,53 @@ export class KeybindingManager {
             this._layoutSwitcher.show();
         } else {
             logger.warn('Layout editor not available');
+        }
+    }
+
+    /**
+     * Handler: Quick layout shortcut (Super+Ctrl+Alt+1-9)
+     * Activates layout by position in the ordered list
+     * @param {number} position - 1-based position (1-9)
+     * @private
+     */
+    _onQuickLayout(position) {
+        logger.debug(`Quick layout ${position} triggered`);
+
+        const layouts = this._layoutManager.getAllLayoutsOrdered();
+        const index = position - 1;
+
+        // Check if position is valid
+        if (index >= layouts.length) {
+            logger.debug(`No layout at position ${position} (only ${layouts.length} layouts available)`);
+            if (this._zoneOverlay) {
+                this._zoneOverlay.showMessage(`No layout at position ${position}`);
+            }
+            return;
+        }
+
+        const layout = layouts[index];
+        logger.info(`Quick switching to layout: ${layout.name} (position ${position})`);
+
+        // Check if per-workspace mode is enabled
+        const perSpaceEnabled = this._settings.get_boolean('use-per-workspace-layouts');
+        const window = this._windowManager.getFocusedWindow();
+
+        if (perSpaceEnabled && window) {
+            // Apply to the focused window's space
+            const spatialStateManager = this._layoutManager.getSpatialStateManager();
+            if (spatialStateManager) {
+                const spaceKey = spatialStateManager.getSpaceKeyForWindow(window);
+                this._layoutManager.setLayoutForSpace(spaceKey, layout.id);
+                logger.info(`Applied layout '${layout.name}' to space ${spaceKey}`);
+            }
+        } else {
+            // Apply globally
+            this._layoutManager.setLayout(layout.id);
+        }
+
+        // Show notification
+        if (this._zoneOverlay) {
+            this._zoneOverlay.showMessage(`Switched to: ${layout.name}`);
         }
     }
 
