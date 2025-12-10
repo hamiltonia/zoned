@@ -34,8 +34,16 @@ make vm-network-setup
 **Purpose:** Interactive first-time setup wizard  
 **When to use:** Once per system when setting up VM development  
 **What it does:**
-- Prompts for VM connection details (IP, username, etc.)
-- Tests SSH connection
+- Asks if you have an SSH alias configured already
+- If no SSH alias: Walks you through complete SSH setup
+  - Asks for VM IP address, alias name, and username
+  - Creates `~/.ssh/config` entry automatically
+  - Offers to copy SSH keys with `ssh-copy-id`
+- If already have SSH alias: Tests connection and extracts details
+- **SPICE setup (GNOME Boxes):** Checks if VM has required shared folder packages
+  - Detects guest OS (Ubuntu/Fedora/Arch/etc.)
+  - Installs `spice-vdagent` and `spice-webdavd` if missing
+  - Enables and starts the spice-webdavd service
 - Creates `~/.config/zoned-dev/config` file
 - Used by other scripts
 
