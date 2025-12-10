@@ -1,5 +1,5 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean zip \
-        vm-init vm-setup vm-install vm-logs vm-dev
+        vm-init vm-network-setup vm-setup vm-install vm-logs vm-dev
 
 # Detect OS for sed compatibility
 UNAME_S := $(shell uname -s)
@@ -38,6 +38,7 @@ help:
 	@printf "  make test           - Run tests\n"
 	@printf "\n"
 	@printf "$(COLOR_SUCCESS)VM Development:$(COLOR_RESET)\n"
+	@printf "  make vm-network-setup - Configure host networking for GNOME Boxes VMs\n"
 	@printf "  make vm-init        - Initialize VM configuration (first-time setup)\n"
 	@printf "  make vm-setup       - Configure VM for development (one-time)\n"
 	@printf "  make vm-install     - Install/update extension in VM\n"
@@ -172,6 +173,10 @@ reinstall: uninstall install-dev compile-schema
 	@printf "$(COLOR_WARN)⚠ Remember to reload GNOME Shell to see changes$(COLOR_RESET)\n"
 
 # VM Development targets
+vm-network-setup:
+	@printf "$(COLOR_INFO)Configuring host networking for VMs...$(COLOR_RESET)\n"
+	@./scripts/vm-network-setup
+
 vm-init:
 	@printf "$(COLOR_INFO)Starting VM configuration wizard...$(COLOR_RESET)\n"
 	@./scripts/init-vm-config

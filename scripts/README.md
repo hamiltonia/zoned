@@ -4,9 +4,31 @@ Helper scripts for VM-based development workflow.
 
 ## VM Development Scripts
 
-These scripts enable fast development cycles using a Fedora VM with X11 for 2-3 second reload times (vs 15-30 seconds on Wayland).
+These scripts enable fast development cycles using a VM (Fedora, Ubuntu, or Arch) with X11 for 2-3 second reload times (vs 15-30 seconds on Wayland).
+
+**Supported Host OSes:** Fedora, Ubuntu, Arch Linux
+**Supported Guest OSes:** Fedora 42+, Ubuntu 22.04/24.04, Arch Linux
 
 ### Host-Side Scripts (Run on your development machine)
+
+#### `vm-network-setup`
+**Purpose:** Configure host networking for GNOME Boxes VMs  
+**When to use:** Once before creating VMs, or when VM can't access internet  
+**What it does:**
+- Detects host OS (Fedora/Ubuntu/Arch)
+- Enables IP forwarding
+- Adds iptables FORWARD rules for virbr0 bridge
+- Configures NAT MASQUERADE for VM subnet
+- Makes rules persistent (survives reboot)
+
+**Why needed:** Docker sets iptables FORWARD policy to DROP, blocking VM traffic.
+
+**Usage:**
+```bash
+make vm-network-setup
+# or
+./scripts/vm-network-setup
+```
 
 #### `init-vm-config`
 **Purpose:** Interactive first-time setup wizard  
@@ -28,6 +50,7 @@ make vm-init
 **Purpose:** One-time VM environment configuration  
 **When to use:** After running `init-vm-config` and setting up shared folder  
 **What it does:**
+- Detects guest OS (Fedora/Ubuntu/Arch)
 - Verifies VM is accessible via SSH
 - Checks shared folder is mounted
 - Creates symlink from extension to GNOME extensions directory
@@ -117,17 +140,32 @@ EXTENSION_UUID="zoned@hamiltonia.me"
 
 This file is created by `init-vm-config` and can be edited manually if needed.
 
+### Library Scripts
+
+#### `lib/distro-detect.sh`
+**Purpose:** Shared library for distro detection  
+**When to use:** Sourced by other scripts, not run directly  
+**What it provides:**
+- `detect_host_distro` - Detect local OS
+- `detect_guest_distro` - Detect remote VM OS via SSH
+- `get_package_manager` - Get package manager for distro
+- `get_firewall_tool` - Get firewall tool for distro
+- `get_install_command` - Get full install command string
+
 ## Typical Workflow
 
 ### Initial Setup (Once)
 ```bash
-# 1. Create Fedora VM in GNOME Boxes (see docs/VM-SETUP-GUIDE.md)
-# 2. Configure shared folder in GNOME Boxes
-# 3. Set up SSH in VM
-# 4. Initialize configuration
+# 1. Configure host networking (IMPORTANT - do this first!)
+make vm-network-setup
+
+# 2. Create Fedora/Ubuntu/Arch VM in GNOME Boxes (see docs/VM-SETUP-GUIDE.md)
+# 3. Configure shared folder in GNOME Boxes
+# 4. Set up SSH in VM
+# 5. Initialize configuration
 make vm-init
 
-# 5. Set up VM environment
+# 6. Set up VM environment
 make vm-setup
 ```
 
@@ -153,6 +191,7 @@ make vm-dev
 
 All scripts are integrated with the Makefile:
 
+- `make vm-network-setup` → `./scripts/vm-network-setup` (host networking)
 - `make vm-init` → `./scripts/init-vm-config`
 - `make vm-setup` → `./scripts/vm-setup`
 - `make vm-install` → `./scripts/vm-install`
@@ -181,10 +220,16 @@ Run `make vm-init` to create the configuration file.
 2. Open Files in VM → Other Locations → Networks → Spice client folder
 3. Verify shared folder is configured in GNOME Boxes
 
+### VM can't access internet
+1. Run `make vm-network-setup` on host
+2. This fixes iptables rules blocked by Docker
+3. See [vm-network-troubleshooting.md](../memory/development/vm-network-troubleshooting.md) for details
+
 ### Scripts don't execute
 Make sure they're executable:
 ```bash
-chmod +x scripts/init-vm-config scripts/vm-setup scripts/vm-install scripts/vm-logs
+chmod +x scripts/init-vm-config scripts/vm-setup scripts/vm-install scripts/vm-logs scripts/vm-network-setup
+chmod +x scripts/lib/distro-detect.sh
 chmod +x scripts/vm-guest/auto-log-watcher.sh
 ```
 

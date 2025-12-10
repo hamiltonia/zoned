@@ -1,0 +1,278 @@
+#!/bin/bash
+#
+# vm-network-setup - Configure host networking for GNOME Boxes VMs
+#
+# Fixes the common issue where Docker's iptables FORWARD policy (DROP) prevents
+# VMs from accessing the internet via the virbr0 bridge.
+#
+# This script:
+# - Enables IP forwarding
+# - Adds iptables rules to allow virbr0 traffic
+# - Configures NAT (MASQUERADE) for VM subnet
+# - Makes changes persistent (survives reboot)
+#
+# Safe to run multiple times (idempotent).
+# Run BEFORE creating VMs or AFTER if network issues occur.
+#
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Load distro detection library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/distro-detect.sh"
+
+# VM network configuration
+VM_BRIDGE="virbr0"
+VM_SUBNET="192.168.122.0/24"
+
+echo -e "${BLUE}════════════════════════════════════════════════════════════${NC}"
+echo -e "${BLUE}   VM Network Setup for GNOME Boxes${NC}"
+echo -e "${BLUE}════════════════════════════════════════════════════════════${NC}"
+echo
+
+# Detect host OS
+HOST_DISTRO=$(detect_host_distro)
+HOST_PRETTY=$(get_distro_pretty_name)
+
+echo -e "${CYAN}Host System:${NC} $HOST_PRETTY"
+echo
+
+# Check if running as root (we'll need sudo for most commands)
+if [ "$EUID" -eq 0 ]; then
+    echo -e "${YELLOW}⚠ Running as root. This is OK but not required (will use sudo).${NC}"
+    echo
+    SUDO=""
+else
+    SUDO="sudo"
+fi
+
+# Step 1: Check if Docker is installed
+echo -e "${BLUE}[1/6]${NC} Checking for Docker installation..."
+if command -v docker &> /dev/null; then
+    echo -e "${YELLOW}✓ Docker is installed${NC}"
+    echo -e "${CYAN}  This is why VM networking needs to be configured.${NC}"
+    echo -e "${CYAN}  Docker sets FORWARD policy to DROP, blocking VM traffic.${NC}"
+    DOCKER_INSTALLED=true
+else
+    echo -e "${GREEN}✓ Docker not found${NC}"
+    echo -e "${CYAN}  Network setup is still recommended for VM functionality.${NC}"
+    DOCKER_INSTALLED=false
+fi
+echo
+
+# Step 2: Detect physical network interface
+echo -e "${BLUE}[2/6]${NC} Detecting physical network interface..."
+PHYS_IFACE=$(ip route show default | grep -oP 'dev \K\S+' | head -n1)
+
+if [ -z "$PHYS_IFACE" ]; then
+    echo -e "${RED}✗ Could not detect default network interface${NC}"
+    echo
+    echo "Please specify your network interface manually:"
+    echo "  ip route show default"
+    echo
+    echo "Then edit this script or run iptables commands manually."
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Physical interface:${NC} $PHYS_IFACE"
+echo
+
+# Step 3: Enable IP forwarding
+echo -e "${BLUE}[3/6]${NC} Enabling IP forwarding..."
+CURRENT_FORWARD=$(cat /proc/sys/net/ipv4/ip_forward)
+
+if [ "$CURRENT_FORWARD" = "1" ]; then
+    echo -e "${GREEN}✓ IP forwarding already enabled${NC}"
+else
+    echo "  Enabling temporarily..."
+    $SUDO sysctl -w net.ipv4.ip_forward=1 > /dev/null
+    echo -e "${GREEN}✓ IP forwarding enabled${NC}"
+fi
+
+# Make permanent
+if [ -f /etc/sysctl.d/99-libvirt.conf ]; then
+    if grep -q "net.ipv4.ip_forward = 1" /etc/sysctl.d/99-libvirt.conf; then
+        echo -e "${GREEN}✓ IP forwarding persistence already configured${NC}"
+    else
+        echo "  Making IP forwarding persistent..."
+        echo "net.ipv4.ip_forward = 1" | $SUDO tee -a /etc/sysctl.d/99-libvirt.conf > /dev/null
+        echo -e "${GREEN}✓ IP forwarding will persist after reboot${NC}"
+    fi
+else
+    echo "  Making IP forwarding persistent..."
+    echo "net.ipv4.ip_forward = 1" | $SUDO tee /etc/sysctl.d/99-libvirt.conf > /dev/null
+    echo -e "${GREEN}✓ IP forwarding will persist after reboot${NC}"
+fi
+echo
+
+# Step 4: Add iptables FORWARD rules
+echo -e "${BLUE}[4/6]${NC} Configuring iptables FORWARD rules..."
+
+# Check if rules already exist
+FORWARD_IN_EXISTS=$($SUDO iptables -C FORWARD -i $VM_BRIDGE -j ACCEPT 2>/dev/null && echo "yes" || echo "no")
+FORWARD_OUT_EXISTS=$($SUDO iptables -C FORWARD -o $VM_BRIDGE -j ACCEPT 2>/dev/null && echo "yes" || echo "no")
+
+if [ "$FORWARD_IN_EXISTS" = "yes" ] && [ "$FORWARD_OUT_EXISTS" = "yes" ]; then
+    echo -e "${GREEN}✓ FORWARD rules already configured${NC}"
+else
+    echo "  Adding FORWARD rules for $VM_BRIDGE..."
+    
+    # Add at the top of the chain (before Docker's DROP policy)
+    if [ "$FORWARD_IN_EXISTS" = "no" ]; then
+        $SUDO iptables -I FORWARD 1 -i $VM_BRIDGE -j ACCEPT
+        echo -e "${GREEN}✓ Added: FORWARD -i $VM_BRIDGE -j ACCEPT${NC}"
+    fi
+    
+    if [ "$FORWARD_OUT_EXISTS" = "no" ]; then
+        $SUDO iptables -I FORWARD 1 -o $VM_BRIDGE -j ACCEPT
+        echo -e "${GREEN}✓ Added: FORWARD -o $VM_BRIDGE -j ACCEPT${NC}"
+    fi
+fi
+echo
+
+# Step 5: Add NAT MASQUERADE rule
+echo -e "${BLUE}[5/6]${NC} Configuring NAT MASQUERADE..."
+
+# Check if rule already exists
+NAT_EXISTS=$($SUDO iptables -t nat -C POSTROUTING -s $VM_SUBNET ! -d $VM_SUBNET -o $PHYS_IFACE -j MASQUERADE 2>/dev/null && echo "yes" || echo "no")
+
+if [ "$NAT_EXISTS" = "yes" ]; then
+    echo -e "${GREEN}✓ NAT MASQUERADE already configured${NC}"
+else
+    echo "  Adding NAT MASQUERADE for $VM_SUBNET..."
+    $SUDO iptables -t nat -A POSTROUTING -s $VM_SUBNET ! -d $VM_SUBNET -o $PHYS_IFACE -j MASQUERADE
+    echo -e "${GREEN}✓ Added: NAT MASQUERADE for $VM_SUBNET via $PHYS_IFACE${NC}"
+fi
+echo
+
+# Step 6: Make rules persistent
+echo -e "${BLUE}[6/6]${NC} Making iptables rules persistent..."
+
+case "$HOST_DISTRO" in
+    fedora)
+        echo "  Using firewalld for persistence..."
+        
+        # Check if firewalld is running
+        if $SUDO systemctl is-active --quiet firewalld; then
+            # Add permanent rules via firewalld direct rules
+            NAT_RULE_EXISTS=$($SUDO firewall-cmd --permanent --direct --query-rule ipv4 nat POSTROUTING 0 -s $VM_SUBNET ! -d $VM_SUBNET -o $PHYS_IFACE -j MASQUERADE 2>/dev/null && echo "yes" || echo "no")
+            
+            if [ "$NAT_RULE_EXISTS" = "no" ]; then
+                $SUDO firewall-cmd --permanent --direct --add-rule ipv4 nat POSTROUTING 0 -s $VM_SUBNET ! -d $VM_SUBNET -o $PHYS_IFACE -j MASQUERADE > /dev/null
+                echo -e "${GREEN}✓ NAT rule added to firewalld${NC}"
+            else
+                echo -e "${GREEN}✓ NAT rule already in firewalld${NC}"
+            fi
+            
+            # Forward rules
+            FORWARD_IN_PERM=$($SUDO firewall-cmd --permanent --direct --query-rule ipv4 filter FORWARD 0 -i $VM_BRIDGE -j ACCEPT 2>/dev/null && echo "yes" || echo "no")
+            FORWARD_OUT_PERM=$($SUDO firewall-cmd --permanent --direct --query-rule ipv4 filter FORWARD 0 -o $VM_BRIDGE -j ACCEPT 2>/dev/null && echo "yes" || echo "no")
+            
+            if [ "$FORWARD_IN_PERM" = "no" ]; then
+                $SUDO firewall-cmd --permanent --direct --add-rule ipv4 filter FORWARD 0 -i $VM_BRIDGE -j ACCEPT > /dev/null
+                echo -e "${GREEN}✓ FORWARD (in) rule added to firewalld${NC}"
+            else
+                echo -e "${GREEN}✓ FORWARD (in) rule already in firewalld${NC}"
+            fi
+            
+            if [ "$FORWARD_OUT_PERM" = "no" ]; then
+                $SUDO firewall-cmd --permanent --direct --add-rule ipv4 filter FORWARD 0 -o $VM_BRIDGE -j ACCEPT > /dev/null
+                echo -e "${GREEN}✓ FORWARD (out) rule added to firewalld${NC}"
+            else
+                echo -e "${GREEN}✓ FORWARD (out) rule already in firewalld${NC}"
+            fi
+            
+            # Reload firewalld
+            $SUDO firewall-cmd --reload > /dev/null
+            echo -e "${GREEN}✓ Firewalld reloaded${NC}"
+        else
+            echo -e "${YELLOW}⚠ firewalld is not running${NC}"
+            echo -e "${CYAN}  Rules are active but won't persist after reboot.${NC}"
+            echo -e "${CYAN}  Start firewalld: sudo systemctl enable --now firewalld${NC}"
+        fi
+        ;;
+        
+    ubuntu|debian)
+        echo "  Using iptables-persistent for persistence..."
+        
+        # Check if iptables-persistent is installed
+        if ! dpkg -l | grep -q iptables-persistent; then
+            echo "  Installing iptables-persistent..."
+            # Pre-answer debconf prompts
+            echo iptables-persistent iptables-persistent/autosave_v4 boolean true | $SUDO debconf-set-selections
+            echo iptables-persistent iptables-persistent/autosave_v6 boolean true | $SUDO debconf-set-selections
+            $SUDO apt-get update -qq
+            $SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent > /dev/null 2>&1
+            echo -e "${GREEN}✓ iptables-persistent installed${NC}"
+        else
+            echo -e "${GREEN}✓ iptables-persistent already installed${NC}"
+        fi
+        
+        # Save current rules
+        $SUDO netfilter-persistent save > /dev/null 2>&1 || $SUDO iptables-save | $SUDO tee /etc/iptables/rules.v4 > /dev/null
+        echo -e "${GREEN}✓ iptables rules saved${NC}"
+        ;;
+        
+    arch)
+        echo "  Setting up iptables persistence service..."
+        
+        # On Arch, we need to save rules and create a systemd service
+        $SUDO iptables-save | $SUDO tee /etc/iptables/iptables.rules > /dev/null
+        echo -e "${GREEN}✓ Rules saved to /etc/iptables/iptables.rules${NC}"
+        
+        # Enable iptables service
+        if $SUDO systemctl is-enabled iptables.service &>/dev/null; then
+            echo -e "${GREEN}✓ iptables.service already enabled${NC}"
+        else
+            $SUDO systemctl enable iptables.service > /dev/null
+            echo -e "${GREEN}✓ iptables.service enabled${NC}"
+        fi
+        ;;
+        
+    *)
+        echo -e "${YELLOW}⚠ Unknown distro: $HOST_DISTRO${NC}"
+        echo -e "${CYAN}  Rules are active but may not persist after reboot.${NC}"
+        echo
+        echo "To make rules persistent manually:"
+        echo "  1. Save current rules: sudo iptables-save > /tmp/iptables-rules"
+        echo "  2. Add restore command to your system startup"
+        ;;
+esac
+
+echo
+echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}✓ Network Setup Complete!${NC}"
+echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+echo
+echo -e "${CYAN}Summary:${NC}"
+echo -e "  • IP forwarding: ${GREEN}enabled${NC}"
+echo -e "  • Physical interface: ${GREEN}$PHYS_IFACE${NC}"
+echo -e "  • VM bridge: ${GREEN}$VM_BRIDGE${NC}"
+echo -e "  • VM subnet: ${GREEN}$VM_SUBNET${NC}"
+echo -e "  • iptables FORWARD rules: ${GREEN}configured${NC}"
+echo -e "  • NAT MASQUERADE: ${GREEN}configured${NC}"
+echo -e "  • Persistence: ${GREEN}configured for $HOST_DISTRO${NC}"
+echo
+echo -e "${BLUE}What this means:${NC}"
+echo -e "  • VMs in GNOME Boxes can now access the internet"
+echo -e "  • Settings survive host reboot"
+echo -e "  • Safe to create multiple VMs - they'll all work"
+echo
+echo -e "${BLUE}Next steps:${NC}"
+echo -e "  1. Create VM in GNOME Boxes (or use existing VM)"
+echo -e "  2. Install OS in VM"
+echo -e "  3. Test network: ping -c 3 8.8.8.8"
+echo -e "  4. Continue with vm-setup: make vm-init && make vm-setup"
+echo
+echo -e "${CYAN}To verify:${NC}"
+echo -e "  sudo iptables -L FORWARD -n -v --line-numbers"
+echo -e "  sudo iptables -t nat -L POSTROUTING -n -v"
+echo

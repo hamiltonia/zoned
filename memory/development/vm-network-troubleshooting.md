@@ -1,8 +1,10 @@
 # VM Network Troubleshooting - Docker + GNOME Boxes
 
-**Last Updated:** 2025-11-22
+**Last Updated:** 2025-12-09
 
 This document covers networking issues when running GNOME Boxes VMs on a host with Docker installed. The combination causes conflicts with iptables FORWARD chain policies.
+
+**Supported Host OSes:** Fedora, Ubuntu, Arch Linux
 
 ---
 
@@ -17,7 +19,20 @@ This document covers networking issues when running GNOME Boxes VMs on a host wi
 4. VM must be running for network bridge to activate
 5. GNOME Boxes uses user session libvirt, not system libvirt
 
-**Quick Fix:**
+**Automated Fix (Recommended):**
+```bash
+# Run the automated network setup script
+cd ~/GitHub/zoned
+make vm-network-setup
+
+# The script automatically:
+# - Detects your host OS (Fedora/Ubuntu/Arch)
+# - Detects your physical network interface
+# - Adds iptables rules
+# - Makes rules persistent using OS-appropriate method
+```
+
+**Manual Quick Fix:**
 ```bash
 # On HOST - Add NAT and forwarding rules
 sudo iptables -t nat -A POSTROUTING -s 192.168.122.0/24 ! -d 192.168.122.0/24 -o wlp59s0 -j MASQUERADE
@@ -272,11 +287,19 @@ sudo dnf check-update
 
 ## Making Changes Persistent
 
-The iptables rules above will be lost on reboot. Use firewalld to make them permanent:
+The iptables rules above will be lost on reboot. The method to persist rules varies by distro.
+
+**Recommended:** Use the automated script which handles this for you:
+```bash
+make vm-network-setup
+```
+
+### Manual Persistence by Distro
+
+<details>
+<summary><b>Fedora (firewalld)</b></summary>
 
 ```bash
-# On HOST
-
 # Add persistent NAT rule (replace wlp59s0 with your interface)
 sudo firewall-cmd --permanent --direct --add-rule ipv4 nat POSTROUTING 0 -s 192.168.122.0/24 ! -d 192.168.122.0/24 -o wlp59s0 -j MASQUERADE
 
@@ -290,6 +313,40 @@ sudo firewall-cmd --reload
 # Verify rules persist
 sudo firewall-cmd --direct --get-all-rules
 ```
+</details>
+
+<details>
+<summary><b>Ubuntu/Debian (iptables-persistent)</b></summary>
+
+```bash
+# Install iptables-persistent
+sudo apt-get update
+sudo apt-get install -y iptables-persistent
+
+# When prompted, select "Yes" to save current rules
+# Or manually save rules:
+sudo netfilter-persistent save
+
+# Rules are stored in:
+# /etc/iptables/rules.v4 (IPv4)
+# /etc/iptables/rules.v6 (IPv6)
+```
+</details>
+
+<details>
+<summary><b>Arch Linux (iptables.service)</b></summary>
+
+```bash
+# Save current rules
+sudo iptables-save | sudo tee /etc/iptables/iptables.rules
+
+# Enable iptables service to load rules at boot
+sudo systemctl enable iptables.service
+
+# To restore manually:
+sudo iptables-restore < /etc/iptables/iptables.rules
+```
+</details>
 
 **Verify After Reboot:**
 
@@ -303,9 +360,22 @@ sudo iptables -L FORWARD -n -v --line-numbers
 
 ## Prevention for New VMs
 
-When setting up a second VM (e.g., fedora-dev-43), you can avoid this entire issue by setting up the rules BEFORE creating the VM:
+When setting up a second VM (e.g., ubuntu-dev-24.04), you can avoid this entire issue by setting up the rules BEFORE creating the VM:
 
-### Pre-Setup Checklist
+### Automated Pre-Setup (Recommended)
+
+```bash
+# Run once on your host, works for all future VMs
+cd ~/GitHub/zoned
+make vm-network-setup
+
+# This script:
+# - Detects your distro and uses appropriate persistence
+# - Detects your network interface automatically
+# - Is idempotent (safe to run multiple times)
+```
+
+### Manual Pre-Setup Checklist
 
 ```bash
 # 1. Enable IP forwarding permanently
@@ -319,10 +389,13 @@ ip route show default | grep -oP 'dev \K\S+'
 # 3. Add persistent firewall rules (replace wlp59s0)
 PHYS_IFACE="wlp59s0"  # Your interface from step 2
 
+# For Fedora:
 sudo firewall-cmd --permanent --direct --add-rule ipv4 nat POSTROUTING 0 -s 192.168.122.0/24 ! -d 192.168.122.0/24 -o $PHYS_IFACE -j MASQUERADE
 sudo firewall-cmd --permanent --direct --add-rule ipv4 filter FORWARD 0 -i virbr0 -j ACCEPT
 sudo firewall-cmd --permanent --direct --add-rule ipv4 filter FORWARD 0 -o virbr0 -j ACCEPT
 sudo firewall-cmd --reload
+
+# For Ubuntu: (see "Making Changes Persistent" section)
 
 # 4. Verify rules are active
 sudo iptables -t nat -L POSTROUTING -n -v | grep 192.168.122
@@ -465,6 +538,11 @@ sudo dnf check-update      # Package manager
 ---
 
 ## Troubleshooting History
+
+**2025-12-09:** Added multi-distro support and automated script
+- Created `make vm-network-setup` command
+- Added Ubuntu/Debian and Arch Linux persistence methods
+- Script auto-detects distro and network interface
 
 **2025-11-22:** Initial troubleshooting on Fedora 43 host with Docker installed
 - Spent ~1 hour debugging networking
