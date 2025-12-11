@@ -100,13 +100,13 @@ function acceleratorToLabel(accelerator) {
         return accelerator;
     }
 
-    // Build modifier string
+    // Build modifier string (keyboard order: Shift, Ctrl, Super, Alt)
     const parts = [];
     
-    if (mods & Gdk.ModifierType.SUPER_MASK) parts.push('Super');
-    if (mods & Gdk.ModifierType.CONTROL_MASK) parts.push('Ctrl');
-    if (mods & Gdk.ModifierType.ALT_MASK) parts.push('Alt');
     if (mods & Gdk.ModifierType.SHIFT_MASK) parts.push('Shift');
+    if (mods & Gdk.ModifierType.CONTROL_MASK) parts.push('Ctrl');
+    if (mods & Gdk.ModifierType.SUPER_MASK) parts.push('Super');
+    if (mods & Gdk.ModifierType.ALT_MASK) parts.push('Alt');
 
     // Get key name
     let keyName = Gdk.keyval_name(keyval);
@@ -138,6 +138,129 @@ function acceleratorToLabel(accelerator) {
 }
 
 /**
+ * Parse accelerator string into keyval and modifiers
+ * @param {string} accelerator - The accelerator string
+ * @returns {Object|null} {keyval, mods} or null if parsing fails
+ */
+function parseAccelerator(accelerator) {
+    if (!accelerator) return null;
+    
+    try {
+        const result = Gtk.accelerator_parse(accelerator);
+        if (Array.isArray(result)) {
+            if (result.length === 3) {
+                const [success, keyval, mods] = result;
+                if (!success || keyval === 0) return null;
+                return { keyval, mods };
+            } else if (result.length === 2) {
+                const [keyval, mods] = result;
+                if (keyval === 0) return null;
+                return { keyval, mods };
+            }
+        }
+    } catch (e) {
+        log(`Error parsing accelerator '${accelerator}': ${e.message}`);
+    }
+    return null;
+}
+
+/**
+ * Key name aliases - different names that map to the same physical key
+ * GNOME GSettings sometimes uses different names than GTK accelerator syntax
+ */
+const KEY_ALIASES = {
+    // The backtick/grave key (left of 1 on US keyboards)
+    'Above_Tab': 'grave',      // GNOME uses Above_Tab, GTK uses grave
+    'quoteleft': 'grave',      // Another alias for the same key
+    
+    // Enter key
+    'KP_Enter': 'Return',      // Keypad enter
+    
+    // Tab variants
+    'ISO_Left_Tab': 'Tab',     // Shift+Tab generates this
+    
+    // Page navigation (some systems use Prior/Next)
+    'Prior': 'Page_Up',
+    'Next': 'Page_Down',
+    
+    // Numpad operators
+    'KP_Add': 'plus',
+    'KP_Subtract': 'minus',
+    'KP_Multiply': 'asterisk',
+    'KP_Divide': 'slash',
+    'KP_Decimal': 'period',
+    
+    // Numpad numbers (map to regular numbers)
+    'KP_0': '0',
+    'KP_1': '1',
+    'KP_2': '2',
+    'KP_3': '3',
+    'KP_4': '4',
+    'KP_5': '5',
+    'KP_6': '6',
+    'KP_7': '7',
+    'KP_8': '8',
+    'KP_9': '9',
+};
+
+/**
+ * Normalize an accelerator string to use GTK-compatible key names
+ * @param {string} accel - The accelerator string
+ * @returns {string} Normalized accelerator
+ */
+function normalizeAccelerator(accel) {
+    if (!accel) return accel;
+    
+    let normalized = accel;
+    for (const [alias, canonical] of Object.entries(KEY_ALIASES)) {
+        // Replace the alias with the canonical name (case-insensitive for the key part)
+        const regex = new RegExp(`>${alias}$`, 'i');
+        if (regex.test(normalized)) {
+            normalized = normalized.replace(regex, `>${canonical}`);
+        }
+        // Also handle case where there's no > prefix
+        if (normalized === alias) {
+            normalized = canonical;
+        }
+    }
+    return normalized;
+}
+
+/**
+ * Check if two accelerators are equivalent (same key + same modifiers)
+ * This handles different modifier ordering in strings and key name aliases
+ * @param {string} accel1 - First accelerator
+ * @param {string} accel2 - Second accelerator
+ * @returns {boolean} True if they represent the same shortcut
+ */
+function acceleratorsMatch(accel1, accel2) {
+    // Normalize both accelerators to use canonical key names
+    const norm1 = normalizeAccelerator(accel1);
+    const norm2 = normalizeAccelerator(accel2);
+    
+    log(`acceleratorsMatch: comparing '${accel1}' (→'${norm1}') with '${accel2}' (→'${norm2}')`);
+    
+    const parsed1 = parseAccelerator(norm1);
+    const parsed2 = parseAccelerator(norm2);
+    
+    if (!parsed1) {
+        log(`  Failed to parse accel1: ${norm1}`);
+        return false;
+    }
+    if (!parsed2) {
+        log(`  Failed to parse accel2: ${norm2}`);
+        return false;
+    }
+    
+    const match = parsed1.keyval === parsed2.keyval && parsed1.mods === parsed2.mods;
+    log(`  parsed1: keyval=${parsed1.keyval}, mods=${parsed1.mods}`);
+    log(`  parsed2: keyval=${parsed2.keyval}, mods=${parsed2.mods}`);
+    log(`  match: ${match}`);
+    
+    return match;
+}
+
+/**
  * Check for keybinding conflicts with GNOME system shortcuts
  * @param {string} accelerator - The accelerator to check
  * @param {string} currentKey - The settings key being edited (to exclude self)
@@ -148,16 +271,29 @@ function checkConflicts(accelerator, currentKey) {
     
     // Known GNOME keybindings that might conflict
     const gnomeBindings = [
-        { schema: 'org.gnome.mutter.keybindings', key: 'toggle-tiled-left', binding: '<Super>Left', name: 'Tile window left' },
-        { schema: 'org.gnome.mutter.keybindings', key: 'toggle-tiled-right', binding: '<Super>Right', name: 'Tile window right' },
-        { schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-group', binding: '<Super>Above_Tab', name: 'Switch windows of app' },
-        { schema: 'org.gnome.desktop.wm.keybindings', key: 'maximize', binding: '<Super>Up', name: 'Maximize window' },
-        { schema: 'org.gnome.desktop.wm.keybindings', key: 'minimize', binding: '<Super>Down', name: 'Minimize window' },
+        // Window tiling (mutter)
+        { schema: 'org.gnome.mutter.keybindings', key: 'toggle-tiled-left', name: 'Tile window left' },
+        { schema: 'org.gnome.mutter.keybindings', key: 'toggle-tiled-right', name: 'Tile window right' },
+        // Window management (org.gnome.desktop.wm.keybindings)
+        { schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-group', name: 'Switch windows of app' },
+        { schema: 'org.gnome.desktop.wm.keybindings', key: 'maximize', name: 'Maximize window' },
+        { schema: 'org.gnome.desktop.wm.keybindings', key: 'unmaximize', name: 'Restore window' },  // Super+Down on GNOME
+        { schema: 'org.gnome.desktop.wm.keybindings', key: 'minimize', name: 'Minimize window' },
+        // Workspace switching (Ubuntu uses Super+Alt+Arrow by default)
+        { schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-left', name: 'Switch to workspace left' },
+        { schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-right', name: 'Switch to workspace right' },
+        { schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-up', name: 'Switch to workspace up' },
+        { schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-down', name: 'Switch to workspace down' },
+        // Move window to workspace
+        { schema: 'org.gnome.desktop.wm.keybindings', key: 'move-to-workspace-left', name: 'Move window to workspace left' },
+        { schema: 'org.gnome.desktop.wm.keybindings', key: 'move-to-workspace-right', name: 'Move window to workspace right' },
+        // Tiling Assistant extension (Ubuntu 24+ default)
+        { schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-left-half', name: 'Tiling Assistant: Tile left' },
+        { schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-right-half', name: 'Tiling Assistant: Tile right' },
+        { schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-maximize', name: 'Tiling Assistant: Maximize' },
+        { schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-bottomhalf', name: 'Tiling Assistant: Tile bottom' },
+        { schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-tophalf', name: 'Tiling Assistant: Tile top' },
     ];
-
-    // Normalize accelerator for comparison (handle grave vs Above_Tab)
-    const normalizedAccel = accelerator.replace('grave', 'Above_Tab');
-    const normalizedAccel2 = accelerator.replace('Above_Tab', 'grave');
 
     for (const gnome of gnomeBindings) {
         try {
@@ -165,10 +301,9 @@ function checkConflicts(accelerator, currentKey) {
             const bindings = schema.get_strv(gnome.key);
             
             for (const binding of bindings) {
-                if (binding === accelerator || 
-                    binding === normalizedAccel || 
-                    binding === normalizedAccel2 ||
-                    binding.replace('grave', 'Above_Tab') === normalizedAccel) {
+                // Use parsed comparison instead of string comparison
+                if (binding && acceleratorsMatch(accelerator, binding)) {
+                    log(`Conflict found: ${accelerator} matches ${binding} (${gnome.name})`);
                     return {
                         schema: gnome.schema,
                         key: gnome.key,
@@ -186,9 +321,9 @@ function checkConflicts(accelerator, currentKey) {
 }
 
 /**
- * ShortcutCaptureRow - A preference row for capturing keyboard shortcuts
- * Custom layout: Title + icons on top, shortcut below title, description at bottom.
- * This layout ensures long shortcuts don't compress the description text.
+ * ShortcutCaptureRow - A preference row for configuring keyboard shortcuts
+ * VS Code-style: Modifier checkboxes + key capture button
+ * This avoids issues with system shortcuts intercepting key combinations.
  */
 const ShortcutCaptureRow = GObject.registerClass({
     GTypeName: 'ZonedShortcutCaptureRow',
@@ -210,21 +345,21 @@ const ShortcutCaptureRow = GObject.registerClass({
         this._settingsKey = settingsKey;
         this._defaultAccelerator = defaultAccelerator;
         this._isCapturing = false;
-        this._lastModifierPressTime = 0; // Track when modifier was last pressed
+        this._currentKeyval = 0; // Currently selected key (unshifted)
         
         log(`ShortcutCaptureRow._init for key: ${settingsKey}`);
         
-        // Main content box (vertical) - match Adw.ActionRow padding
+        // Main content box (vertical)
         const mainBox = new Gtk.Box({
             orientation: Gtk.Orientation.VERTICAL,
-            spacing: 2,
-            margin_top: 6,
-            margin_bottom: 6,
+            spacing: 6,
+            margin_top: 8,
+            margin_bottom: 8,
             margin_start: 12,
-            margin_end: 6,
+            margin_end: 12,
         });
         
-        // Header row: Title + icons
+        // Header row: Title + reset button + warning
         const headerBox = new Gtk.Box({
             orientation: Gtk.Orientation.HORIZONTAL,
             spacing: 8,
@@ -256,18 +391,6 @@ const ShortcutCaptureRow = GObject.registerClass({
         // Store conflict info for dialog
         this._currentConflict = null;
         
-        // Edit button (pencil icon)
-        this._editButton = new Gtk.Button({
-            icon_name: 'document-edit-symbolic',
-            tooltip_text: 'Edit shortcut (Esc to cancel, Backspace to disable)',
-        });
-        this._editButton.add_css_class('flat');
-        this._editButton.connect('clicked', () => {
-            log(`Edit clicked for ${this._settingsKey}`);
-            this._startCapture();
-        });
-        headerBox.append(this._editButton);
-        
         // Reset button (undo icon)
         this._resetButton = new Gtk.Button({
             icon_name: 'edit-undo-symbolic',
@@ -282,15 +405,92 @@ const ShortcutCaptureRow = GObject.registerClass({
         
         mainBox.append(headerBox);
         
-        // Shortcut label (second line)
+        // Controls row: Modifier checkboxes + Record Key button
+        const controlsBox = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            spacing: 12,
+        });
+        
+        // Modifier checkboxes (keyboard order: Shift, Ctrl, Super, Alt)
+        this._shiftCheck = new Gtk.CheckButton({ label: 'Shift' });
+        this._ctrlCheck = new Gtk.CheckButton({ label: 'Ctrl' });
+        this._superCheck = new Gtk.CheckButton({ label: 'Super' });
+        this._altCheck = new Gtk.CheckButton({ label: 'Alt' });
+        
+        // Connect checkbox changes to update accelerator
+        this._shiftCheck.connect('toggled', () => this._onModifierChanged());
+        this._ctrlCheck.connect('toggled', () => this._onModifierChanged());
+        this._superCheck.connect('toggled', () => this._onModifierChanged());
+        this._altCheck.connect('toggled', () => this._onModifierChanged());
+        
+        controlsBox.append(this._shiftCheck);
+        controlsBox.append(this._ctrlCheck);
+        controlsBox.append(this._superCheck);
+        controlsBox.append(this._altCheck);
+        
+        // Spacer
+        const spacer = new Gtk.Box({ hexpand: true });
+        controlsBox.append(spacer);
+        
+        // Record Key button
+        this._recordButton = new Gtk.Button({
+            label: 'Record Key',
+            tooltip_text: 'Click to record a key',
+        });
+        this._recordButton.connect('clicked', () => {
+            log(`Record clicked for ${this._settingsKey}`);
+            this._startCapture();
+        });
+        controlsBox.append(this._recordButton);
+        
+        mainBox.append(controlsBox);
+        
+        // Current shortcut display row
+        const displayBox = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            spacing: 8,
+        });
+        
+        const currentLabel = new Gtk.Label({
+            label: 'Current:',
+            xalign: 0,
+        });
+        currentLabel.add_css_class('dim-label');
+        displayBox.append(currentLabel);
+        
         this._shortcutLabel = new Gtk.Label({
             xalign: 0,
             hexpand: true,
         });
         this._shortcutLabel.add_css_class('shortcut-text');
-        mainBox.append(this._shortcutLabel);
+        displayBox.append(this._shortcutLabel);
         
-        // Subtitle/description label (third line)
+        mainBox.append(displayBox);
+        
+        // Conflict warning row (shown when there's a conflict)
+        this._conflictBox = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            spacing: 8,
+            visible: false,
+        });
+        
+        const conflictIcon = new Gtk.Image({
+            icon_name: 'dialog-warning-symbolic',
+        });
+        conflictIcon.add_css_class('warning');
+        this._conflictBox.append(conflictIcon);
+        
+        this._conflictLabel = new Gtk.Label({
+            xalign: 0,
+            hexpand: true,
+            wrap: true,
+        });
+        this._conflictLabel.add_css_class('warning');
+        this._conflictBox.append(this._conflictLabel);
+        
+        mainBox.append(this._conflictBox);
+        
+        // Subtitle/description label
         const subtitleLabel = new Gtk.Label({
             label: subtitle,
             xalign: 0,
@@ -304,7 +504,7 @@ const ShortcutCaptureRow = GObject.registerClass({
         
         this.set_child(mainBox);
         
-        // Event controller for key capture - attach to the edit button
+        // Event controller for key capture - attach to the record button
         this._keyController = new Gtk.EventControllerKey();
         this._keyController.connect('key-pressed', (ctrl, keyval, keycode, state) => {
             log(`key-pressed event: keyval=${keyval}, keycode=${keycode}, state=${state}, capturing=${this._isCapturing}`);
@@ -312,44 +512,29 @@ const ShortcutCaptureRow = GObject.registerClass({
                 log('Not capturing, propagating event');
                 return false; // Gdk.EVENT_PROPAGATE
             }
-            return this._onKeyPressed(keyval, state);
+            return this._onKeyPressed(keyval, keycode, state);
         });
-        this._editButton.add_controller(this._keyController);
+        this._recordButton.add_controller(this._keyController);
         
-        log(`Key controller attached to edit button for ${settingsKey}`);
+        log(`Key controller attached to record button for ${settingsKey}`);
         
-        // Focus controller to handle blur
-        // Note: Super key may trigger GNOME Activities, stealing focus
-        // We use a grace period to ignore focus loss right after modifier press
+        // Focus controller to handle blur during capture
         this._focusController = new Gtk.EventControllerFocus();
-        this._focusController.connect('enter', () => {
-            log(`Focus ENTER on edit button for ${this._settingsKey}`);
-        });
         this._focusController.connect('leave', () => {
-            log(`Focus LEAVE on edit button for ${this._settingsKey}, capturing=${this._isCapturing}`);
+            log(`Focus LEAVE on record button for ${this._settingsKey}, capturing=${this._isCapturing}`);
             if (this._isCapturing) {
-                // Check if a modifier was pressed very recently (within 500ms)
-                // This helps handle Super key triggering Activities
-                const now = Date.now();
-                const timeSinceModifier = now - this._lastModifierPressTime;
-                if (timeSinceModifier < 500) {
-                    log(`Ignoring focus loss - modifier pressed ${timeSinceModifier}ms ago`);
-                    // Try to regain focus
-                    this._editButton.grab_focus();
-                    return;
-                }
                 this._stopCapture();
             }
         });
-        this._editButton.add_controller(this._focusController);
+        this._recordButton.add_controller(this._focusController);
         
-        // Initial update
-        this._updateDisplay();
+        // Initial update from settings
+        this._loadFromSettings();
         
         // Listen for settings changes
         this._settingsChangedId = this._settings.connect(`changed::${this._settingsKey}`, () => {
             log(`Settings changed for ${this._settingsKey}`);
-            this._updateDisplay();
+            this._loadFromSettings();
         });
         
         // Listen for conflict count changes (reverse sync from panel menu "Fix All")
@@ -384,7 +569,103 @@ const ShortcutCaptureRow = GObject.registerClass({
     }
     
     /**
-     * Update the display
+     * Load current accelerator from settings and update checkboxes/key
+     */
+    _loadFromSettings() {
+        const accelerator = this._getCurrentAccelerator();
+        log(`_loadFromSettings(${this._settingsKey}): ${accelerator || '(empty)'}`);
+        
+        if (!accelerator) {
+            // Clear everything
+            this._superCheck.set_active(false);
+            this._ctrlCheck.set_active(false);
+            this._altCheck.set_active(false);
+            this._shiftCheck.set_active(false);
+            this._currentKeyval = 0;
+            this._updateDisplay();
+            return;
+        }
+        
+        // Parse the accelerator
+        let keyval, mods;
+        try {
+            const result = Gtk.accelerator_parse(accelerator);
+            if (Array.isArray(result)) {
+                if (result.length === 3) {
+                    const [success, kv, m] = result;
+                    if (!success) {
+                        log(`Failed to parse accelerator: ${accelerator}`);
+                        return;
+                    }
+                    keyval = kv;
+                    mods = m;
+                } else if (result.length === 2) {
+                    [keyval, mods] = result;
+                } else {
+                    return;
+                }
+            } else {
+                return;
+            }
+        } catch (e) {
+            log(`Error parsing accelerator '${accelerator}': ${e.message}`);
+            return;
+        }
+        
+        // Set checkbox states based on modifiers (suppress change handler)
+        this._loadingFromSettings = true;
+        this._superCheck.set_active((mods & Gdk.ModifierType.SUPER_MASK) !== 0);
+        this._ctrlCheck.set_active((mods & Gdk.ModifierType.CONTROL_MASK) !== 0);
+        this._altCheck.set_active((mods & Gdk.ModifierType.ALT_MASK) !== 0);
+        this._shiftCheck.set_active((mods & Gdk.ModifierType.SHIFT_MASK) !== 0);
+        this._loadingFromSettings = false;
+        
+        // Store the key
+        this._currentKeyval = keyval;
+        
+        this._updateDisplay();
+    }
+    
+    /**
+     * Handle modifier checkbox change - rebuild and save accelerator
+     */
+    _onModifierChanged() {
+        // Don't rebuild during initial load
+        if (this._loadingFromSettings) return;
+        
+        log(`_onModifierChanged for ${this._settingsKey}`);
+        this._buildAndSaveAccelerator();
+    }
+    
+    /**
+     * Build accelerator from checkbox states and current key, then save
+     */
+    _buildAndSaveAccelerator() {
+        // If no key is set, can't build accelerator
+        if (!this._currentKeyval) {
+            log('No key set, cannot build accelerator');
+            this._setAccelerator('');
+            this._updateDisplay();
+            return;
+        }
+        
+        // Build modifier mask from checkboxes
+        let mods = 0;
+        if (this._superCheck.get_active()) mods |= Gdk.ModifierType.SUPER_MASK;
+        if (this._ctrlCheck.get_active()) mods |= Gdk.ModifierType.CONTROL_MASK;
+        if (this._altCheck.get_active()) mods |= Gdk.ModifierType.ALT_MASK;
+        if (this._shiftCheck.get_active()) mods |= Gdk.ModifierType.SHIFT_MASK;
+        
+        // Build accelerator string
+        const accelerator = Gtk.accelerator_name(this._currentKeyval, mods);
+        log(`Built accelerator from checkboxes: ${accelerator}`);
+        
+        this._setAccelerator(accelerator);
+        this._updateDisplay();
+    }
+    
+    /**
+     * Update the display labels and conflict indicators
      */
     _updateDisplay() {
         const current = this._getCurrentAccelerator();
@@ -393,13 +674,22 @@ const ShortcutCaptureRow = GObject.registerClass({
         log(`_updateDisplay(${this._settingsKey}): capturing=${this._isCapturing}, label=${label}`);
         
         if (this._isCapturing) {
-            this._shortcutLabel.set_label('Press keys...');
+            this._recordButton.set_label('Press key...');
+            this._recordButton.add_css_class('suggested-action');
+            this._shortcutLabel.set_label('Recording...');
             this._shortcutLabel.add_css_class('capturing');
-            this._editButton.add_css_class('suggested-action');
         } else {
+            // Show current key on button if set
+            if (this._currentKeyval) {
+                const keyName = Gdk.keyval_name(this._currentKeyval);
+                const prettyKeyName = this._prettifyKeyName(keyName);
+                this._recordButton.set_label(prettyKeyName);
+            } else {
+                this._recordButton.set_label('Record Key');
+            }
+            this._recordButton.remove_css_class('suggested-action');
             this._shortcutLabel.set_label(label);
             this._shortcutLabel.remove_css_class('capturing');
-            this._editButton.remove_css_class('suggested-action');
         }
         
         // Show/hide reset button based on whether it's the default
@@ -407,21 +697,49 @@ const ShortcutCaptureRow = GObject.registerClass({
         this._resetButton.visible = !isDefault;
         log(`Reset button visible: ${!isDefault}`);
         
-        // Check for conflicts
+        // Check for conflicts and show inline warning
         const conflict = checkConflicts(current, this._settingsKey);
         if (conflict) {
             this._currentConflict = conflict;
             this._warningButton.visible = true;
             this._warningButton.tooltip_text = `Conflicts with: ${conflict.name}\nClick to fix`;
+            this._conflictBox.visible = true;
+            this._conflictLabel.set_label(`Conflicts with: ${conflict.name} - click ⚠ to fix`);
             log(`Conflict detected: ${conflict.name}`);
         } else {
             this._currentConflict = null;
             this._warningButton.visible = false;
+            this._conflictBox.visible = false;
         }
     }
     
     /**
-     * Start capturing keyboard input
+     * Prettify key name for display
+     */
+    _prettifyKeyName(keyName) {
+        const keyNameMap = {
+            'Left': '←',
+            'Right': '→',
+            'Up': '↑',
+            'Down': '↓',
+            'grave': '`',
+            'asciitilde': '~',
+            'space': 'Space',
+            'Return': 'Enter',
+            'Tab': 'Tab',
+            'Escape': 'Esc',
+            'BackSpace': 'Backspace',
+            'Delete': 'Delete',
+            'Home': 'Home',
+            'End': 'End',
+            'Page_Up': 'Page Up',
+            'Page_Down': 'Page Down',
+        };
+        return keyNameMap[keyName] || keyName;
+    }
+    
+    /**
+     * Start capturing keyboard input (key only, not modifiers)
      */
     _startCapture() {
         if (this._isCapturing) {
@@ -434,7 +752,7 @@ const ShortcutCaptureRow = GObject.registerClass({
         this._updateDisplay();
         
         // Grab focus to receive key events
-        const grabbed = this._editButton.grab_focus();
+        const grabbed = this._recordButton.grab_focus();
         log(`Focus grabbed: ${grabbed}`);
     }
     
@@ -448,36 +766,11 @@ const ShortcutCaptureRow = GObject.registerClass({
     }
     
     /**
-     * Build a human-readable string showing current modifiers being held
-     * @param {number} mods - Modifier mask
-     * @returns {string} e.g., "Super + Ctrl + ..."
+     * Handle key press during capture - only captures non-modifier keys
+     * Uses keycode to get the base (unshifted) key
      */
-    _buildModifierLabel(mods) {
-        const parts = [];
-        
-        if (mods & Gdk.ModifierType.SUPER_MASK) parts.push('Super');
-        if (mods & Gdk.ModifierType.CONTROL_MASK) parts.push('Ctrl');
-        if (mods & Gdk.ModifierType.ALT_MASK) parts.push('Alt');
-        if (mods & Gdk.ModifierType.SHIFT_MASK) parts.push('Shift');
-        
-        if (parts.length === 0) {
-            return 'Press a shortcut...';
-        }
-        
-        parts.push('...');
-        return parts.join(' + ');
-    }
-    
-    /**
-     * Handle key press during capture
-     * Shows live feedback as modifiers are pressed
-     */
-    _onKeyPressed(keyval, state) {
-        log(`_onKeyPressed: keyval=${keyval} (${Gdk.keyval_name(keyval)}), state=${state}`);
-        
-        // Get modifier mask (ignore lock keys)
-        let mods = state & Gtk.accelerator_get_default_mod_mask();
-        log(`Modifiers after mask: ${mods}`);
+    _onKeyPressed(keyval, keycode, state) {
+        log(`_onKeyPressed: keyval=${keyval} (${Gdk.keyval_name(keyval)}), keycode=${keycode}, state=${state}`);
         
         // Handle special keys
         if (keyval === Gdk.KEY_Escape) {
@@ -487,40 +780,40 @@ const ShortcutCaptureRow = GObject.registerClass({
         }
         
         if (keyval === Gdk.KEY_BackSpace) {
-            log('Backspace pressed - clearing shortcut');
-            this._setAccelerator('');
+            log('Backspace pressed - clearing key');
+            this._currentKeyval = 0;
+            this._buildAndSaveAccelerator();
             this._stopCapture();
             return true;
         }
         
-        // If only a modifier key is pressed, show live feedback
-        // Add the current key's modifier to the state since state only contains
-        // modifiers that were held BEFORE this key was pressed
+        // Ignore modifier-only key presses
         if (this._isModifierKey(keyval)) {
-            // Record time for focus loss grace period (Super may trigger Activities)
-            this._lastModifierPressTime = Date.now();
-            
-            mods = mods | this._keyvalToModifier(keyval);
-            const liveLabel = this._buildModifierLabel(mods);
-            log(`Modifier key pressed, showing live: ${liveLabel}`);
-            this._shortcutLabel.set_label(liveLabel);
+            log('Modifier key pressed - ignoring');
             return true;
         }
         
-        // Require at least one modifier for most keys
-        if (mods === 0 && !this._isAllowedWithoutModifier(keyval)) {
-            log(`No modifiers and not an F-key - ignoring`);
-            return true;
+        // Get the base (unshifted) keyval using keycode
+        // This handles grave vs asciitilde, 1 vs !, etc.
+        let baseKeyval = keyval;
+        try {
+            const display = Gdk.Display.get_default();
+            // translate_key returns [success, keyval, effective_group, level, consumed_modifiers]
+            const result = display.translate_key(keycode, 0, 0);
+            if (result && result[0]) {
+                baseKeyval = result[1];
+                log(`Translated keycode ${keycode} to base keyval: ${baseKeyval} (${Gdk.keyval_name(baseKeyval)})`);
+            }
+        } catch (e) {
+            log(`Could not translate keycode, using original keyval: ${e.message}`);
         }
         
-        // Build accelerator string
-        const accelerator = Gtk.accelerator_name(keyval, mods);
-        log(`Built accelerator: ${accelerator}`);
+        // Store the base key
+        this._currentKeyval = baseKeyval;
+        log(`Captured key: ${Gdk.keyval_name(baseKeyval)}`);
         
-        if (accelerator) {
-            this._setAccelerator(accelerator);
-        }
-        
+        // Build and save the accelerator with current checkbox states
+        this._buildAndSaveAccelerator();
         this._stopCapture();
         return true;
     }
@@ -539,44 +832,6 @@ const ShortcutCaptureRow = GObject.registerClass({
             Gdk.KEY_ISO_Level3_Shift, // AltGr
         ];
         return modifierKeys.includes(keyval);
-    }
-    
-    /**
-     * Convert a modifier keyval to its corresponding modifier mask
-     * @param {number} keyval - The key value
-     * @returns {number} The modifier mask (e.g., Gdk.ModifierType.CONTROL_MASK)
-     */
-    _keyvalToModifier(keyval) {
-        switch (keyval) {
-            case Gdk.KEY_Shift_L:
-            case Gdk.KEY_Shift_R:
-                return Gdk.ModifierType.SHIFT_MASK;
-            case Gdk.KEY_Control_L:
-            case Gdk.KEY_Control_R:
-                return Gdk.ModifierType.CONTROL_MASK;
-            case Gdk.KEY_Alt_L:
-            case Gdk.KEY_Alt_R:
-                return Gdk.ModifierType.ALT_MASK;
-            case Gdk.KEY_Super_L:
-            case Gdk.KEY_Super_R:
-            case Gdk.KEY_Meta_L:
-            case Gdk.KEY_Meta_R:
-            case Gdk.KEY_Hyper_L:
-            case Gdk.KEY_Hyper_R:
-                return Gdk.ModifierType.SUPER_MASK;
-            case Gdk.KEY_ISO_Level3_Shift:
-                return Gdk.ModifierType.MOD5_MASK; // AltGr
-            default:
-                return 0;
-        }
-    }
-    
-    /**
-     * Check if keyval is allowed without modifiers (F-keys, etc)
-     */
-    _isAllowedWithoutModifier(keyval) {
-        // F1-F12 can be used without modifiers
-        return keyval >= Gdk.KEY_F1 && keyval <= Gdk.KEY_F12;
     }
     
     /**
@@ -697,6 +952,230 @@ const ShortcutCaptureRow = GObject.registerClass({
 });
 
 export default class ZonedPreferences extends ExtensionPreferences {
+    /**
+     * Create Quick Layout Switch row with modifier checkboxes and static "1-9" key
+     * @param {Gio.Settings} settings - GSettings object
+     * @returns {Adw.PreferencesRow} The quick layout row widget
+     */
+    _createQuickLayoutRow(settings) {
+        const row = new Adw.PreferencesRow();
+        
+        // Main content box (vertical)
+        const mainBox = new Gtk.Box({
+            orientation: Gtk.Orientation.VERTICAL,
+            spacing: 6,
+            margin_top: 8,
+            margin_bottom: 8,
+            margin_start: 12,
+            margin_end: 12,
+        });
+        
+        // Header row: Title + reset button
+        const headerBox = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            spacing: 8,
+        });
+        
+        const titleLabel = new Gtk.Label({
+            label: 'Quick Layout Switch',
+            xalign: 0,
+            hexpand: true,
+        });
+        titleLabel.add_css_class('title');
+        headerBox.append(titleLabel);
+        
+        // Reset button
+        const resetButton = new Gtk.Button({
+            icon_name: 'edit-undo-symbolic',
+            tooltip_text: 'Reset to default (Ctrl + Super + Alt)',
+            visible: false,
+        });
+        resetButton.add_css_class('flat');
+        headerBox.append(resetButton);
+        
+        mainBox.append(headerBox);
+        
+        // Controls row: Modifier checkboxes + static "1-9" button
+        const controlsBox = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            spacing: 12,
+        });
+        
+        // Modifier checkboxes (keyboard order: Shift, Ctrl, Super, Alt)
+        const shiftCheck = new Gtk.CheckButton({ label: 'Shift' });
+        const ctrlCheck = new Gtk.CheckButton({ label: 'Ctrl' });
+        const superCheck = new Gtk.CheckButton({ label: 'Super' });
+        const altCheck = new Gtk.CheckButton({ label: 'Alt' });
+        
+        controlsBox.append(shiftCheck);
+        controlsBox.append(ctrlCheck);
+        controlsBox.append(superCheck);
+        controlsBox.append(altCheck);
+        
+        // Spacer
+        const spacer = new Gtk.Box({ hexpand: true });
+        controlsBox.append(spacer);
+        
+        // Static "1-9" button (looks like a button but is not interactive)
+        const keyLabel = new Gtk.Label({
+            label: '1-9',
+        });
+        const keyFrame = new Gtk.Frame({
+            child: keyLabel,
+        });
+        // Style to look like a button
+        keyLabel.set_margin_start(12);
+        keyLabel.set_margin_end(12);
+        keyLabel.set_margin_top(4);
+        keyLabel.set_margin_bottom(4);
+        controlsBox.append(keyFrame);
+        
+        mainBox.append(controlsBox);
+        
+        // Current shortcut display row
+        const displayBox = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            spacing: 8,
+        });
+        
+        const currentLabel = new Gtk.Label({
+            label: 'Current:',
+            xalign: 0,
+        });
+        currentLabel.add_css_class('dim-label');
+        displayBox.append(currentLabel);
+        
+        const shortcutLabel = new Gtk.Label({
+            xalign: 0,
+            hexpand: true,
+        });
+        shortcutLabel.add_css_class('shortcut-text');
+        displayBox.append(shortcutLabel);
+        
+        mainBox.append(displayBox);
+        
+        // Subtitle/description label
+        const subtitleLabel = new Gtk.Label({
+            label: 'Switch to layout by position (1-9 for first 9 layouts)',
+            xalign: 0,
+            hexpand: true,
+            wrap: true,
+            wrap_mode: 2,
+        });
+        subtitleLabel.add_css_class('dim-label');
+        subtitleLabel.add_css_class('caption');
+        mainBox.append(subtitleLabel);
+        
+        row.set_child(mainBox);
+        
+        // Default modifiers: Ctrl + Super + Alt
+        const DEFAULT_MODIFIERS = '<Control><Super><Alt>';
+        
+        // Helper to build modifier string from checkboxes
+        const buildModifierPrefix = () => {
+            const parts = [];
+            if (shiftCheck.get_active()) parts.push('<Shift>');
+            if (ctrlCheck.get_active()) parts.push('<Control>');
+            if (superCheck.get_active()) parts.push('<Super>');
+            if (altCheck.get_active()) parts.push('<Alt>');
+            return parts.join('');
+        };
+        
+        // Helper to build display label
+        const buildDisplayLabel = () => {
+            const parts = [];
+            if (shiftCheck.get_active()) parts.push('Shift');
+            if (ctrlCheck.get_active()) parts.push('Ctrl');
+            if (superCheck.get_active()) parts.push('Super');
+            if (altCheck.get_active()) parts.push('Alt');
+            if (parts.length === 0) {
+                return '1-9 (no modifiers)';
+            }
+            parts.push('1-9');
+            return parts.join(' + ');
+        };
+        
+        // Update display and show/hide reset button
+        const updateDisplay = () => {
+            shortcutLabel.set_label(buildDisplayLabel());
+            const currentPrefix = buildModifierPrefix();
+            resetButton.visible = currentPrefix !== DEFAULT_MODIFIERS;
+        };
+        
+        // Save all quick-layout-N shortcuts with current modifiers
+        const saveQuickLayoutShortcuts = () => {
+            const prefix = buildModifierPrefix();
+            for (let i = 1; i <= 9; i++) {
+                const accelerator = prefix ? `${prefix}${i}` : `${i}`;
+                settings.set_strv(`quick-layout-${i}`, [accelerator]);
+            }
+            updateDisplay();
+        };
+        
+        // Load current modifiers from quick-layout-1
+        const loadFromSettings = () => {
+            const values = settings.get_strv('quick-layout-1');
+            const accel = values.length > 0 ? values[0] : DEFAULT_MODIFIERS + '1';
+            
+            // Parse to get modifiers
+            let mods = 0;
+            try {
+                const result = Gtk.accelerator_parse(accel);
+                if (Array.isArray(result)) {
+                    if (result.length === 3 && result[0]) {
+                        mods = result[2];
+                    } else if (result.length === 2) {
+                        mods = result[1];
+                    }
+                }
+            } catch (e) {
+                log(`Error parsing quick layout accelerator: ${e.message}`);
+            }
+            
+            // Set checkbox states (suppress change handlers)
+            row._loadingFromSettings = true;
+            shiftCheck.set_active((mods & Gdk.ModifierType.SHIFT_MASK) !== 0);
+            ctrlCheck.set_active((mods & Gdk.ModifierType.CONTROL_MASK) !== 0);
+            superCheck.set_active((mods & Gdk.ModifierType.SUPER_MASK) !== 0);
+            altCheck.set_active((mods & Gdk.ModifierType.ALT_MASK) !== 0);
+            row._loadingFromSettings = false;
+            
+            updateDisplay();
+        };
+        
+        // Connect checkbox changes
+        const onModifierChanged = () => {
+            if (row._loadingFromSettings) return;
+            saveQuickLayoutShortcuts();
+        };
+        
+        shiftCheck.connect('toggled', onModifierChanged);
+        ctrlCheck.connect('toggled', onModifierChanged);
+        superCheck.connect('toggled', onModifierChanged);
+        altCheck.connect('toggled', onModifierChanged);
+        
+        // Reset button handler
+        resetButton.connect('clicked', () => {
+            row._loadingFromSettings = true;
+            shiftCheck.set_active(false);
+            ctrlCheck.set_active(true);
+            superCheck.set_active(true);
+            altCheck.set_active(true);
+            row._loadingFromSettings = false;
+            saveQuickLayoutShortcuts();
+        });
+        
+        // Initial load
+        loadFromSettings();
+        
+        // Listen for external changes to quick-layout-1
+        settings.connect('changed::quick-layout-1', () => {
+            loadFromSettings();
+        });
+        
+        return row;
+    }
+    
     /**
      * Apply theme override to Libadwaita StyleManager
      * This ensures the preferences window honors the ui-theme setting
@@ -854,7 +1333,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // Add keyboard shortcuts group
         const kbGroup = new Adw.PreferencesGroup({
             title: 'Keyboard Shortcuts',
-            description: 'Click a shortcut to change it. Press Escape to cancel, Backspace to disable.',
+            description: 'Use checkboxes to set modifiers, then click "Record Key" to capture the key.',
         });
         page.add(kbGroup);
 
@@ -872,6 +1351,11 @@ export default class ZonedPreferences extends ExtensionPreferences {
             kbGroup.add(row);
         }
         log('All shortcut rows created');
+        
+        // Add Quick Layout Switch row (modifiers only, key is fixed to 1-9)
+        const quickLayoutRow = this._createQuickLayoutRow(settings);
+        kbGroup.add(quickLayoutRow);
+        log('Quick layout row created');
 
         // Enhanced Windows Management section (collapsible)
         const enhancedGroup = new Adw.PreferencesGroup({
