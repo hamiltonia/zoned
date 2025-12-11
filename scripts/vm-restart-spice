@@ -1,0 +1,99 @@
+#!/bin/bash
+#
+# vm-restart-spice - Restart SPICE display services in VM
+#
+# Use this when SPICE client connection fails after a VM reboot.
+# This is a common issue where the spice-vdagentd service doesn't
+# start properly on boot.
+#
+# Usage: make vm-restart-spice
+#
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+CONFIG_FILE="$HOME/.config/zoned-dev/config"
+
+# Check for config file
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo -e "${RED}✗ No VM configuration found${NC}"
+    echo "  Run 'make vm-init' first to configure your VM connection."
+    exit 1
+fi
+
+# Source configuration
+source "$CONFIG_FILE"
+
+# Validate required variables
+if [ -z "$VM_HOST" ]; then
+    echo -e "${RED}✗ VM_HOST not set in config${NC}"
+    echo "  Run 'make vm-init' to reconfigure."
+    exit 1
+fi
+
+echo -e "${BLUE}════════════════════════════════════════════════════════════${NC}"
+echo -e "${BLUE}   Restarting SPICE Services${NC}"
+echo -e "${BLUE}════════════════════════════════════════════════════════════${NC}"
+echo
+echo -e "VM: ${GREEN}$VM_HOST${NC}"
+echo
+
+# Test SSH connection first
+echo -e "${BLUE}Testing SSH connection...${NC}"
+if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "$VM_HOST" "exit" 2>/dev/null; then
+    echo -e "${RED}✗ Cannot connect to VM${NC}"
+    echo
+    echo "Possible causes:"
+    echo "  • VM is not running"
+    echo "  • SSH server not running in VM"
+    echo "  • SSH keys not set up"
+    echo
+    echo "Try: ssh $VM_HOST"
+    exit 1
+fi
+echo -e "${GREEN}✓ SSH connection OK${NC}"
+echo
+
+# Restart SPICE services
+echo -e "${BLUE}Restarting SPICE services...${NC}"
+echo
+
+# Check if passwordless sudo is available
+SUDO_NOPASS=$(ssh "$VM_HOST" "sudo -n true 2>/dev/null && echo yes || echo no")
+
+# Restart spice-vdagentd (system service - this is the main one)
+echo -n "  spice-vdagentd (system): "
+if [ "$SUDO_NOPASS" = "yes" ]; then
+    # Passwordless sudo available
+    if ssh "$VM_HOST" "sudo systemctl restart spice-vdagentd" 2>/dev/null; then
+        echo -e "${GREEN}restarted${NC}"
+    else
+        echo -e "${YELLOW}not found${NC}"
+    fi
+else
+    # Need password - use -t for TTY allocation
+    echo -e "${YELLOW}(sudo password required)${NC}"
+    ssh -t "$VM_HOST" "sudo systemctl restart spice-vdagentd" 2>/dev/null || true
+    echo -e "  spice-vdagentd (system): ${GREEN}restarted${NC}"
+fi
+
+# Restart spice-vdagent (user service - if it exists)
+echo -n "  spice-vdagent (user):    "
+if ssh "$VM_HOST" "systemctl --user restart spice-vdagent" 2>/dev/null; then
+    echo -e "${GREEN}restarted${NC}"
+else
+    echo -e "${YELLOW}not found (OK)${NC}"
+fi
+
+echo
+echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}✓ SPICE services restarted${NC}"
+echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+echo
+echo "Try reconnecting with GNOME Boxes now."
+echo "If it still doesn't work, try closing and reopening the VM window."
+echo

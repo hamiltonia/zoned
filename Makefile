@@ -1,5 +1,5 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean zip \
-        vm-init vm-network-setup vm-setup vm-install vm-logs vm-dev
+        vm-init vm-network-setup vm-setup vm-install vm-logs vm-dev vm-restart-spice
 
 # Detect OS for sed compatibility
 UNAME_S := $(shell uname -s)
@@ -38,12 +38,13 @@ help:
 	@printf "  make test           - Run tests\n"
 	@printf "\n"
 	@printf "$(COLOR_SUCCESS)VM Development:$(COLOR_RESET)\n"
-	@printf "  make vm-network-setup - Configure host networking for GNOME Boxes VMs\n"
-	@printf "  make vm-init        - Initialize VM configuration (first-time setup)\n"
-	@printf "  make vm-setup       - Configure VM for development (one-time)\n"
-	@printf "  make vm-install     - Install/update extension in VM\n"
-	@printf "  make vm-logs        - Watch extension logs from VM\n"
-	@printf "  make vm-dev         - Quick VM development (install + reload)\n"
+	@printf "  make vm-network-setup  - Configure host networking for GNOME Boxes VMs\n"
+	@printf "  make vm-init           - Initialize VM configuration (first-time setup)\n"
+	@printf "  make vm-setup          - Configure VM for development (one-time)\n"
+	@printf "  make vm-install        - Install/update extension in VM\n"
+	@printf "  make vm-logs           - Watch extension logs from VM\n"
+	@printf "  make vm-dev            - Quick VM development (install + reload)\n"
+	@printf "  make vm-restart-spice  - Fix SPICE display connection issues\n"
 	@printf "\n"
 	@printf "$(COLOR_SUCCESS)Packaging:$(COLOR_RESET)\n"
 	@printf "  make zip            - Create extension zip for distribution\n"
@@ -201,3 +202,7 @@ vm-dev: vm-install
 	@printf "  • Wayland VM: Log out and log back in\n"
 	@printf "\n"
 	@printf "$(COLOR_INFO)To watch logs:$(COLOR_RESET) make vm-logs\n"
+
+vm-restart-spice:
+	@printf "$(COLOR_INFO)Restarting SPICE services in VM...$(COLOR_RESET)\n"
+	@./scripts/vm-restart-spice
