@@ -28,7 +28,7 @@ import { LayoutPreviewBackground } from './layoutPreviewBackground.js';
 
 // Import split modules (UI construction delegated to these)
 import { createTemplatesSection, createCustomLayoutsSection, createNewLayoutButton } from './layoutSwitcher/sectionFactory.js';
-import { createTopBar } from './layoutSwitcher/topBar.js';
+import { createTopBar, closeMonitorDropdown } from './layoutSwitcher/topBar.js';
 import { addResizeHandles, rebuildWithNewSize } from './layoutSwitcher/resizeHandler.js';
 import { selectTier, calculateDialogDimensions, validateDimensions, generateDebugText, TIER_NAMES } from './layoutSwitcher/tierConfig.js';
 
@@ -135,8 +135,19 @@ this._selectedCardIndex = -1;
 
         this._currentWorkspace = global.workspace_manager.get_active_workspace_index();
         this._workspaceMode = this._settings.get_boolean('use-per-workspace-layouts');
+        
+        // Only set monitor selection on INITIAL open, not on refresh
+        // Check if _selectedMonitorIndex is undefined OR invalid
+        const monitors = Main.layoutManager.monitors;
+        if (this._selectedMonitorIndex === undefined || 
+            this._selectedMonitorIndex === null ||
+            this._selectedMonitorIndex >= monitors.length) {
+            // Initial open: start on whichever monitor the user invoked the dialog
+            this._selectedMonitorIndex = Main.layoutManager.currentMonitor.index;
+        }
+        // Otherwise keep the existing selection (for when refreshing after monitor change)
 
-        logger.info(`Layout editor shown (workspace mode: ${this._workspaceMode})`);
+        logger.info(`Layout editor shown (workspace mode: ${this._workspaceMode}, monitor: ${this._selectedMonitorIndex})`);
 
         // Create preview background BEFORE the dialog (so it's behind)
         const currentLayout = this._getCurrentLayout();
@@ -146,9 +157,8 @@ this._selectedCardIndex = -1;
         });
         // Set layout manager reference for per-space layout lookups
         this._previewBackground.setLayoutManager(this._layoutManager);
-        // Pass null for monitor index - it will default to current monitor
-        // _selectedMonitorIndex isn't set until createTopBar() is called
-        this._previewBackground.show(currentLayout, null);
+        // Show preview on the current monitor (where dialog was invoked)
+        this._previewBackground.show(currentLayout, this._selectedMonitorIndex);
 
         this._createDialog();
         this._connectKeyEvents();
@@ -181,6 +191,7 @@ this._selectedCardIndex = -1;
             this._allCards = [];
             this._selectedCardIndex = -1;
             this._hoveredLayout = null;
+            this._selectedMonitorIndex = undefined;  // Reset so next show() detects current monitor
 
             // Release modal grab FIRST before any other cleanup
             // IMPORTANT: popModal expects the Clutter.Grab object returned by pushModal,
@@ -198,6 +209,9 @@ this._selectedCardIndex = -1;
             } else {
                 logger.warn('[MODAL] hide() called but modalGrabbed was false - skip popModal');
             }
+
+            // Clean up monitor dropdown menu if open (uses imported function)
+            closeMonitorDropdown(this);
 
             // Clean up debug overlay (added to uiGroup separately)
             if (this._debugOverlay) {
@@ -450,13 +464,13 @@ this._selectedCardIndex = -1;
         logger.info(`Card dimensions: ${this._cardWidth}×${this._cardHeight}, Dialog: ${dialogWidth}×${dialogHeight}`);
 
         // Background overlay - transparent since we have the preview background behind
-        this._dialog = new St.Bin({
+        // Use St.Widget with FixedLayout so dropdown menus can be positioned absolutely
+        this._dialog = new St.Widget({
             style_class: 'modal-dialog',
             reactive: true,
             can_focus: true,
-            style: `background-color: transparent;`,
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER
+            layout_manager: new Clutter.FixedLayout(),
+            style: `background-color: transparent;`
         });
 
         // Click on background (outside container) dismisses the dialog
@@ -467,12 +481,25 @@ this._selectedCardIndex = -1;
             
             if (containerAlloc) {
                 // Check if click is outside the container bounds
-                const isOutside = clickX < containerAlloc.origin.x ||
+                const isOutsideContainer = clickX < containerAlloc.origin.x ||
                                   clickX > containerAlloc.origin.x + containerAlloc.size.width ||
                                   clickY < containerAlloc.origin.y ||
                                   clickY > containerAlloc.origin.y + containerAlloc.size.height;
                 
-                if (isOutside) {
+                // Also check if click is inside the monitor dropdown menu (which floats outside container)
+                let isInsideMenu = false;
+                if (this._monitorMenu) {
+                    const menuAlloc = this._monitorMenu.get_transformed_extents();
+                    if (menuAlloc) {
+                        isInsideMenu = clickX >= menuAlloc.origin.x &&
+                                       clickX <= menuAlloc.origin.x + menuAlloc.size.width &&
+                                       clickY >= menuAlloc.origin.y &&
+                                       clickY <= menuAlloc.origin.y + menuAlloc.size.height;
+                    }
+                }
+                
+                // Only dismiss if outside container AND not clicking on the menu
+                if (isOutsideContainer && !isInsideMenu) {
                     this.hide();
                     return Clutter.EVENT_STOP;
                 }
@@ -529,7 +556,7 @@ this._selectedCardIndex = -1;
         this._currentDialogWidth = dialogWidth;
         this._currentDialogHeight = dialogHeight;
 
-        // Wrapper with resize handles
+        // Wrapper with resize handles - uses BinLayout for layering dropdown menus
         const wrapper = new St.Widget({
             layout_manager: new Clutter.BinLayout(),
             x_align: Clutter.ActorAlign.CENTER,
@@ -539,11 +566,20 @@ this._selectedCardIndex = -1;
         wrapper.add_child(container);
         addResizeHandles(this, wrapper, container);
 
-        this._dialog.set_child(wrapper);
+        // Store wrapper reference for dropdown menus (they need to be inside modal grab)
+        this._dialogWrapper = wrapper;
+
+        this._dialog.add_child(wrapper);
 
         Main.uiGroup.add_child(this._dialog);
         this._dialog.set_position(monitor.x, monitor.y);
         this._dialog.set_size(monitor.width, monitor.height);
+        
+        // With FixedLayout, we must position wrapper to center it
+        // Calculate center position within dialog (which covers the full monitor)
+        const wrapperX = Math.floor((monitor.width - dialogWidth) / 2);
+        const wrapperY = Math.floor((monitor.height - dialogHeight) / 2);
+        wrapper.set_position(wrapperX, wrapperY);
 
         // Add debug overlay to uiGroup (outside dialog for clean screenshots)
         if (this._debugOverlay) {
@@ -1015,14 +1051,17 @@ this._selectedCardIndex = -1;
 
     /**
      * Refresh the dialog content
+     * Preserves workspace, monitor, and card selection across the refresh
      */
     _refreshDialog() {
         const wasWorkspace = this._currentWorkspace;
         const wasSelectedIndex = this._selectedCardIndex;
+        const wasMonitor = this._selectedMonitorIndex;  // Preserve monitor selection
         
         this.hide();
         
         this._currentWorkspace = wasWorkspace;
+        this._selectedMonitorIndex = wasMonitor;  // Restore before show()
         this.show();
         
         if (wasSelectedIndex >= 0 && wasSelectedIndex < this._allCards.length) {

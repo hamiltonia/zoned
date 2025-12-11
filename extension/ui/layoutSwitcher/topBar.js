@@ -96,6 +96,43 @@ export function createTopBar(ctx) {
 }
 
 /**
+ * Get display label for a monitor (short form for pill button)
+ * @param {number} monitorIndex - Monitor index
+ * @param {number} primaryIndex - Primary monitor index
+ * @returns {string} Short display label
+ */
+function getMonitorShortLabel(monitorIndex, primaryIndex) {
+    if (monitorIndex === primaryIndex) {
+        return 'Primary';
+    }
+    return `Monitor ${monitorIndex + 1}`;
+}
+
+/**
+ * Get detailed label for a monitor (for dropdown menu)
+ * @param {Object} monitor - Monitor object
+ * @param {number} index - Monitor index
+ * @param {number} primaryIndex - Primary monitor index
+ * @returns {Object} {name, details} for display
+ */
+function getMonitorDetails(monitor, index, primaryIndex) {
+    const connector = monitor?.connector || `Display ${index + 1}`;
+    const width = monitor?.width || 0;
+    const height = monitor?.height || 0;
+    
+    let name;
+    if (index === primaryIndex) {
+        name = 'Primary';
+    } else {
+        name = `Monitor ${index + 1}`;
+    }
+    
+    const details = `${connector} · ${width}×${height}`;
+    
+    return { name, details, connector };
+}
+
+/**
  * Create compact monitor pill dropdown
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @returns {St.BoxLayout} The monitor pill container
@@ -105,8 +142,15 @@ export function createMonitorPill(ctx) {
     const monitors = Main.layoutManager.monitors;
     const primaryIndex = Main.layoutManager.primaryIndex;
     
-    ctx._selectedMonitorIndex = primaryIndex;
+    // Preserve existing selection if valid, otherwise default to primary
+    // This prevents losing selection when dialog refreshes
+    if (ctx._selectedMonitorIndex === undefined || 
+        ctx._selectedMonitorIndex === null ||
+        ctx._selectedMonitorIndex >= monitors.length) {
+        ctx._selectedMonitorIndex = primaryIndex;
+    }
     
+    // Outer container holds label + dropdown wrapper (horizontal)
     const container = new St.BoxLayout({
         vertical: false,
         style: 'spacing: 8px;',
@@ -119,6 +163,14 @@ export function createMonitorPill(ctx) {
         y_align: Clutter.ActorAlign.CENTER
     });
     container.add_child(label);
+
+    // Dropdown wrapper - holds button and menu (vertical stacking)
+    // This is what toggleMonitorDropdown() uses to add/remove the menu
+    const dropdownWrapper = new St.BoxLayout({
+        vertical: true,
+        y_align: Clutter.ActorAlign.START
+    });
+    ctx._monitorDropdownContainer = dropdownWrapper;
 
     // Monitor pill button
     ctx._monitorPillBtn = new St.Button({
@@ -144,8 +196,13 @@ export function createMonitorPill(ctx) {
     });
     btnContent.add_child(icon);
 
+    // Use current selected monitor for the label (not always primary)
+    const pillLabelText = monitors.length > 1 
+        ? getMonitorShortLabel(ctx._selectedMonitorIndex, primaryIndex)
+        : 'Display';
+    
     ctx._monitorPillLabel = new St.Label({
-        text: monitors.length > 1 ? 'Primary' : 'Display',
+        text: pillLabelText,
         style: `font-size: 12px; color: ${colors.textSecondary};`,
         y_align: Clutter.ActorAlign.CENTER
     });
@@ -182,7 +239,11 @@ export function createMonitorPill(ctx) {
         toggleMonitorDropdown(ctx);
     });
 
-    container.add_child(ctx._monitorPillBtn);
+    // Add button to dropdown wrapper
+    dropdownWrapper.add_child(ctx._monitorPillBtn);
+    
+    // Add dropdown wrapper to main container
+    container.add_child(dropdownWrapper);
     ctx._monitorPillContainer = container;
 
     return container;
@@ -562,18 +623,60 @@ export function createGlobalCheckbox(ctx) {
 
 /**
  * Toggle monitor dropdown menu visibility
+ * Adds menu to _dialog (the modal actor) so it receives events through the modal
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  */
 export function toggleMonitorDropdown(ctx) {
     if (ctx._monitorMenu) {
         // Close existing menu
-        ctx._monitorDropdownContainer.remove_child(ctx._monitorMenu);
+        closeMonitorDropdown(ctx);
+    } else {
+        // Create menu
+        ctx._monitorMenu = createMonitorDropdownMenu(ctx);
+        
+        // Add directly to the _dialog actor (the modal actor)
+        // This ensures the menu is within the modal hierarchy and receives events
+        if (ctx._dialog) {
+            ctx._dialog.add_child(ctx._monitorMenu);
+            
+            // Position relative to _dialog (which uses FixedLayout)
+            // get_transformed_position returns screen coordinates
+            // _dialog is positioned at monitor origin, so subtract that
+            const [btnScreenX, btnScreenY] = ctx._monitorPillBtn.get_transformed_position();
+            const btnHeight = ctx._monitorPillBtn.get_height();
+            
+            // Get monitor position (dialog origin in screen coords)
+            const monitor = Main.layoutManager.currentMonitor;
+            const menuX = btnScreenX - monitor.x;
+            const menuY = btnScreenY - monitor.y + btnHeight + 4;
+            
+            ctx._monitorMenu.set_position(menuX, menuY);
+            
+            logger.info(`Monitor menu opened at (${menuX}, ${menuY}) relative to dialog (btn screen: ${btnScreenX}, ${btnScreenY})`);
+        } else {
+            // Fallback
+            ctx._monitorDropdownContainer.add_child(ctx._monitorMenu);
+            logger.warn('No _dialog available, added menu to dropdown container');
+        }
+    }
+}
+
+/**
+ * Close the monitor dropdown menu
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ */
+export function closeMonitorDropdown(ctx) {
+    if (ctx._menuCaptureId) {
+        global.stage.disconnect(ctx._menuCaptureId);
+        ctx._menuCaptureId = null;
+    }
+    
+    if (ctx._monitorMenu) {
+        if (ctx._monitorMenu.get_parent()) {
+            ctx._monitorMenu.get_parent().remove_child(ctx._monitorMenu);
+        }
         ctx._monitorMenu.destroy();
         ctx._monitorMenu = null;
-    } else {
-        // Create and show menu
-        ctx._monitorMenu = createMonitorDropdownMenu(ctx);
-        ctx._monitorDropdownContainer.add_child(ctx._monitorMenu);
     }
 }
 
@@ -599,54 +702,112 @@ export function createMonitorDropdownMenu(ctx) {
     const primaryIndex = Main.layoutManager.primaryIndex;
 
     monitors.forEach((monitor, index) => {
+        const isSelected = index === ctx._selectedMonitorIndex;
+        const details = getMonitorDetails(monitor, index, primaryIndex);
+        
         const item = new St.Button({
             style_class: 'monitor-menu-item',
-            style: `padding: 10px 12px; ` +
-                   `background: ${index === ctx._selectedMonitorIndex ? colors.menuItemBgActive : colors.menuItemBg}; ` +
+            style: `padding: 8px 12px; ` +
+                   `margin: 0; ` +
+                   `background: ${isSelected ? colors.menuItemBgActive : colors.menuItemBg}; ` +
                    `border-radius: 4px;`,
             reactive: true,
-            track_hover: true
+            track_hover: true,
+            x_expand: true
         });
 
         const itemContent = new St.BoxLayout({
             vertical: false,
-            style: 'spacing: 10px;'
+            style: 'spacing: 12px;',
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER
         });
 
-        // Small monitor icon
-        const icon = new St.Widget({
-            style: `width: 40px; height: 24px; ` +
-                   `background: ${colors.monitorIconBg}; ` +
-                   `border: 2px solid ${colors.monitorIconBorder}; ` +
-                   `border-radius: 2px;`
+        // Small monitor icon with number overlay
+        const iconContainer = new St.Widget({
+            layout_manager: new Clutter.BinLayout(),
+            width: 36,
+            height: 22
         });
-        itemContent.add_child(icon);
+        
+        const iconBg = new St.Widget({
+            style: `background: ${colors.monitorIconBg}; ` +
+                   `border: 2px solid ${isSelected ? colors.accentHex : colors.monitorIconBorder}; ` +
+                   `border-radius: 2px;`,
+            x_expand: true,
+            y_expand: true
+        });
+        iconContainer.add_child(iconBg);
+        
+        // Monitor number badge
+        const badge = new St.Label({
+            text: `${index + 1}`,
+            style: `font-size: 10px; font-weight: bold; color: ${colors.textSecondary};`,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+            y_expand: true
+        });
+        iconContainer.add_child(badge);
+        
+        itemContent.add_child(iconContainer);
 
-        // Monitor label
-        const label = new St.Label({
-            text: index === primaryIndex ? 'Primary Monitor' : `Monitor ${index + 1}`,
-            style: `font-size: 12px; color: ${colors.textSecondary};`
+        // Monitor text (name + details in vertical layout)
+        const textBox = new St.BoxLayout({
+            vertical: true,
+            style: 'spacing: 2px;',
+            y_align: Clutter.ActorAlign.CENTER
         });
-        itemContent.add_child(label);
+        
+        // Name (Primary or Monitor N)
+        const nameLabel = new St.Label({
+            text: details.name,
+            style: `font-size: 12px; font-weight: 500; color: ${colors.textPrimary};`
+        });
+        textBox.add_child(nameLabel);
+        
+        // Details line (connector · resolution)
+        const detailsLabel = new St.Label({
+            text: details.details,
+            style: `font-size: 10px; color: ${colors.textMuted};`
+        });
+        textBox.add_child(detailsLabel);
+        
+        itemContent.add_child(textBox);
+
+        // Checkmark for selected item
+        if (isSelected) {
+            const spacer = new St.Widget({ x_expand: true });
+            itemContent.add_child(spacer);
+            
+            const checkmark = new St.Label({
+                text: '✓',
+                style: `font-size: 14px; font-weight: bold; color: ${colors.accentHex};`,
+                y_align: Clutter.ActorAlign.CENTER
+            });
+            itemContent.add_child(checkmark);
+        }
 
         item.set_child(itemContent);
 
         // Hover effect
         item.connect('enter-event', () => {
-            if (index !== ctx._selectedMonitorIndex) {
-                item.style = `padding: 10px 12px; background: ${colors.menuItemBgHover}; border-radius: 4px;`;
+            if (!isSelected) {
+                item.style = `padding: 8px 12px; margin: 0; background: ${colors.menuItemBgHover}; border-radius: 4px;`;
             }
         });
 
         item.connect('leave-event', () => {
-            if (index !== ctx._selectedMonitorIndex) {
-                item.style = `padding: 10px 12px; background: ${colors.menuItemBg}; border-radius: 4px;`;
+            if (!isSelected) {
+                item.style = `padding: 8px 12px; margin: 0; background: ${colors.menuItemBg}; border-radius: 4px;`;
             }
         });
 
-        // Click to select monitor
-        item.connect('clicked', () => {
+        // Click to select monitor - use button-press-event for better reliability
+        item.connect('button-press-event', () => {
+            logger.info(`[MONITOR CLICK] Clicked monitor ${index}`);
             onMonitorSelected(ctx, index);
+            return Clutter.EVENT_STOP;
         });
 
         menu.add_child(item);
@@ -662,23 +823,30 @@ export function createMonitorDropdownMenu(ctx) {
  */
 export function onMonitorSelected(ctx, monitorIndex) {
     ctx._selectedMonitorIndex = monitorIndex;
-    logger.debug(`Monitor ${monitorIndex} selected`);
-
-    // Update trigger label
     const monitors = Main.layoutManager.monitors;
     const primaryIndex = Main.layoutManager.primaryIndex;
-    const triggerContent = ctx._monitorTrigger?.get_child();
     
-    if (triggerContent) {
-        const label = triggerContent.get_children()[1]; // Second child is the label
-        label.text = monitorIndex === primaryIndex ? 'Primary Monitor' : `Monitor ${monitorIndex + 1}`;
-    }
+    logger.debug(`Monitor ${monitorIndex} selected (${monitors[monitorIndex]?.connector || 'unknown'})`);
 
-    // Also update the pill label if it exists
+    // Update the pill label
     if (ctx._monitorPillLabel) {
         ctx._monitorPillLabel.text = monitorIndex === primaryIndex ? 'Primary' : `Monitor ${monitorIndex + 1}`;
     }
 
     // Close dropdown
     toggleMonitorDropdown(ctx);
+    
+    // Update the preview background to show zones on the selected monitor
+    // Get the current layout for the selected monitor/workspace
+    if (ctx._previewBackground) {
+        const layout = ctx._getLayoutForWorkspace(ctx._currentWorkspace);
+        ctx._previewBackground.setSelectedMonitor(monitorIndex, layout);
+        logger.debug(`Preview background updated for monitor ${monitorIndex}`);
+    }
+    
+    // Refresh workspace thumbnails to show layouts for the newly selected monitor
+    if (ctx._workspaceThumbnailsContainer) {
+        // Full refresh to update workspace layout previews for the new monitor
+        ctx._refreshDialog();
+    }
 }
