@@ -347,7 +347,6 @@ export class LayoutPreviewBackground {
             monitorData.zoneActors.push(zoneActor);
         });
 
-        logger.debug(`Created ${zones.length} zone preview actors on monitor ${monitorData.monitorIndex}`);
     }
 
     /**

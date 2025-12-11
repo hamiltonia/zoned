@@ -3,8 +3,14 @@
  * 
  * Replaces the broken custom MessageDialog with proper GNOME Shell integration.
  * Uses ModalDialog.ModalDialog for proper modal stack handling.
+ * 
+ * NOTE: This dialog uses GNOME's ModalDialog which creates its own modal layer.
+ * For use within existing modal contexts (like LayoutSwitcher or LayoutSettingsDialog),
+ * prefer using inline confirmation overlays to avoid z-order issues with
+ * LayoutPreviewBackground and other custom overlays in Main.uiGroup.
  */
 
+import GObject from 'gi://GObject';
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
@@ -26,7 +32,8 @@ const logger = createLogger('ConfirmDialog');
  *   );
  *   dialog.open();
  */
-export class ConfirmDialog extends ModalDialog.ModalDialog {
+export const ConfirmDialog = GObject.registerClass(
+class ConfirmDialog extends ModalDialog.ModalDialog {
     /**
      * Create a new confirmation dialog
      * @param {string} title - Dialog title
@@ -37,6 +44,7 @@ export class ConfirmDialog extends ModalDialog.ModalDialog {
      * @param {string} options.cancelLabel - Label for cancel button (default: 'Cancel')
      * @param {boolean} options.destructive - Style confirm button as destructive (red)
      * @param {Object} options.settings - GSettings object for theme support
+     * @param {Function} options.onCancel - Callback when user cancels (optional)
      */
     constructor(title, message, onConfirm, options = {}) {
         super({ styleClass: 'zoned-confirm-dialog' });
@@ -44,6 +52,7 @@ export class ConfirmDialog extends ModalDialog.ModalDialog {
         this._title = title;
         this._message = message;
         this._onConfirm = onConfirm;
+        this._onCancel = options.onCancel || null;
         this._options = {
             confirmLabel: options.confirmLabel || 'Confirm',
             cancelLabel: options.cancelLabel || 'Cancel',
@@ -65,7 +74,6 @@ export class ConfirmDialog extends ModalDialog.ModalDialog {
      */
     _applyCSSVariables() {
         if (!this._themeManager) {
-            logger.debug('No ThemeManager, skipping CSS variable application');
             return;
         }
         
@@ -92,10 +100,6 @@ export class ConfirmDialog extends ModalDialog.ModalDialog {
             // Apply theme class
             const themeClass = colors.isDark ? 'zoned-theme-dark' : 'zoned-theme-light';
             this.dialogLayout.add_style_class_name(themeClass);
-            
-            logger.debug(`Applied CSS variables and theme class: ${themeClass} to dialogLayout`);
-        } else {
-            logger.error('ModalDialog.dialogLayout not available');
         }
     }
     
@@ -104,9 +108,12 @@ export class ConfirmDialog extends ModalDialog.ModalDialog {
      * @override
      */
     open() {
-        super.open();
+        const result = super.open();
+        
         // Apply CSS variables to dialogLayout
         this._applyCSSVariables();
+        
+        return result;
     }
 
     /**
@@ -136,7 +143,12 @@ export class ConfirmDialog extends ModalDialog.ModalDialog {
         this.setButtons([
             {
                 label: this._options.cancelLabel,
-                action: () => this.close(),
+                action: () => {
+                    if (this._onCancel) {
+                        this._onCancel();
+                    }
+                    this.close();
+                },
                 key: Clutter.KEY_Escape,
                 default: !this._options.destructive  // Cancel is default unless destructive
             },
@@ -184,7 +196,5 @@ export class ConfirmDialog extends ModalDialog.ModalDialog {
                 });
             }
         }
-
-        logger.debug('ConfirmDialog UI built');
     }
-}
+});
