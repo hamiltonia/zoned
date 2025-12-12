@@ -54,14 +54,20 @@ const logger = createLogger('LayoutSettingsDialog');
  * allowing layout preview background to show behind the dialog.
  */
 export class LayoutSettingsDialog {
-    constructor(layout, layoutManager, settings, onSave, onCancel) {
+    constructor(layout, layoutManager, settings, onSave, onCancel, onZoneEditorOpen = null, onZoneEditorClose = null) {
         this._isNewLayout = (layout === null);
         
         // Create working copy to avoid mutating input
         this._layout = layout ? JSON.parse(JSON.stringify(layout)) : {
             zones: [],
-            padding: 8
+            padding: 8,
+            name: this._generateDefaultName()  // Always start with a default name
         };
+        
+        // Ensure existing layouts have a name
+        if (!this._layout.name) {
+            this._layout.name = this._generateDefaultName();
+        }
         
         // Detect if this is a template (immutable built-in layout)
         // Check both: ID prefix AND if it matches a built-in template ID
@@ -72,6 +78,8 @@ export class LayoutSettingsDialog {
         this._themeManager = new ThemeManager(settings);
         this._onSaveCallback = onSave;
         this._onCancelCallback = onCancel;
+        this._onZoneEditorOpenCallback = onZoneEditorOpen;
+        this._onZoneEditorCloseCallback = onZoneEditorClose;
         
         // UI elements
         this._container = null;
@@ -1184,21 +1192,30 @@ export class LayoutSettingsDialog {
 
     /**
      * Open ZoneEditor to edit geometry
+     * 
+     * BEHAVIOR CHANGE: Zone editor now returns directly to LayoutSwitcher
+     * instead of reopening LayoutSettingsDialog. This simplifies the flow
+     * and fixes z-order issues:
+     * - Save: saves the layout and returns to LayoutSwitcher
+     * - Cancel: discards changes and returns to LayoutSwitcher
      * @private
      */
     _openZoneEditor() {
         logger.info('Opening ZoneEditor from LayoutSettingsDialog');
         
         // Capture current state before closing
-        const currentName = this._nameEntry.get_text();
+        const currentName = this._nameEntry.get_text().trim();
         const currentPadding = this._paddingSpinner?._value ?? this._layout.padding ?? 8;
+        const paddingEnabled = this._paddingCheckbox?._checked ?? (currentPadding > 0);
+        const shortcutValue = this._shortcutDropdown?._valueLabel?.text;
+        const shortcut = (shortcutValue && shortcutValue !== 'None') ? shortcutValue : null;
         const layoutData = JSON.parse(JSON.stringify(this._layout));
         
-        // Store callbacks before closing
+        // Store callbacks before closing (including the zone editor callbacks)
         const savedOnSave = this._onSaveCallback;
         const savedOnCancel = this._onCancelCallback;
+        const savedOnZoneEditorClose = this._onZoneEditorCloseCallback;
         const layoutManager = this._layoutManager;
-        const settings = this._settings;
         
         this.close();
 
@@ -1211,7 +1228,7 @@ export class LayoutSettingsDialog {
         const editor = new ZoneEditor(
             layoutForEditor,
             layoutManager,
-            settings,
+            this._settings,
             (editedLayout) => {
                 // CRITICAL: Set flag FIRST to prevent race condition
                 if (saveCallbackExecuted) {
@@ -1220,50 +1237,66 @@ export class LayoutSettingsDialog {
                 }
                 saveCallbackExecuted = true;
                 
-                logger.info(`ZoneEditor returned with ${editedLayout.zones.length} zones`);
+                logger.info(`ZoneEditor save: ${editedLayout.zones.length} zones - returning directly to LayoutSwitcher`);
                 
-                // Update layout data with new zones
-                layoutData.zones = editedLayout.zones;
-                layoutData.name = currentName;
-                layoutData.padding = parseInt(currentPadding) || 8;
+                // Build final layout with current settings
+                const finalLayout = {
+                    id: layoutData.id || `layout-${Date.now()}`,
+                    name: currentName,
+                    zones: editedLayout.zones,
+                    padding: paddingEnabled ? (parseInt(currentPadding) || 8) : 0,
+                    shortcut: shortcut,
+                    metadata: {
+                        createdDate: layoutData.metadata?.createdDate || Date.now(),
+                        modifiedDate: Date.now()
+                    }
+                };
                 
-                // Create NEW dialog instance instead of reopening old one
-                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                    const newDialog = new LayoutSettingsDialog(
-                        layoutData,
-                        layoutManager,
-                        settings,
-                        savedOnSave,
-                        savedOnCancel
-                    );
-                    newDialog.open();
-                    return GLib.SOURCE_REMOVE;
-                });
+                // Save the layout directly
+                const success = layoutManager.saveLayout(finalLayout);
+                
+                if (success) {
+                    logger.info(`Layout saved from zone editor: ${finalLayout.name}`);
+                } else {
+                    logger.error(`Failed to save layout from zone editor: ${finalLayout.name}`);
+                }
+                
+                // Notify parent to restore UI (preview background + LayoutSwitcher)
+                // Pass the saved layout so preview can show it
+                if (savedOnZoneEditorClose) {
+                    savedOnZoneEditorClose(finalLayout);
+                }
+                
+                // Call the save callback to return to LayoutSwitcher (via _refreshAfterSettings)
+                if (savedOnSave) {
+                    savedOnSave(finalLayout);
+                }
             },
             () => {
-                // CRITICAL: Set flag FIRST to prevent race condition
+                // Prevent duplicate invocations
                 if (cancelCallbackExecuted) {
-                    logger.warn('Cancel callback already executed, ignoring duplicate call');
                     return;
                 }
                 cancelCallbackExecuted = true;
                 
-                logger.info('ZoneEditor canceled, reopening settings dialog');
+                logger.info('ZoneEditor canceled - returning to LayoutSwitcher');
                 
-                // Create NEW dialog instance instead of reopening old one
-                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                    const newDialog = new LayoutSettingsDialog(
-                        layoutData,
-                        layoutManager,
-                        settings,
-                        savedOnSave,
-                        savedOnCancel
-                    );
-                    newDialog.open();
-                    return GLib.SOURCE_REMOVE;
-                });
+                // Notify parent to restore UI (preview background + LayoutSwitcher)
+                if (savedOnZoneEditorClose) {
+                    savedOnZoneEditorClose(layoutData);
+                }
+                
+                // Call the cancel callback to return to LayoutSwitcher
+                if (savedOnCancel) {
+                    savedOnCancel();
+                }
             }
         );
+
+        // Notify parent to hide preview background before showing zone editor
+        if (this._onZoneEditorOpenCallback) {
+            this._onZoneEditorOpenCallback();
+        }
 
         editor.show();
     }
@@ -1608,5 +1641,36 @@ export class LayoutSettingsDialog {
      */
     _generateId() {
         return `layout-${Date.now()}`;
+    }
+    
+    /**
+     * Generate a default name for new layouts
+     * @returns {string} Default name like "Custom Layout" or "Custom Layout 2"
+     * @private
+     */
+    _generateDefaultName() {
+        const baseName = 'Custom Layout';
+        
+        // If we don't have a layout manager yet, just return the base name
+        if (!this._layoutManager) {
+            return baseName;
+        }
+        
+        // Get all existing layouts to check for name conflicts
+        const existingLayouts = this._layoutManager.getAllLayouts() || [];
+        const existingNames = new Set(existingLayouts.map(l => l.name));
+        
+        // If base name doesn't exist, use it
+        if (!existingNames.has(baseName)) {
+            return baseName;
+        }
+        
+        // Otherwise find the next available number
+        let counter = 2;
+        while (existingNames.has(`${baseName} ${counter}`)) {
+            counter++;
+        }
+        
+        return `${baseName} ${counter}`;
     }
 }

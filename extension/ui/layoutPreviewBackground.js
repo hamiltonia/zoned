@@ -68,7 +68,6 @@ export class LayoutPreviewBackground {
      */
     show(layout = null, selectedMonitorIndex = null) {
         if (this._visible) {
-            logger.warn('LayoutPreviewBackground already visible');
             return;
         }
 
@@ -152,6 +151,28 @@ export class LayoutPreviewBackground {
         this._visible = false;
 
         logger.debug('LayoutPreviewBackground hidden');
+    }
+
+    /**
+     * Set visibility of overlays without destroying them
+     * Used when temporarily hiding for zone editor, then restoring
+     * @param {boolean} visible - Whether overlays should be visible
+     */
+    setVisibility(visible) {
+        if (!this._visible || this._monitorOverlays.length === 0) {
+            logger.warn('setVisibility called but no overlays exist');
+            return;
+        }
+
+        for (const monitorData of this._monitorOverlays) {
+            if (monitorData.overlay) {
+                if (visible) {
+                    monitorData.overlay.show();
+                } else {
+                    monitorData.overlay.hide();
+                }
+            }
+        }
     }
     
     /**

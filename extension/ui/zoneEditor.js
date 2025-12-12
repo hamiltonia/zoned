@@ -81,6 +81,7 @@ export class ZoneEditor {
         this._currentHandle = null;  // Currently visible handle
         this._helpTextBox = null;  // Store reference to help text for Z-order management
         this._toolbar = null;  // Store reference to toolbar for Z-order management
+        this._resolutionLabels = [];  // Resolution labels shown during edge resize
         
         // Prevent multiple save/cancel invocations
         this._saveExecuted = false;
@@ -474,12 +475,140 @@ export class ZoneEditor {
     _onEdgeDragBegin(edge, event) {
         const [x, y] = event.get_coords();
         
+        // Find all regions affected by this edge
+        const affectedRegions = this._findRegionsReferencingEdge(edge.id);
+        
         this._draggingEdge = {
             edge: edge,
-            originalPosition: edge.position
+            originalPosition: edge.position,
+            affectedRegionIndices: affectedRegions.map(r => this._edgeLayout.regions.indexOf(r))
         };
         
-        logger.debug(`Started dragging edge ${edge.id} at position ${edge.position.toFixed(3)}`);
+        logger.debug(`Started dragging edge ${edge.id} at position ${edge.position.toFixed(3)}, affects ${affectedRegions.length} regions`);
+        
+        // Create initial resolution labels
+        this._createResolutionLabels();
+    }
+
+    /**
+     * Create resolution labels for affected regions during edge drag
+     * @private
+     */
+    _createResolutionLabels() {
+        // Remove any existing labels first
+        this._removeResolutionLabels();
+        
+        if (!this._draggingEdge || !this._overlay) return;
+        
+        const monitor = Main.layoutManager.currentMonitor;
+        const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
+        const colors = this._themeManager.getColors();
+        
+        // Create labels for each affected region
+        this._draggingEdge.affectedRegionIndices.forEach(regionIndex => {
+            const region = this._edgeLayout.regions[regionIndex];
+            if (!region) return;
+            
+            const left = edgeMap.get(region.left);
+            const right = edgeMap.get(region.right);
+            const top = edgeMap.get(region.top);
+            const bottom = edgeMap.get(region.bottom);
+            
+            if (!left || !right || !top || !bottom) return;
+            
+            // Calculate pixel dimensions
+            const widthPx = Math.round((right.position - left.position) * monitor.width);
+            const heightPx = Math.round((bottom.position - top.position) * monitor.height);
+            
+            // Create label with resolution text
+            const label = new St.Label({
+                text: `${widthPx}×${heightPx}`,
+                style: `font-size: 16pt; font-weight: bold; color: white; 
+                        background-color: rgba(0, 0, 0, 0.7); 
+                        padding: 8px 12px; border-radius: 4px;`
+            });
+            
+            // Calculate position below region number (which is centered with 72pt font)
+            const regionX = left.position * monitor.width;
+            const regionY = top.position * monitor.height;
+            const regionW = (right.position - left.position) * monitor.width;
+            const regionH = (bottom.position - top.position) * monitor.height;
+            
+            // Position below the region number
+            // Region number is ~90px tall at 72pt, so offset downward from center
+            const labelWidth = 120; // Approximate width
+            const labelHeight = 40; // Approximate height
+            const numberOffset = 60; // Offset below center to clear the region number
+            
+            label.set_position(
+                regionX + (regionW - labelWidth) / 2,
+                regionY + (regionH / 2) + numberOffset
+            );
+            
+            this._overlay.add_child(label);
+            this._resolutionLabels.push({ label, regionIndex });
+        });
+        
+        logger.debug(`Created ${this._resolutionLabels.length} resolution labels`);
+    }
+
+    /**
+     * Update resolution labels during drag
+     * @private
+     */
+    _updateResolutionLabels() {
+        if (!this._draggingEdge || !this._overlay) return;
+        
+        const monitor = Main.layoutManager.currentMonitor;
+        const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
+        
+        this._resolutionLabels.forEach(({ label, regionIndex }) => {
+            const region = this._edgeLayout.regions[regionIndex];
+            if (!region) return;
+            
+            const left = edgeMap.get(region.left);
+            const right = edgeMap.get(region.right);
+            const top = edgeMap.get(region.top);
+            const bottom = edgeMap.get(region.bottom);
+            
+            if (!left || !right || !top || !bottom) return;
+            
+            // Calculate pixel dimensions
+            const widthPx = Math.round((right.position - left.position) * monitor.width);
+            const heightPx = Math.round((bottom.position - top.position) * monitor.height);
+            
+            // Update label text
+            label.text = `${widthPx}×${heightPx}`;
+            
+            // Recalculate position below region number
+            const regionX = left.position * monitor.width;
+            const regionY = top.position * monitor.height;
+            const regionW = (right.position - left.position) * monitor.width;
+            const regionH = (bottom.position - top.position) * monitor.height;
+            
+            // Get actual label size for centering horizontally
+            const labelWidth = label.width || 120;
+            const numberOffset = 60; // Offset below center to clear the region number
+            
+            label.set_position(
+                regionX + (regionW - labelWidth) / 2,
+                regionY + (regionH / 2) + numberOffset
+            );
+        });
+    }
+
+    /**
+     * Remove resolution labels
+     * @private
+     */
+    _removeResolutionLabels() {
+        this._resolutionLabels.forEach(({ label }) => {
+            if (label && this._overlay && label.get_parent() === this._overlay) {
+                this._overlay.remove_child(label);
+                label.destroy();
+            }
+        });
+        this._resolutionLabels = [];
     }
 
     /**
@@ -562,7 +691,9 @@ export class ZoneEditor {
         
         // Refresh display with updated bounds
         this._refreshDisplay();
-
+        
+        // Update resolution labels (must be after refresh since regions are recreated)
+        this._updateResolutionLabels();
     }
 
     /**
@@ -620,6 +751,9 @@ export class ZoneEditor {
         
         logger.debug(`Ended dragging edge ${this._draggingEdge.edge.id}`);
         
+        // Remove resolution labels before clearing drag state
+        this._removeResolutionLabels();
+        
         // Recalculate edge bounds after drag completes
         // This ensures perpendicular edges update their start/length to match new region extents
         this._recalculateEdgeBounds();
@@ -642,15 +776,18 @@ export class ZoneEditor {
         const modifiers = event.get_state();
         const shiftPressed = modifiers & Clutter.ModifierType.SHIFT_MASK;
         
-        logger.debug(`Region ${regionIndex} clicked (Shift: ${shiftPressed})`);
+        // Get click position for split location
+        const [clickX, clickY] = event.get_coords();
+        
+        logger.debug(`Region ${regionIndex} clicked at (${clickX}, ${clickY}) (Shift: ${shiftPressed})`);
         
         // Shift+Click: Split vertically
         if (shiftPressed) {
-            this._splitVertical(regionIndex);
+            this._splitVertical(regionIndex, clickY);
         }
         // Click: Split horizontally
         else {
-            this._splitHorizontal(regionIndex);
+            this._splitHorizontal(regionIndex, clickX);
         }
         
         return Clutter.EVENT_STOP;
@@ -659,23 +796,33 @@ export class ZoneEditor {
     /**
      * Split region horizontally (left/right)
      * @param {number} regionIndex - Index of region to split
+     * @param {number} clickX - X coordinate of click (in screen pixels)
      * @private
      */
-    _splitHorizontal(regionIndex) {
+    _splitHorizontal(regionIndex, clickX) {
         const region = this._edgeLayout.regions[regionIndex];
         const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
+        const monitor = Main.layoutManager.currentMonitor;
         
         const left = edgeMap.get(region.left);
         const right = edgeMap.get(region.right);
         const top = edgeMap.get(region.top);
         const bottom = edgeMap.get(region.bottom);
         
-        // Create new vertical edge at midpoint, spanning this region's height
+        // Convert click position to normalized 0-1 position
+        let splitPosition = (clickX - monitor.x) / monitor.width;
+        
+        // Clamp to ensure minimum region size on both sides
+        const minPosition = left.position + this.MIN_REGION_SIZE;
+        const maxPosition = right.position - this.MIN_REGION_SIZE;
+        splitPosition = Math.max(minPosition, Math.min(maxPosition, splitPosition));
+        
+        // Create new vertical edge at click position, spanning this region's height
         const newEdgeId = `v${Date.now()}`;
         const newEdge = {
             id: newEdgeId,
             type: 'vertical',
-            position: (left.position + right.position) / 2,
+            position: splitPosition,
             start: top.position,
             length: bottom.position - top.position,
             fixed: false
@@ -717,23 +864,33 @@ export class ZoneEditor {
     /**
      * Split region vertically (top/bottom)
      * @param {number} regionIndex - Index of region to split
+     * @param {number} clickY - Y coordinate of click (in screen pixels)
      * @private
      */
-    _splitVertical(regionIndex) {
+    _splitVertical(regionIndex, clickY) {
         const region = this._edgeLayout.regions[regionIndex];
         const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
+        const monitor = Main.layoutManager.currentMonitor;
         
         const left = edgeMap.get(region.left);
         const right = edgeMap.get(region.right);
         const top = edgeMap.get(region.top);
         const bottom = edgeMap.get(region.bottom);
         
-        // Create new horizontal edge at midpoint, spanning this region's width
+        // Convert click position to normalized 0-1 position
+        let splitPosition = (clickY - monitor.y) / monitor.height;
+        
+        // Clamp to ensure minimum region size on both sides
+        const minPosition = top.position + this.MIN_REGION_SIZE;
+        const maxPosition = bottom.position - this.MIN_REGION_SIZE;
+        splitPosition = Math.max(minPosition, Math.min(maxPosition, splitPosition));
+        
+        // Create new horizontal edge at click position, spanning this region's width
         const newEdgeId = `h${Date.now()}`;
         const newEdge = {
             id: newEdgeId,
             type: 'horizontal',
-            position: (top.position + bottom.position) / 2,
+            position: splitPosition,
             start: left.position,
             length: right.position - left.position,
             fixed: false
@@ -1552,36 +1709,6 @@ export class ZoneEditor {
         });
     }
 
-    /**
-     * Handle region click
-     * @param {number} regionIndex - Index of clicked region
-     * @param {Clutter.Event} event - Click event
-     * @returns {boolean} EVENT_STOP to prevent propagation
-     * @private
-     */
-    _onRegionClicked(regionIndex, event) {
-        const modifiers = event.get_state();
-        const shiftPressed = modifiers & Clutter.ModifierType.SHIFT_MASK;
-        const ctrlPressed = modifiers & Clutter.ModifierType.CONTROL_MASK;
-        
-        logger.debug(`Region ${regionIndex} clicked (Shift: ${shiftPressed}, Ctrl: ${ctrlPressed})`);
-        
-        // Ctrl+Click: Do nothing (region deletion removed)
-        if (ctrlPressed) {
-            logger.debug('Ctrl+Click on region ignored (deletion not supported)');
-            return Clutter.EVENT_STOP;
-        }
-        // Shift+Click: Split vertically
-        else if (shiftPressed) {
-            this._splitVertical(regionIndex);
-        }
-        // Click: Split horizontally
-        else {
-            this._splitHorizontal(regionIndex);
-        }
-        
-        return Clutter.EVENT_STOP;
-    }
 
     /**
      * Handle save action
