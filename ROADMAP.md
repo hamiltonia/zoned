@@ -15,7 +15,7 @@ The following items need to be completed before v1.0 release:
 - [x] **Current layout background** - LayoutSwitcher card backgrounds show accent when selected/hovered ✅
 - [x] **Modal handling fix** - Fixed popModal() to pass grab object correctly ✅
 - [x] **Preview background z-order** - LayoutPreviewBackground stays visible behind both LayoutSwitcher and LayoutSettingsDialog ✅
-- [ ] **Per-space layouts** - Different layouts for different workspaces/monitors (see spec below)
+- [x] **Per-space layouts** - Different layouts for different workspaces/monitors (see spec below)
 - [x] **Layout keyboard shortcuts** - Add keyboard shortcuts to activate specific layouts (in layout settings)
 - [x] **Duplicate custom layouts** - Allow duplicating custom layouts (not just templates)
 
@@ -29,7 +29,9 @@ See: `memory/development/per-space-layouts-spec.md`
 - [x] Workspace click → select for config; double-click → switch workspace
 - [x] Auto-switch layout on workspace change (via `workspace-switched` signal)
 - [x] Settings sync between LayoutSwitcher checkbox and prefs.js switch
-- [ ] Multi-monitor support (needs testing)
+- [x] Multi-monitor support (needs testing)
+- [ ] Revisit notifications (make them optional where needed, provide options for look & feel)
+- [ ] Style updates, ensure consistency, polish, etc.
 
 **Phase 2: Keybinding Context Awareness**
 - [ ] Zone cycling respects current space context
@@ -48,6 +50,12 @@ See: `memory/development/per-space-layouts-spec.md`
 - [ ] **Log cleanup** - Final review of code for debug logs that can be removed
 - [ ] **Code duplication review** - Final review for redundant/duplicate code
 - [ ] **Settings cleanup** - Clean up settings/preferences code
+- [ ] **try/catch cleanup** - review try/catch usage and cleanup
+- [ ] **GNOME lint** - use GNOME linter on code to standardize
+- [ ] **GNOME best practices** - review best practices for GNOME extensions and follow
+- [ ] **GIT bug template** - create templates for bugs and feature requests
+- [ ] **Unit testing** - investigate if unit tests are possible
+- [ ] **Release pipeline** - investigate github release pipeline build
 
 ### Documentation & Testing
 - [ ] **Documentation cleanup** - Final documentation review and cleanup
