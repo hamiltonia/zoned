@@ -80,8 +80,10 @@ if ssh "$VM_USER@$VM_IP" "test -d ~/.local/share/gnome-shell/extensions/$EXTENSI
     echo -e "${GREEN}✓ Schema compiled${NC}"
 fi
 
-# Check if extension is enabled
-if ssh "$VM_USER@$VM_IP" "gnome-extensions info $EXTENSION_UUID 2>/dev/null | grep -q 'State: ENABLED'" 2>/dev/null; then
+# Check if extension is enabled (ACTIVE = running, INACTIVE = enabled but needs shell restart)
+# Note: gnome-extensions info output has leading whitespace (e.g., "  State: ACTIVE")
+EXT_STATE=$(ssh "$VM_USER@$VM_IP" "gnome-extensions info $EXTENSION_UUID 2>/dev/null | grep 'State:'" 2>/dev/null || echo "State: UNKNOWN")
+if echo "$EXT_STATE" | grep -qE 'State:\s*(ACTIVE|INACTIVE)'; then
     EXTENSION_ENABLED=true
 else
     EXTENSION_ENABLED=false
@@ -91,7 +93,18 @@ else
 fi
 
 # Try to reload GNOME Shell (only works on X11)
-SESSION_TYPE=$(ssh "$VM_USER@$VM_IP" 'echo $XDG_SESSION_TYPE' 2>/dev/null || echo "unknown")
+# Note: $XDG_SESSION_TYPE isn't available over SSH, so use loginctl instead
+# We need to find the graphical session (x11/wayland), not the SSH session (unspecified)
+SESSION_TYPE=$(ssh "$VM_USER@$VM_IP" "
+    for sid in \$(loginctl --no-legend | awk '{print \$1}'); do
+        type=\$(loginctl show-session \$sid -p Type --value 2>/dev/null)
+        if [ \"\$type\" = 'x11' ] || [ \"\$type\" = 'wayland' ]; then
+            echo \$type
+            break
+        fi
+    done
+" 2>/dev/null || echo "")
+[ -z "$SESSION_TYPE" ] && SESSION_TYPE="unknown"
 
 echo
 if [ "$SESSION_TYPE" = "x11" ]; then
