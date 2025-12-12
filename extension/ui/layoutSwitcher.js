@@ -728,7 +728,19 @@ this._selectedCardIndex = -1;
         this._applyLayout(layout);
         this._zoneOverlay.showMessage(`Switched to: ${template.name}`);
 
-        this.hide();
+        // Only close dialog if modifying the current workspace/monitor
+        // When configuring a different workspace/monitor, keep dialog open for continued configuration
+        const activeWorkspace = global.workspace_manager.get_active_workspace_index();
+        const currentMonitor = Main.layoutManager.currentMonitor.index;
+        const isCurrentWorkspace = this._applyGlobally || (this._currentWorkspace === activeWorkspace);
+        const isCurrentMonitor = this._selectedMonitorIndex === currentMonitor;
+        
+        if (isCurrentWorkspace && isCurrentMonitor) {
+            this.hide();
+        } else {
+            // Refresh to show updated state without closing
+            this._refreshDialog();
+        }
     }
 
     /**
@@ -740,7 +752,19 @@ this._selectedCardIndex = -1;
         this._applyLayout(layout);
         this._zoneOverlay.showMessage(`Switched to: ${layout.name}`);
 
-        this.hide();
+        // Only close dialog if modifying the current workspace/monitor
+        // When configuring a different workspace/monitor, keep dialog open for continued configuration
+        const activeWorkspace = global.workspace_manager.get_active_workspace_index();
+        const currentMonitor = Main.layoutManager.currentMonitor.index;
+        const isCurrentWorkspace = this._applyGlobally || (this._currentWorkspace === activeWorkspace);
+        const isCurrentMonitor = this._selectedMonitorIndex === currentMonitor;
+        
+        if (isCurrentWorkspace && isCurrentMonitor) {
+            this.hide();
+        } else {
+            // Refresh to show updated state without closing
+            this._refreshDialog();
+        }
     }
 
     /**
