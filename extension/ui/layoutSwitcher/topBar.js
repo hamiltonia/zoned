@@ -666,11 +666,6 @@ export function toggleMonitorDropdown(ctx) {
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  */
 export function closeMonitorDropdown(ctx) {
-    if (ctx._menuCaptureId) {
-        global.stage.disconnect(ctx._menuCaptureId);
-        ctx._menuCaptureId = null;
-    }
-    
     if (ctx._monitorMenu) {
         if (ctx._monitorMenu.get_parent()) {
             ctx._monitorMenu.get_parent().remove_child(ctx._monitorMenu);

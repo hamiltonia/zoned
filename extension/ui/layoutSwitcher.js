@@ -174,6 +174,17 @@ this._selectedCardIndex = -1;
 
         const dialog = this._dialog;
         
+        // Clean up resize signals if active (prevents stage signal leak)
+        if (this._resizeMotionId) {
+            global.stage.disconnect(this._resizeMotionId);
+            this._resizeMotionId = null;
+        }
+        if (this._resizeButtonReleaseId) {
+            global.stage.disconnect(this._resizeButtonReleaseId);
+            this._resizeButtonReleaseId = null;
+        }
+        this._isResizing = false;
+        
         // Disconnect key events BEFORE clearing this._dialog reference
         this._disconnectKeyEvents();
         
