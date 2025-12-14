@@ -7,7 +7,7 @@
 
 // Set to true to enable debug logging
 // Set to false for production (reduces overhead in hot paths)
-const DEBUG = true;
+const DEBUG = false;
 
 /**
  * Log levels
