@@ -1,19 +1,19 @@
 /**
  * SectionFactory - Creates layout section containers
- * 
+ *
  * Responsible for:
  * - Templates section (fixed row of built-in templates)
  * - Custom layouts section (scrollable grid of user layouts)
  * - Custom layout grid with row/column arrangement
  * - "Create new layout" button
- * 
+ *
  * Part of the LayoutSwitcher module split for maintainability.
  */
 
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
-import { createLogger } from '../../utils/debug.js';
-import { createTemplateCard, createCustomLayoutCard } from './cardFactory.js';
+import {createLogger} from '../../utils/debug.js';
+import {createTemplateCard, createCustomLayoutCard} from './cardFactory.js';
 
 const logger = createLogger('SectionFactory');
 
@@ -24,7 +24,7 @@ const logger = createLogger('SectionFactory');
  */
 export function createTemplatesSection(ctx) {
     const colors = ctx._themeManager.getColors();
-    
+
     // Outer section card with depth - using configurable spacing
     const section = new St.BoxLayout({
         vertical: true,
@@ -34,7 +34,7 @@ export function createTemplatesSection(ctx) {
             border-radius: ${ctx._SECTION_BORDER_RADIUS}px;
             padding: ${ctx._SECTION_PADDING}px;
             box-shadow: ${colors.sectionShadow};
-        `
+        `,
     });
 
     // Section header - larger font for better hierarchy
@@ -45,27 +45,27 @@ export function createTemplatesSection(ctx) {
             font-weight: 600;
             color: ${colors.textMuted};
             margin-bottom: 20px;
-        `
+        `,
     });
     section.add_child(header);
 
     const templates = ctx._templateManager.getBuiltinTemplates();
     const currentLayout = ctx._getCurrentLayout();
-    
+
     // Template cards in horizontal row - uses natural width (5 templates = 5 cards always)
     // Matches Custom Layouts rows which also use natural width
     const templatesRow = new St.BoxLayout({
         vertical: false,
         x_expand: false,
         x_align: Clutter.ActorAlign.CENTER,  // Center the row
-        style: `spacing: ${ctx._CARD_GAP}px; padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`
+        style: `spacing: ${ctx._CARD_GAP}px; padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`,
     });
 
     templates.forEach((template, index) => {
         const card = createTemplateCard(ctx, template, currentLayout, index);
         ctx._addDebugRect(card, 'card', `Template: ${template.name}`);
         templatesRow.add_child(card);
-        ctx._allCards.push({ card, layout: template, isTemplate: true });
+        ctx._allCards.push({card, layout: template, isTemplate: true});
     });
 
     // Add debug rect to templates row
@@ -83,7 +83,7 @@ export function createTemplatesSection(ctx) {
  */
 export function createCustomLayoutsSection(ctx) {
     const colors = ctx._themeManager.getColors();
-    
+
     // Outer section card with depth - expands to fill remaining space
     // Uses symmetric padding for consistent alignment with Templates
     const section = new St.BoxLayout({
@@ -97,31 +97,31 @@ export function createCustomLayoutsSection(ctx) {
             border-radius: ${ctx._SECTION_BORDER_RADIUS}px;
             padding: ${ctx._SECTION_PADDING}px;
             box-shadow: ${colors.sectionShadow};
-        `
+        `,
     });
 
     // Store reference to section for scroll handling
     let sectionScrollView = null;
-    
+
     // Handle scroll events on the entire section (not just scrollView)
     // This catches scrolls over header and empty areas too
     section.connect('scroll-event', (actor, event) => {
         if (!sectionScrollView) return Clutter.EVENT_PROPAGATE;
-        
+
         const direction = event.get_scroll_direction();
-        
+
         // Get adjustment
         let adjustment = sectionScrollView.vadjustment;
         if (!adjustment && typeof sectionScrollView.get_vscroll_bar === 'function') {
             const vbar = sectionScrollView.get_vscroll_bar();
             if (vbar) adjustment = vbar.get_adjustment();
         }
-        
+
         if (!adjustment) return Clutter.EVENT_STOP;
-        
+
         const scrollAmount = ctx._cardHeight + ctx._ROW_GAP;
         const maxScroll = adjustment.upper - adjustment.page_size;
-        
+
         if (direction === Clutter.ScrollDirection.UP) {
             adjustment.value = Math.max(0, adjustment.value - scrollAmount);
         } else if (direction === Clutter.ScrollDirection.DOWN) {
@@ -133,7 +133,7 @@ export function createCustomLayoutsSection(ctx) {
                 adjustment.value = Math.max(0, Math.min(maxScroll, adjustment.value + smoothAmount));
             }
         }
-        
+
         return Clutter.EVENT_STOP;
     });
 
@@ -145,7 +145,7 @@ export function createCustomLayoutsSection(ctx) {
             font-weight: 600;
             color: ${colors.textMuted};
             margin-bottom: 16px;
-        `
+        `,
     });
     section.add_child(header);
 
@@ -160,28 +160,28 @@ export function createCustomLayoutsSection(ctx) {
         // Empty state (styled within the section card)
         const emptyState = new St.BoxLayout({
             vertical: true,
-            style: `spacing: 12px; padding: 32px; ` +
+            style: 'spacing: 12px; padding: 32px; ' +
                    `background-color: ${colors.inputBg}; ` +
-                   `border-radius: 12px; ` +
+                   'border-radius: 12px; ' +
                    `border: 2px dashed ${colors.divider};`,
-            x_align: Clutter.ActorAlign.CENTER
+            x_align: Clutter.ActorAlign.CENTER,
         });
 
         const icon = new St.Label({
             text: '📐',
-            style: 'font-size: 48pt;'
+            style: 'font-size: 48pt;',
         });
         emptyState.add_child(icon);
 
         const text = new St.Label({
             text: 'No custom layouts yet',
-            style: `font-size: 14pt; color: ${colors.textSecondary};`
+            style: `font-size: 14pt; color: ${colors.textSecondary};`,
         });
         emptyState.add_child(text);
 
         const hint = new St.Label({
             text: 'Create or duplicate a layout to get started',
-            style: `font-size: 11pt; color: ${colors.textMuted};`
+            style: `font-size: 11pt; color: ${colors.textMuted};`,
         });
         emptyState.add_child(hint);
 
@@ -193,7 +193,7 @@ export function createCustomLayoutsSection(ctx) {
             hscrollbar_policy: St.PolicyType.NEVER,
             vscrollbar_policy: St.PolicyType.AUTOMATIC,
             x_expand: true,
-            y_expand: true
+            y_expand: true,
         });
 
         // Store references for scroll handling
@@ -205,19 +205,19 @@ export function createCustomLayoutsSection(ctx) {
         scrollView.connect('captured-event', (actor, event) => {
             if (event.type() === Clutter.EventType.SCROLL) {
                 const direction = event.get_scroll_direction();
-                
+
                 // Get adjustment (try multiple methods for compatibility)
                 let adjustment = scrollView.vadjustment;
                 if (!adjustment && typeof scrollView.get_vscroll_bar === 'function') {
                     const vbar = scrollView.get_vscroll_bar();
                     if (vbar) adjustment = vbar.get_adjustment();
                 }
-                
+
                 if (!adjustment) return Clutter.EVENT_PROPAGATE;
-                
+
                 const scrollAmount = ctx._cardHeight + ctx._ROW_GAP;
                 const maxScroll = adjustment.upper - adjustment.page_size;
-                
+
                 if (direction === Clutter.ScrollDirection.UP) {
                     adjustment.value = Math.max(0, adjustment.value - scrollAmount);
                     return Clutter.EVENT_STOP;
@@ -238,7 +238,7 @@ export function createCustomLayoutsSection(ctx) {
 
         // Grid of custom layouts
         const grid = createCustomLayoutGrid(ctx, customLayouts, currentLayout);
-        
+
         scrollView.add_child(grid);
         section.add_child(scrollView);
     }
@@ -256,26 +256,26 @@ export function createCustomLayoutsSection(ctx) {
  */
 export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
     const COLUMNS = ctx._customColumns;  // Always 5 columns
-    
+
     // Calculate fixed row width: 5 cards + 4 gaps
     const fixedRowWidth = (COLUMNS * ctx._cardWidth) + ((COLUMNS - 1) * ctx._CARD_GAP);
-    
+
     logger.debug(`[GRID] Creating grid with COLUMNS=${COLUMNS}, layouts=${layouts.length}, fixedRowWidth=${fixedRowWidth}`);
-    
+
     // Container holds all rows, centered
     const container = new St.BoxLayout({
         vertical: true,
         x_expand: false,
         x_align: Clutter.ActorAlign.CENTER,
-        style: `spacing: ${ctx._ROW_GAP}px;`
+        style: `spacing: ${ctx._ROW_GAP}px;`,
     });
-    
+
     ctx._addDebugRect(container, 'row', 'Custom Grid Container');
 
     let currentRow = null;
     const templateCount = ctx._templateManager.getBuiltinTemplates().length;
     const totalRows = Math.ceil(layouts.length / COLUMNS);
-    
+
     let rowNumber = 0;
     layouts.forEach((layout, index) => {
         const col = index % COLUMNS;
@@ -286,7 +286,7 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
             currentRow = new St.BoxLayout({
                 vertical: false,
                 x_expand: false,
-                style: `spacing: ${ctx._CARD_GAP}px; padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`
+                style: `spacing: ${ctx._CARD_GAP}px; padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`,
             });
             ctx._addDebugRect(currentRow, 'row', `Custom Row ${rowNumber}`);
             rowNumber++;
@@ -297,13 +297,13 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
         const card = createCustomLayoutCard(ctx, layout, currentLayout, cardIndex);
         ctx._addDebugRect(card, 'card', `Custom: ${layout.name}`);
         currentRow.add_child(card);
-        ctx._allCards.push({ card, layout, isTemplate: false });
-        
+        ctx._allCards.push({card, layout, isTemplate: false});
+
         // After the last card, add spacers to fill the row
         if (isLastCard) {
             const cardsInRow = col + 1;
             const spacersNeeded = COLUMNS - cardsInRow;
-            
+
             if (spacersNeeded > 0) {
                 logger.debug(`[SPACER] Row ${rowNumber - 1}: Adding ${spacersNeeded} spacers (${cardsInRow} cards)`);
                 for (let i = 0; i < spacersNeeded; i++) {
@@ -312,10 +312,10 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
                         height: ctx._cardHeight,
                         // Make visible in debug mode for troubleshooting
                         opacity: ctx._debugMode ? 128 : 0,
-                        style: ctx._debugMode 
-                            ? `background-color: rgba(255, 0, 255, 0.5); border: 2px dashed magenta;`
+                        style: ctx._debugMode
+                            ? 'background-color: rgba(255, 0, 255, 0.5); border: 2px dashed magenta;'
                             : '',
-                        reactive: false
+                        reactive: false,
                     });
                     currentRow.add_child(spacer);
                     ctx._addDebugRect(spacer, 'spacer', `Spacer ${i + 1} of ${spacersNeeded}`);
@@ -337,18 +337,18 @@ export function createNewLayoutButton(ctx) {
     const colors = ctx._themeManager.getColors();
     const accentHex = colors.accentHex;
     const accentHexHover = colors.accentHexHover;
-    
+
     // Use tier-based sizing
     const buttonHeight = ctx._calculatedSpacing.createButtonHeight;
     const buttonMargin = ctx._calculatedSpacing.createButtonMargin;
     const cardRadius = ctx._cardRadius;
-    
+
     // Scale padding proportionally with button height
     // Base: 16px vertical at 50px height = 0.32 ratio
     // Base: 32px horizontal at 50px height = 0.64 ratio
     const verticalPadding = Math.floor(buttonHeight * 0.32);
     const horizontalPadding = Math.floor(buttonHeight * 0.64);
-    
+
     // Scale font size proportionally
     // Base: 13pt at 50px height = 0.26 ratio
     const fontSize = Math.max(10, Math.floor(buttonHeight * 0.26));
@@ -361,12 +361,12 @@ export function createNewLayoutButton(ctx) {
                `margin-top: ${buttonMargin}px;`,
         x_align: Clutter.ActorAlign.CENTER,
         reactive: true,
-        track_hover: true
+        track_hover: true,
     });
 
     const label = new St.Label({
         text: '✚ Create new layout',
-        style: `color: white; font-size: ${fontSize}pt; font-weight: bold;`
+        style: `color: white; font-size: ${fontSize}pt; font-weight: bold;`,
     });
     button.set_child(label);
 

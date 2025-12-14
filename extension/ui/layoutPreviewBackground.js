@@ -1,10 +1,10 @@
 /**
  * LayoutPreviewBackground - Full-screen layout zone preview
- * 
+ *
  * Renders a non-interactive preview of zone rectangles behind modal dialogs.
  * Used by LayoutSwitcher and LayoutSettingsDialog to show a live preview
  * of the selected/hovered layout.
- * 
+ *
  * Features:
  * - Multi-monitor support: shows preview on all monitors
  * - Per-space layouts: each monitor shows its own layout in per-workspace mode
@@ -13,7 +13,7 @@
  * - No edge grab handles (read-only preview)
  * - Click anywhere to dismiss (passed through to callback)
  * - Fast fade transitions between layouts
- * 
+ *
  * Similar to ZoneEditor visuals but completely non-interactive.
  */
 
@@ -21,8 +21,8 @@ import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { createLogger } from '../utils/debug.js';
-import { ThemeManager } from '../utils/theme.js';
+import {createLogger} from '../utils/debug.js';
+import {ThemeManager} from '../utils/theme.js';
 
 const logger = createLogger('LayoutPreviewBackground');
 
@@ -39,16 +39,16 @@ export class LayoutPreviewBackground {
         this._settings = settings;
         this._themeManager = new ThemeManager(settings);
         this._onBackgroundClick = onBackgroundClick;
-        
+
         // Multi-monitor support: overlay and zones per monitor
         this._monitorOverlays = [];  // Array of {overlay, zoneActors, currentLayout, monitorIndex}
         this._selectedMonitorIndex = 0;
         this._visible = false;
-        
+
         // Optional references for per-space support
         this._layoutManager = null;
         this._spatialStateManager = null;
-        
+
         logger.debug('LayoutPreviewBackground created');
     }
 
@@ -73,7 +73,7 @@ export class LayoutPreviewBackground {
 
         const colors = this._themeManager.getColors();
         const monitors = Main.layoutManager.monitors;
-        
+
         // Determine selected monitor
         if (selectedMonitorIndex !== null) {
             this._selectedMonitorIndex = selectedMonitorIndex;
@@ -85,7 +85,7 @@ export class LayoutPreviewBackground {
         for (let i = 0; i < monitors.length; i++) {
             const monitor = monitors[i];
             const isSelected = (i === this._selectedMonitorIndex);
-            
+
             // Create full-screen overlay for this monitor
             const overlay = new St.Widget({
                 reactive: true,
@@ -93,7 +93,7 @@ export class LayoutPreviewBackground {
                 y: monitor.y,
                 width: monitor.width,
                 height: monitor.height,
-                style: `background-color: ${colors.modalOverlay};`
+                style: `background-color: ${colors.modalOverlay};`,
             });
 
             // Click on any overlay to dismiss
@@ -106,23 +106,23 @@ export class LayoutPreviewBackground {
 
             // Add to uiGroup
             Main.uiGroup.add_child(overlay);
-            
+
             this._monitorOverlays.push({
                 overlay: overlay,
                 zoneActors: [],
                 currentLayout: null,
                 monitorIndex: i,
-                monitor: monitor
+                monitor: monitor,
             });
         }
-        
+
         this._visible = true;
 
         // Set initial layout for selected monitor
         if (layout) {
             this.setLayout(layout);
         }
-        
+
         // In per-space mode, show layouts for other monitors too
         this._updateOtherMonitorLayouts();
 
@@ -140,13 +140,13 @@ export class LayoutPreviewBackground {
         // Clean up all monitor overlays
         for (const monitorData of this._monitorOverlays) {
             this._clearZonesForMonitor(monitorData);
-            
+
             if (monitorData.overlay.get_parent()) {
                 Main.uiGroup.remove_child(monitorData.overlay);
             }
             monitorData.overlay.destroy();
         }
-        
+
         this._monitorOverlays = [];
         this._visible = false;
 
@@ -174,27 +174,27 @@ export class LayoutPreviewBackground {
             }
         }
     }
-    
+
     /**
      * Update layouts on non-selected monitors (for per-space mode)
      * @private
      */
     _updateOtherMonitorLayouts() {
         const perSpaceEnabled = this._settings.get_boolean('use-per-workspace-layouts');
-        
+
         if (!perSpaceEnabled || !this._layoutManager || !this._spatialStateManager) {
             return;
         }
-        
+
         for (const monitorData of this._monitorOverlays) {
             if (monitorData.monitorIndex === this._selectedMonitorIndex) {
                 continue;  // Selected monitor is handled by setLayout()
             }
-            
+
             // Get the layout for this monitor's space
             const spaceKey = this._spatialStateManager.makeKey(monitorData.monitorIndex);
             const layout = this._layoutManager.getLayoutForSpace(spaceKey);
-            
+
             if (layout) {
                 this._setLayoutForMonitorImmediate(monitorData, layout);
             }
@@ -254,10 +254,10 @@ export class LayoutPreviewBackground {
 
         const monitorData = this._monitorOverlays.find(m => m.monitorIndex === this._selectedMonitorIndex);
         if (!monitorData) return;
-        
+
         this._setLayoutForMonitorImmediate(monitorData, layout);
     }
-    
+
     /**
      * Set layout immediately for a specific monitor
      * @param {Object} monitorData - Monitor data object from _monitorOverlays
@@ -276,7 +276,7 @@ export class LayoutPreviewBackground {
             });
         }
     }
-    
+
     /**
      * Set the selected monitor index and optionally update its layout
      * @param {number} monitorIndex - Monitor index to select
@@ -301,7 +301,7 @@ export class LayoutPreviewBackground {
         const isSelected = (monitorData.monitorIndex === this._selectedMonitorIndex);
         const colors = this._themeManager.getColors();
         const accentHex = colors.accentHex;
-        
+
         // Non-selected monitors get dimmed zones
         const fillOpacity = isSelected ? 0.25 : 0.12;
         const borderOpacity = isSelected ? 1.0 : 0.4;
@@ -329,13 +329,13 @@ export class LayoutPreviewBackground {
                     border-radius: 4px;
                     opacity: ${borderOpacity};
                 `,
-                opacity: 0  // Start invisible for fade-in
+                opacity: 0,  // Start invisible for fade-in
             });
 
             // Zone number label (smaller for non-selected monitors)
             const fontSize = isSelected ? '72pt' : '36pt';
             const textOpacity = isSelected ? 1.0 : 0.6;
-            
+
             const label = new St.Label({
                 text: `${index + 1}`,
                 style: `
@@ -347,7 +347,7 @@ export class LayoutPreviewBackground {
                 x_align: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER,
                 x_expand: true,
-                y_expand: true
+                y_expand: true,
             });
 
             // Use a Bin to center the label
@@ -356,9 +356,9 @@ export class LayoutPreviewBackground {
                 y_expand: true,
                 x_align: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER,
-                child: label
+                child: label,
             });
-            
+
             // Add label to zone
             zoneActor.add_child(labelBin);
             labelBin.set_position(0, 0);
@@ -395,7 +395,7 @@ export class LayoutPreviewBackground {
             actor.ease({
                 opacity: 255,
                 duration: FADE_DURATION_MS,
-                mode: Clutter.AnimationMode.EASE_OUT_QUAD
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             });
         });
     }
@@ -425,7 +425,7 @@ export class LayoutPreviewBackground {
                     if (completed === total) {
                         callback();
                     }
-                }
+                },
             });
         });
     }

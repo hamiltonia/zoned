@@ -1,25 +1,25 @@
 /**
  * CardFactory - Creates layout card UI elements
- * 
+ *
  * Card Design:
  * - Full grey background (rgba(68, 68, 68, 1))
  * - Compact header: layout name (left) + icon-only edit button (right)
  * - Zone preview: 85% width, 75% height, centered below header
  * - Click card to apply, click edit icon to edit/duplicate
  * - Hover effects: card border accent, icon brightens to white
- * 
+ *
  * Responsible for:
  * - Template cards (built-in layouts with duplicate button)
  * - Custom layout cards (user layouts with edit button)
  * - Card headers with name and edit button
  * - Zone preview rendering (Cairo canvas)
- * 
+ *
  * Part of the LayoutSwitcher module split for maintainability.
  */
 
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
-import { createLogger } from '../../utils/debug.js';
+import {createLogger} from '../../utils/debug.js';
 
 const logger = createLogger('CardFactory');
 
@@ -38,23 +38,23 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
     const accentHex = colors.accentHex;
     const accentRGBA = colors.accentRGBA(0.3);
     const cardRadius = ctx._cardRadius;
-    
+
     // Theme-aware card background (dark grey for dark theme, light grey for light theme)
     const cardBg = colors.cardBg;
 
     const card = new St.Button({
         style_class: 'template-card',
-        style: `padding: 0; ` +
+        style: 'padding: 0; ' +
                `border-radius: ${cardRadius}px; ` +
                `width: ${ctx._cardWidth}px; ` +
                `height: ${ctx._cardHeight}px; ` +
-               `overflow: hidden; ` +
-               `${isActive ? 
-                   `background-color: ${accentRGBA}; border: 2px solid ${accentHex};` : 
+               'overflow: hidden; ' +
+               `${isActive ?
+                   `background-color: ${accentRGBA}; border: 2px solid ${accentHex};` :
                    `background-color: ${cardBg}; border: 2px solid transparent;`}`,
         reactive: true,
         track_hover: true,
-        clip_to_allocation: true
+        clip_to_allocation: true,
     });
 
     // Use BoxLayout for vertical stacking (header + preview area)
@@ -63,7 +63,7 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
         x_expand: true,
         y_expand: true,
         clip_to_allocation: true,
-        style: `border-radius: ${cardRadius}px; padding: 6px 8px 8px 8px;`
+        style: `border-radius: ${cardRadius}px; padding: 6px 8px 8px 8px;`,
     });
 
     // Header row with name and edit button
@@ -82,18 +82,18 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
         y_align: Clutter.ActorAlign.CENTER,
         x_expand: true,
         y_expand: true,
-        clip_to_allocation: true
+        clip_to_allocation: true,
     });
-    
+
     const preview = createZonePreview(
         ctx,
         template.zones,
         previewWidth,
-        previewHeight
+        previewHeight,
     );
     // Set explicit size on the DrawingArea
     preview.set_size(previewWidth, previewHeight);
-    
+
     previewContainer.set_child(preview);
     container.add_child(previewContainer);
 
@@ -113,9 +113,9 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
             const c = ctx._themeManager.getColors();
             card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
                         `width: ${ctx._cardWidth}px; height: ${ctx._cardHeight}px; ` +
-                        `overflow: hidden; ` +
+                        'overflow: hidden; ' +
                         `background-color: ${c.accentRGBA(0.35)}; border: 2px solid ${c.accentHex}; ` +
-                        `box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);`;
+                        'box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);';
         }
         // Update preview background to show this template's layout
         if (ctx._onCardHover) {
@@ -127,7 +127,7 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
         if (!isActive) {
             card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
                         `width: ${ctx._cardWidth}px; height: ${ctx._cardHeight}px; ` +
-                        `overflow: hidden; ` +
+                        'overflow: hidden; ' +
                         `background-color: ${cardBg}; border: 2px solid transparent;`;
         }
         // Revert preview background
@@ -154,23 +154,23 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
     const accentHex = colors.accentHex;
     const accentRGBA = colors.accentRGBA(0.3);
     const cardRadius = ctx._cardRadius;
-    
+
     // Theme-aware card background (dark grey for dark theme, light grey for light theme)
     const cardBg = colors.cardBg;
 
     const card = new St.Button({
         style_class: 'custom-layout-card',
-        style: `padding: 0; ` +
+        style: 'padding: 0; ' +
                `border-radius: ${cardRadius}px; ` +
                `width: ${ctx._cardWidth}px; ` +
                `height: ${ctx._cardHeight}px; ` +
-               `overflow: hidden; ` +
-               `${isActive ? 
-                   `background-color: ${accentRGBA}; border: 2px solid ${accentHex};` : 
+               'overflow: hidden; ' +
+               `${isActive ?
+                   `background-color: ${accentRGBA}; border: 2px solid ${accentHex};` :
                    `background-color: ${cardBg}; border: 2px solid transparent;`}`,
         reactive: true,
         track_hover: true,
-        clip_to_allocation: true
+        clip_to_allocation: true,
     });
 
     // Use BoxLayout for vertical stacking (header + preview area)
@@ -179,7 +179,7 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
         x_expand: true,
         y_expand: true,
         clip_to_allocation: true,
-        style: `border-radius: ${cardRadius}px; padding: 6px 8px 8px 8px;`
+        style: `border-radius: ${cardRadius}px; padding: 6px 8px 8px 8px;`,
     });
 
     // Header row with name and edit button
@@ -198,18 +198,18 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
         y_align: Clutter.ActorAlign.CENTER,
         x_expand: true,
         y_expand: true,
-        clip_to_allocation: true
+        clip_to_allocation: true,
     });
-    
+
     const preview = createZonePreview(
         ctx,
         layout.zones,
         previewWidth,
-        previewHeight
+        previewHeight,
     );
     // Set explicit size on the DrawingArea
     preview.set_size(previewWidth, previewHeight);
-    
+
     previewContainer.set_child(preview);
     container.add_child(previewContainer);
 
@@ -233,9 +233,9 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
             const c = ctx._themeManager.getColors();
             card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
                         `width: ${ctx._cardWidth}px; height: ${ctx._cardHeight}px; ` +
-                        `overflow: hidden; ` +
+                        'overflow: hidden; ' +
                         `background-color: ${c.accentRGBA(0.35)}; border: 2px solid ${c.accentHex}; ` +
-                        `box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);`;
+                        'box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);';
         }
         // Update preview background to show this layout
         if (ctx._onCardHover) {
@@ -247,7 +247,7 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
         if (!isActive) {
             card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
                         `width: ${ctx._cardWidth}px; height: ${ctx._cardHeight}px; ` +
-                        `overflow: hidden; ` +
+                        'overflow: hidden; ' +
                         `background-color: ${cardBg}; border: 2px solid transparent;`;
         }
         // Revert preview background
@@ -272,7 +272,7 @@ export function createCardHeader(ctx, name, isTemplate, layout) {
     const header = new St.BoxLayout({
         vertical: false,
         x_expand: true,
-        y_align: Clutter.ActorAlign.START
+        y_align: Clutter.ActorAlign.START,
     });
 
     // Name label (left-aligned)
@@ -281,24 +281,24 @@ export function createCardHeader(ctx, name, isTemplate, layout) {
         style: 'color: white; font-size: 11px; font-weight: 500;',
         x_align: Clutter.ActorAlign.START,
         y_align: Clutter.ActorAlign.CENTER,
-        x_expand: true
+        x_expand: true,
     });
     header.add_child(nameLabel);
 
     // Icon-only edit button (no background, just the icon)
     const editButton = new St.Button({
         style_class: 'card-edit-button',
-        style: `background-color: transparent; padding: 0; min-width: 16px; min-height: 16px;`,
+        style: 'background-color: transparent; padding: 0; min-width: 16px; min-height: 16px;',
         reactive: true,
         track_hover: true,
-        y_align: Clutter.ActorAlign.CENTER
+        y_align: Clutter.ActorAlign.CENTER,
     });
 
     const editIcon = new St.Icon({
         icon_name: 'document-edit-symbolic',
         style_class: 'system-status-icon',
         icon_size: 14,
-        style: 'color: rgba(255, 255, 255, 0.6);'
+        style: 'color: rgba(255, 255, 255, 0.6);',
     });
     editButton.set_child(editIcon);
 
@@ -306,7 +306,7 @@ export function createCardHeader(ctx, name, isTemplate, layout) {
     editButton.connect('enter-event', () => {
         editIcon.style = 'color: rgba(255, 255, 255, 1);';
     });
-    
+
     editButton.connect('leave-event', () => {
         editIcon.style = 'color: rgba(255, 255, 255, 0.6);';
     });
@@ -331,7 +331,7 @@ export function createCardHeader(ctx, name, isTemplate, layout) {
  * Helper: Draw a rounded rectangle path using Cairo arcs
  * @param {Cairo.Context} cr - Cairo context
  * @param {number} x - X position
- * @param {number} y - Y position  
+ * @param {number} y - Y position
  * @param {number} w - Width
  * @param {number} h - Height
  * @param {number} r - Corner radius
@@ -340,7 +340,7 @@ function roundedRect(cr, x, y, w, h, r) {
     const pi = Math.PI;
     // Clamp radius to half of smallest dimension
     r = Math.min(r, w / 2, h / 2);
-    
+
     cr.newPath();
     // Top-left corner
     cr.arc(x + r, y + r, r, pi, 1.5 * pi);
@@ -373,12 +373,12 @@ function roundedRect(cr, x, y, w, h, r) {
 export function createZonePreview(ctx, zones, width, height) {
     const colors = ctx._themeManager.getColors();
     const cardRadius = ctx._cardRadius;
-    
+
     // Canvas background is transparent so card accent color shows through on hover/selection
     const canvas = new St.DrawingArea({
-        style: `background-color: transparent;`,
+        style: 'background-color: transparent;',
         x_expand: true,
-        y_expand: true
+        y_expand: true,
     });
 
     const accentColor = colors.accent;
@@ -394,7 +394,7 @@ export function createZonePreview(ctx, zones, width, height) {
             const inset = 8;
             const drawW = w - (inset * 2);  // Available width for zones
             const drawH = h - (inset * 2);  // Available height for zones
-            
+
             // Bubbly settings
             const cornerRadius = 4;  // Rounded corners for bubbly feel
             const shadowOffset = 2;
@@ -406,7 +406,7 @@ export function createZonePreview(ctx, zones, width, height) {
                 const y = inset + (zone.y * drawH);
                 const zoneW = zone.w * drawW;
                 const zoneH = zone.h * drawH;
-                
+
                 // Gap between zones for transparent edge effect
                 const gap = 2;
                 const zx = x + gap;

@@ -1,6 +1,6 @@
 /**
  * KeybindingManager - Manages keyboard shortcuts
- * 
+ *
  * Responsibilities:
  * - Registering keybindings with GNOME Shell
  * - Handling keyboard shortcut events
@@ -10,7 +10,7 @@
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { createLogger } from './utils/debug.js';
+import {createLogger} from './utils/debug.js';
 
 const logger = createLogger('KeybindingManager');
 
@@ -32,9 +32,9 @@ export class KeybindingManager {
         this._zoneOverlay = zoneOverlay;
         this._registeredKeys = [];
         this._enhancedWindowManagementKeys = ['minimize-window', 'maximize-window'];
-        this._quickLayoutKeys = ['quick-layout-1', 'quick-layout-2', 'quick-layout-3', 
-                                  'quick-layout-4', 'quick-layout-5', 'quick-layout-6',
-                                  'quick-layout-7', 'quick-layout-8', 'quick-layout-9'];
+        this._quickLayoutKeys = ['quick-layout-1', 'quick-layout-2', 'quick-layout-3',
+            'quick-layout-4', 'quick-layout-5', 'quick-layout-6',
+            'quick-layout-7', 'quick-layout-8', 'quick-layout-9'];
         this._settingsChangedId = null;
     }
 
@@ -47,18 +47,18 @@ export class KeybindingManager {
         // Zone cycling
         this._registerKeybinding(
             'cycle-zone-left',
-            this._onCycleZoneLeft.bind(this)
+            this._onCycleZoneLeft.bind(this),
         );
 
         this._registerKeybinding(
             'cycle-zone-right',
-            this._onCycleZoneRight.bind(this)
+            this._onCycleZoneRight.bind(this),
         );
 
         // Layout picker
         this._registerKeybinding(
             'show-layout-picker',
-            this._onShowLayoutSwitcher.bind(this)
+            this._onShowLayoutSwitcher.bind(this),
         );
 
         // Enhanced window management (optional)
@@ -70,7 +70,7 @@ export class KeybindingManager {
         // Listen for settings changes to toggle enhanced window management
         this._settingsChangedId = this._settings.connect(
             'changed::enhanced-window-management-enabled',
-            () => this._onEnhancedWindowManagementChanged()
+            () => this._onEnhancedWindowManagementChanged(),
         );
 
         logger.info(`Registered ${this._registeredKeys.length} keybindings`);
@@ -86,7 +86,7 @@ export class KeybindingManager {
         for (let i = 1; i <= 9; i++) {
             this._registerKeybinding(
                 `quick-layout-${i}`,
-                () => this._onQuickLayout(i)
+                () => this._onQuickLayout(i),
             );
         }
     }
@@ -97,7 +97,7 @@ export class KeybindingManager {
      */
     _registerEnhancedWindowManagement() {
         const enabled = this._settings.get_boolean('enhanced-window-management-enabled');
-        
+
         if (!enabled) {
             logger.debug('Enhanced window management disabled, skipping registration');
             return;
@@ -107,12 +107,12 @@ export class KeybindingManager {
 
         this._registerKeybinding(
             'minimize-window',
-            this._onMinimizeWindow.bind(this)
+            this._onMinimizeWindow.bind(this),
         );
 
         this._registerKeybinding(
             'maximize-window',
-            this._onMaximizeWindow.bind(this)
+            this._onMaximizeWindow.bind(this),
         );
     }
 
@@ -162,7 +162,7 @@ export class KeybindingManager {
                 this._settings,
                 Meta.KeyBindingFlags.NONE,
                 Shell.ActionMode.NORMAL,
-                handler
+                handler,
             );
             this._registeredKeys.push(name);
             logger.debug(`Registered keybinding: ${name}`);
@@ -231,7 +231,7 @@ export class KeybindingManager {
 
         // Get layout info (space-aware if per-workspace mode)
         const layout = this._layoutManager.getCurrentLayout(spaceKey);
-        const zoneIndex = spaceKey 
+        const zoneIndex = spaceKey
             ? this._layoutManager.getZoneIndexForSpace(spaceKey)
             : this._layoutManager.getCurrentZoneIndex();
         const totalZones = layout.zones.length;
@@ -268,7 +268,7 @@ export class KeybindingManager {
 
         // Get layout info (space-aware if per-workspace mode)
         const layout = this._layoutManager.getCurrentLayout(spaceKey);
-        const zoneIndex = spaceKey 
+        const zoneIndex = spaceKey
             ? this._layoutManager.getZoneIndexForSpace(spaceKey)
             : this._layoutManager.getCurrentZoneIndex();
         const totalZones = layout.zones.length;
@@ -394,7 +394,7 @@ export class KeybindingManager {
 
         const wasMaximized = window.maximized_horizontally || window.maximized_vertically;
         this._windowManager.maximizeWindow(window);
-        
+
         if (this._zoneOverlay) {
             this._zoneOverlay.showMessage(wasMaximized ? 'Unmaximized' : 'Maximized');
         }
@@ -409,7 +409,7 @@ export class KeybindingManager {
             this._settings.disconnect(this._settingsChangedId);
             this._settingsChangedId = null;
         }
-        
+
         this.unregisterKeybindings();
     }
 }

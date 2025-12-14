@@ -1,6 +1,6 @@
 /**
  * WindowManager - Handles window positioning and manipulation
- * 
+ *
  * Provides core window management functionality including:
  * - Moving windows to specific zones
  * - Maximizing/minimizing windows
@@ -10,7 +10,7 @@
 
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { createLogger } from './utils/debug.js';
+import {createLogger} from './utils/debug.js';
 
 const logger = createLogger('WindowManager');
 
@@ -29,7 +29,7 @@ export class WindowManager {
 
     /**
      * Move and resize a window to fit within a specified zone
-     * 
+     *
      * @param {Meta.Window} window - The window to move
      * @param {Object} zone - Zone definition with x, y, w, h (percentages 0-1)
      * @param {number} zone.x - X position as percentage of screen width
@@ -69,7 +69,7 @@ export class WindowManager {
             x,
             y,
             width,
-            height
+            height,
         );
 
         logger.debug(`Moved window to zone: x=${x}, y=${y}, w=${width}, h=${height}`);
@@ -96,7 +96,7 @@ export class WindowManager {
      * If minimized, restore the window
      * If not maximized, maximize it
      * If already maximized, unmaximize it
-     * 
+     *
      * @param {Meta.Window} window - The window to maximize/restore
      */
     maximizeWindow(window) {
@@ -130,7 +130,7 @@ export class WindowManager {
 
         // Find the most recently minimized window
         // Windows are typically in most-recently-used order
-        for (let window of windows) {
+        for (const window of windows) {
             if (window.minimized) {
                 window.unminimize();
                 window.activate(global.get_current_time());

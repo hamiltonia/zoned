@@ -1,13 +1,13 @@
 /**
  * ThemeManager - Centralized UI theming system
- * 
+ *
  * Manages color schemes for all extension UI components.
  * Supports:
  * - System theme detection (GNOME light/dark preference)
  * - User override (force light, dark, or follow system)
  * - Dynamic theme switching without reload
  * - GNOME accent color integration
- * 
+ *
  * Usage:
  *   const themeManager = new ThemeManager(settings);
  *   const colors = themeManager.getColors();
@@ -15,7 +15,7 @@
  */
 
 import Gio from 'gi://Gio';
-import { createLogger } from './debug.js';
+import {createLogger} from './debug.js';
 
 const logger = createLogger('ThemeManager');
 
@@ -26,12 +26,12 @@ export class ThemeManager {
      */
     constructor(settings) {
         this._settings = settings;
-        
+
         // Listen to GNOME system interface settings
         this._interfaceSettings = new Gio.Settings({
-            schema: 'org.gnome.desktop.interface'
+            schema: 'org.gnome.desktop.interface',
         });
-        
+
         logger.debug('ThemeManager initialized');
     }
 
@@ -43,14 +43,14 @@ export class ThemeManager {
     isDarkMode() {
         try {
             const userPref = this._settings.get_string('ui-theme');
-            
+
             switch (userPref) {
                 case 'light':
                     return false;
-                    
+
                 case 'dark':
                     return true;
-                    
+
                 case 'system':
                 default:
                     // Check GNOME system preference
@@ -71,11 +71,11 @@ export class ThemeManager {
         const isDark = this.isDarkMode();
         const accent = this._getAccentColor();
         const accentHex = this._rgbToHex(accent.red, accent.green, accent.blue);
-        
+
         return {
             // Theme mode
             isDark: isDark,
-            
+
             // Backgrounds
             modalOverlay: 'rgba(0, 0, 0, 0.7)',  // Always dark - modal overlays dim the background
             containerBg: isDark ? 'rgba(40, 40, 40, 0.98)' : 'rgba(250, 250, 250, 0.98)',
@@ -84,90 +84,90 @@ export class ThemeManager {
             cardBgTemplate: isDark ? 'rgba(40, 40, 40, 0.8)' : 'rgba(248, 248, 248, 0.9)',
             toolbarBg: isDark ? 'rgba(30, 30, 30, 0.95)' : 'rgba(240, 240, 240, 0.95)',
             helpBoxBg: isDark ? 'rgba(30, 30, 30, 0.95)' : 'rgba(245, 245, 245, 0.95)',
-            
+
             // Visual depth - sections and inputs
             sectionBg: isDark ? 'rgba(55, 55, 55, 0.6)' : 'rgba(255, 255, 255, 1.0)',
             sectionBorder: isDark ? 'rgba(80, 80, 80, 0.5)' : 'rgba(0, 0, 0, 0.08)',
-            sectionShadow: isDark ? 
-                '0 1px 3px rgba(0, 0, 0, 0.3)' : 
+            sectionShadow: isDark ?
+                '0 1px 3px rgba(0, 0, 0, 0.3)' :
                 '0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)',
             inputBg: isDark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(245, 245, 245, 0.9)',
             inputBorder: isDark ? 'rgba(70, 70, 70, 0.8)' : 'rgba(0, 0, 0, 0.12)',
-            inputShadowInset: isDark ? 
-                'inset 0 1px 2px rgba(0, 0, 0, 0.3)' : 
+            inputShadowInset: isDark ?
+                'inset 0 1px 2px rgba(0, 0, 0, 0.3)' :
                 'inset 0 1px 2px rgba(0, 0, 0, 0.06)',
             divider: isDark ? 'rgba(80, 80, 80, 0.5)' : 'rgba(0, 0, 0, 0.08)',
-            
+
             // Workspace/Monitor cards
-            workspaceCardBg: isDark ? 
-                'linear-gradient(135deg, #2d3748 0%, #1a202c 100%)' : 
+            workspaceCardBg: isDark ?
+                'linear-gradient(135deg, #2d3748 0%, #1a202c 100%)' :
                 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
-            workspaceCardBgActive: isDark ? 
-                'linear-gradient(135deg, #1e3a5f 0%, #0f2847 100%)' : 
+            workspaceCardBgActive: isDark ?
+                'linear-gradient(135deg, #1e3a5f 0%, #0f2847 100%)' :
                 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
-            monitorCardBg: isDark ? 
-                'linear-gradient(135deg, #2d3748 0%, #1a202c 100%)' : 
+            monitorCardBg: isDark ?
+                'linear-gradient(135deg, #2d3748 0%, #1a202c 100%)' :
                 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
-            
+
             // Monitor icon
-            monitorIconBg: isDark ? 
-                'linear-gradient(135deg, #1a202c 0%, #0f1419 100%)' : 
+            monitorIconBg: isDark ?
+                'linear-gradient(135deg, #1a202c 0%, #0f1419 100%)' :
                 'linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%)',
             monitorIconBorder: isDark ? '#6b7280' : '#9ca3af',
-            
+
             // Text
             textPrimary: isDark ? '#ffffff' : '#1a1a1a',
             textSecondary: isDark ? '#e0e0e0' : '#4a4a4a',
             textMuted: isDark ? '#9ca3af' : '#6b7280',
-            
+
             // Borders
             border: isDark ? '#404040' : '#d0d0d0',
             borderLight: isDark ? '#4a5568' : '#e5e7eb',
             borderTransparent: 'transparent',
-            
+
             // Buttons (neutral/cancel buttons)
             buttonBg: isDark ? 'rgba(80, 80, 80, 0.9)' : 'rgba(200, 200, 200, 0.95)',
             buttonBgHover: isDark ? 'rgba(100, 100, 100, 0.9)' : 'rgba(170, 170, 170, 0.95)',
             buttonText: isDark ? 'white' : '#1a1a1a',
-            
+
             // Menu
             menuBg: isDark ? '#353535' : '#f9fafb',
             menuBorder: isDark ? '#505050' : '#d1d5db',
             menuItemBg: 'transparent',
             menuItemBgHover: isDark ? '#3d3d3d' : '#f3f4f6',
             menuItemBgActive: isDark ? '#2d4a5a' : '#dbeafe',
-            
+
             // Empty state
             emptyStateBg: isDark ? 'rgba(60, 60, 60, 0.3)' : 'rgba(243, 244, 246, 0.5)',
             emptyStateBorder: isDark ? '#666' : '#d1d5db',
-            
+
             // Accent color (system-aware)
             accent: accent,
             accentHex: accentHex,
-            
+
             // Accent color helper - generates RGBA with custom alpha
             accentRGBA: (alpha) => {
                 return `rgba(${Math.round(accent.red * 255)}, ${Math.round(accent.green * 255)}, ${Math.round(accent.blue * 255)}, ${alpha})`;
             },
-            
+
             // Accent hover (slightly brighter)
             accentHexHover: this._rgbToHex(
                 Math.min(1, accent.red * 1.15),
                 Math.min(1, accent.green * 1.15),
-                Math.min(1, accent.blue * 1.15)
+                Math.min(1, accent.blue * 1.15),
             ),
-            
+
             // Zone preview colors
-            zoneFill: isDark ? 
-                this._rgbaWithAlpha(accent, 0.3) : 
+            zoneFill: isDark ?
+                this._rgbaWithAlpha(accent, 0.3) :
                 this._rgbaWithAlpha(accent, 0.2),
             zoneBorder: accentHex,
-            
+
             // Zone preview grey fill (accent color only for grid lines)
             zoneFillGrey: isDark ? 'rgba(128, 128, 128, 0.35)' : 'rgba(100, 100, 100, 0.25)',
-            
+
             // Canvas/drawing area background
-            canvasBg: isDark ? '#1a1a1a' : '#f5f5f5'
+            canvasBg: isDark ? '#1a1a1a' : '#f5f5f5',
         };
     }
 
@@ -183,7 +183,7 @@ export class ThemeManager {
             logger.debug('User theme preference changed');
             callback();
         });
-        
+
         // Listen to GNOME system theme changes (only matters if user pref is 'system')
         const systemId = this._interfaceSettings.connect('changed::color-scheme', () => {
             const userPref = this._settings.get_string('ui-theme');
@@ -192,8 +192,8 @@ export class ThemeManager {
                 callback();
             }
         });
-        
-        return { userPrefId, systemId };
+
+        return {userPrefId, systemId};
     }
 
     /**
@@ -227,7 +227,7 @@ export class ThemeManager {
                 'red': {red: 0.88, green: 0.29, blue: 0.29},
                 'pink': {red: 0.90, green: 0.39, blue: 0.64},
                 'purple': {red: 0.60, green: 0.41, blue: 0.82},
-                'slate': {red: 0.45, green: 0.52, blue: 0.60}
+                'slate': {red: 0.45, green: 0.52, blue: 0.60},
             };
 
             return accentColors[accentColorName] || accentColors['blue'];

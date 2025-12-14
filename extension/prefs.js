@@ -1,6 +1,6 @@
 /**
  * Preferences for Zoned extension
- * 
+ *
  * This file provides the preferences UI shown in GNOME Extensions app.
  * Includes editable keyboard shortcuts with capture functionality.
  */
@@ -12,7 +12,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 
-import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 // Simple logging for prefs (console.log goes to journalctl)
 function log(msg) {
@@ -102,7 +102,7 @@ function acceleratorToLabel(accelerator) {
 
     // Build modifier string (keyboard order: Shift, Ctrl, Super, Alt)
     const parts = [];
-    
+
     if (mods & Gdk.ModifierType.SHIFT_MASK) parts.push('Shift');
     if (mods & Gdk.ModifierType.CONTROL_MASK) parts.push('Ctrl');
     if (mods & Gdk.ModifierType.SUPER_MASK) parts.push('Super');
@@ -110,7 +110,7 @@ function acceleratorToLabel(accelerator) {
 
     // Get key name
     let keyName = Gdk.keyval_name(keyval);
-    
+
     // Prettify common key names
     const keyNameMap = {
         'Left': '←',
@@ -130,7 +130,7 @@ function acceleratorToLabel(accelerator) {
         'Page_Up': 'Page Up',
         'Page_Down': 'Page Down',
     };
-    
+
     keyName = keyNameMap[keyName] || keyName;
     parts.push(keyName);
 
@@ -144,18 +144,18 @@ function acceleratorToLabel(accelerator) {
  */
 function parseAccelerator(accelerator) {
     if (!accelerator) return null;
-    
+
     try {
         const result = Gtk.accelerator_parse(accelerator);
         if (Array.isArray(result)) {
             if (result.length === 3) {
                 const [success, keyval, mods] = result;
                 if (!success || keyval === 0) return null;
-                return { keyval, mods };
+                return {keyval, mods};
             } else if (result.length === 2) {
                 const [keyval, mods] = result;
                 if (keyval === 0) return null;
-                return { keyval, mods };
+                return {keyval, mods};
             }
         }
     } catch (e) {
@@ -172,24 +172,24 @@ const KEY_ALIASES = {
     // The backtick/grave key (left of 1 on US keyboards)
     'Above_Tab': 'grave',      // GNOME uses Above_Tab, GTK uses grave
     'quoteleft': 'grave',      // Another alias for the same key
-    
+
     // Enter key
     'KP_Enter': 'Return',      // Keypad enter
-    
+
     // Tab variants
     'ISO_Left_Tab': 'Tab',     // Shift+Tab generates this
-    
+
     // Page navigation (some systems use Prior/Next)
     'Prior': 'Page_Up',
     'Next': 'Page_Down',
-    
+
     // Numpad operators
     'KP_Add': 'plus',
     'KP_Subtract': 'minus',
     'KP_Multiply': 'asterisk',
     'KP_Divide': 'slash',
     'KP_Decimal': 'period',
-    
+
     // Numpad numbers (map to regular numbers)
     'KP_0': '0',
     'KP_1': '1',
@@ -210,7 +210,7 @@ const KEY_ALIASES = {
  */
 function normalizeAccelerator(accel) {
     if (!accel) return accel;
-    
+
     let normalized = accel;
     for (const [alias, canonical] of Object.entries(KEY_ALIASES)) {
         // Replace the alias with the canonical name (case-insensitive for the key part)
@@ -237,12 +237,12 @@ function acceleratorsMatch(accel1, accel2) {
     // Normalize both accelerators to use canonical key names
     const norm1 = normalizeAccelerator(accel1);
     const norm2 = normalizeAccelerator(accel2);
-    
+
     log(`acceleratorsMatch: comparing '${accel1}' (→'${norm1}') with '${accel2}' (→'${norm2}')`);
-    
+
     const parsed1 = parseAccelerator(norm1);
     const parsed2 = parseAccelerator(norm2);
-    
+
     if (!parsed1) {
         log(`  Failed to parse accel1: ${norm1}`);
         return false;
@@ -251,12 +251,12 @@ function acceleratorsMatch(accel1, accel2) {
         log(`  Failed to parse accel2: ${norm2}`);
         return false;
     }
-    
+
     const match = parsed1.keyval === parsed2.keyval && parsed1.mods === parsed2.mods;
     log(`  parsed1: keyval=${parsed1.keyval}, mods=${parsed1.mods}`);
     log(`  parsed2: keyval=${parsed2.keyval}, mods=${parsed2.mods}`);
     log(`  match: ${match}`);
-    
+
     return match;
 }
 
@@ -268,38 +268,38 @@ function acceleratorsMatch(accel1, accel2) {
  */
 function checkConflicts(accelerator, currentKey) {
     if (!accelerator) return null;
-    
+
     // Known GNOME keybindings that might conflict
     const gnomeBindings = [
         // Window tiling (mutter)
-        { schema: 'org.gnome.mutter.keybindings', key: 'toggle-tiled-left', name: 'Tile window left' },
-        { schema: 'org.gnome.mutter.keybindings', key: 'toggle-tiled-right', name: 'Tile window right' },
+        {schema: 'org.gnome.mutter.keybindings', key: 'toggle-tiled-left', name: 'Tile window left'},
+        {schema: 'org.gnome.mutter.keybindings', key: 'toggle-tiled-right', name: 'Tile window right'},
         // Window management (org.gnome.desktop.wm.keybindings)
-        { schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-group', name: 'Switch windows of app' },
-        { schema: 'org.gnome.desktop.wm.keybindings', key: 'maximize', name: 'Maximize window' },
-        { schema: 'org.gnome.desktop.wm.keybindings', key: 'unmaximize', name: 'Restore window' },  // Super+Down on GNOME
-        { schema: 'org.gnome.desktop.wm.keybindings', key: 'minimize', name: 'Minimize window' },
+        {schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-group', name: 'Switch windows of app'},
+        {schema: 'org.gnome.desktop.wm.keybindings', key: 'maximize', name: 'Maximize window'},
+        {schema: 'org.gnome.desktop.wm.keybindings', key: 'unmaximize', name: 'Restore window'},  // Super+Down on GNOME
+        {schema: 'org.gnome.desktop.wm.keybindings', key: 'minimize', name: 'Minimize window'},
         // Workspace switching (Ubuntu uses Super+Alt+Arrow by default)
-        { schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-left', name: 'Switch to workspace left' },
-        { schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-right', name: 'Switch to workspace right' },
-        { schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-up', name: 'Switch to workspace up' },
-        { schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-down', name: 'Switch to workspace down' },
+        {schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-left', name: 'Switch to workspace left'},
+        {schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-right', name: 'Switch to workspace right'},
+        {schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-up', name: 'Switch to workspace up'},
+        {schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-down', name: 'Switch to workspace down'},
         // Move window to workspace
-        { schema: 'org.gnome.desktop.wm.keybindings', key: 'move-to-workspace-left', name: 'Move window to workspace left' },
-        { schema: 'org.gnome.desktop.wm.keybindings', key: 'move-to-workspace-right', name: 'Move window to workspace right' },
+        {schema: 'org.gnome.desktop.wm.keybindings', key: 'move-to-workspace-left', name: 'Move window to workspace left'},
+        {schema: 'org.gnome.desktop.wm.keybindings', key: 'move-to-workspace-right', name: 'Move window to workspace right'},
         // Tiling Assistant extension (Ubuntu 24+ default)
-        { schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-left-half', name: 'Tiling Assistant: Tile left' },
-        { schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-right-half', name: 'Tiling Assistant: Tile right' },
-        { schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-maximize', name: 'Tiling Assistant: Maximize' },
-        { schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-bottomhalf', name: 'Tiling Assistant: Tile bottom' },
-        { schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-tophalf', name: 'Tiling Assistant: Tile top' },
+        {schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-left-half', name: 'Tiling Assistant: Tile left'},
+        {schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-right-half', name: 'Tiling Assistant: Tile right'},
+        {schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-maximize', name: 'Tiling Assistant: Maximize'},
+        {schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-bottomhalf', name: 'Tiling Assistant: Tile bottom'},
+        {schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-tophalf', name: 'Tiling Assistant: Tile top'},
     ];
 
     for (const gnome of gnomeBindings) {
         try {
-            const schema = new Gio.Settings({ schema: gnome.schema });
+            const schema = new Gio.Settings({schema: gnome.schema});
             const bindings = schema.get_strv(gnome.key);
-            
+
             for (const binding of bindings) {
                 // Use parsed comparison instead of string comparison
                 if (binding && acceleratorsMatch(accelerator, binding)) {
@@ -337,18 +337,18 @@ const ShortcutCaptureRow = GObject.registerClass({
      * @param {string} params.defaultAccelerator - Default accelerator value
      */
     _init(params) {
-        const { title, subtitle, settings, settingsKey, defaultAccelerator, ...rest } = params;
-        
+        const {title, subtitle, settings, settingsKey, defaultAccelerator, ...rest} = params;
+
         super._init(rest);
-        
+
         this._settings = settings;
         this._settingsKey = settingsKey;
         this._defaultAccelerator = defaultAccelerator;
         this._isCapturing = false;
         this._currentKeyval = 0; // Currently selected key (unshifted)
-        
+
         log(`ShortcutCaptureRow._init for key: ${settingsKey}`);
-        
+
         // Main content box (vertical)
         const mainBox = new Gtk.Box({
             orientation: Gtk.Orientation.VERTICAL,
@@ -358,13 +358,13 @@ const ShortcutCaptureRow = GObject.registerClass({
             margin_start: 12,
             margin_end: 12,
         });
-        
+
         // Header row: Title + reset button + warning
         const headerBox = new Gtk.Box({
             orientation: Gtk.Orientation.HORIZONTAL,
             spacing: 8,
         });
-        
+
         // Title label
         const titleLabel = new Gtk.Label({
             label: title,
@@ -373,7 +373,7 @@ const ShortcutCaptureRow = GObject.registerClass({
         });
         titleLabel.add_css_class('title');
         headerBox.append(titleLabel);
-        
+
         // Conflict warning button (hidden by default) - clickable to fix
         this._warningButton = new Gtk.Button({
             icon_name: 'dialog-warning-symbolic',
@@ -387,10 +387,10 @@ const ShortcutCaptureRow = GObject.registerClass({
             this._showConflictDialog();
         });
         headerBox.append(this._warningButton);
-        
+
         // Store conflict info for dialog
         this._currentConflict = null;
-        
+
         // Reset button (undo icon)
         this._resetButton = new Gtk.Button({
             icon_name: 'edit-undo-symbolic',
@@ -402,36 +402,36 @@ const ShortcutCaptureRow = GObject.registerClass({
             this._resetToDefault();
         });
         headerBox.append(this._resetButton);
-        
+
         mainBox.append(headerBox);
-        
+
         // Controls row: Modifier checkboxes + Record Key button
         const controlsBox = new Gtk.Box({
             orientation: Gtk.Orientation.HORIZONTAL,
             spacing: 12,
         });
-        
+
         // Modifier checkboxes (keyboard order: Shift, Ctrl, Super, Alt)
-        this._shiftCheck = new Gtk.CheckButton({ label: 'Shift' });
-        this._ctrlCheck = new Gtk.CheckButton({ label: 'Ctrl' });
-        this._superCheck = new Gtk.CheckButton({ label: 'Super' });
-        this._altCheck = new Gtk.CheckButton({ label: 'Alt' });
-        
+        this._shiftCheck = new Gtk.CheckButton({label: 'Shift'});
+        this._ctrlCheck = new Gtk.CheckButton({label: 'Ctrl'});
+        this._superCheck = new Gtk.CheckButton({label: 'Super'});
+        this._altCheck = new Gtk.CheckButton({label: 'Alt'});
+
         // Connect checkbox changes to update accelerator
         this._shiftCheck.connect('toggled', () => this._onModifierChanged());
         this._ctrlCheck.connect('toggled', () => this._onModifierChanged());
         this._superCheck.connect('toggled', () => this._onModifierChanged());
         this._altCheck.connect('toggled', () => this._onModifierChanged());
-        
+
         controlsBox.append(this._shiftCheck);
         controlsBox.append(this._ctrlCheck);
         controlsBox.append(this._superCheck);
         controlsBox.append(this._altCheck);
-        
+
         // Spacer
-        const spacer = new Gtk.Box({ hexpand: true });
+        const spacer = new Gtk.Box({hexpand: true});
         controlsBox.append(spacer);
-        
+
         // Record Key button
         this._recordButton = new Gtk.Button({
             label: 'Record Key',
@@ -442,44 +442,44 @@ const ShortcutCaptureRow = GObject.registerClass({
             this._startCapture();
         });
         controlsBox.append(this._recordButton);
-        
+
         mainBox.append(controlsBox);
-        
+
         // Current shortcut display row
         const displayBox = new Gtk.Box({
             orientation: Gtk.Orientation.HORIZONTAL,
             spacing: 8,
         });
-        
+
         const currentLabel = new Gtk.Label({
             label: 'Current:',
             xalign: 0,
         });
         currentLabel.add_css_class('dim-label');
         displayBox.append(currentLabel);
-        
+
         this._shortcutLabel = new Gtk.Label({
             xalign: 0,
             hexpand: true,
         });
         this._shortcutLabel.add_css_class('shortcut-text');
         displayBox.append(this._shortcutLabel);
-        
+
         mainBox.append(displayBox);
-        
+
         // Conflict warning row (shown when there's a conflict)
         this._conflictBox = new Gtk.Box({
             orientation: Gtk.Orientation.HORIZONTAL,
             spacing: 8,
             visible: false,
         });
-        
+
         const conflictIcon = new Gtk.Image({
             icon_name: 'dialog-warning-symbolic',
         });
         conflictIcon.add_css_class('warning');
         this._conflictBox.append(conflictIcon);
-        
+
         this._conflictLabel = new Gtk.Label({
             xalign: 0,
             hexpand: true,
@@ -487,9 +487,9 @@ const ShortcutCaptureRow = GObject.registerClass({
         });
         this._conflictLabel.add_css_class('warning');
         this._conflictBox.append(this._conflictLabel);
-        
+
         mainBox.append(this._conflictBox);
-        
+
         // Subtitle/description label
         const subtitleLabel = new Gtk.Label({
             label: subtitle,
@@ -501,9 +501,9 @@ const ShortcutCaptureRow = GObject.registerClass({
         subtitleLabel.add_css_class('dim-label');
         subtitleLabel.add_css_class('caption');
         mainBox.append(subtitleLabel);
-        
+
         this.set_child(mainBox);
-        
+
         // Event controller for key capture - attach to the record button
         this._keyController = new Gtk.EventControllerKey();
         this._keyController.connect('key-pressed', (ctrl, keyval, keycode, state) => {
@@ -515,9 +515,9 @@ const ShortcutCaptureRow = GObject.registerClass({
             return this._onKeyPressed(keyval, keycode, state);
         });
         this._recordButton.add_controller(this._keyController);
-        
+
         log(`Key controller attached to record button for ${settingsKey}`);
-        
+
         // Focus controller to handle blur during capture
         this._focusController = new Gtk.EventControllerFocus();
         this._focusController.connect('leave', () => {
@@ -527,25 +527,25 @@ const ShortcutCaptureRow = GObject.registerClass({
             }
         });
         this._recordButton.add_controller(this._focusController);
-        
+
         // Initial update from settings
         this._loadFromSettings();
-        
+
         // Listen for settings changes
         this._settingsChangedId = this._settings.connect(`changed::${this._settingsKey}`, () => {
             log(`Settings changed for ${this._settingsKey}`);
             this._loadFromSettings();
         });
-        
+
         // Listen for conflict count changes (reverse sync from panel menu "Fix All")
         this._conflictCountChangedId = this._settings.connect('changed::keybinding-conflict-count', () => {
             log(`Conflict count changed externally for ${this._settingsKey}, refreshing display`);
             this._updateDisplay();
         });
-        
+
         log(`ShortcutCaptureRow initialized for ${settingsKey}`);
     }
-    
+
     /**
      * Get current accelerator from settings
      */
@@ -555,7 +555,7 @@ const ShortcutCaptureRow = GObject.registerClass({
         log(`_getCurrentAccelerator(${this._settingsKey}): ${current || '(empty)'}`);
         return current;
     }
-    
+
     /**
      * Save accelerator to settings
      */
@@ -567,14 +567,14 @@ const ShortcutCaptureRow = GObject.registerClass({
             this._settings.set_strv(this._settingsKey, []);
         }
     }
-    
+
     /**
      * Load current accelerator from settings and update checkboxes/key
      */
     _loadFromSettings() {
         const accelerator = this._getCurrentAccelerator();
         log(`_loadFromSettings(${this._settingsKey}): ${accelerator || '(empty)'}`);
-        
+
         if (!accelerator) {
             // Clear everything
             this._superCheck.set_active(false);
@@ -585,7 +585,7 @@ const ShortcutCaptureRow = GObject.registerClass({
             this._updateDisplay();
             return;
         }
-        
+
         // Parse the accelerator
         let keyval, mods;
         try {
@@ -611,7 +611,7 @@ const ShortcutCaptureRow = GObject.registerClass({
             log(`Error parsing accelerator '${accelerator}': ${e.message}`);
             return;
         }
-        
+
         // Set checkbox states based on modifiers (suppress change handler)
         this._loadingFromSettings = true;
         this._superCheck.set_active((mods & Gdk.ModifierType.SUPER_MASK) !== 0);
@@ -619,24 +619,24 @@ const ShortcutCaptureRow = GObject.registerClass({
         this._altCheck.set_active((mods & Gdk.ModifierType.ALT_MASK) !== 0);
         this._shiftCheck.set_active((mods & Gdk.ModifierType.SHIFT_MASK) !== 0);
         this._loadingFromSettings = false;
-        
+
         // Store the key
         this._currentKeyval = keyval;
-        
+
         this._updateDisplay();
     }
-    
+
     /**
      * Handle modifier checkbox change - rebuild and save accelerator
      */
     _onModifierChanged() {
         // Don't rebuild during initial load
         if (this._loadingFromSettings) return;
-        
+
         log(`_onModifierChanged for ${this._settingsKey}`);
         this._buildAndSaveAccelerator();
     }
-    
+
     /**
      * Build accelerator from checkbox states and current key, then save
      */
@@ -648,31 +648,31 @@ const ShortcutCaptureRow = GObject.registerClass({
             this._updateDisplay();
             return;
         }
-        
+
         // Build modifier mask from checkboxes
         let mods = 0;
         if (this._superCheck.get_active()) mods |= Gdk.ModifierType.SUPER_MASK;
         if (this._ctrlCheck.get_active()) mods |= Gdk.ModifierType.CONTROL_MASK;
         if (this._altCheck.get_active()) mods |= Gdk.ModifierType.ALT_MASK;
         if (this._shiftCheck.get_active()) mods |= Gdk.ModifierType.SHIFT_MASK;
-        
+
         // Build accelerator string
         const accelerator = Gtk.accelerator_name(this._currentKeyval, mods);
         log(`Built accelerator from checkboxes: ${accelerator}`);
-        
+
         this._setAccelerator(accelerator);
         this._updateDisplay();
     }
-    
+
     /**
      * Update the display labels and conflict indicators
      */
     _updateDisplay() {
         const current = this._getCurrentAccelerator();
         const label = acceleratorToLabel(current);
-        
+
         log(`_updateDisplay(${this._settingsKey}): capturing=${this._isCapturing}, label=${label}`);
-        
+
         if (this._isCapturing) {
             this._recordButton.set_label('Press key...');
             this._recordButton.add_css_class('suggested-action');
@@ -691,12 +691,12 @@ const ShortcutCaptureRow = GObject.registerClass({
             this._shortcutLabel.set_label(label);
             this._shortcutLabel.remove_css_class('capturing');
         }
-        
+
         // Show/hide reset button based on whether it's the default
         const isDefault = current === this._defaultAccelerator;
         this._resetButton.visible = !isDefault;
         log(`Reset button visible: ${!isDefault}`);
-        
+
         // Check for conflicts and show inline warning
         const conflict = checkConflicts(current, this._settingsKey);
         if (conflict) {
@@ -712,7 +712,7 @@ const ShortcutCaptureRow = GObject.registerClass({
             this._conflictBox.visible = false;
         }
     }
-    
+
     /**
      * Prettify key name for display
      */
@@ -737,7 +737,7 @@ const ShortcutCaptureRow = GObject.registerClass({
         };
         return keyNameMap[keyName] || keyName;
     }
-    
+
     /**
      * Start capturing keyboard input (key only, not modifiers)
      */
@@ -746,16 +746,16 @@ const ShortcutCaptureRow = GObject.registerClass({
             log(`Already capturing for ${this._settingsKey}`);
             return;
         }
-        
+
         log(`>>> Starting capture for ${this._settingsKey}`);
         this._isCapturing = true;
         this._updateDisplay();
-        
+
         // Grab focus to receive key events
         const grabbed = this._recordButton.grab_focus();
         log(`Focus grabbed: ${grabbed}`);
     }
-    
+
     /**
      * Stop capturing keyboard input
      */
@@ -764,21 +764,21 @@ const ShortcutCaptureRow = GObject.registerClass({
         this._isCapturing = false;
         this._updateDisplay();
     }
-    
+
     /**
      * Handle key press during capture - only captures non-modifier keys
      * Uses keycode to get the base (unshifted) key
      */
     _onKeyPressed(keyval, keycode, state) {
         log(`_onKeyPressed: keyval=${keyval} (${Gdk.keyval_name(keyval)}), keycode=${keycode}, state=${state}`);
-        
+
         // Handle special keys
         if (keyval === Gdk.KEY_Escape) {
             log('Escape pressed - canceling');
             this._stopCapture();
             return true; // Gdk.EVENT_STOP
         }
-        
+
         if (keyval === Gdk.KEY_BackSpace) {
             log('Backspace pressed - clearing key');
             this._currentKeyval = 0;
@@ -786,13 +786,13 @@ const ShortcutCaptureRow = GObject.registerClass({
             this._stopCapture();
             return true;
         }
-        
+
         // Ignore modifier-only key presses
         if (this._isModifierKey(keyval)) {
             log('Modifier key pressed - ignoring');
             return true;
         }
-        
+
         // Get the base (unshifted) keyval using keycode
         // This handles grave vs asciitilde, 1 vs !, etc.
         let baseKeyval = keyval;
@@ -807,17 +807,17 @@ const ShortcutCaptureRow = GObject.registerClass({
         } catch (e) {
             log(`Could not translate keycode, using original keyval: ${e.message}`);
         }
-        
+
         // Store the base key
         this._currentKeyval = baseKeyval;
         log(`Captured key: ${Gdk.keyval_name(baseKeyval)}`);
-        
+
         // Build and save the accelerator with current checkbox states
         this._buildAndSaveAccelerator();
         this._stopCapture();
         return true;
     }
-    
+
     /**
      * Check if keyval is a modifier key
      */
@@ -833,7 +833,7 @@ const ShortcutCaptureRow = GObject.registerClass({
         ];
         return modifierKeys.includes(keyval);
     }
-    
+
     /**
      * Reset to default value
      */
@@ -841,7 +841,7 @@ const ShortcutCaptureRow = GObject.registerClass({
         log(`Resetting ${this._settingsKey} to default: ${this._defaultAccelerator}`);
         this._setAccelerator(this._defaultAccelerator);
     }
-    
+
     /**
      * Show conflict resolution dialog
      */
@@ -850,50 +850,50 @@ const ShortcutCaptureRow = GObject.registerClass({
             log('No conflict to show');
             return;
         }
-        
+
         const conflict = this._currentConflict;
         log(`Showing conflict dialog for: ${conflict.name}`);
-        
+
         // Get toplevel window for dialog parent
         const root = this.get_root();
-        
+
         // Create alert dialog
         const dialog = new Adw.AlertDialog({
             heading: 'Keyboard Shortcut Conflict',
             body: `This shortcut conflicts with:\n\n<b>${conflict.name}</b>\n\nDisabling the GNOME shortcut will allow Zoned to use this key combination.`,
             body_use_markup: true,
         });
-        
+
         dialog.add_response('cancel', 'Cancel');
         dialog.add_response('fix', 'Disable GNOME Shortcut');
         dialog.set_response_appearance('fix', Adw.ResponseAppearance.SUGGESTED);
         dialog.set_default_response('fix');
-        
+
         dialog.connect('response', (dlg, response) => {
             if (response === 'fix') {
                 this._fixConflict(conflict);
             }
         });
-        
+
         dialog.present(root);
     }
-    
+
     /**
      * Fix a single conflict by disabling the GNOME shortcut
      * @param {Object} conflict - Conflict info object
      */
     _fixConflict(conflict) {
         log(`Fixing conflict: disabling ${conflict.schema}:${conflict.key}`);
-        
+
         try {
-            const schema = new Gio.Settings({ schema: conflict.schema });
+            const schema = new Gio.Settings({schema: conflict.schema});
             schema.set_strv(conflict.key, []);
-            
+
             log(`Successfully disabled ${conflict.name}`);
-            
+
             // Update display to reflect resolved conflict
             this._updateDisplay();
-            
+
             // Signal to extension that conflicts changed (trigger panel update)
             // Use small delay to ensure GSettings write is complete
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
@@ -904,7 +904,7 @@ const ShortcutCaptureRow = GObject.registerClass({
             log(`Error fixing conflict: ${e.message}`);
         }
     }
-    
+
     /**
      * Signal to extension that conflict state has changed
      * Updates keybinding-conflict-count to trigger panel refresh
@@ -912,14 +912,14 @@ const ShortcutCaptureRow = GObject.registerClass({
     _signalConflictChange() {
         // Count current conflicts across all bindings
         let conflictCount = 0;
-        
+
         for (const binding of KEYBINDINGS) {
             const values = this._settings.get_strv(binding.key);
             if (values.length > 0 && checkConflicts(values[0], binding.key)) {
                 conflictCount++;
             }
         }
-        
+
         // Also check enhanced bindings if enabled
         if (this._settings.get_boolean('enhanced-window-management-enabled')) {
             for (const binding of ENHANCED_KEYBINDINGS) {
@@ -929,11 +929,11 @@ const ShortcutCaptureRow = GObject.registerClass({
                 }
             }
         }
-        
+
         log(`Signaling conflict count change: ${conflictCount}`);
         this._settings.set_int('keybinding-conflict-count', conflictCount);
     }
-    
+
     /**
      * Clean up
      */
@@ -959,7 +959,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
      */
     _createQuickLayoutRow(settings) {
         const row = new Adw.PreferencesRow();
-        
+
         // Main content box (vertical)
         const mainBox = new Gtk.Box({
             orientation: Gtk.Orientation.VERTICAL,
@@ -969,13 +969,13 @@ export default class ZonedPreferences extends ExtensionPreferences {
             margin_start: 12,
             margin_end: 12,
         });
-        
+
         // Header row: Title + reset button
         const headerBox = new Gtk.Box({
             orientation: Gtk.Orientation.HORIZONTAL,
             spacing: 8,
         });
-        
+
         const titleLabel = new Gtk.Label({
             label: 'Quick Layout Switch',
             xalign: 0,
@@ -983,7 +983,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
         });
         titleLabel.add_css_class('title');
         headerBox.append(titleLabel);
-        
+
         // Reset button
         const resetButton = new Gtk.Button({
             icon_name: 'edit-undo-symbolic',
@@ -992,30 +992,30 @@ export default class ZonedPreferences extends ExtensionPreferences {
         });
         resetButton.add_css_class('flat');
         headerBox.append(resetButton);
-        
+
         mainBox.append(headerBox);
-        
+
         // Controls row: Modifier checkboxes + static "1-9" button
         const controlsBox = new Gtk.Box({
             orientation: Gtk.Orientation.HORIZONTAL,
             spacing: 12,
         });
-        
+
         // Modifier checkboxes (keyboard order: Shift, Ctrl, Super, Alt)
-        const shiftCheck = new Gtk.CheckButton({ label: 'Shift' });
-        const ctrlCheck = new Gtk.CheckButton({ label: 'Ctrl' });
-        const superCheck = new Gtk.CheckButton({ label: 'Super' });
-        const altCheck = new Gtk.CheckButton({ label: 'Alt' });
-        
+        const shiftCheck = new Gtk.CheckButton({label: 'Shift'});
+        const ctrlCheck = new Gtk.CheckButton({label: 'Ctrl'});
+        const superCheck = new Gtk.CheckButton({label: 'Super'});
+        const altCheck = new Gtk.CheckButton({label: 'Alt'});
+
         controlsBox.append(shiftCheck);
         controlsBox.append(ctrlCheck);
         controlsBox.append(superCheck);
         controlsBox.append(altCheck);
-        
+
         // Spacer
-        const spacer = new Gtk.Box({ hexpand: true });
+        const spacer = new Gtk.Box({hexpand: true});
         controlsBox.append(spacer);
-        
+
         // Static "1-9" button (looks like a button but is not interactive)
         const keyLabel = new Gtk.Label({
             label: '1-9',
@@ -1029,31 +1029,31 @@ export default class ZonedPreferences extends ExtensionPreferences {
         keyLabel.set_margin_top(4);
         keyLabel.set_margin_bottom(4);
         controlsBox.append(keyFrame);
-        
+
         mainBox.append(controlsBox);
-        
+
         // Current shortcut display row
         const displayBox = new Gtk.Box({
             orientation: Gtk.Orientation.HORIZONTAL,
             spacing: 8,
         });
-        
+
         const currentLabel = new Gtk.Label({
             label: 'Current:',
             xalign: 0,
         });
         currentLabel.add_css_class('dim-label');
         displayBox.append(currentLabel);
-        
+
         const shortcutLabel = new Gtk.Label({
             xalign: 0,
             hexpand: true,
         });
         shortcutLabel.add_css_class('shortcut-text');
         displayBox.append(shortcutLabel);
-        
+
         mainBox.append(displayBox);
-        
+
         // Subtitle/description label
         const subtitleLabel = new Gtk.Label({
             label: 'Switch to layout by position (1-9 for first 9 layouts)',
@@ -1065,12 +1065,12 @@ export default class ZonedPreferences extends ExtensionPreferences {
         subtitleLabel.add_css_class('dim-label');
         subtitleLabel.add_css_class('caption');
         mainBox.append(subtitleLabel);
-        
+
         row.set_child(mainBox);
-        
+
         // Default modifiers: Ctrl + Super + Alt
         const DEFAULT_MODIFIERS = '<Control><Super><Alt>';
-        
+
         // Helper to build modifier string from checkboxes
         const buildModifierPrefix = () => {
             const parts = [];
@@ -1080,7 +1080,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
             if (altCheck.get_active()) parts.push('<Alt>');
             return parts.join('');
         };
-        
+
         // Helper to build display label
         const buildDisplayLabel = () => {
             const parts = [];
@@ -1094,14 +1094,14 @@ export default class ZonedPreferences extends ExtensionPreferences {
             parts.push('1-9');
             return parts.join(' + ');
         };
-        
+
         // Update display and show/hide reset button
         const updateDisplay = () => {
             shortcutLabel.set_label(buildDisplayLabel());
             const currentPrefix = buildModifierPrefix();
             resetButton.visible = currentPrefix !== DEFAULT_MODIFIERS;
         };
-        
+
         // Save all quick-layout-N shortcuts with current modifiers
         const saveQuickLayoutShortcuts = () => {
             const prefix = buildModifierPrefix();
@@ -1111,12 +1111,12 @@ export default class ZonedPreferences extends ExtensionPreferences {
             }
             updateDisplay();
         };
-        
+
         // Load current modifiers from quick-layout-1
         const loadFromSettings = () => {
             const values = settings.get_strv('quick-layout-1');
             const accel = values.length > 0 ? values[0] : DEFAULT_MODIFIERS + '1';
-            
+
             // Parse to get modifiers
             let mods = 0;
             try {
@@ -1131,7 +1131,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
             } catch (e) {
                 log(`Error parsing quick layout accelerator: ${e.message}`);
             }
-            
+
             // Set checkbox states (suppress change handlers)
             row._loadingFromSettings = true;
             shiftCheck.set_active((mods & Gdk.ModifierType.SHIFT_MASK) !== 0);
@@ -1139,21 +1139,21 @@ export default class ZonedPreferences extends ExtensionPreferences {
             superCheck.set_active((mods & Gdk.ModifierType.SUPER_MASK) !== 0);
             altCheck.set_active((mods & Gdk.ModifierType.ALT_MASK) !== 0);
             row._loadingFromSettings = false;
-            
+
             updateDisplay();
         };
-        
+
         // Connect checkbox changes
         const onModifierChanged = () => {
             if (row._loadingFromSettings) return;
             saveQuickLayoutShortcuts();
         };
-        
+
         shiftCheck.connect('toggled', onModifierChanged);
         ctrlCheck.connect('toggled', onModifierChanged);
         superCheck.connect('toggled', onModifierChanged);
         altCheck.connect('toggled', onModifierChanged);
-        
+
         // Reset button handler
         resetButton.connect('clicked', () => {
             row._loadingFromSettings = true;
@@ -1164,18 +1164,18 @@ export default class ZonedPreferences extends ExtensionPreferences {
             row._loadingFromSettings = false;
             saveQuickLayoutShortcuts();
         });
-        
+
         // Initial load
         loadFromSettings();
-        
+
         // Listen for external changes to quick-layout-1
         settings.connect('changed::quick-layout-1', () => {
             loadFromSettings();
         });
-        
+
         return row;
     }
-    
+
     /**
      * Apply theme override to Libadwaita StyleManager
      * This ensures the preferences window honors the ui-theme setting
@@ -1183,20 +1183,20 @@ export default class ZonedPreferences extends ExtensionPreferences {
      */
     _applyTheme(themePref) {
         const styleManager = Adw.StyleManager.get_default();
-        
+
         switch (themePref) {
             case 'light':
                 styleManager.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT);
-                log(`Theme applied: FORCE_LIGHT`);
+                log('Theme applied: FORCE_LIGHT');
                 break;
             case 'dark':
                 styleManager.set_color_scheme(Adw.ColorScheme.FORCE_DARK);
-                log(`Theme applied: FORCE_DARK`);
+                log('Theme applied: FORCE_DARK');
                 break;
             case 'system':
             default:
                 styleManager.set_color_scheme(Adw.ColorScheme.DEFAULT);
-                log(`Theme applied: DEFAULT (system)`);
+                log('Theme applied: DEFAULT (system)');
                 break;
         }
     }
@@ -1207,15 +1207,15 @@ export default class ZonedPreferences extends ExtensionPreferences {
      */
     fillPreferencesWindow(window) {
         log('=== fillPreferencesWindow called ===');
-        
+
         // Get settings first
         const settings = this.getSettings();
         log('Settings object obtained');
-        
+
         // Apply current theme setting to the preferences window
         const currentThemePref = settings.get_string('ui-theme');
         this._applyTheme(currentThemePref);
-        
+
         // Add CSS provider for custom styling
         const cssProvider = new Gtk.CssProvider();
         cssProvider.load_from_data(`
@@ -1232,10 +1232,10 @@ export default class ZonedPreferences extends ExtensionPreferences {
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(),
             cssProvider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         );
         log('CSS provider added');
-        
+
         // Create a preferences page
         const page = new Adw.PreferencesPage({
             title: 'General',
@@ -1255,23 +1255,23 @@ export default class ZonedPreferences extends ExtensionPreferences {
             title: 'UI Theme',
             subtitle: 'Color scheme for extension dialogs and UI',
         });
-        
+
         const themeModel = new Gtk.StringList();
         themeModel.splice(0, 0, ['System', 'Light', 'Dark']);
         themeRow.set_model(themeModel);
-        
+
         // Map display names to setting values
         const themeMapping = ['system', 'light', 'dark'];
         const currentTheme = settings.get_string('ui-theme');
         themeRow.set_selected(themeMapping.indexOf(currentTheme));
-        
+
         themeRow.connect('notify::selected', () => {
             const newTheme = themeMapping[themeRow.get_selected()];
             settings.set_string('ui-theme', newTheme);
             // Apply theme immediately to this preferences window
             this._applyTheme(newTheme);
         });
-        
+
         appearanceGroup.add(themeRow);
 
         // Layout Picker Size (Tier) preference
@@ -1279,20 +1279,20 @@ export default class ZonedPreferences extends ExtensionPreferences {
             title: 'Layout Picker Size',
             subtitle: 'Card and dialog size in the layout picker. Auto selects based on screen resolution.',
         });
-        
+
         const tierModel = new Gtk.StringList();
         tierModel.splice(0, 0, ['Auto', 'Tiny', 'Small', 'Medium', 'Large', 'Extra Large']);
         tierRow.set_model(tierModel);
-        
+
         // Get current tier setting (0=auto, 1=tiny, 2=small, 3=medium, 4=large, 5=xlarge)
         const currentTier = settings.get_int('option-force-tier');
         tierRow.set_selected(currentTier);
-        
+
         tierRow.connect('notify::selected', () => {
             const newTier = tierRow.get_selected();
             settings.set_int('option-force-tier', newTier);
         });
-        
+
         appearanceGroup.add(tierRow);
 
         // Create layout management group
@@ -1309,7 +1309,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
             title: 'Apply one layout to all spaces',
             subtitle: 'When enabled, layouts apply to all monitors and workspaces. When disabled, each workspace can have its own layout.',
         });
-        
+
         // Use INVERT_BOOLEAN flag so the UI switch is inverted
         // Switch ON (apply globally) = use-per-workspace-layouts FALSE
         // Switch OFF (per-space) = use-per-workspace-layouts TRUE
@@ -1317,7 +1317,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
             'use-per-workspace-layouts',
             applyGloballyRow,
             'active',
-            Gio.SettingsBindFlags.INVERT_BOOLEAN
+            Gio.SettingsBindFlags.INVERT_BOOLEAN,
         );
         group.add(applyGloballyRow);
 
@@ -1351,7 +1351,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
             kbGroup.add(row);
         }
         log('All shortcut rows created');
-        
+
         // Add Quick Layout Switch row (modifiers only, key is fixed to 1-9)
         const quickLayoutRow = this._createQuickLayoutRow(settings);
         kbGroup.add(quickLayoutRow);
@@ -1370,18 +1370,18 @@ export default class ZonedPreferences extends ExtensionPreferences {
             subtitle: 'Super+Down minimizes (press again to restore). Super+Up restores or toggles maximize.',
             show_enable_switch: true,
         });
-        
+
         // Bind the enable switch to the setting
         settings.bind(
             'enhanced-window-management-enabled',
             enhancedExpander,
             'enable-expansion',
-            Gio.SettingsBindFlags.DEFAULT
+            Gio.SettingsBindFlags.DEFAULT,
         );
-        
+
         // Set initial expanded state based on setting
         enhancedExpander.set_expanded(settings.get_boolean('enhanced-window-management-enabled'));
-        
+
         enhancedGroup.add(enhancedExpander);
 
         // Add shortcut rows inside the expander
@@ -1410,7 +1410,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
             title: 'Zoned',
             subtitle: 'Version 1.0 (Pre-release)',
         });
-        
+
         // Add GitHub link button
         const githubButton = new Gtk.LinkButton({
             label: 'GitHub',
@@ -1419,15 +1419,15 @@ export default class ZonedPreferences extends ExtensionPreferences {
         });
         aboutRow.add_suffix(githubButton);
         aboutGroup.add(aboutRow);
-        
+
         // Check if we should scroll to a specific section (set by panel menu)
         const scrollTarget = settings.get_string('prefs-scroll-target');
         if (scrollTarget) {
             log(`Scroll target requested: ${scrollTarget}`);
-            
+
             // Clear the scroll target so it doesn't persist
             settings.set_string('prefs-scroll-target', '');
-            
+
             // Scroll to the appropriate section after window is shown
             // Use a small delay to ensure the window is fully rendered
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
@@ -1444,7 +1444,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
                 return GLib.SOURCE_REMOVE;
             });
         }
-        
+
         // Watch for close request from extension (when "Fix All" is used from panel menu)
         const closeRequestSignal = settings.connect('changed::prefs-close-requested', () => {
             if (settings.get_boolean('prefs-close-requested')) {
@@ -1455,13 +1455,13 @@ export default class ZonedPreferences extends ExtensionPreferences {
                 window.close();
             }
         });
-        
+
         // Clean up signal handler when window closes
         window.connect('close-request', () => {
             settings.disconnect(closeRequestSignal);
             return false; // Allow window to close
         });
-        
+
         log('=== fillPreferencesWindow complete ===');
     }
 }

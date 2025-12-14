@@ -1,6 +1,6 @@
 /**
  * TemplateManager - Manages built-in layout templates
- * 
+ *
  * Provides pre-configured layout templates that users can apply:
  * - Halves: 50/50 split
  * - Thirds: 33/33/33 columns
@@ -8,7 +8,7 @@
  * - Focus: 70/30 main+sidebar
  */
 
-import { createLogger } from './utils/debug.js';
+import {createLogger} from './utils/debug.js';
 
 const logger = createLogger('TemplateManager');
 
@@ -23,9 +23,9 @@ const BUILTIN_TEMPLATES = {
         icon: '⫿',  // Unicode split icon
         description: '50/50 split - Left and Right',
         zones: [
-            { name: 'Left', x: 0.0, y: 0.0, w: 0.5, h: 1.0 },
-            { name: 'Right', x: 0.5, y: 0.0, w: 0.5, h: 1.0 }
-        ]
+            {name: 'Left', x: 0.0, y: 0.0, w: 0.5, h: 1.0},
+            {name: 'Right', x: 0.5, y: 0.0, w: 0.5, h: 1.0},
+        ],
     },
     thirds: {
         id: 'thirds',
@@ -33,10 +33,10 @@ const BUILTIN_TEMPLATES = {
         icon: '⫴',  // Unicode thirds icon
         description: '33/33/33 columns',
         zones: [
-            { name: 'Left', x: 0.0, y: 0.0, w: 0.333, h: 1.0 },
-            { name: 'Center', x: 0.333, y: 0.0, w: 0.334, h: 1.0 },
-            { name: 'Right', x: 0.667, y: 0.0, w: 0.333, h: 1.0 }
-        ]
+            {name: 'Left', x: 0.0, y: 0.0, w: 0.333, h: 1.0},
+            {name: 'Center', x: 0.333, y: 0.0, w: 0.334, h: 1.0},
+            {name: 'Right', x: 0.667, y: 0.0, w: 0.333, h: 1.0},
+        ],
     },
     quarters: {
         id: 'quarters',
@@ -44,11 +44,11 @@ const BUILTIN_TEMPLATES = {
         icon: '⊞',  // Unicode grid icon
         description: '2×2 grid layout',
         zones: [
-            { name: 'Top Left', x: 0.0, y: 0.0, w: 0.5, h: 0.5 },
-            { name: 'Top Right', x: 0.5, y: 0.0, w: 0.5, h: 0.5 },
-            { name: 'Bottom Left', x: 0.0, y: 0.5, w: 0.5, h: 0.5 },
-            { name: 'Bottom Right', x: 0.5, y: 0.5, w: 0.5, h: 0.5 }
-        ]
+            {name: 'Top Left', x: 0.0, y: 0.0, w: 0.5, h: 0.5},
+            {name: 'Top Right', x: 0.5, y: 0.0, w: 0.5, h: 0.5},
+            {name: 'Bottom Left', x: 0.0, y: 0.5, w: 0.5, h: 0.5},
+            {name: 'Bottom Right', x: 0.5, y: 0.5, w: 0.5, h: 0.5},
+        ],
     },
     focus: {
         id: 'focus',
@@ -56,9 +56,9 @@ const BUILTIN_TEMPLATES = {
         icon: '◧',  // Unicode focus icon
         description: '70/30 - Main work area + sidebar',
         zones: [
-            { name: 'Main', x: 0.0, y: 0.0, w: 0.7, h: 1.0 },
-            { name: 'Side', x: 0.7, y: 0.0, w: 0.3, h: 1.0 }
-        ]
+            {name: 'Main', x: 0.0, y: 0.0, w: 0.7, h: 1.0},
+            {name: 'Side', x: 0.7, y: 0.0, w: 0.3, h: 1.0},
+        ],
     },
     sixths: {
         id: 'sixths',
@@ -66,14 +66,14 @@ const BUILTIN_TEMPLATES = {
         icon: '⊡',  // Unicode grid icon
         description: '2×3 grid layout',
         zones: [
-            { name: 'Top Left', x: 0.0, y: 0.0, w: 0.333, h: 0.5 },
-            { name: 'Top Center', x: 0.333, y: 0.0, w: 0.334, h: 0.5 },
-            { name: 'Top Right', x: 0.667, y: 0.0, w: 0.333, h: 0.5 },
-            { name: 'Bottom Left', x: 0.0, y: 0.5, w: 0.333, h: 0.5 },
-            { name: 'Bottom Center', x: 0.333, y: 0.5, w: 0.334, h: 0.5 },
-            { name: 'Bottom Right', x: 0.667, y: 0.5, w: 0.333, h: 0.5 }
-        ]
-    }
+            {name: 'Top Left', x: 0.0, y: 0.0, w: 0.333, h: 0.5},
+            {name: 'Top Center', x: 0.333, y: 0.0, w: 0.334, h: 0.5},
+            {name: 'Top Right', x: 0.667, y: 0.0, w: 0.333, h: 0.5},
+            {name: 'Bottom Left', x: 0.0, y: 0.5, w: 0.333, h: 0.5},
+            {name: 'Bottom Center', x: 0.333, y: 0.5, w: 0.334, h: 0.5},
+            {name: 'Bottom Right', x: 0.667, y: 0.5, w: 0.333, h: 0.5},
+        ],
+    },
 };
 
 /**
@@ -82,7 +82,7 @@ const BUILTIN_TEMPLATES = {
  */
 export class TemplateManager {
     constructor() {
-        this._templates = { ...BUILTIN_TEMPLATES };
+        this._templates = {...BUILTIN_TEMPLATES};
         logger.info('TemplateManager initialized with 5 built-in templates');
     }
 
@@ -111,7 +111,7 @@ export class TemplateManager {
     /**
      * Create a layout from a template
      * Deep copies the template zones and assigns a unique ID
-     * 
+     *
      * @param {string} templateId - Template ID to create layout from
      * @returns {Object} New layout object with unique ID
      * @throws {Error} If template ID is invalid
@@ -125,7 +125,7 @@ export class TemplateManager {
         const layout = {
             id: `template-${templateId}`,  // Stable ID for persistence across reloads
             name: template.name,
-            zones: JSON.parse(JSON.stringify(template.zones)) // Deep copy
+            zones: JSON.parse(JSON.stringify(template.zones)), // Deep copy
         };
 
         logger.debug(`Created layout from template '${templateId}': ${layout.id}`);

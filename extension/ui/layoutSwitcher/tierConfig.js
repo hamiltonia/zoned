@@ -1,12 +1,12 @@
 /**
  * TierConfig - Resolution-based layout tier definitions
- * 
+ *
  * Provides discrete sizing tiers for the LayoutSwitcher dialog.
  * This approach eliminates interdependent percentage calculations
  * by using fixed values per tier, derived from the card size up.
- * 
+ *
  * Tier selection is based on logical pixel height (after scale factor).
- * 
+ *
  * Design constraints satisfied:
  * - 5 template cards per row
  * - 2 custom layout rows visible without cutoff (minimum 5 cards shown)
@@ -15,18 +15,18 @@
  * - Equal left/right margins
  */
 
-import { createLogger } from '../../utils/debug.js';
+import {createLogger} from '../../utils/debug.js';
 
 const logger = createLogger('TierConfig');
 
 /**
  * Tier definitions with all fixed values
- * 
+ *
  * All spacing values are pre-calculated to guarantee:
  * - 5 cards fit per row with specified gaps and margins
  * - 2 custom rows + 1 template row fit within dialog height
  * - Symmetric left/right margins
- * 
+ *
  * Section border (1px each side = 2px total) is accounted for in calculateDialogDimensions()
  */
 export const TIERS = {
@@ -49,7 +49,7 @@ export const TIERS = {
         buttonHeight: 40,
         buttonMargin: 12,
         // Workspace thumbnails (16:9 aspect ratio, scaled to fit in topBar)
-        workspaceThumb: { w: 64, h: 36 },
+        workspaceThumb: {w: 64, h: 36},
         workspaceThumbGap: 6, // Gap between workspace thumbnails
         // Border radius
         containerRadius: 8,
@@ -75,7 +75,7 @@ export const TIERS = {
         buttonHeight: 46,
         buttonMargin: 14,
         // Workspace thumbnails (16:9 aspect ratio, scaled to fit in topBar)
-        workspaceThumb: { w: 80, h: 45 },
+        workspaceThumb: {w: 80, h: 45},
         workspaceThumbGap: 8, // Gap between workspace thumbnails
         // Border radius
         containerRadius: 10,
@@ -101,7 +101,7 @@ export const TIERS = {
         buttonHeight: 50,
         buttonMargin: 16,
         // Workspace thumbnails (16:9 aspect ratio, scaled to fit in topBar)
-        workspaceThumb: { w: 96, h: 54 },
+        workspaceThumb: {w: 96, h: 54},
         workspaceThumbGap: 10, // Gap between workspace thumbnails
         // Border radius
         containerRadius: 12,
@@ -127,7 +127,7 @@ export const TIERS = {
         buttonHeight: 50,
         buttonMargin: 16,
         // Workspace thumbnails (16:9 aspect ratio, scaled to fit in topBar)
-        workspaceThumb: { w: 112, h: 63 },
+        workspaceThumb: {w: 112, h: 63},
         workspaceThumbGap: 12, // Gap between workspace thumbnails
         // Border radius
         containerRadius: 14,
@@ -153,13 +153,13 @@ export const TIERS = {
         buttonHeight: 54,
         buttonMargin: 18,
         // Workspace thumbnails (16:9 aspect ratio, scaled to fit in topBar)
-        workspaceThumb: { w: 128, h: 72 },
+        workspaceThumb: {w: 128, h: 72},
         workspaceThumbGap: 14, // Gap between workspace thumbnails
         // Border radius
         containerRadius: 16,
         sectionRadius: 14,
         cardRadius: 4,  // Reduced for more square appearance
-    }
+    },
 };
 
 // Tier names for cycling (index 0 = auto)
@@ -178,7 +178,7 @@ export function selectTier(logicalHeight, forceTier = 0) {
         logger.info(`[TIER] Forced to ${tierName}`);
         return TIERS[tierName];
     }
-    
+
     // Auto-select based on height thresholds
     // Thresholds are tuned for common resolutions at various scale factors:
     // - TINY: Very small screens or extreme scaling (e.g., 720p, 1080p@300%)
@@ -198,7 +198,7 @@ export function selectTier(logicalHeight, forceTier = 0) {
     } else {
         tier = TIERS.XLARGE;    // 4K+ at low/no scaling
     }
-    
+
     logger.info(`[TIER] Auto-selected ${tier.name} for height ${logicalHeight}px`);
     return tier;
 }
@@ -214,35 +214,35 @@ export function calculateDialogDimensions(tier) {
     const TEMPLATE_ROWS = 1;
     const CUSTOM_VISIBLE_ROWS = 2;
     const SECTION_BORDER_WIDTH = 2;  // 1px border on each side of section
-    
+
     // Row width: 5 cards + 4 gaps
     const cardsWidth = COLUMNS * tier.cardWidth;
     const gapsWidth = (COLUMNS - 1) * tier.cardGap;
     const rowWidth = cardsWidth + gapsWidth;
-    
+
     // Content width: row + left/right margins
     const contentWidth = rowWidth + (2 * tier.internalMargin);
-    
+
     // Dialog width: content + section padding (×2 sides) + section border
     const dialogWidth = contentWidth + (2 * tier.sectionPadding) + SECTION_BORDER_WIDTH;
-    
+
     // Template section height
-    const templateSectionHeight = 
-        tier.sectionHeaderHeight + 
-        tier.sectionHeaderMargin + 
-        tier.cardHeight + 
+    const templateSectionHeight =
+        tier.sectionHeaderHeight +
+        tier.sectionHeaderMargin +
+        tier.cardHeight +
         (2 * tier.sectionPadding);
-    
+
     // Custom section height (2 visible rows)
-    const customSectionHeight = 
-        tier.sectionHeaderHeight + 
-        tier.sectionHeaderMargin + 
-        (CUSTOM_VISIBLE_ROWS * tier.cardHeight) + 
-        ((CUSTOM_VISIBLE_ROWS - 1) * tier.rowGap) + 
+    const customSectionHeight =
+        tier.sectionHeaderHeight +
+        tier.sectionHeaderMargin +
+        (CUSTOM_VISIBLE_ROWS * tier.cardHeight) +
+        ((CUSTOM_VISIBLE_ROWS - 1) * tier.rowGap) +
         (2 * tier.sectionPadding);
-    
+
     // Total dialog height
-    const dialogHeight = 
+    const dialogHeight =
         tier.containerPadding +       // Top padding
         tier.topBarHeight +           // Top bar
         tier.sectionGap +             // Gap after top bar
@@ -252,7 +252,7 @@ export function calculateDialogDimensions(tier) {
         tier.buttonMargin +           // Gap before button
         tier.buttonHeight +           // Create button
         tier.containerPadding;        // Bottom padding
-    
+
     const dimensions = {
         dialogWidth,
         dialogHeight,
@@ -261,11 +261,11 @@ export function calculateDialogDimensions(tier) {
         templateSectionHeight,
         customSectionHeight,
         // Pass through tier values for easy access
-        ...tier
+        ...tier,
     };
-    
+
     logger.debug(`[TIER] ${tier.name} → Dialog: ${dialogWidth}×${dialogHeight}, Row: ${rowWidth}`);
-    
+
     return dimensions;
 }
 
@@ -278,10 +278,10 @@ export function calculateDialogDimensions(tier) {
  */
 export function validateDimensions(dims, screenWidth, screenHeight) {
     const issues = [];
-    
+
     const widthPercent = (dims.dialogWidth / screenWidth * 100).toFixed(1);
     const heightPercent = (dims.dialogHeight / screenHeight * 100).toFixed(1);
-    
+
     // Check width constraint (should be 40-70% of screen)
     if (dims.dialogWidth > screenWidth * 0.75) {
         issues.push(`Dialog too wide: ${widthPercent}% of screen`);
@@ -289,27 +289,27 @@ export function validateDimensions(dims, screenWidth, screenHeight) {
     if (dims.dialogWidth < screenWidth * 0.25) {
         issues.push(`Dialog too narrow: ${widthPercent}% of screen`);
     }
-    
+
     // Check height constraint (should leave 33-50% of screen visible)
     if (dims.dialogHeight > screenHeight * 0.70) {
         issues.push(`Dialog too tall: ${heightPercent}% of screen`);
     }
-    
+
     // Check minimum card size
     if (dims.cardWidth < 80) {
         issues.push(`Cards too small: ${dims.cardWidth}px wide`);
     }
-    
+
     // Expected vs calculated validation
     const expectedRowWidth = (5 * dims.cardWidth) + (4 * dims.cardGap);
     if (Math.abs(dims.rowWidth - expectedRowWidth) > 1) {
         issues.push(`Row width mismatch: expected ${expectedRowWidth}, got ${dims.rowWidth}`);
     }
-    
+
     return {
         valid: issues.length === 0,
         issues,
-        screenPercent: { width: widthPercent, height: heightPercent }
+        screenPercent: {width: widthPercent, height: heightPercent},
     };
 }
 
@@ -328,13 +328,13 @@ export function generateDebugText(dims, validation, screenWidth, screenHeight, s
     const dialogLine = `Dialog: ${dims.dialogWidth}×${dims.dialogHeight} (${validation.screenPercent.width}%×${validation.screenPercent.height}%)`;
     const cardLine = `Card: ${dims.cardWidth}×${dims.cardHeight} | Gap: ${dims.cardGap} | Margin: ${dims.internalMargin}`;
     const rowLine = `Row: ${dims.rowWidth}px (5×${dims.cardWidth} + 4×${dims.cardGap})`;
-    
+
     let statusLine;
     if (validation.valid) {
-        statusLine = `✓ All constraints satisfied`;
+        statusLine = '✓ All constraints satisfied';
     } else {
         statusLine = `✗ Issues: ${validation.issues.join(', ')}`;
     }
-    
+
     return [tierLine, screenLine, dialogLine, cardLine, rowLine, statusLine].join('\n');
 }

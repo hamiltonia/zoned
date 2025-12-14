@@ -1,6 +1,6 @@
 /**
  * Debug logging utility for Zoned extension
- * 
+ *
  * Provides conditional logging based on DEBUG flag.
  * Errors are always logged, info/debug logs can be toggled.
  */
@@ -16,7 +16,7 @@ export const LogLevel = {
     ERROR: 0,   // Always logged
     WARN: 1,    // Always logged
     INFO: 2,    // Conditional
-    DEBUG: 3    // Conditional
+    DEBUG: 3,    // Conditional
 };
 
 /**

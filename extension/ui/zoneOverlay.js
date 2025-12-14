@@ -1,6 +1,6 @@
 /**
  * ZoneOverlay - Visual feedback showing current zone
- * 
+ *
  * Displays a translucent overlay when cycling zones showing:
  * - Current layout name
  * - Current zone number and total zones
@@ -12,8 +12,8 @@ import Gio from 'gi://Gio';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
-import { createLogger } from '../utils/debug.js';
+import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import {createLogger} from '../utils/debug.js';
 
 const logger = createLogger('ZoneOverlay');
 
@@ -26,7 +26,7 @@ export class ZoneOverlay {
 
     /**
      * Show the zone overlay with current zone information
-     * 
+     *
      * @param {string} layoutName - Name of the current layout
      * @param {number} zoneIndex - Current zone index (0-based)
      * @param {number} totalZones - Total number of zones in layout
@@ -40,7 +40,7 @@ export class ZoneOverlay {
 
     /**
      * Show a generic message notification (center-screen)
-     * 
+     *
      * @param {string} message - Message to display
      * @param {number} duration - Duration to show overlay in milliseconds (default: 1000)
      */
@@ -62,14 +62,14 @@ export class ZoneOverlay {
                 style_class: 'zone-overlay-container',
                 layout_manager: new Clutter.BinLayout(),
                 width: 512,
-                height: 512
+                height: 512,
             });
 
             // Add icon as full background (first child = back layer)
             try {
                 const iconPath = this._extension.path + '/icons/zoned-watermark.svg';
                 const iconFile = Gio.File.new_for_path(iconPath);
-                
+
                 if (iconFile.query_exists(null)) {
                     const backgroundIcon = new St.Icon({
                         gicon: Gio.icon_new_for_string(iconPath),
@@ -78,9 +78,9 @@ export class ZoneOverlay {
                         x_align: Clutter.ActorAlign.CENTER,
                         y_align: Clutter.ActorAlign.CENTER,
                         x_expand: true,
-                        y_expand: true
+                        y_expand: true,
                     });
-                    
+
                     container.add_child(backgroundIcon);
                     logger.debug('Background icon added to overlay');
                 }
@@ -95,7 +95,7 @@ export class ZoneOverlay {
                 x_align: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER,
                 x_expand: true,
-                y_expand: true
+                y_expand: true,
             });
 
             // Add title if provided (for zone cycling)
@@ -105,7 +105,7 @@ export class ZoneOverlay {
                     style: 'font-weight: bold; ' +
                            'color: #ffffff; ' +
                            'text-align: center; ' +
-                           'text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);'
+                           'text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);',
                 });
                 contentBox.add_child(titleLabel);
             }
@@ -116,7 +116,7 @@ export class ZoneOverlay {
                 style: 'font-weight: normal; ' +
                        'color: #4a90d9; ' +
                        'text-align: center; ' +
-                       'text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);'
+                       'text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);',
             });
             contentBox.add_child(messageLabel);
 
@@ -131,7 +131,7 @@ export class ZoneOverlay {
             const monitor = Main.layoutManager.currentMonitor;
             this._overlay.set_position(
                 Math.floor(monitor.x + (monitor.width - this._overlay.width) / 2),
-                Math.floor(monitor.y + monitor.height / 4)  // Top quarter of screen
+                Math.floor(monitor.y + monitor.height / 4),  // Top quarter of screen
             );
 
             // Auto-hide after duration

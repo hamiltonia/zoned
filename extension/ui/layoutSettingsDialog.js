@@ -1,21 +1,21 @@
 /**
  * LayoutSettingsDialog - Gateway for all layout operations
- * 
+ *
  * ARCHITECTURE NOTE:
  * - This is the entry point for creating/editing layouts
  * - Handles METADATA (name, settings) separate from GEOMETRY (zones)
  * - Uses ZoneEditor for geometry editing
  * - Enforces settings-first approach (name required before save)
  * - Uses custom UI framework (not ModalDialog) for z-order control
- * 
+ *
  * Modes:
  * - Create: layout=null (new layout, starts with no zones)
  * - Edit: layout=existing (modify existing layout)
- * 
+ *
  * Template vs Custom Layout Behavior:
  * - Templates (id starts with 'template-'): Name disabled, no Save/Delete, Duplicate only
  * - Custom layouts: Full editing capability with Save, Delete, Duplicate
- * 
+ *
  * FancyZones-Style UI Design:
  * - Header: "Edit layout" title with action icons (Duplicate, Delete)
  * - Layout Preview: Visual zone preview centered below header
@@ -25,7 +25,7 @@
  *   - Show Space Around Zones: Checkbox + number input (padding)
  *   - Select a Key (1-9): Dropdown for quick-access shortcut
  * - Button Row: Cancel (always), Save (custom layouts only)
- * 
+ *
  * Duplicate Behavior:
  * - Creates in-place transformation (dialog stays open)
  * - Name changes to "{Name} Copy"
@@ -36,43 +36,43 @@ import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { createLogger } from '../utils/debug.js';
-import { ThemeManager } from '../utils/theme.js';
-import { ZoneEditor } from './zoneEditor.js';
-import { TemplateManager } from '../templateManager.js';
+import {createLogger} from '../utils/debug.js';
+import {ThemeManager} from '../utils/theme.js';
+import {ZoneEditor} from './zoneEditor.js';
+import {TemplateManager} from '../templateManager.js';
 
 const logger = createLogger('LayoutSettingsDialog');
 
 /**
  * LayoutSettingsDialog - Gateway dialog for layout management
- * 
+ *
  * Separates metadata editing (name, padding, shortcut) from geometry editing (zones).
  * This enforces a settings-first approach where users must name their layout
  * before saving.
- * 
+ *
  * Uses custom UI framework (Main.uiGroup + pushModal) for full z-order control,
  * allowing layout preview background to show behind the dialog.
  */
 export class LayoutSettingsDialog {
     constructor(layout, layoutManager, settings, onSave, onCancel, onZoneEditorOpen = null, onZoneEditorClose = null) {
         this._isNewLayout = (layout === null);
-        
+
         // Create working copy to avoid mutating input
         this._layout = layout ? JSON.parse(JSON.stringify(layout)) : {
             zones: [],
             padding: 8,
-            name: this._generateDefaultName()  // Always start with a default name
+            name: this._generateDefaultName(),  // Always start with a default name
         };
-        
+
         // Ensure existing layouts have a name
         if (!this._layout.name) {
             this._layout.name = this._generateDefaultName();
         }
-        
+
         // Detect if this is a template (immutable built-in layout)
         // Check both: ID prefix AND if it matches a built-in template ID
         this._isTemplate = this._detectIsTemplate(this._layout);
-        
+
         this._layoutManager = layoutManager;
         this._settings = settings;
         this._themeManager = new ThemeManager(settings);
@@ -80,7 +80,7 @@ export class LayoutSettingsDialog {
         this._onCancelCallback = onCancel;
         this._onZoneEditorOpenCallback = onZoneEditorOpen;
         this._onZoneEditorCloseCallback = onZoneEditorClose;
-        
+
         // UI elements
         this._container = null;
         this._dialogCard = null;
@@ -92,7 +92,7 @@ export class LayoutSettingsDialog {
         this._deleteButton = null;
         this._duplicateButton = null;
         this._previewContainer = null;
-        
+
         this._modal = null;
         this._visible = false;
         this._closing = false;  // Re-entrance guard
@@ -121,7 +121,7 @@ export class LayoutSettingsDialog {
             y: monitor.y,
             width: monitor.width,
             height: monitor.height,
-            style: `background-color: transparent;`
+            style: 'background-color: transparent;',
         });
 
         // Click on container (outside dialog) dismisses
@@ -129,14 +129,14 @@ export class LayoutSettingsDialog {
         this._container.connect('button-press-event', (actor, event) => {
             const [clickX, clickY] = event.get_coords();
             const cardAlloc = this._dialogCard ? this._dialogCard.get_transformed_extents() : null;
-            
+
             if (cardAlloc) {
                 // Check if click is outside the dialog card bounds
                 const isOutside = clickX < cardAlloc.origin.x ||
                                   clickX > cardAlloc.origin.x + cardAlloc.size.width ||
                                   clickY < cardAlloc.origin.y ||
                                   clickY > cardAlloc.origin.y + cardAlloc.size.height;
-                
+
                 if (isOutside) {
                     this._onCancel();
                     return Clutter.EVENT_STOP;
@@ -153,7 +153,7 @@ export class LayoutSettingsDialog {
         const cardHeight = this._dialogCard.get_preferred_height(cardWidth)[1] || 500;
         this._dialogCard.set_position(
             Math.floor((monitor.width - cardWidth) / 2),
-            Math.floor((monitor.height - cardHeight) / 2)
+            Math.floor((monitor.height - cardHeight) / 2),
         );
 
         this._container.add_child(this._dialogCard);
@@ -161,7 +161,7 @@ export class LayoutSettingsDialog {
 
         // Push modal to capture input
         this._modal = Main.pushModal(this._container, {
-            actionMode: 1  // Shell.ActionMode.NORMAL
+            actionMode: 1,  // Shell.ActionMode.NORMAL
         });
 
         // Connect key handler for ESC
@@ -185,10 +185,10 @@ export class LayoutSettingsDialog {
                 const actualWidth = this._dialogCard.get_width();
                 this._dialogCard.set_position(
                     Math.floor((monitor.width - actualWidth) / 2),
-                    Math.floor((monitor.height - actualHeight) / 2)
+                    Math.floor((monitor.height - actualHeight) / 2),
                 );
             }
-            
+
             // Focus the name entry
             if (this._nameEntry) {
                 this._nameEntry.grab_key_focus();
@@ -247,7 +247,7 @@ export class LayoutSettingsDialog {
                 padding: 24px;
                 min-width: 420px;
                 box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-            `
+            `,
         });
 
         // Stop clicks from propagating through dialog
@@ -258,9 +258,9 @@ export class LayoutSettingsDialog {
         // ============================================
         const headerRow = new St.BoxLayout({
             vertical: false,
-            style: 'margin-bottom: 16px;'
+            style: 'margin-bottom: 16px;',
         });
-        
+
         const titleLabel = new St.Label({
             text: 'Edit layout',
             style: `
@@ -268,22 +268,22 @@ export class LayoutSettingsDialog {
                 font-size: 14pt; 
                 color: ${colors.textPrimary};
             `,
-            x_expand: true
+            x_expand: true,
         });
         headerRow.add_child(titleLabel);
-        
+
         // Action icons container
         const iconsBox = new St.BoxLayout({
             vertical: false,
-            style: 'spacing: 8px;'
+            style: 'spacing: 8px;',
         });
-        
+
         // Duplicate icon (always visible)
         this._duplicateButton = this._createSymbolicIconButton(colors, 'edit-copy-symbolic', 'Duplicate layout', () => {
             this._onDuplicate();
         });
         iconsBox.add_child(this._duplicateButton);
-        
+
         // Delete icon (only for custom layouts, not templates)
         if (!this._isTemplate && !this._isNewLayout) {
             this._deleteButton = this._createSymbolicIconButton(colors, 'user-trash-symbolic', 'Delete layout', () => {
@@ -291,7 +291,7 @@ export class LayoutSettingsDialog {
             });
             iconsBox.add_child(this._deleteButton);
         }
-        
+
         headerRow.add_child(iconsBox);
         this._dialogCard.add_child(headerRow);
 
@@ -307,9 +307,9 @@ export class LayoutSettingsDialog {
                 padding: 16px;
                 margin-bottom: 16px;
             `,
-            x_align: Clutter.ActorAlign.CENTER
+            x_align: Clutter.ActorAlign.CENTER,
         });
-        
+
         this._buildLayoutPreview(colors);
         this._dialogCard.add_child(this._previewContainer);
 
@@ -319,9 +319,9 @@ export class LayoutSettingsDialog {
         const editLinkBox = new St.BoxLayout({
             vertical: false,
             style: 'margin-bottom: 20px;',
-            x_align: Clutter.ActorAlign.CENTER
+            x_align: Clutter.ActorAlign.CENTER,
         });
-        
+
         const editLink = this._createHyperlinkButton(colors, '✏️ Edit zone layout', () => {
             this._openZoneEditor();
         });
@@ -339,15 +339,15 @@ export class LayoutSettingsDialog {
                 border-radius: 12px;
                 padding: 16px;
                 margin-bottom: 16px;
-            `
+            `,
         });
 
         // --- Name Field ---
         const nameRow = new St.BoxLayout({
             vertical: false,
-            style: 'margin-bottom: 16px;'
+            style: 'margin-bottom: 16px;',
         });
-        
+
         const nameLabel = new St.Label({
             text: 'Name',
             style: `
@@ -355,17 +355,17 @@ export class LayoutSettingsDialog {
                 color: ${colors.textPrimary}; 
                 min-width: 160px;
             `,
-            y_align: Clutter.ActorAlign.CENTER
+            y_align: Clutter.ActorAlign.CENTER,
         });
         nameRow.add_child(nameLabel);
-        
+
         this._nameEntry = this._createStyledInput(colors, {
             text: this._layout.name || '',
             hintText: this._isTemplate ? '' : 'Enter layout name',
             minWidth: '200px',
-            disabled: this._isTemplate
+            disabled: this._isTemplate,
         });
-        
+
         if (!this._isTemplate) {
             this._nameEntry.clutter_text.connect('text-changed', () => {
                 this._updateSaveButton();
@@ -380,20 +380,20 @@ export class LayoutSettingsDialog {
         // --- Show Space Around Zones (Padding) ---
         const paddingRow = new St.BoxLayout({
             vertical: false,
-            style: 'margin-bottom: 16px;'
+            style: 'margin-bottom: 16px;',
         });
-        
+
         // Checkbox + Label (left side)
         const paddingLabelBox = new St.BoxLayout({
             vertical: false,
             x_expand: true,
-            y_align: Clutter.ActorAlign.CENTER
+            y_align: Clutter.ActorAlign.CENTER,
         });
-        
+
         // Create checkbox matching topBar.js style
         const isChecked = (this._layout.padding && this._layout.padding > 0);
         this._paddingCheckbox = this._createCheckbox(colors, isChecked);
-        
+
         this._paddingCheckbox.connect('clicked', () => {
             this._toggleCheckbox(this._paddingCheckbox, colors);
             // Update spinner enabled state
@@ -404,26 +404,26 @@ export class LayoutSettingsDialog {
             }
         });
         paddingLabelBox.add_child(this._paddingCheckbox);
-        
+
         const paddingLabel = new St.Label({
             text: 'Show space around zones',
             style: `font-size: 11pt; color: ${colors.textPrimary}; margin-left: 8px;`,
-            y_align: Clutter.ActorAlign.CENTER
+            y_align: Clutter.ActorAlign.CENTER,
         });
         paddingLabelBox.add_child(paddingLabel);
         paddingRow.add_child(paddingLabelBox);
-        
+
         // Spinner input (right-aligned)
         this._paddingSpinner = this._createSpinnerInput(colors, {
             value: this._layout.padding || 8,
             min: 0,
             max: 16,
-            step: 1
+            step: 1,
         });
         this._paddingSpinner.reactive = isChecked;
         this._paddingSpinner.opacity = isChecked ? 255 : 128;
         paddingRow.add_child(this._paddingSpinner);
-        
+
         settingsSection.add_child(paddingRow);
 
         // Divider
@@ -431,33 +431,33 @@ export class LayoutSettingsDialog {
 
         // --- Select a Key (1-9) ---
         const shortcutRow = new St.BoxLayout({
-            vertical: false
+            vertical: false,
         });
-        
+
         // Label box matching padding row structure
         const shortcutLabelBox = new St.BoxLayout({
             vertical: false,
             x_expand: true,
-            y_align: Clutter.ActorAlign.CENTER
+            y_align: Clutter.ActorAlign.CENTER,
         });
-        
+
         const shortcutLabel = new St.Label({
             text: 'Quick access shortcut',
             style: `
                 font-size: 11pt; 
                 color: ${colors.textPrimary};
             `,
-            y_align: Clutter.ActorAlign.CENTER
+            y_align: Clutter.ActorAlign.CENTER,
         });
         shortcutLabelBox.add_child(shortcutLabel);
         shortcutRow.add_child(shortcutLabelBox);
-        
+
         // Dropdown for shortcut key (right-aligned, matching spinner width)
         this._shortcutDropdown = this._createDropdown(colors, [
-            'None', '1', '2', '3', '4', '5', '6', '7', '8', '9'
+            'None', '1', '2', '3', '4', '5', '6', '7', '8', '9',
         ], this._layout.shortcut || 'None');
         shortcutRow.add_child(this._shortcutDropdown);
-        
+
         settingsSection.add_child(shortcutRow);
         this._dialogCard.add_child(settingsSection);
 
@@ -467,17 +467,17 @@ export class LayoutSettingsDialog {
         const buttonRow = new St.BoxLayout({
             vertical: false,
             style: 'margin-top: 8px;',
-            x_align: Clutter.ActorAlign.END
+            x_align: Clutter.ActorAlign.END,
         });
 
         // Spacer
-        const spacer = new St.Widget({ x_expand: true });
+        const spacer = new St.Widget({x_expand: true});
         buttonRow.add_child(spacer);
 
         // Buttons container with fixed spacing (not using margin on buttons)
         const buttonsContainer = new St.BoxLayout({
             vertical: false,
-            style: 'spacing: 12px;'
+            style: 'spacing: 12px;',
         });
 
         // Cancel button (always visible)
@@ -490,7 +490,7 @@ export class LayoutSettingsDialog {
         if (!this._isTemplate) {
             this._saveButton = this._createButton(colors, 'Save', () => {
                 this._onSave();
-            }, { accent: true });
+            }, {accent: true});
             buttonsContainer.add_child(this._saveButton);
         }
 
@@ -500,7 +500,7 @@ export class LayoutSettingsDialog {
         // Initial save button state
         this._updateSaveButton();
     }
-    
+
     /**
      * Build the layout preview visualization
      * @param {Object} colors - Theme colors
@@ -509,19 +509,19 @@ export class LayoutSettingsDialog {
     _buildLayoutPreview(colors) {
         // Clear existing preview
         this._previewContainer.destroy_all_children();
-        
+
         const previewWidth = 280;
         const previewHeight = 160;
-        
+
         const previewArea = new St.Widget({
             width: previewWidth,
             height: previewHeight,
             style: `
                 background-color: ${colors.canvasBg};
                 border-radius: 8px;
-            `
+            `,
         });
-        
+
         // Draw zones
         const zones = this._layout.zones || [];
         zones.forEach((zone, index) => {
@@ -534,11 +534,11 @@ export class LayoutSettingsDialog {
                     background-color: ${colors.zoneFill};
                     border: 2px solid ${colors.zoneBorder};
                     border-radius: 4px;
-                `
+                `,
             });
             previewArea.add_child(zoneWidget);
         });
-        
+
         // Show empty state if no zones
         if (zones.length === 0) {
             const emptyLabel = new St.Label({
@@ -550,14 +550,14 @@ export class LayoutSettingsDialog {
                 x_align: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER,
                 x_expand: true,
-                y_expand: true
+                y_expand: true,
             });
             previewArea.add_child(emptyLabel);
         }
-        
+
         this._previewContainer.add_child(previewArea);
     }
-    
+
     /**
      * Create a divider line
      * @param {Object} colors - Theme colors
@@ -570,10 +570,10 @@ export class LayoutSettingsDialog {
                 height: 1px;
                 background-color: ${colors.divider};
                 margin: 8px 0;
-            `
+            `,
         });
     }
-    
+
     /**
      * Create a symbolic icon button for the header (using GNOME symbolic icons)
      * @param {Object} colors - Theme colors
@@ -594,35 +594,35 @@ export class LayoutSettingsDialog {
             background-color: ${colors.buttonBgHover};
             border-radius: 6px;
         `;
-        
+
         const button = new St.Button({
             style: normalStyle,
             can_focus: true,
-            accessible_name: tooltip
+            accessible_name: tooltip,
         });
-        
+
         const icon = new St.Icon({
             icon_name: iconName,
             icon_size: 16,
-            style: `color: ${colors.textPrimary};`
+            style: `color: ${colors.textPrimary};`,
         });
         button.set_child(icon);
-        
+
         button.connect('clicked', onClick);
-        
+
         button.connect('enter-event', () => {
             button.style = hoverStyle;
             return Clutter.EVENT_PROPAGATE;
         });
-        
+
         button.connect('leave-event', () => {
             button.style = normalStyle;
             return Clutter.EVENT_PROPAGATE;
         });
-        
+
         return button;
     }
-    
+
     /**
      * Create a hyperlink-style button
      * @param {Object} colors - Theme colors
@@ -637,22 +637,22 @@ export class LayoutSettingsDialog {
                 padding: 4px 8px;
                 background-color: transparent;
             `,
-            can_focus: true
+            can_focus: true,
         });
-        
+
         const linkLabel = new St.Label({
             text: text,
             style: `
                 font-size: 11pt;
                 color: ${colors.accentHex};
                 text-decoration: underline;
-            `
+            `,
         });
         button.set_child(linkLabel);
         button._linkLabel = linkLabel;
-        
+
         button.connect('clicked', onClick);
-        
+
         button.connect('enter-event', () => {
             linkLabel.style = `
                 font-size: 11pt;
@@ -661,7 +661,7 @@ export class LayoutSettingsDialog {
             `;
             return Clutter.EVENT_PROPAGATE;
         });
-        
+
         button.connect('leave-event', () => {
             linkLabel.style = `
                 font-size: 11pt;
@@ -670,10 +670,10 @@ export class LayoutSettingsDialog {
             `;
             return Clutter.EVENT_PROPAGATE;
         });
-        
+
         return button;
     }
-    
+
     /**
      * Create a dropdown selector matching spinner visual style
      * Has up/down arrows like the spinner for visual consistency
@@ -692,9 +692,9 @@ export class LayoutSettingsDialog {
                 border: 1px solid ${colors.inputBorder};
                 border-radius: 6px;
             `,
-            y_align: Clutter.ActorAlign.CENTER
+            y_align: Clutter.ActorAlign.CENTER,
         });
-        
+
         // Value display (matching spinner value label style)
         const valueLabel = new St.Label({
             text: selected,
@@ -706,20 +706,20 @@ export class LayoutSettingsDialog {
                 padding: 6px 8px;
             `,
             x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER
+            y_align: Clutter.ActorAlign.CENTER,
         });
         container.add_child(valueLabel);
         container._valueLabel = valueLabel;
         container._options = options;
         container._selectedIndex = options.indexOf(selected);
         if (container._selectedIndex < 0) container._selectedIndex = 0;
-        
+
         // Buttons container (vertical) - matching spinner exactly
         const buttonsBox = new St.BoxLayout({
             vertical: true,
             style: `
                 border-left: 1px solid ${colors.inputBorder};
-            `
+            `,
         });
 
         // Up button - increment value
@@ -729,21 +729,21 @@ export class LayoutSettingsDialog {
                 background-color: transparent;
                 border-radius: 0 6px 0 0;
             `,
-            can_focus: true
+            can_focus: true,
         });
         const upIcon = new St.Icon({
             icon_name: 'pan-up-symbolic',
             icon_size: 10,
-            style: `color: ${colors.textMuted};`
+            style: `color: ${colors.textMuted};`,
         });
         upButton.set_child(upIcon);
-        
+
         upButton.connect('clicked', () => {
             // Cycle backwards through options
             container._selectedIndex = (container._selectedIndex - 1 + options.length) % options.length;
             valueLabel.text = options[container._selectedIndex];
         });
-        
+
         upButton.connect('enter-event', () => {
             upButton.style = `
                 padding: 2px 6px;
@@ -760,7 +760,7 @@ export class LayoutSettingsDialog {
             `;
             return Clutter.EVENT_PROPAGATE;
         });
-        
+
         buttonsBox.add_child(upButton);
 
         // Down button - decrement value
@@ -771,21 +771,21 @@ export class LayoutSettingsDialog {
                 border-radius: 0 0 6px 0;
                 border-top: 1px solid ${colors.inputBorder};
             `,
-            can_focus: true
+            can_focus: true,
         });
         const downIcon = new St.Icon({
             icon_name: 'pan-down-symbolic',
             icon_size: 10,
-            style: `color: ${colors.textMuted};`
+            style: `color: ${colors.textMuted};`,
         });
         downButton.set_child(downIcon);
-        
+
         downButton.connect('clicked', () => {
             // Cycle forwards through options
             container._selectedIndex = (container._selectedIndex + 1) % options.length;
             valueLabel.text = options[container._selectedIndex];
         });
-        
+
         downButton.connect('enter-event', () => {
             downButton.style = `
                 padding: 2px 6px;
@@ -804,10 +804,10 @@ export class LayoutSettingsDialog {
             `;
             return Clutter.EVENT_PROPAGATE;
         });
-        
+
         buttonsBox.add_child(downButton);
         container.add_child(buttonsBox);
-        
+
         return container;
     }
 
@@ -827,7 +827,7 @@ export class LayoutSettingsDialog {
                 border-radius: 12px;
                 padding: 16px;
                 margin-bottom: 12px;
-            `
+            `,
         });
 
         if (title) {
@@ -840,7 +840,7 @@ export class LayoutSettingsDialog {
                     margin-bottom: 12px;
                     text-transform: uppercase;
                     letter-spacing: 0.5px;
-                `
+                `,
             });
             section.add_child(titleLabel);
         }
@@ -859,7 +859,7 @@ export class LayoutSettingsDialog {
         const isDisabled = options.disabled || false;
         const textColor = isDisabled ? colors.textMuted : colors.textPrimary;
         const bgColor = isDisabled ? colors.sectionBg : colors.inputBg;
-        
+
         const entry = new St.Entry({
             text: options.text || '',
             hint_text: options.hintText || '',
@@ -873,14 +873,14 @@ export class LayoutSettingsDialog {
                 border-radius: 6px;
                 padding: 8px 12px;
                 ${isDisabled ? 'opacity: 0.7;' : ''}
-            `
+            `,
         });
-        
+
         // For disabled inputs, make the text non-editable
         if (isDisabled && entry.clutter_text) {
             entry.clutter_text.editable = false;
         }
-        
+
         return entry;
     }
 
@@ -920,11 +920,11 @@ export class LayoutSettingsDialog {
             label: label,
             style_class: 'button',
             style: normalStyle,
-            can_focus: true
+            can_focus: true,
         });
 
         button.connect('clicked', onClick);
-        
+
         button.connect('enter-event', () => {
             button.style = hoverStyle;
             return Clutter.EVENT_PROPAGATE;
@@ -952,13 +952,13 @@ export class LayoutSettingsDialog {
     _createCheckbox(colors, checked = false) {
         const checkbox = new St.Button({
             style_class: 'checkbox',
-            style: `width: 18px; height: 18px; ` +
+            style: 'width: 18px; height: 18px; ' +
                    `border: 2px solid ${checked ? colors.accentHex : colors.textMuted}; ` +
-                   `border-radius: 3px; ` +
+                   'border-radius: 3px; ' +
                    `background-color: ${checked ? colors.accentHex : 'transparent'};`,
             reactive: true,
             track_hover: true,
-            y_align: Clutter.ActorAlign.CENTER
+            y_align: Clutter.ActorAlign.CENTER,
         });
 
         // Add checkmark when checked
@@ -967,7 +967,7 @@ export class LayoutSettingsDialog {
                 text: '✓',
                 style: `color: ${colors.isDark ? '#1a202c' : 'white'}; font-size: 12px; font-weight: bold;`,
                 x_align: Clutter.ActorAlign.CENTER,
-                y_align: Clutter.ActorAlign.CENTER
+                y_align: Clutter.ActorAlign.CENTER,
             });
             checkbox.set_child(checkmark);
         }
@@ -984,18 +984,18 @@ export class LayoutSettingsDialog {
      */
     _toggleCheckbox(checkbox, colors) {
         checkbox._checked = !checkbox._checked;
-        
-        checkbox.style = `width: 18px; height: 18px; ` +
+
+        checkbox.style = 'width: 18px; height: 18px; ' +
                `border: 2px solid ${checkbox._checked ? colors.accentHex : colors.textMuted}; ` +
-               `border-radius: 3px; ` +
+               'border-radius: 3px; ' +
                `background-color: ${checkbox._checked ? colors.accentHex : 'transparent'};`;
-        
+
         if (checkbox._checked) {
             const checkmark = new St.Label({
                 text: '✓',
                 style: `color: ${colors.isDark ? '#1a202c' : 'white'}; font-size: 12px; font-weight: bold;`,
                 x_align: Clutter.ActorAlign.CENTER,
-                y_align: Clutter.ActorAlign.CENTER
+                y_align: Clutter.ActorAlign.CENTER,
             });
             checkbox.set_child(checkmark);
         } else {
@@ -1023,7 +1023,7 @@ export class LayoutSettingsDialog {
                 border: 1px solid ${colors.inputBorder};
                 border-radius: 6px;
             `,
-            y_align: Clutter.ActorAlign.CENTER
+            y_align: Clutter.ActorAlign.CENTER,
         });
 
         // Value display
@@ -1037,7 +1037,7 @@ export class LayoutSettingsDialog {
                 padding: 6px 8px;
             `,
             x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER
+            y_align: Clutter.ActorAlign.CENTER,
         });
         container.add_child(valueLabel);
         container._valueLabel = valueLabel;
@@ -1051,7 +1051,7 @@ export class LayoutSettingsDialog {
             vertical: true,
             style: `
                 border-left: 1px solid ${colors.inputBorder};
-            `
+            `,
         });
 
         // Up button
@@ -1061,22 +1061,22 @@ export class LayoutSettingsDialog {
                 background-color: transparent;
                 border-radius: 0 6px 0 0;
             `,
-            can_focus: true
+            can_focus: true,
         });
         const upIcon = new St.Icon({
             icon_name: 'pan-up-symbolic',
             icon_size: 10,
-            style: `color: ${colors.textMuted};`
+            style: `color: ${colors.textMuted};`,
         });
         upButton.set_child(upIcon);
-        
+
         upButton.connect('clicked', () => {
             if (container._value < max) {
                 container._value = Math.min(max, container._value + step);
                 valueLabel.text = String(container._value);
             }
         });
-        
+
         upButton.connect('enter-event', () => {
             upButton.style = `
                 padding: 2px 6px;
@@ -1093,7 +1093,7 @@ export class LayoutSettingsDialog {
             `;
             return Clutter.EVENT_PROPAGATE;
         });
-        
+
         buttonsBox.add_child(upButton);
 
         // Down button
@@ -1104,22 +1104,22 @@ export class LayoutSettingsDialog {
                 border-radius: 0 0 6px 0;
                 border-top: 1px solid ${colors.inputBorder};
             `,
-            can_focus: true
+            can_focus: true,
         });
         const downIcon = new St.Icon({
             icon_name: 'pan-down-symbolic',
             icon_size: 10,
-            style: `color: ${colors.textMuted};`
+            style: `color: ${colors.textMuted};`,
         });
         downButton.set_child(downIcon);
-        
+
         downButton.connect('clicked', () => {
             if (container._value > min) {
                 container._value = Math.max(min, container._value - step);
                 valueLabel.text = String(container._value);
             }
         });
-        
+
         downButton.connect('enter-event', () => {
             downButton.style = `
                 padding: 2px 6px;
@@ -1138,7 +1138,7 @@ export class LayoutSettingsDialog {
             `;
             return Clutter.EVENT_PROPAGATE;
         });
-        
+
         buttonsBox.add_child(downButton);
         container.add_child(buttonsBox);
 
@@ -1182,17 +1182,17 @@ export class LayoutSettingsDialog {
      */
     _updateSaveButton() {
         if (!this._saveButton) return;
-        
+
         const canSave = this._validateForSave();
         this._saveButton.reactive = canSave;
         this._saveButton.opacity = canSave ? 255 : 128;
-        
+
         logger.debug(`Validation: ${canSave ? 'can save' : 'cannot save'}`);
     }
 
     /**
      * Open ZoneEditor to edit geometry
-     * 
+     *
      * BEHAVIOR CHANGE: Zone editor now returns directly to LayoutSwitcher
      * instead of reopening LayoutSettingsDialog. This simplifies the flow
      * and fixes z-order issues:
@@ -1202,7 +1202,7 @@ export class LayoutSettingsDialog {
      */
     _openZoneEditor() {
         logger.info('Opening ZoneEditor from LayoutSettingsDialog');
-        
+
         // Capture current state before closing
         const currentName = this._nameEntry.get_text().trim();
         const currentPadding = this._paddingSpinner?._value ?? this._layout.padding ?? 8;
@@ -1210,13 +1210,13 @@ export class LayoutSettingsDialog {
         const shortcutValue = this._shortcutDropdown?._valueLabel?.text;
         const shortcut = (shortcutValue && shortcutValue !== 'None') ? shortcutValue : null;
         const layoutData = JSON.parse(JSON.stringify(this._layout));
-        
+
         // Store callbacks before closing (including the zone editor callbacks)
         const savedOnSave = this._onSaveCallback;
         const savedOnCancel = this._onCancelCallback;
         const savedOnZoneEditorClose = this._onZoneEditorCloseCallback;
         const layoutManager = this._layoutManager;
-        
+
         this.close();
 
         const layoutForEditor = (layoutData.zones.length > 0) ? layoutData : null;
@@ -1224,7 +1224,7 @@ export class LayoutSettingsDialog {
         // Create one-shot callbacks to prevent multiple invocations
         let saveCallbackExecuted = false;
         let cancelCallbackExecuted = false;
-        
+
         const editor = new ZoneEditor(
             layoutForEditor,
             layoutManager,
@@ -1236,9 +1236,9 @@ export class LayoutSettingsDialog {
                     return;
                 }
                 saveCallbackExecuted = true;
-                
+
                 logger.info(`ZoneEditor save: ${editedLayout.zones.length} zones - returning directly to LayoutSwitcher`);
-                
+
                 // Build final layout with current settings
                 const finalLayout = {
                     id: layoutData.id || `layout-${Date.now()}`,
@@ -1248,25 +1248,25 @@ export class LayoutSettingsDialog {
                     shortcut: shortcut,
                     metadata: {
                         createdDate: layoutData.metadata?.createdDate || Date.now(),
-                        modifiedDate: Date.now()
-                    }
+                        modifiedDate: Date.now(),
+                    },
                 };
-                
+
                 // Save the layout directly
                 const success = layoutManager.saveLayout(finalLayout);
-                
+
                 if (success) {
                     logger.info(`Layout saved from zone editor: ${finalLayout.name}`);
                 } else {
                     logger.error(`Failed to save layout from zone editor: ${finalLayout.name}`);
                 }
-                
+
                 // Notify parent to restore UI (preview background + LayoutSwitcher)
                 // Pass the saved layout so preview can show it
                 if (savedOnZoneEditorClose) {
                     savedOnZoneEditorClose(finalLayout);
                 }
-                
+
                 // Call the save callback to return to LayoutSwitcher (via _refreshAfterSettings)
                 if (savedOnSave) {
                     savedOnSave(finalLayout);
@@ -1278,19 +1278,19 @@ export class LayoutSettingsDialog {
                     return;
                 }
                 cancelCallbackExecuted = true;
-                
+
                 logger.info('ZoneEditor canceled - returning to LayoutSwitcher');
-                
+
                 // Notify parent to restore UI (preview background + LayoutSwitcher)
                 if (savedOnZoneEditorClose) {
                     savedOnZoneEditorClose(layoutData);
                 }
-                
+
                 // Call the cancel callback to return to LayoutSwitcher
                 if (savedOnCancel) {
                     savedOnCancel();
                 }
-            }
+            },
         );
 
         // Notify parent to hide preview background before showing zone editor
@@ -1317,7 +1317,7 @@ export class LayoutSettingsDialog {
      */
     _onDuplicate() {
         logger.info(`Duplicate requested for layout: ${this._layout.name}`);
-        
+
         // Create duplicated layout data
         const duplicatedLayout = {
             id: this._generateId(),  // New unique ID
@@ -1327,19 +1327,19 @@ export class LayoutSettingsDialog {
             shortcut: null,  // Don't copy shortcut to avoid conflicts
             metadata: {
                 createdDate: Date.now(),
-                modifiedDate: Date.now()
-            }
+                modifiedDate: Date.now(),
+            },
         };
-        
+
         // Store current callbacks and managers
         const savedOnSave = this._onSaveCallback;
         const savedOnCancel = this._onCancelCallback;
         const layoutManager = this._layoutManager;
         const settings = this._settings;
-        
+
         // Close current dialog
         this.close();
-        
+
         // Open new dialog with duplicated layout (now a custom layout, not template)
         GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
             const newDialog = new LayoutSettingsDialog(
@@ -1347,12 +1347,12 @@ export class LayoutSettingsDialog {
                 layoutManager,
                 settings,
                 savedOnSave,
-                savedOnCancel
+                savedOnCancel,
             );
             newDialog.open();
             return GLib.SOURCE_REMOVE;
         });
-        
+
         logger.info(`Created duplicate: ${duplicatedLayout.name} (${duplicatedLayout.id})`);
     }
 
@@ -1363,7 +1363,7 @@ export class LayoutSettingsDialog {
      */
     _onDelete() {
         logger.info(`Delete requested for layout: ${this._layout.name}`);
-        
+
         // Show inline confirmation overlay
         this._showDeleteConfirmation();
     }
@@ -1386,27 +1386,27 @@ export class LayoutSettingsDialog {
         const confirmBox = new St.BoxLayout({
             vertical: true,
             style: `background-color: ${colors.containerBg}; ` +
-                   `border-radius: 12px; ` +
-                   `padding: 24px; ` +
-                   `min-width: 300px; ` +
+                   'border-radius: 12px; ' +
+                   'padding: 24px; ' +
+                   'min-width: 300px; ' +
                    `border: 1px solid ${colors.border};`,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
             x_expand: false,
-            y_expand: false
+            y_expand: false,
         });
 
         // Title
         const title = new St.Label({
             text: 'Delete Layout',
-            style: `color: ${colors.textPrimary}; font-size: 16px; font-weight: bold; margin-bottom: 12px;`
+            style: `color: ${colors.textPrimary}; font-size: 16px; font-weight: bold; margin-bottom: 12px;`,
         });
         confirmBox.add_child(title);
 
         // Message
         const message = new St.Label({
             text: `Are you sure you want to delete "${this._layout.name}"?\n\nThis action cannot be undone.`,
-            style: `color: ${colors.textSecondary}; font-size: 13px; margin-bottom: 20px;`
+            style: `color: ${colors.textSecondary}; font-size: 13px; margin-bottom: 20px;`,
         });
         message.clutter_text.line_wrap = true;
         confirmBox.add_child(message);
@@ -1414,7 +1414,7 @@ export class LayoutSettingsDialog {
         // Buttons
         const buttonBox = new St.BoxLayout({
             style: 'spacing: 12px;',
-            x_align: Clutter.ActorAlign.END
+            x_align: Clutter.ActorAlign.END,
         });
 
         // Cancel button
@@ -1422,11 +1422,11 @@ export class LayoutSettingsDialog {
             label: 'Cancel',
             style: `background-color: ${colors.buttonBg}; ` +
                    `color: ${colors.buttonText}; ` +
-                   `padding: 8px 20px; ` +
-                   `border-radius: 6px; ` +
-                   `font-weight: 500;`,
+                   'padding: 8px 20px; ' +
+                   'border-radius: 6px; ' +
+                   'font-weight: 500;',
             reactive: true,
-            track_hover: true
+            track_hover: true,
         });
         cancelBtn.connect('clicked', () => {
             this._hideDeleteConfirmation();
@@ -1436,24 +1436,24 @@ export class LayoutSettingsDialog {
         // Delete button (destructive red)
         const deleteBtn = new St.Button({
             label: 'Delete',
-            style: `background-color: #c01c28; ` +
-                   `color: white; ` +
-                   `padding: 8px 20px; ` +
-                   `border-radius: 6px; ` +
-                   `font-weight: 500;`,
+            style: 'background-color: #c01c28; ' +
+                   'color: white; ' +
+                   'padding: 8px 20px; ' +
+                   'border-radius: 6px; ' +
+                   'font-weight: 500;',
             reactive: true,
-            track_hover: true
+            track_hover: true,
         });
         deleteBtn.connect('clicked', () => {
             this._hideDeleteConfirmation();
-            
+
             // Perform delete
             const success = this._layoutManager.deleteLayout(this._layout.id);
-            
+
             if (success) {
                 logger.info(`Layout deleted: ${this._layout.name}`);
                 this.close();
-                
+
                 if (this._onSaveCallback) {
                     this._onSaveCallback(null); // Signal deletion
                 }
@@ -1472,19 +1472,19 @@ export class LayoutSettingsDialog {
             x: 0,
             y: 0,
             width: this._container.width,
-            height: this._container.height
+            height: this._container.height,
         });
 
         // Click on backdrop (outside confirm box) to cancel
         wrapper.connect('button-press-event', (actor, event) => {
             const [clickX, clickY] = event.get_coords();
             const boxAlloc = confirmBox.get_transformed_extents();
-            
+
             const isOutside = clickX < boxAlloc.origin.x ||
                               clickX > boxAlloc.origin.x + boxAlloc.size.width ||
                               clickY < boxAlloc.origin.y ||
                               clickY > boxAlloc.origin.y + boxAlloc.size.height;
-            
+
             if (isOutside) {
                 this._hideDeleteConfirmation();
                 return Clutter.EVENT_STOP;
@@ -1498,14 +1498,14 @@ export class LayoutSettingsDialog {
         // Add overlay on top of our container
         this._confirmOverlay = wrapper;
         this._container.add_child(wrapper);
-        
+
         // Center the confirmation box after layout is complete
         GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
             if (confirmBox && wrapper) {
                 const [boxW, boxH] = confirmBox.get_size();
                 confirmBox.set_position(
                     Math.floor((wrapper.width - boxW) / 2),
-                    Math.floor((wrapper.height - boxH) / 2)
+                    Math.floor((wrapper.height - boxH) / 2),
                 );
             }
             return GLib.SOURCE_REMOVE;
@@ -1513,7 +1513,7 @@ export class LayoutSettingsDialog {
 
         // Focus the cancel button
         cancelBtn.grab_key_focus();
-        
+
         logger.debug('Delete confirmation overlay shown');
     }
 
@@ -1527,7 +1527,7 @@ export class LayoutSettingsDialog {
             this._confirmOverlay = null;
             logger.debug('Delete confirmation overlay hidden');
         }
-        
+
         // Return focus to dialog
         if (this._dialogCard) {
             this._dialogCard.grab_key_focus();
@@ -1545,11 +1545,11 @@ export class LayoutSettingsDialog {
         }
 
         const name = this._nameEntry.get_text().trim();
-        
+
         // Get padding: if checkbox is unchecked, use 0; otherwise use the spinner value
         const paddingEnabled = this._paddingCheckbox?._checked;
         const padding = paddingEnabled ? (this._paddingSpinner?._value ?? 8) : 0;
-        
+
         // Get shortcut from dropdown
         const shortcutValue = this._shortcutDropdown?._valueLabel?.text;
         const shortcut = (shortcutValue && shortcutValue !== 'None') ? shortcutValue : null;
@@ -1562,8 +1562,8 @@ export class LayoutSettingsDialog {
             shortcut: shortcut,
             metadata: {
                 createdDate: this._layout.metadata?.createdDate || Date.now(),
-                modifiedDate: Date.now()
-            }
+                modifiedDate: Date.now(),
+            },
         };
 
         logger.info(`Saving layout: ${finalLayout.name} (${finalLayout.id}), padding: ${padding}, shortcut: ${shortcut}`);
@@ -1572,7 +1572,7 @@ export class LayoutSettingsDialog {
 
         if (success) {
             logger.info('Layout saved successfully');
-            
+
             this.close();
 
             if (this._onSaveCallback) {
@@ -1592,12 +1592,12 @@ export class LayoutSettingsDialog {
         if (this._closing || !this._visible) {
             return;
         }
-        
+
         logger.info('LayoutSettingsDialog canceled');
-        
+
         // Save callback before closing (since close clears state)
         const callback = this._onCancelCallback;
-        
+
         this.close();
 
         if (callback) {
@@ -1618,12 +1618,12 @@ export class LayoutSettingsDialog {
         if (!layout || !layout.id) {
             return false;
         }
-        
+
         // Check for template- prefix
         if (layout.id.startsWith('template-')) {
             return true;
         }
-        
+
         // Check if ID matches a built-in template
         try {
             const templateManager = new TemplateManager();
@@ -1642,7 +1642,7 @@ export class LayoutSettingsDialog {
     _generateId() {
         return `layout-${Date.now()}`;
     }
-    
+
     /**
      * Generate a default name for new layouts
      * @returns {string} Default name like "Custom Layout" or "Custom Layout 2"
@@ -1650,27 +1650,27 @@ export class LayoutSettingsDialog {
      */
     _generateDefaultName() {
         const baseName = 'Custom Layout';
-        
+
         // If we don't have a layout manager yet, just return the base name
         if (!this._layoutManager) {
             return baseName;
         }
-        
+
         // Get all existing layouts to check for name conflicts
         const existingLayouts = this._layoutManager.getAllLayouts() || [];
         const existingNames = new Set(existingLayouts.map(l => l.name));
-        
+
         // If base name doesn't exist, use it
         if (!existingNames.has(baseName)) {
             return baseName;
         }
-        
+
         // Otherwise find the next available number
         let counter = 2;
         while (existingNames.has(`${baseName} ${counter}`)) {
             counter++;
         }
-        
+
         return `${baseName} ${counter}`;
     }
 }

@@ -1,6 +1,6 @@
 /**
  * Zoned - Advanced window zone management for GNOME Shell
- * 
+ *
  * Main extension entry point that coordinates all components:
  * - WindowManager: Window positioning and manipulation
  * - LayoutManager: Layout loading and state management
@@ -33,7 +33,7 @@ const logger = createLogger('Extension');
 export default class ZonedExtension extends Extension {
     constructor(metadata) {
         super(metadata);
-        
+
         // Manager instances
         this._settings = null;
         this._windowManager = null;
@@ -48,7 +48,7 @@ export default class ZonedExtension extends Extension {
         this._keybindingManager = null;
         this._workspaceSwitchedSignal = null;
         this._conflictCountSignal = null;
-        
+
         logger.info('Extension constructed');
     }
 
@@ -70,7 +70,7 @@ export default class ZonedExtension extends Extension {
             // Initialize LayoutManager and load layouts
             this._layoutManager = new LayoutManager(this._settings, this.path);
             const layoutsLoaded = this._layoutManager.loadLayouts();
-            
+
             if (!layoutsLoaded) {
                 throw new Error('Failed to load layouts');
             }
@@ -102,7 +102,7 @@ export default class ZonedExtension extends Extension {
             this._layoutSwitcher = new LayoutSwitcher(
                 this._layoutManager,
                 this._zoneOverlay,
-                this._settings
+                this._settings,
             );
             logger.debug('LayoutSwitcher initialized');
 
@@ -113,13 +113,13 @@ export default class ZonedExtension extends Extension {
                 this._layoutSwitcher,
                 this._notificationManager,
                 this._zoneOverlay,
-                this._settings
+                this._settings,
             );
             Main.panel.addToStatusArea('zoned-indicator', this._panelIndicator);
-            
+
             // Set conflict status in panel
             this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
-            
+
             // Watch for conflict count changes from prefs (prefs runs in separate process)
             this._conflictCountSignal = this._settings.connect('changed::keybinding-conflict-count', () => {
                 logger.debug('Conflict count changed by prefs, re-detecting...');
@@ -135,7 +135,7 @@ export default class ZonedExtension extends Extension {
                 this._windowManager,
                 this._notificationManager,
                 this._layoutSwitcher,
-                this._zoneOverlay
+                this._zoneOverlay,
             );
 
             // Register all keybindings
@@ -150,7 +150,7 @@ export default class ZonedExtension extends Extension {
             if (currentLayout) {
                 this._notificationManager.show(
                     `Enabled: ${currentLayout.name}`,
-                    1500
+                    1500,
                 );
             }
 
@@ -159,7 +159,7 @@ export default class ZonedExtension extends Extension {
                 const conflictCount = conflicts.length;
                 this._notificationManager.show(
                     `⚠️ ${conflictCount} keybinding conflict${conflictCount !== 1 ? 's' : ''} detected. Click icon for details.`,
-                    3000
+                    3000,
                 );
             }
 
@@ -167,10 +167,10 @@ export default class ZonedExtension extends Extension {
         } catch (error) {
             logger.error(`Error enabling extension: ${error}`);
             logger.error(error.stack);
-            
+
             // Clean up on error
             this.disable();
-            
+
             // Error dialog removed - MessageDialog deleted
             // Extension will fail to load, user can check logs
         }
@@ -293,7 +293,7 @@ export default class ZonedExtension extends Extension {
                 try {
                     const spaceKey = this._spatialStateManager.makeKey(
                         Main.layoutManager.primaryIndex,
-                        toIndex
+                        toIndex,
                     );
 
                     const state = this._spatialStateManager.getState(spaceKey);
@@ -315,7 +315,7 @@ export default class ZonedExtension extends Extension {
                 } catch (e) {
                     logger.error(`Error switching layout for workspace ${toIndex}: ${e}`);
                 }
-            }
+            },
         );
 
         logger.debug('Workspace switching handler setup (using SpatialStateManager)');

@@ -1,11 +1,11 @@
 /**
  * SpatialStateManager - Manages per-space layout state
- * 
+ *
  * A "space" is a (monitor, workspace) pair. When per-workspace-layouts is enabled,
  * each space can have its own independent layout and zone state.
- * 
+ *
  * SpaceKey format: "connector:workspaceIndex" (e.g., "DP-1:0", "eDP-1:2")
- * 
+ *
  * Responsibilities:
  * - Get/set layout+zoneIndex for any space
  * - Persist state to GSettings (spatial-state-map)
@@ -14,7 +14,7 @@
  */
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { createLogger } from './utils/debug.js';
+import {createLogger} from './utils/debug.js';
 
 const logger = createLogger('SpatialStateManager');
 
@@ -35,19 +35,19 @@ export class SpatialStateManager {
      */
     getMonitorConnector(monitor) {
         let monitorObj;
-        
+
         if (typeof monitor === 'number') {
             monitorObj = Main.layoutManager.monitors[monitor];
         } else {
             monitorObj = monitor;
         }
-        
+
         // Meta.Monitor.connector available in GNOME 42+
         // Fall back to index-based naming if not available
         if (monitorObj?.connector) {
             return monitorObj.connector;
         }
-        
+
         // Fallback for older GNOME or missing connector
         const index = typeof monitor === 'number' ? monitor : (monitorObj?.index ?? 0);
         return `monitor-${index}`;
@@ -76,8 +76,8 @@ export class SpatialStateManager {
      * @returns {string} SpaceKey in format "connector:workspace"
      */
     makeKey(monitor, workspace) {
-        const connector = typeof monitor === 'string' 
-            ? monitor 
+        const connector = typeof monitor === 'string'
+            ? monitor
             : this.getMonitorConnector(monitor);
         return `${connector}:${workspace}`;
     }
@@ -89,7 +89,7 @@ export class SpatialStateManager {
     getCurrentSpaceKey() {
         return this.makeKey(
             Main.layoutManager.primaryIndex,
-            this.getCurrentWorkspaceIndex()
+            this.getCurrentWorkspaceIndex(),
         );
     }
 
@@ -100,11 +100,11 @@ export class SpatialStateManager {
      */
     getSpaceKeyForWindow(window) {
         if (!window) return this.getCurrentSpaceKey();
-        
+
         const monitorIndex = window.get_monitor();
         const workspace = window.get_workspace();
         const workspaceIndex = workspace ? workspace.index() : this.getCurrentWorkspaceIndex();
-        
+
         return this.makeKey(monitorIndex, workspaceIndex);
     }
 
@@ -116,15 +116,15 @@ export class SpatialStateManager {
     getState(key) {
         // Check cache for exact match
         if (this._stateCache[key]) {
-            return { ...this._stateCache[key] };
+            return {...this._stateCache[key]};
         }
-        
+
         // Fallback: use last-selected-layout
         const fallbackLayoutId = this._settings.get_string('last-selected-layout') || 'halves';
-        
+
         return {
             layoutId: fallbackLayoutId,
-            zoneIndex: 0
+            zoneIndex: 0,
         };
     }
 
@@ -135,12 +135,12 @@ export class SpatialStateManager {
      * @param {number} [zoneIndex=0] - Zone index
      */
     setState(key, layoutId, zoneIndex = 0) {
-        this._stateCache[key] = { layoutId, zoneIndex };
+        this._stateCache[key] = {layoutId, zoneIndex};
         this._saveState();
-        
+
         // Also update last-selected for future fallback
         this._settings.set_string('last-selected-layout', layoutId);
-        
+
         logger.debug(`Set state for ${key}: layout=${layoutId}, zone=${zoneIndex}`);
     }
 
@@ -167,7 +167,7 @@ export class SpatialStateManager {
         }
         this._stateCache[key].zoneIndex = zoneIndex;
         this._saveState();
-        
+
         logger.debug(`Set zone index for ${key}: ${zoneIndex}`);
     }
 
@@ -226,7 +226,7 @@ export class SpatialStateManager {
     cleanupOrphanedState(validLayoutIds) {
         const validSet = new Set(validLayoutIds);
         let cleaned = false;
-        
+
         for (const [key, state] of Object.entries(this._stateCache)) {
             if (!validSet.has(state.layoutId)) {
                 logger.debug(`Cleaning orphaned state for ${key}: layout ${state.layoutId} no longer exists`);
@@ -234,7 +234,7 @@ export class SpatialStateManager {
                 cleaned = true;
             }
         }
-        
+
         if (cleaned) {
             this._saveState();
         }
@@ -248,17 +248,17 @@ export class SpatialStateManager {
         try {
             const json = this._settings.get_string('spatial-state-map');
             this._stateCache = JSON.parse(json);
-            
+
             if (typeof this._stateCache !== 'object' || this._stateCache === null) {
                 this._stateCache = {};
             }
-            
+
             logger.debug(`Loaded spatial state: ${Object.keys(this._stateCache).length} spaces`);
         } catch (e) {
             logger.warn(`Failed to parse spatial-state-map: ${e}`);
             this._stateCache = {};
         }
-        
+
         // Attempt migration from old format if spatial state is empty
         if (Object.keys(this._stateCache).length === 0) {
             this._migrateOldState();
@@ -288,22 +288,22 @@ export class SpatialStateManager {
         try {
             const oldJson = this._settings.get_string('workspace-layout-map');
             const oldMap = JSON.parse(oldJson);
-            
+
             if (!oldMap || typeof oldMap !== 'object' || Object.keys(oldMap).length === 0) {
                 return; // Nothing to migrate
             }
-            
+
             // Migrate using primary monitor connector
             const primaryConnector = this.getPrimaryConnector();
-            
+
             for (const [wsIndex, layoutId] of Object.entries(oldMap)) {
                 const key = `${primaryConnector}:${wsIndex}`;
-                this._stateCache[key] = { 
+                this._stateCache[key] = {
                     layoutId: layoutId,
-                    zoneIndex: 0 
+                    zoneIndex: 0,
                 };
             }
-            
+
             if (Object.keys(this._stateCache).length > 0) {
                 this._saveState();
                 logger.info(`Migrated ${Object.keys(this._stateCache).length} workspace mappings to spatial-state-map`);
@@ -322,11 +322,11 @@ export class SpatialStateManager {
         logger.info(`Per-workspace mode enabled: ${this._settings.get_boolean('use-per-workspace-layouts')}`);
         logger.info(`Last selected layout: ${this._settings.get_string('last-selected-layout')}`);
         logger.info(`Configured spaces: ${Object.keys(this._stateCache).length}`);
-        
+
         for (const [key, state] of Object.entries(this._stateCache)) {
             logger.info(`  ${key}: layout=${state.layoutId}, zone=${state.zoneIndex}`);
         }
-        
+
         logger.info('==========================');
     }
 
