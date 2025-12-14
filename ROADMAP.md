@@ -1,6 +1,6 @@
 # Zoned Development Roadmap
 
-**Last Updated:** 2025-12-07  
+**Last Updated:** 2025-12-13  
 **Current Status:** Pre-release (active development)  
 **Current Branch:** `initial_dev`
 
@@ -34,8 +34,8 @@ See: `memory/development/per-space-layouts-spec.md`
 - [ ] Style updates, ensure consistency, polish, etc.
 
 **Phase 2: Keybinding Context Awareness**
-- [ ] Zone cycling respects current space context
-- [ ] Track zone index per-space (not just per-layout)
+- [x] Zone cycling respects current space context
+- [x] Track zone index per-space (not just per-layout)
 
 **Phase 3: Quick Layout Shortcuts**
 - [ ] `Super+Ctrl+Alt+1-9` activates layouts by position
@@ -46,16 +46,13 @@ See: `memory/development/per-space-layouts-spec.md`
 - [x] **Edit button click isolation** - Edit icon no longer triggers layout activation ✅
 - [x] **LayoutSettingsDialog FancyZones redesign** - Template detection, destructive delete button, spinner/dropdown consistency, descriptive shortcut label ✅
 
-### Code Quality
-- [ ] **Log cleanup** - Final review of code for debug logs that can be removed
-- [ ] **Code duplication review** - Final review for redundant/duplicate code
-- [ ] **Settings cleanup** - Clean up settings/preferences code
-- [ ] **try/catch cleanup** - review try/catch usage and cleanup
-- [ ] **GNOME lint** - use GNOME linter on code to standardize
-- [ ] **GNOME best practices** - review best practices for GNOME extensions and follow
-- [ ] **GIT bug template** - create templates for bugs and feature requests
-- [ ] **Unit testing** - investigate if unit tests are possible
-- [ ] **Release pipeline** - investigate github release pipeline build
+### Code Quality & Release Preparation
+
+See: [`memory/development/mvp-release-checklist.md`](memory/development/mvp-release-checklist.md)
+
+This comprehensive checklist covers:
+- **Phases 1-6**: Static analysis, lifecycle audit, GNOME compliance, architecture review, runtime validation, code quality
+- **Phase 7**: Release infrastructure (unit testing decision, GitHub Actions, issue templates)
 
 ### Documentation & Testing
 - [ ] **Documentation cleanup** - Final documentation review and cleanup
