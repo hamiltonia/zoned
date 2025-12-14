@@ -1,5 +1,6 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean zip \
-        vm-init vm-network-setup vm-setup vm-install vm-logs vm-dev vm-restart-spice
+        vm-init vm-network-setup vm-setup vm-install vm-logs vm-dev vm-restart-spice \
+        lint lint-fix
 
 # Detect OS for sed compatibility
 UNAME_S := $(shell uname -s)
@@ -35,6 +36,8 @@ help:
 	@printf "  make logs           - Follow extension logs\n"
 	@printf "  make compile-schema - Compile GSettings schema\n"
 	@printf "  make dev            - Full development setup (install + compile + enable)\n"
+	@printf "  make lint           - Run ESLint on extension code\n"
+	@printf "  make lint-fix       - Run ESLint and auto-fix issues\n"
 	@printf "  make test           - Run tests\n"
 	@printf "\n"
 	@printf "$(COLOR_SUCCESS)VM Development:$(COLOR_RESET)\n"
@@ -129,6 +132,22 @@ compile-schema:
 test:
 	@printf "$(COLOR_INFO)Running tests...$(COLOR_RESET)\n"
 	@printf "$(COLOR_WARN)⚠ No tests implemented yet$(COLOR_RESET)\n"
+
+lint:
+	@printf "$(COLOR_INFO)Running ESLint on extension code...$(COLOR_RESET)\n"
+	@if [ ! -d "node_modules" ]; then \
+		printf "$(COLOR_WARN)Installing npm dependencies...$(COLOR_RESET)\n"; \
+		npm install --silent; \
+	fi
+	@npm run lint
+
+lint-fix:
+	@printf "$(COLOR_INFO)Running ESLint with auto-fix...$(COLOR_RESET)\n"
+	@if [ ! -d "node_modules" ]; then \
+		printf "$(COLOR_WARN)Installing npm dependencies...$(COLOR_RESET)\n"; \
+		npm install --silent; \
+	fi
+	@npm run lint:fix
 
 clean:
 	@printf "$(COLOR_INFO)Cleaning build artifacts...$(COLOR_RESET)\n"
