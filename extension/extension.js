@@ -128,6 +128,7 @@ export default class ZonedExtension extends Extension {
             this._notificationManager,
             this._zoneOverlay,
             this._settings,
+            this._notificationService,
         );
 
         // Add to status area, but check visibility setting

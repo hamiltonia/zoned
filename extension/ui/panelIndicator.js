@@ -15,12 +15,13 @@ import GLib from 'gi://GLib';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {createLogger} from '../utils/debug.js';
+import {NotifyCategory} from '../utils/notificationService.js';
 
 const logger = createLogger('PanelIndicator');
 
 export const PanelIndicator = GObject.registerClass(
     class ZonedPanelIndicator extends PanelMenu.Button {
-        _init(layoutManager, conflictDetector, layoutEditor, notificationManager, zoneOverlay, settings) {
+        _init(layoutManager, conflictDetector, layoutEditor, notificationManager, zoneOverlay, settings, notificationService) {
             super._init(0.0, 'Zoned Indicator', false);
 
             this._layoutManager = layoutManager;
@@ -29,6 +30,7 @@ export const PanelIndicator = GObject.registerClass(
             this._notificationManager = notificationManager;
             this._zoneOverlay = zoneOverlay;
             this._settings = settings;
+            this._notificationService = notificationService;
             this._hasConflicts = false;
 
             // Create icon with reduced padding - using custom SVG
@@ -225,11 +227,13 @@ export const PanelIndicator = GObject.registerClass(
             const results = this._conflictDetector.autoFixConflicts();
 
             if (results.fixed.length > 0) {
-            // Show success notification at top (system message)
-                this._notificationManager.show(
-                    `✓ Fixed ${results.fixed.length} conflict${results.fixed.length !== 1 ? 's' : ''}`,
-                    2000,
-                );
+            // Show success notification (uses user's notify-conflicts setting)
+                if (this._notificationService) {
+                    this._notificationService.notify(
+                        NotifyCategory.CONFLICTS,
+                        `✓ Fixed ${results.fixed.length} conflict${results.fixed.length !== 1 ? 's' : ''}`,
+                    );
+                }
 
                 // Re-detect conflicts and update UI
                 this._conflictDetector.detectConflicts();
@@ -245,11 +249,14 @@ export const PanelIndicator = GObject.registerClass(
             }
 
             if (results.failed.length > 0) {
-            // Show error notification (MessageDialog removed)
-                this._notificationManager.show(
-                    `Failed to fix ${results.failed.length} conflict${results.failed.length !== 1 ? 's' : ''}`,
-                    3000,
-                );
+            // Show error notification (uses user's notify-conflicts setting)
+                if (this._notificationService) {
+                    this._notificationService.notify(
+                        NotifyCategory.CONFLICTS,
+                        `Failed to fix ${results.failed.length} conflict${results.failed.length !== 1 ? 's' : ''}`,
+                        {duration: 3000},
+                    );
+                }
                 logger.error(`Failed to fix conflicts: ${JSON.stringify(results.failed)}`);
             }
         }
@@ -262,7 +269,12 @@ export const PanelIndicator = GObject.registerClass(
             const conflicts = this._conflictDetector.getConflicts();
 
             if (conflicts.length === 0) {
-                this._notificationManager.show('No keybinding conflicts detected', 2000);
+                if (this._notificationService) {
+                    this._notificationService.notify(
+                        NotifyCategory.CONFLICTS,
+                        'No keybinding conflicts detected',
+                    );
+                }
                 return;
             }
 
