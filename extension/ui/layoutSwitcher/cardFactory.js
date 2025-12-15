@@ -29,10 +29,9 @@ const logger = createLogger('CardFactory');
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {Object} template - Template definition
  * @param {Object} currentLayout - Currently active layout
- * @param {number} cardIndex - Index for keyboard navigation
  * @returns {St.Button} The created card widget
  */
-export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
+export function createTemplateCard(ctx, template, currentLayout) {
     const colors = ctx._themeManager.getColors();
     const isActive = ctx._isLayoutActive(template, currentLayout);
     const accentHex = colors.accentHex;
@@ -85,12 +84,7 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
         clip_to_allocation: true,
     });
 
-    const preview = createZonePreview(
-        ctx,
-        template.zones,
-        previewWidth,
-        previewHeight,
-    );
+    const preview = createZonePreview(ctx, template.zones);
     // Set explicit size on the DrawingArea
     preview.set_size(previewWidth, previewHeight);
 
@@ -145,10 +139,9 @@ export function createTemplateCard(ctx, template, currentLayout, cardIndex) {
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {Object} layout - Layout definition
  * @param {Object} currentLayout - Currently active layout
- * @param {number} cardIndex - Index for keyboard navigation
  * @returns {St.Button} The created card widget
  */
-export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
+export function createCustomLayoutCard(ctx, layout, currentLayout) {
     const colors = ctx._themeManager.getColors();
     const isActive = ctx._isLayoutActive(layout, currentLayout);
     const accentHex = colors.accentHex;
@@ -201,12 +194,7 @@ export function createCustomLayoutCard(ctx, layout, currentLayout, cardIndex) {
         clip_to_allocation: true,
     });
 
-    const preview = createZonePreview(
-        ctx,
-        layout.zones,
-        previewWidth,
-        previewHeight,
-    );
+    const preview = createZonePreview(ctx, layout.zones);
     // Set explicit size on the DrawingArea
     preview.set_size(previewWidth, previewHeight);
 
@@ -366,13 +354,10 @@ function roundedRect(cr, x, y, w, h, r) {
  * Zones are inset to create visible gaps where card background shows through
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {Array} zones - Array of zone definitions
- * @param {number} width - Preview width
- * @param {number} height - Preview height
  * @returns {St.DrawingArea} The preview canvas widget
  */
-export function createZonePreview(ctx, zones, width, height) {
+export function createZonePreview(ctx, zones) {
     const colors = ctx._themeManager.getColors();
-    const cardRadius = ctx._cardRadius;
 
     // Canvas background is transparent so card accent color shows through on hover/selection
     const canvas = new St.DrawingArea({
@@ -381,7 +366,6 @@ export function createZonePreview(ctx, zones, width, height) {
         y_expand: true,
     });
 
-    const accentColor = colors.accent;
     const isDark = colors.isDark;
 
     canvas.connect('repaint', () => {

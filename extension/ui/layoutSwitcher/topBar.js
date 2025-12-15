@@ -256,7 +256,6 @@ export function createMonitorPill(ctx) {
  * @returns {St.BoxLayout} The workspace thumbnails container
  */
 export function createWorkspaceThumbnails(ctx) {
-    const colors = ctx._themeManager.getColors();
     const tier = ctx._currentTier;
     const thumbW = tier.workspaceThumb.w;
     const thumbH = tier.workspaceThumb.h;
@@ -328,7 +327,8 @@ export function createWorkspaceThumbnails(ctx) {
         // Get zones for this workspace (per-space aware)
         const zones = workspaceLayout?.zones || [];
 
-        const preview = createZonePreview(ctx, zones, thumbW, thumbH);
+        const preview = createZonePreview(ctx, zones);
+        preview.set_size(thumbW, thumbH);
         previewContainer.set_child(preview);
         thumbContainer.add_child(previewContainer);
 

@@ -15,7 +15,6 @@ import GLib from 'gi://GLib';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {createLogger} from '../utils/debug.js';
-import {LayoutSettingsDialog} from './layoutSettingsDialog.js';
 
 const logger = createLogger('PanelIndicator');
 

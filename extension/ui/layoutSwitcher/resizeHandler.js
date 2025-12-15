@@ -21,9 +21,8 @@ const logger = createLogger('ResizeHandler');
  * Add resize handles to the dialog corners
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {St.Widget} wrapper - Wrapper widget for resize handles
- * @param {St.Widget} container - Main dialog container
  */
-export function addResizeHandles(ctx, wrapper, container) {
+export function addResizeHandles(ctx, wrapper) {
     const handleSize = 24;
     const corners = ['nw', 'ne', 'sw', 'se'];
 

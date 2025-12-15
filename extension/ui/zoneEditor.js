@@ -205,7 +205,7 @@ export class ZoneEditor {
      */
     _setupDragHandlers() {
         // Global motion handler - tracks mouse movement during drag
-        this._overlay.connect('motion-event', (actor, event) => {
+        this._overlay.connect('motion-event', (_actor, event) => {
             if (this._draggingEdge) {
                 this._onEdgeDragMotion(event);
                 return Clutter.EVENT_STOP;
@@ -214,7 +214,7 @@ export class ZoneEditor {
         });
 
         // Global button-release handler - ends drag
-        this._overlay.connect('button-release-event', (actor, event) => {
+        this._overlay.connect('button-release-event', (_actor, _event) => {
             if (this._draggingEdge) {
                 logger.info('[DRAG] Button release - ending drag');
                 this._onEdgeDragEnd();
@@ -357,7 +357,7 @@ export class ZoneEditor {
             actor.set_child(label);
 
             // Click to split
-            actor.connect('button-press-event', (actor, event) => {
+            actor.connect('button-press-event', (_actor, event) => {
                 return this._onRegionClicked(index, event);
             });
 
@@ -438,7 +438,7 @@ export class ZoneEditor {
             });
 
             // Line button press - drag or delete
-            lineActor.connect('button-press-event', (actor, event) => {
+            lineActor.connect('button-press-event', (_lineActor, event) => {
                 const modifiers = event.get_state();
                 const ctrlPressed = modifiers & Clutter.ModifierType.CONTROL_MASK;
 
@@ -472,9 +472,7 @@ export class ZoneEditor {
      * Handle edge drag begin
      * @private
      */
-    _onEdgeDragBegin(edge, event) {
-        const [x, y] = event.get_coords();
-
+    _onEdgeDragBegin(edge, _event) {
         // Find all regions affected by this edge
         const affectedRegions = this._findRegionsReferencingEdge(edge.id);
 
@@ -502,7 +500,6 @@ export class ZoneEditor {
 
         const monitor = Main.layoutManager.currentMonitor;
         const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
-        const colors = this._themeManager.getColors();
 
         // Create labels for each affected region
         this._draggingEdge.affectedRegionIndices.forEach(regionIndex => {
@@ -537,7 +534,6 @@ export class ZoneEditor {
             // Position below the region number
             // Region number is ~90px tall at 72pt, so offset downward from center
             const labelWidth = 120; // Approximate width
-            const labelHeight = 40; // Approximate height
             const numberOffset = 60; // Offset below center to clear the region number
 
             label.set_position(
@@ -781,12 +777,10 @@ export class ZoneEditor {
 
         logger.debug(`Region ${regionIndex} clicked at (${clickX}, ${clickY}) (Shift: ${shiftPressed})`);
 
-        // Shift+Click: Split vertically
+        // Shift+Click: Split vertically, Click: Split horizontally
         if (shiftPressed) {
             this._splitVertical(regionIndex, clickY);
-        }
-        // Click: Split horizontally
-        else {
+        } else {
             this._splitHorizontal(regionIndex, clickX);
         }
 
@@ -1690,7 +1684,7 @@ export class ZoneEditor {
      * @private
      */
     _setupKeyboardHandlers() {
-        this._overlay.connect('key-press-event', (actor, event) => {
+        this._overlay.connect('key-press-event', (_actor, event) => {
             const keySymbol = event.get_key_symbol();
 
             switch (keySymbol) {
@@ -1708,7 +1702,6 @@ export class ZoneEditor {
             }
         });
     }
-
 
     /**
      * Handle save action

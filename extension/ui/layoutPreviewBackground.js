@@ -19,7 +19,6 @@
 
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
-import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from '../utils/debug.js';
 import {ThemeManager} from '../utils/theme.js';
@@ -84,7 +83,6 @@ export class LayoutPreviewBackground {
         // Create overlay for each monitor
         for (let i = 0; i < monitors.length; i++) {
             const monitor = monitors[i];
-            const isSelected = (i === this._selectedMonitorIndex);
 
             // Create full-screen overlay for this monitor
             const overlay = new St.Widget({
@@ -97,7 +95,7 @@ export class LayoutPreviewBackground {
             });
 
             // Click on any overlay to dismiss
-            overlay.connect('button-press-event', (actor, event) => {
+            overlay.connect('button-press-event', () => {
                 if (this._onBackgroundClick) {
                     this._onBackgroundClick();
                 }
@@ -293,10 +291,9 @@ export class LayoutPreviewBackground {
      * Create zone actors for the given zones on a specific monitor
      * @param {Object} monitorData - Monitor data object
      * @param {Array} zones - Array of zone definitions {x, y, w, h, name}
-     * @param {boolean} dimmed - Whether to show zones dimmed (for non-selected monitors)
      * @private
      */
-    _createZonesForMonitor(monitorData, zones, dimmed = false) {
+    _createZonesForMonitor(monitorData, zones) {
         const monitor = monitorData.monitor;
         const isSelected = (monitorData.monitorIndex === this._selectedMonitorIndex);
         const colors = this._themeManager.getColors();

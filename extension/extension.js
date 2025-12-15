@@ -12,7 +12,6 @@
  * - PanelIndicator: Top bar menu
  */
 
-import Gio from 'gi://Gio';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
@@ -279,7 +278,7 @@ export default class ZonedExtension extends Extension {
         // Signal signature: (manager, from, to, direction) where from/to are INTEGER indices
         this._workspaceSwitchedSignal = global.workspace_manager.connect(
             'workspace-switched',
-            (manager, from, to, direction) => {
+            (manager, from, to, _direction) => {
                 // Only react if workspace mode is enabled
                 const workspaceMode = this._settings.get_boolean('use-per-workspace-layouts');
                 if (!workspaceMode) {

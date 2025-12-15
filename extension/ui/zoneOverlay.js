@@ -12,7 +12,6 @@ import Gio from 'gi://Gio';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {createLogger} from '../utils/debug.js';
 
 const logger = createLogger('ZoneOverlay');

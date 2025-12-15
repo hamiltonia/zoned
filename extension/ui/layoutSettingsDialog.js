@@ -524,7 +524,7 @@ export class LayoutSettingsDialog {
 
         // Draw zones
         const zones = this._layout.zones || [];
-        zones.forEach((zone, index) => {
+        zones.forEach((zone) => {
             const zoneWidget = new St.Widget({
                 x: Math.floor(zone.x * previewWidth),
                 y: Math.floor(zone.y * previewHeight),

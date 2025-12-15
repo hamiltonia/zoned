@@ -211,7 +211,6 @@ export function selectTier(logicalHeight, forceTier = 0) {
  */
 export function calculateDialogDimensions(tier) {
     const COLUMNS = 5;
-    const TEMPLATE_ROWS = 1;
     const CUSTOM_VISIBLE_ROWS = 2;
     const SECTION_BORDER_WIDTH = 2;  // 1px border on each side of section
 

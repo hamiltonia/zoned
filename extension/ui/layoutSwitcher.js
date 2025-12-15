@@ -549,7 +549,7 @@ export class LayoutSwitcher {
         });
 
         wrapper.add_child(container);
-        addResizeHandles(this, wrapper, container);
+        addResizeHandles(this, wrapper);
 
         // Store wrapper reference for dropdown menus (they need to be inside modal grab)
         this._dialogWrapper = wrapper;
@@ -792,7 +792,7 @@ export class LayoutSwitcher {
             layout,
             this._layoutManager,
             this._settings,
-            (updatedLayout) => {
+            () => {
                 // Refresh and re-acquire modal
                 this._refreshAfterSettings();
             },
@@ -888,14 +888,6 @@ export class LayoutSwitcher {
         }
 
         const colors = this._themeManager.getColors();
-
-        // Semi-transparent backdrop
-        const backdrop = new St.Bin({
-            style: 'background-color: rgba(0, 0, 0, 0.5);',
-            reactive: true,
-            x_expand: true,
-            y_expand: true,
-        });
 
         // Confirmation box
         const confirmBox = new St.BoxLayout({
@@ -1302,7 +1294,7 @@ export class LayoutSwitcher {
         if (this._keyPressId && this._dialog) {
             try {
                 this._dialog.disconnect(this._keyPressId);
-            } catch (e) {
+            } catch {
                 // Dialog may already be destroyed
             }
             this._keyPressId = null;

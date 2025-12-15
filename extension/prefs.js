@@ -266,7 +266,7 @@ function acceleratorsMatch(accel1, accel2) {
  * @param {string} currentKey - The settings key being edited (to exclude self)
  * @returns {Object|null} Conflict info or null
  */
-function checkConflicts(accelerator, currentKey) {
+function checkConflicts(accelerator, _currentKey) {
     if (!accelerator) return null;
 
     // Known GNOME keybindings that might conflict
@@ -312,7 +312,7 @@ function checkConflicts(accelerator, currentKey) {
                     };
                 }
             }
-        } catch (e) {
+        } catch {
             // Schema not available, skip
         }
     }

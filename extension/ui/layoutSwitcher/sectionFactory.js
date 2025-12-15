@@ -61,8 +61,8 @@ export function createTemplatesSection(ctx) {
         style: `spacing: ${ctx._CARD_GAP}px; padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`,
     });
 
-    templates.forEach((template, index) => {
-        const card = createTemplateCard(ctx, template, currentLayout, index);
+    templates.forEach((template) => {
+        const card = createTemplateCard(ctx, template, currentLayout);
         ctx._addDebugRect(card, 'card', `Template: ${template.name}`);
         templatesRow.add_child(card);
         ctx._allCards.push({card, layout: template, isTemplate: true});
@@ -127,7 +127,7 @@ export function createCustomLayoutsSection(ctx) {
         } else if (direction === Clutter.ScrollDirection.DOWN) {
             adjustment.value = Math.min(maxScroll, adjustment.value + scrollAmount);
         } else if (direction === Clutter.ScrollDirection.SMOOTH) {
-            const [dx, dy] = event.get_scroll_delta();
+            const [_dx, dy] = event.get_scroll_delta();
             if (dy !== 0) {
                 const smoothAmount = dy * scrollAmount * 0.3;
                 adjustment.value = Math.max(0, Math.min(maxScroll, adjustment.value + smoothAmount));
@@ -225,7 +225,7 @@ export function createCustomLayoutsSection(ctx) {
                     adjustment.value = Math.min(maxScroll, adjustment.value + scrollAmount);
                     return Clutter.EVENT_STOP;
                 } else if (direction === Clutter.ScrollDirection.SMOOTH) {
-                    const [dx, dy] = event.get_scroll_delta();
+                    const [_dx, dy] = event.get_scroll_delta();
                     if (dy !== 0) {
                         const smoothAmount = dy * scrollAmount * 0.5;
                         adjustment.value = Math.max(0, Math.min(maxScroll, adjustment.value + smoothAmount));
@@ -273,9 +273,6 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
     ctx._addDebugRect(container, 'row', 'Custom Grid Container');
 
     let currentRow = null;
-    const templateCount = ctx._templateManager.getBuiltinTemplates().length;
-    const totalRows = Math.ceil(layouts.length / COLUMNS);
-
     let rowNumber = 0;
     layouts.forEach((layout, index) => {
         const col = index % COLUMNS;
@@ -293,8 +290,7 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
             container.add_child(currentRow);
         }
 
-        const cardIndex = templateCount + index;
-        const card = createCustomLayoutCard(ctx, layout, currentLayout, cardIndex);
+        const card = createCustomLayoutCard(ctx, layout, currentLayout);
         ctx._addDebugRect(card, 'card', `Custom: ${layout.name}`);
         currentRow.add_child(card);
         ctx._allCards.push({card, layout, isTemplate: false});
