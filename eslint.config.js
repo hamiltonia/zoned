@@ -68,7 +68,7 @@ export default [
             // ==========================================
             
             // Complexity check (as per mvp-release-checklist)
-            'complexity': ['warn', 10],
+            'complexity': ['error', 10],
             
             // Prevent common mistakes
             'no-unused-vars': ['warn', { 
