@@ -61,156 +61,145 @@ export default class ZonedExtension extends Extension {
     enable() {
         logger.info('Enabling extension...');
 
-        try {
-            // Initialize GSettings
-            this._settings = this.getSettings('org.gnome.shell.extensions.zoned');
-            logger.debug('GSettings initialized');
+        // Initialize GSettings
+        this._settings = this.getSettings('org.gnome.shell.extensions.zoned');
+        logger.debug('GSettings initialized');
 
-            // Initialize debug logging from GSettings (must be early)
-            initDebugSettings(this._settings);
-            logger.debug('Debug settings initialized');
+        // Initialize debug logging from GSettings (must be early)
+        initDebugSettings(this._settings);
+        logger.debug('Debug settings initialized');
 
-            // Initialize WindowManager
-            this._windowManager = new WindowManager();
-            logger.debug('WindowManager initialized');
+        // Initialize WindowManager
+        this._windowManager = new WindowManager();
+        logger.debug('WindowManager initialized');
 
-            // Initialize LayoutManager and load layouts
-            this._layoutManager = new LayoutManager(this._settings, this.path);
-            const layoutsLoaded = this._layoutManager.loadLayouts();
+        // Initialize LayoutManager and load layouts
+        this._layoutManager = new LayoutManager(this._settings, this.path);
+        const layoutsLoaded = this._layoutManager.loadLayouts();
 
-            if (!layoutsLoaded) {
-                throw new Error('Failed to load layouts');
-            }
-            logger.debug('LayoutManager initialized');
-
-            // Initialize SpatialStateManager (per-space layout state)
-            this._spatialStateManager = new SpatialStateManager(this._settings);
-            this._layoutManager.setSpatialStateManager(this._spatialStateManager);
-            logger.debug('SpatialStateManager initialized');
-
-            // Initialize ConflictDetector
-            this._conflictDetector = new ConflictDetector(this._settings);
-            const conflicts = this._conflictDetector.detectConflicts();
-            logger.debug('ConflictDetector initialized');
-
-            // Initialize NotificationManager
-            this._notificationManager = new NotificationManager(this);
-            logger.debug('NotificationManager initialized');
-
-            // Initialize ZoneOverlay
-            this._zoneOverlay = new ZoneOverlay(this);
-            logger.debug('ZoneOverlay initialized');
-
-            // Initialize NotificationService (routes notifications based on settings)
-            this._notificationService = new NotificationService(
-                this,
-                this._zoneOverlay,
-                this._notificationManager,
-            );
-            logger.debug('NotificationService initialized');
-
-            // Initialize TemplateManager
-            this._templateManager = new TemplateManager();
-            logger.debug('TemplateManager initialized');
-
-            // Initialize LayoutSwitcher
-            this._layoutSwitcher = new LayoutSwitcher(
-                this._layoutManager,
-                this._zoneOverlay,
-                this._settings,
-            );
-            logger.debug('LayoutSwitcher initialized');
-
-            // Initialize PanelIndicator (pass settings for scroll-target support)
-            this._panelIndicator = new PanelIndicator(
-                this._layoutManager,
-                this._conflictDetector,
-                this._layoutSwitcher,
-                this._notificationManager,
-                this._zoneOverlay,
-                this._settings,
-            );
-
-            // Add to status area, but check visibility setting
-            Main.panel.addToStatusArea('zoned-indicator', this._panelIndicator);
-            const showIndicator = this._settings.get_boolean('show-panel-indicator');
-            this._panelIndicator.visible = showIndicator;
-
-            // Watch for show-panel-indicator changes to show/hide in real-time
-            this._showIndicatorSignal = this._settings.connect('changed::show-panel-indicator', () => {
-                const show = this._settings.get_boolean('show-panel-indicator');
-                logger.debug(`Panel indicator visibility changed to: ${show}`);
-                if (this._panelIndicator) {
-                    this._panelIndicator.visible = show;
-                }
-            });
-
-            // Set conflict status in panel
-            this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
-
-            // Watch for conflict count changes from prefs (prefs runs in separate process)
-            this._conflictCountSignal = this._settings.connect('changed::keybinding-conflict-count', () => {
-                logger.debug('Conflict count changed by prefs, re-detecting...');
-                this._conflictDetector.detectConflicts();
-                this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
-            });
-            logger.debug('PanelIndicator initialized');
-
-            // Watch for preview trigger from prefs (shows sample center notification)
-            this._previewSignal = this._settings.connect('changed::center-notification-preview', () => {
-                if (this._settings.get_boolean('center-notification-preview')) {
-                    logger.debug('Preview triggered from preferences');
-                    // Show preview with current settings
-                    const duration = this._settings.get_int('notification-duration');
-                    this._zoneOverlay.showMessage('Preview Notification', duration);
-                    // Reset the flag
-                    this._settings.set_boolean('center-notification-preview', false);
-                }
-            });
-            logger.debug('Preview signal handler initialized');
-
-            // Initialize KeybindingManager (with notification service)
-            this._keybindingManager = new KeybindingManager(
-                this._settings,
-                this._layoutManager,
-                this._windowManager,
-                this._notificationManager,
-                this._layoutSwitcher,
-                this._zoneOverlay,
-                this._notificationService,
-            );
-
-            // Register all keybindings
-            this._keybindingManager.registerKeybindings();
-            logger.debug('KeybindingManager initialized');
-
-            // Setup workspace switching handler (if workspace mode enabled)
-            this._setupWorkspaceHandler();
-
-            // Show startup notification (uses notification settings)
-            // Include conflict warning as 2nd line if conflicts detected
-            const hasConflicts = this._conflictDetector.hasConflicts();
-            const conflictCount = conflicts.length;
-            let startupMessage = 'Zoned Enabled';
-            if (hasConflicts) {
-                startupMessage += `\n⚠️ ${conflictCount} keybinding conflict${conflictCount !== 1 ? 's' : ''}`;
-            }
-            this._notificationService.notify(
-                NotifyCategory.STARTUP,
-                startupMessage,
-            );
-
-            logger.info('Extension enabled successfully');
-        } catch (error) {
-            logger.error(`Error enabling extension: ${error}`);
-            logger.error(error.stack);
-
-            // Clean up on error
-            this.disable();
-
-            // Error dialog removed - MessageDialog deleted
-            // Extension will fail to load, user can check logs
+        if (!layoutsLoaded) {
+            throw new Error('Failed to load layouts');
         }
+        logger.debug('LayoutManager initialized');
+
+        // Initialize SpatialStateManager (per-space layout state)
+        this._spatialStateManager = new SpatialStateManager(this._settings);
+        this._layoutManager.setSpatialStateManager(this._spatialStateManager);
+        logger.debug('SpatialStateManager initialized');
+
+        // Initialize ConflictDetector
+        this._conflictDetector = new ConflictDetector(this._settings);
+        const conflicts = this._conflictDetector.detectConflicts();
+        logger.debug('ConflictDetector initialized');
+
+        // Initialize NotificationManager
+        this._notificationManager = new NotificationManager(this);
+        logger.debug('NotificationManager initialized');
+
+        // Initialize ZoneOverlay
+        this._zoneOverlay = new ZoneOverlay(this);
+        logger.debug('ZoneOverlay initialized');
+
+        // Initialize NotificationService (routes notifications based on settings)
+        this._notificationService = new NotificationService(
+            this,
+            this._zoneOverlay,
+            this._notificationManager,
+        );
+        logger.debug('NotificationService initialized');
+
+        // Initialize TemplateManager
+        this._templateManager = new TemplateManager();
+        logger.debug('TemplateManager initialized');
+
+        // Initialize LayoutSwitcher
+        this._layoutSwitcher = new LayoutSwitcher(
+            this._layoutManager,
+            this._zoneOverlay,
+            this._settings,
+        );
+        logger.debug('LayoutSwitcher initialized');
+
+        // Initialize PanelIndicator (pass settings for scroll-target support)
+        this._panelIndicator = new PanelIndicator(
+            this._layoutManager,
+            this._conflictDetector,
+            this._layoutSwitcher,
+            this._notificationManager,
+            this._zoneOverlay,
+            this._settings,
+        );
+
+        // Add to status area, but check visibility setting
+        Main.panel.addToStatusArea('zoned-indicator', this._panelIndicator);
+        const showIndicator = this._settings.get_boolean('show-panel-indicator');
+        this._panelIndicator.visible = showIndicator;
+
+        // Watch for show-panel-indicator changes to show/hide in real-time
+        this._showIndicatorSignal = this._settings.connect('changed::show-panel-indicator', () => {
+            const show = this._settings.get_boolean('show-panel-indicator');
+            logger.debug(`Panel indicator visibility changed to: ${show}`);
+            if (this._panelIndicator) {
+                this._panelIndicator.visible = show;
+            }
+        });
+
+        // Set conflict status in panel
+        this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
+
+        // Watch for conflict count changes from prefs (prefs runs in separate process)
+        this._conflictCountSignal = this._settings.connect('changed::keybinding-conflict-count', () => {
+            logger.debug('Conflict count changed by prefs, re-detecting...');
+            this._conflictDetector.detectConflicts();
+            this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
+        });
+        logger.debug('PanelIndicator initialized');
+
+        // Watch for preview trigger from prefs (shows sample center notification)
+        this._previewSignal = this._settings.connect('changed::center-notification-preview', () => {
+            if (this._settings.get_boolean('center-notification-preview')) {
+                logger.debug('Preview triggered from preferences');
+                // Show preview with current settings
+                const duration = this._settings.get_int('notification-duration');
+                this._zoneOverlay.showMessage('Preview Notification', duration);
+                // Reset the flag
+                this._settings.set_boolean('center-notification-preview', false);
+            }
+        });
+        logger.debug('Preview signal handler initialized');
+
+        // Initialize KeybindingManager (with notification service)
+        this._keybindingManager = new KeybindingManager(
+            this._settings,
+            this._layoutManager,
+            this._windowManager,
+            this._notificationManager,
+            this._layoutSwitcher,
+            this._zoneOverlay,
+            this._notificationService,
+        );
+
+        // Register all keybindings
+        this._keybindingManager.registerKeybindings();
+        logger.debug('KeybindingManager initialized');
+
+        // Setup workspace switching handler (if workspace mode enabled)
+        this._setupWorkspaceHandler();
+
+        // Show startup notification (uses notification settings)
+        // Include conflict warning as 2nd line if conflicts detected
+        const hasConflicts = this._conflictDetector.hasConflicts();
+        const conflictCount = conflicts.length;
+        let startupMessage = 'Zoned Enabled';
+        if (hasConflicts) {
+            startupMessage += `\n⚠️ ${conflictCount} keybinding conflict${conflictCount !== 1 ? 's' : ''}`;
+        }
+        this._notificationService.notify(
+            NotifyCategory.STARTUP,
+            startupMessage,
+        );
+
+        logger.info('Extension enabled successfully');
     }
 
     /**
@@ -219,24 +208,19 @@ export default class ZonedExtension extends Extension {
     disable() {
         logger.info('Disabling extension...');
 
-        try {
-            // Disconnect signal handlers first
-            this._disconnectSignals();
+        // Disconnect signal handlers first
+        this._disconnectSignals();
 
-            // Destroy components in reverse initialization order
-            this._destroyComponents();
+        // Destroy components in reverse initialization order
+        this._destroyComponents();
 
-            // Clean up debug settings listener
-            destroyDebugSettings();
+        // Clean up debug settings listener
+        destroyDebugSettings();
 
-            // Clear settings reference
-            this._settings = null;
+        // Clear settings reference
+        this._settings = null;
 
-            logger.info('Extension disabled successfully');
-        } catch (error) {
-            logger.error(`Error disabling extension: ${error}`);
-            logger.error(error.stack);
-        }
+        logger.info('Extension disabled successfully');
     }
 
     /**
