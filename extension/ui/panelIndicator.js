@@ -295,13 +295,20 @@ export const PanelIndicator = GObject.registerClass(
         }
 
         /**
-     * Show about dialog
+     * Show about - opens settings scrolled to About section
      * @private
      */
         _showAbout() {
-        // Simple notification (dialog removed - will add proper about UI in future sprint)
-            this._notificationManager.show('Zoned v1.0 - github.com/hamiltonia/zoned', 3000);
-            logger.info('About: Zoned v1.0 - Advanced Window Zone Management');
+            logger.debug('Opening About section in settings...');
+
+            // Set scroll target so prefs opens at the About section
+            if (this._settings) {
+                this._settings.set_string('prefs-scroll-target', 'about');
+                logger.debug('Set prefs-scroll-target to: about');
+            }
+
+            // Open settings
+            this._openSettings();
         }
 
         /**

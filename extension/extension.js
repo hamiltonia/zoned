@@ -174,13 +174,10 @@ export default class ZonedExtension extends Extension {
             this._setupWorkspaceHandler();
 
             // Show startup notification (uses notification settings)
-            const currentLayout = this._layoutManager.getCurrentLayout();
-            if (currentLayout) {
-                this._notificationService.notify(
-                    NotifyCategory.STARTUP,
-                    `Enabled: ${currentLayout.name}`,
-                );
-            }
+            this._notificationService.notify(
+                NotifyCategory.STARTUP,
+                'Zoned Enabled',
+            );
 
             // Warn if conflicts detected (uses notification settings)
             if (this._conflictDetector.hasConflicts()) {

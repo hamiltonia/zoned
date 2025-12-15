@@ -1671,9 +1671,51 @@ export default class ZonedPreferences extends ExtensionPreferences {
         coffeeRow.add_suffix(coffeeButton);
         aboutGroup.add(coffeeRow);
 
+        // ========================================
+        // Reset All Section
+        // ========================================
+        const resetGroup = new Adw.PreferencesGroup({
+            title: 'Reset',
+        });
+        page.add(resetGroup);
+
+        const resetRow = new Adw.ActionRow({
+            title: 'Reset All Settings',
+            subtitle: 'Restore all options to their default values',
+        });
+        const resetButton = new Gtk.Button({
+            label: 'Reset All',
+            valign: Gtk.Align.CENTER,
+        });
+        resetButton.add_css_class('destructive-action');
+        resetButton.connect('clicked', () => {
+            // Show confirmation dialog
+            const dialog = new Adw.AlertDialog({
+                heading: 'Reset All Settings?',
+                body: 'All custom settings will be reset to their default values. This cannot be undone.',
+            });
+
+            dialog.add_response('cancel', 'Cancel');
+            dialog.add_response('reset', 'Continue');
+            dialog.set_response_appearance('reset', Adw.ResponseAppearance.DESTRUCTIVE);
+            dialog.set_default_response('cancel');
+
+            dialog.connect('response', (dlg, response) => {
+                if (response === 'reset') {
+                    log('Resetting all settings to defaults');
+                    this._resetAllSettings(settings);
+                    // Close the preferences window after reset
+                    window.close();
+                }
+            });
+
+            dialog.present(window);
+        });
+        resetRow.add_suffix(resetButton);
+        resetGroup.add(resetRow);
 
         // ========================================
-        // Hidden Developer Section
+        // Hidden Developer Section (below Reset)
         // ========================================
         // Only visible when developer-mode-revealed is true (set via Ctrl+Shift+D)
         const developerGroup = new Adw.PreferencesGroup({
@@ -1737,49 +1779,6 @@ export default class ZonedPreferences extends ExtensionPreferences {
         developerGroup.add(resetDebugRow);
 
         // ========================================
-        // Reset All Section - at very bottom
-        // ========================================
-        const resetGroup = new Adw.PreferencesGroup({
-            title: 'Reset',
-        });
-        page.add(resetGroup);
-
-        const resetRow = new Adw.ActionRow({
-            title: 'Reset All Settings',
-            subtitle: 'Restore all options to their default values',
-        });
-        const resetButton = new Gtk.Button({
-            label: 'Reset All',
-            valign: Gtk.Align.CENTER,
-        });
-        resetButton.add_css_class('destructive-action');
-        resetButton.connect('clicked', () => {
-            // Show confirmation dialog
-            const dialog = new Adw.AlertDialog({
-                heading: 'Reset All Settings?',
-                body: 'All custom settings will be reset to their default values. This cannot be undone.',
-            });
-
-            dialog.add_response('cancel', 'Cancel');
-            dialog.add_response('reset', 'Continue');
-            dialog.set_response_appearance('reset', Adw.ResponseAppearance.DESTRUCTIVE);
-            dialog.set_default_response('cancel');
-
-            dialog.connect('response', (dlg, response) => {
-                if (response === 'reset') {
-                    log('Resetting all settings to defaults');
-                    this._resetAllSettings(settings);
-                    // Close the preferences window after reset
-                    window.close();
-                }
-            });
-
-            dialog.present(window);
-        });
-        resetRow.add_suffix(resetButton);
-        resetGroup.add(resetRow);
-
-        // ========================================
         // Ctrl+Shift+D Handler to Toggle Developer Section
         // ========================================
         const devKeyController = new Gtk.EventControllerKey();
@@ -1813,30 +1812,46 @@ export default class ZonedPreferences extends ExtensionPreferences {
         });
         window.add_controller(devKeyController);
 
-        // Check if we should scroll to a specific section (set by panel menu)
-        const scrollTarget = settings.get_string('prefs-scroll-target');
-        if (scrollTarget) {
-            log(`Scroll target requested: ${scrollTarget}`);
-
-            // Clear the scroll target so it doesn't persist
-            settings.set_string('prefs-scroll-target', '');
-
-            // Scroll to the appropriate section after window is shown
-            // Use a small delay to ensure the window is fully rendered
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-                if (scrollTarget === 'keyboard-shortcuts') {
+        // Helper function to scroll to a section
+        const scrollToSection = (target) => {
+            log(`Scrolling to section: ${target}`);
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+                if (target === 'keyboard-shortcuts') {
                     // Scroll to keyboard shortcuts group
                     kbGroup.grab_focus();
                     log('Scrolled to keyboard shortcuts section');
-                } else if (scrollTarget === 'enhanced-shortcuts') {
+                } else if (target === 'enhanced-shortcuts') {
                     // Scroll to enhanced shortcuts and expand it
                     enhancedExpander.set_expanded(true);
                     enhancedExpander.grab_focus();
                     log('Scrolled to enhanced shortcuts section');
+                } else if (target === 'about') {
+                    // Scroll to about section - focus on the reset button so full About is visible
+                    resetButton.grab_focus();
+                    log('Scrolled to about section');
                 }
                 return GLib.SOURCE_REMOVE;
             });
+        };
+
+        // Check if we should scroll to a specific section (set by panel menu)
+        const scrollTarget = settings.get_string('prefs-scroll-target');
+        if (scrollTarget) {
+            log(`Scroll target requested: ${scrollTarget}`);
+            // Clear the scroll target so it doesn't persist
+            settings.set_string('prefs-scroll-target', '');
+            scrollToSection(scrollTarget);
         }
+
+        // Watch for scroll target changes (handles case when prefs is already open)
+        const scrollTargetSignal = settings.connect('changed::prefs-scroll-target', () => {
+            const newTarget = settings.get_string('prefs-scroll-target');
+            if (newTarget) {
+                log(`Scroll target changed to: ${newTarget}`);
+                settings.set_string('prefs-scroll-target', '');
+                scrollToSection(newTarget);
+            }
+        });
 
         // Watch for close request from extension (when "Fix All" is used from panel menu)
         const closeRequestSignal = settings.connect('changed::prefs-close-requested', () => {
@@ -1849,9 +1864,10 @@ export default class ZonedPreferences extends ExtensionPreferences {
             }
         });
 
-        // Clean up signal handler when window closes
+        // Clean up signal handlers when window closes
         window.connect('close-request', () => {
             settings.disconnect(closeRequestSignal);
+            settings.disconnect(scrollTargetSignal);
             return false; // Allow window to close
         });
 
