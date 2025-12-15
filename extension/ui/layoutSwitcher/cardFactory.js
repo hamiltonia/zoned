@@ -256,7 +256,9 @@ export function createTemplateCard(ctx, template, currentLayout) {
         const badgeSize = keybindingBadge._badgeSize;
         const badgeOffsetX = 3;  // Offset from right edge
         const badgeOffsetY = 3;  // Offset from bottom edge
-        keybindingBadge.set_position(ctx._cardWidth - badgeSize - badgeOffsetX, ctx._cardHeight - badgeSize - badgeOffsetY);
+        const badgeX = ctx._cardWidth - badgeSize - badgeOffsetX;
+        const badgeY = ctx._cardHeight - badgeSize - badgeOffsetY;
+        keybindingBadge.set_position(badgeX, badgeY);
         cardWrapper.add_child(keybindingBadge);
     }
 
@@ -393,7 +395,9 @@ export function createCustomLayoutCard(ctx, layout, currentLayout) {
         const badgeSize = keybindingBadge._badgeSize;
         const badgeOffsetX = 3;  // Offset from right edge
         const badgeOffsetY = 3;  // Offset from bottom edge
-        keybindingBadge.set_position(ctx._cardWidth - badgeSize - badgeOffsetX, ctx._cardHeight - badgeSize - badgeOffsetY);
+        const badgeX = ctx._cardWidth - badgeSize - badgeOffsetX;
+        const badgeY = ctx._cardHeight - badgeSize - badgeOffsetY;
+        keybindingBadge.set_position(badgeX, badgeY);
         cardWrapper.add_child(keybindingBadge);
     }
 

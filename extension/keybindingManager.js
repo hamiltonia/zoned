@@ -313,30 +313,34 @@ export class KeybindingManager {
 
     /**
      * Handler: Quick layout shortcut (Super+Ctrl+Alt+1-9)
-     * Activates layout by position in the ordered list
-     * @param {number} position - 1-based position (1-9)
+     * Activates layout by its assigned shortcut property (user-configurable in layout settings)
+     * @param {number} shortcutKey - The shortcut key pressed (1-9)
      * @private
      */
-    _onQuickLayout(position) {
-        logger.debug(`Quick layout ${position} triggered`);
+    _onQuickLayout(shortcutKey) {
+        logger.debug(`Quick layout shortcut ${shortcutKey} triggered`);
 
         const layouts = this._layoutManager.getAllLayoutsOrdered();
-        const index = position - 1;
 
-        // Check if position is valid
-        if (index >= layouts.length) {
-            logger.debug(`No layout at position ${position} (only ${layouts.length} layouts available)`);
+        // Find layout with matching shortcut assignment
+        // shortcut can be string ('1'-'9') or number (1-9)
+        const layout = layouts.find(l =>
+            l.shortcut === String(shortcutKey) || l.shortcut === shortcutKey,
+        );
+
+        // Check if any layout has this shortcut assigned
+        if (!layout) {
+            logger.debug(`No layout assigned to shortcut ${shortcutKey}`);
             if (this._notificationService) {
                 this._notificationService.notify(
                     NotifyCategory.LAYOUT_SWITCHING,
-                    `No layout at position ${position}`,
+                    `No layout assigned to shortcut ${shortcutKey}`,
                 );
             }
             return;
         }
 
-        const layout = layouts[index];
-        logger.info(`Quick switching to layout: ${layout.name} (position ${position})`);
+        logger.info(`Quick switching to layout: ${layout.name} (shortcut ${shortcutKey})`);
 
         // Check if per-workspace mode is enabled
         const perSpaceEnabled = this._settings.get_boolean('use-per-workspace-layouts');

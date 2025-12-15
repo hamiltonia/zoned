@@ -1300,17 +1300,27 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Handle number keys (1-9) for quick card selection
+     * Handle number keys (1-9) for quick card selection by assigned shortcut
+     * Finds layout with matching shortcut property, not by position
      * @param {number} symbol - Key symbol
      * @returns {boolean} True if handled
      * @private
      */
     _handleNumberKey(symbol) {
         if (symbol >= Clutter.KEY_1 && symbol <= Clutter.KEY_9) {
-            const index = symbol - Clutter.KEY_1;
-            if (index >= 0 && index < this._allCards.length) {
-                this._applyCardAtIndex(index);
+            const shortcutKey = symbol - Clutter.KEY_1 + 1;  // 1-9
+
+            // Find card with matching shortcut assignment
+            const cardIndex = this._allCards.findIndex(cardObj => {
+                const shortcut = cardObj.layout?.shortcut;
+                return shortcut === String(shortcutKey) || shortcut === shortcutKey;
+            });
+
+            if (cardIndex >= 0) {
+                this._applyCardAtIndex(cardIndex);
             }
+            // If no layout has this shortcut assigned, do nothing (silent)
+
             return true;
         }
         return false;
