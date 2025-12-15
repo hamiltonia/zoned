@@ -468,14 +468,13 @@ export class LayoutSwitcher {
             return this._handleBackgroundClick(event);
         });
 
-        // Main container - no left/right padding, sections extend to edges
-        // Sections use their own internal padding for card margins
+        // Main container with padding on all sides
         const container = new St.BoxLayout({
             vertical: true,
             style: `background-color: ${colors.containerBg}; ` +
                    `border-radius: ${this._CONTAINER_BORDER_RADIUS}px; ` +
-                   'padding-left: 0px; ' +
-                   'padding-right: 0px; ' +
+                   `padding-left: ${this._CONTAINER_PADDING_LEFT}px; ` +
+                   `padding-right: ${this._CONTAINER_PADDING_RIGHT}px; ` +
                    `padding-top: ${this._CONTAINER_PADDING_TOP}px; ` +
                    `padding-bottom: ${this._CONTAINER_PADDING_BOTTOM}px; ` +
                    `width: ${dialogWidth}px; ` +
