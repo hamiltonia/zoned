@@ -1382,6 +1382,104 @@ export default class ZonedPreferences extends ExtensionPreferences {
         aboutRow.add_suffix(githubButton);
         aboutGroup.add(aboutRow);
 
+        // ========================================
+        // Hidden Developer Section
+        // ========================================
+        // Only visible when developer-mode-revealed is true (set via Ctrl+Shift+D)
+        const developerGroup = new Adw.PreferencesGroup({
+            title: '🛠️ Developer Settings',
+            description: 'Debug tools for development. Press Ctrl+Shift+D to hide.',
+            visible: settings.get_boolean('developer-mode-revealed'),
+        });
+        page.add(developerGroup);
+
+        // Debug Logging toggle
+        const debugLoggingRow = new Adw.SwitchRow({
+            title: 'Debug Logging',
+            subtitle: 'Enable verbose console output (view with journalctl -f /usr/bin/gnome-shell)',
+        });
+        settings.bind('debug-logging', debugLoggingRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        developerGroup.add(debugLoggingRow);
+
+        // Debug Layout Rectangles toggle
+        const debugRectsRow = new Adw.SwitchRow({
+            title: 'Debug Layout Rectangles',
+            subtitle: 'Show colored borders around layout elements in the layout picker',
+        });
+        settings.bind('debug-layout-rects', debugRectsRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        developerGroup.add(debugRectsRow);
+
+        // Debug Measurement Overlay toggle
+        const debugOverlayRow = new Adw.SwitchRow({
+            title: 'Debug Measurement Overlay',
+            subtitle: 'Show dimension and tier info overlay in layout picker',
+        });
+        settings.bind('debug-layout-overlay', debugOverlayRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        developerGroup.add(debugOverlayRow);
+
+        // Reset All Debug Settings button
+        const resetDebugBox = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            halign: Gtk.Align.CENTER,
+            margin_top: 12,
+            margin_bottom: 8,
+        });
+
+        const resetDebugButton = new Gtk.Button({
+            label: 'Reset Debug Settings & Hide Section',
+        });
+        resetDebugButton.add_css_class('destructive-action');
+        resetDebugButton.connect('clicked', () => {
+            log('Resetting all debug settings to defaults');
+            // Reset all debug settings to their defaults
+            settings.reset('debug-logging');
+            settings.reset('debug-layout-rects');
+            settings.reset('debug-layout-overlay');
+            settings.reset('option-force-tier');
+            // Hide the developer section
+            settings.set_boolean('developer-mode-revealed', false);
+            developerGroup.visible = false;
+        });
+        resetDebugBox.append(resetDebugButton);
+
+        const resetDebugRow = new Adw.PreferencesRow();
+        resetDebugRow.set_child(resetDebugBox);
+        developerGroup.add(resetDebugRow);
+
+        // ========================================
+        // Ctrl+Shift+D Handler to Toggle Developer Section
+        // ========================================
+        const devKeyController = new Gtk.EventControllerKey();
+        devKeyController.connect('key-pressed', (ctrl, keyval, keycode, state) => {
+            // Check for Ctrl+Shift+D
+            const ctrlPressed = (state & Gdk.ModifierType.CONTROL_MASK) !== 0;
+            const shiftPressed = (state & Gdk.ModifierType.SHIFT_MASK) !== 0;
+            const isDKey = keyval === Gdk.KEY_d || keyval === Gdk.KEY_D;
+
+            if (ctrlPressed && shiftPressed && isDKey) {
+                const isCurrentlyRevealed = settings.get_boolean('developer-mode-revealed');
+                if (isCurrentlyRevealed) {
+                    // Hide developer section
+                    log('Developer mode hidden via Ctrl+Shift+D');
+                    settings.set_boolean('developer-mode-revealed', false);
+                    developerGroup.visible = false;
+                } else {
+                    // Reveal developer section
+                    log('Developer mode revealed via Ctrl+Shift+D');
+                    settings.set_boolean('developer-mode-revealed', true);
+                    developerGroup.visible = true;
+                    // Scroll to the developer section
+                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                        developerGroup.grab_focus();
+                        return GLib.SOURCE_REMOVE;
+                    });
+                }
+                return true; // Event handled
+            }
+            return false; // Propagate event
+        });
+        window.add_controller(devKeyController);
+
         // Check if we should scroll to a specific section (set by panel menu)
         const scrollTarget = settings.get_string('prefs-scroll-target');
         if (scrollTarget) {

@@ -258,5 +258,26 @@
       </description>
     </key>
     
+    <!-- Developer Mode Settings -->
+    <key name="debug-logging" type="b">
+      <default>false</default>
+      <summary>Enable verbose debug logging</summary>
+      <description>
+        Enables info/debug level console output for troubleshooting.
+        Errors and warnings are always logged regardless of this setting.
+        View logs with: journalctl -f /usr/bin/gnome-shell
+      </description>
+    </key>
+    
+    <key name="developer-mode-revealed" type="b">
+      <default>false</default>
+      <summary>Developer section visibility state</summary>
+      <description>
+        Internal flag tracking whether the hidden Developer section is visible.
+        Toggle with Ctrl+Shift+D in the preferences window.
+        Reset via the "Reset Debug Settings" button.
+      </description>
+    </key>
+    
   </schema>
 </schemalist>

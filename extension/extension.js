@@ -25,7 +25,7 @@ import {LayoutSwitcher} from './ui/layoutSwitcher.js';
 import {ZoneOverlay} from './ui/zoneOverlay.js';
 import {ConflictDetector} from './ui/conflictDetector.js';
 import {PanelIndicator} from './ui/panelIndicator.js';
-import {createLogger} from './utils/debug.js';
+import {createLogger, initDebugSettings, destroyDebugSettings} from './utils/debug.js';
 
 const logger = createLogger('Extension');
 
@@ -61,6 +61,10 @@ export default class ZonedExtension extends Extension {
             // Initialize GSettings
             this._settings = this.getSettings('org.gnome.shell.extensions.zoned');
             logger.debug('GSettings initialized');
+
+            // Initialize debug logging from GSettings (must be early)
+            initDebugSettings(this._settings);
+            logger.debug('Debug settings initialized');
 
             // Initialize WindowManager
             this._windowManager = new WindowManager();
@@ -187,6 +191,9 @@ export default class ZonedExtension extends Extension {
 
             // Destroy components in reverse initialization order
             this._destroyComponents();
+
+            // Clean up debug settings listener
+            destroyDebugSettings();
 
             // Clear settings reference
             this._settings = null;
