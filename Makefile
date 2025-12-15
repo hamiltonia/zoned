@@ -1,6 +1,6 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean zip \
         vm-init vm-network-setup vm-setup vm-install vm-logs vm-dev vm-restart-spice \
-        lint lint-fix
+        lint lint-strict lint-fix dev reinstall
 
 # Detect OS for sed compatibility
 UNAME_S := $(shell uname -s)
@@ -55,24 +55,13 @@ help:
 	@printf "\n"
 
 install:
-	@printf "$(COLOR_INFO)Installing Zoned extension (production mode)...$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)Installing Zoned extension...$(COLOR_RESET)\n"
 	@mkdir -p $(INSTALL_DIR)
 	@cp -r $(EXTENSION_DIR)/* $(INSTALL_DIR)/
-	@$(SED_INPLACE) 's/^const DEBUG = .*/const DEBUG = false;/' $(INSTALL_DIR)/utils/debug.js
 	@glib-compile-schemas $(INSTALL_DIR)/schemas/
 	@printf "$(COLOR_SUCCESS)✓ Installation complete: $(INSTALL_DIR)$(COLOR_RESET)\n"
-	@printf "$(COLOR_INFO)  DEBUG logging: disabled$(COLOR_RESET)\n"
 	@printf "$(COLOR_SUCCESS)✓ Schema compiled$(COLOR_RESET)\n"
-
-install-dev:
-	@printf "$(COLOR_INFO)Installing Zoned extension (development mode)...$(COLOR_RESET)\n"
-	@mkdir -p $(INSTALL_DIR)
-	@cp -r $(EXTENSION_DIR)/* $(INSTALL_DIR)/
-	@$(SED_INPLACE) 's/^const DEBUG = .*/const DEBUG = true;/' $(INSTALL_DIR)/utils/debug.js
-	@glib-compile-schemas $(INSTALL_DIR)/schemas/
-	@printf "$(COLOR_SUCCESS)✓ Installation complete: $(INSTALL_DIR)$(COLOR_RESET)\n"
-	@printf "$(COLOR_INFO)  DEBUG logging: enabled$(COLOR_RESET)\n"
-	@printf "$(COLOR_SUCCESS)✓ Schema compiled$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)  Tip: Enable debug logging in Preferences → Developer section (Ctrl+Shift+D)$(COLOR_RESET)\n"
 
 uninstall:
 	@printf "$(COLOR_INFO)Uninstalling Zoned extension...$(COLOR_RESET)\n"
@@ -141,6 +130,14 @@ lint:
 	fi
 	@npm run lint
 
+lint-strict:
+	@printf "$(COLOR_INFO)Running ESLint (strict mode - no warnings allowed)...$(COLOR_RESET)\n"
+	@if [ ! -d "node_modules" ]; then \
+		printf "$(COLOR_WARN)Installing npm dependencies...$(COLOR_RESET)\n"; \
+		npm install --silent; \
+	fi
+	@npm run lint -- --max-warnings 0
+
 lint-fix:
 	@printf "$(COLOR_INFO)Running ESLint with auto-fix...$(COLOR_RESET)\n"
 	@if [ ! -d "node_modules" ]; then \
@@ -156,22 +153,21 @@ clean:
 	@rm -rf build/ dist/
 	@printf "$(COLOR_SUCCESS)✓ Clean complete$(COLOR_RESET)\n"
 
-zip:
-	@printf "$(COLOR_INFO)Creating extension package (production)...$(COLOR_RESET)\n"
+zip: lint-strict
+	@printf "$(COLOR_INFO)Creating extension package...$(COLOR_RESET)\n"
 	@mkdir -p build/prod
 	@cp -r $(EXTENSION_DIR)/* build/prod/
-	@$(SED_INPLACE) 's/^const DEBUG = .*/const DEBUG = false;/' build/prod/utils/debug.js
 	@cd build/prod && zip -r ../$(EXTENSION_UUID).zip . -x "*.git*"
 	@printf "$(COLOR_SUCCESS)✓ Package created: build/$(EXTENSION_UUID).zip$(COLOR_RESET)\n"
-	@printf "$(COLOR_INFO)  DEBUG logging: disabled (production build)$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)  Note: Debug logging controlled via GSettings (default: disabled)$(COLOR_RESET)\n"
 
 # Convenience target for development workflow
-dev: install-dev compile-schema enable
+dev: lint install enable
 	@printf "$(COLOR_SUCCESS)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)\n"
 	@printf "$(COLOR_SUCCESS)✓ Development setup complete!$(COLOR_RESET)\n"
 	@printf "$(COLOR_SUCCESS)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)\n"
 	@printf "\n"
-	@printf "$(COLOR_INFO)Extension installed, compiled, and enabled.$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)Extension installed and enabled.$(COLOR_RESET)\n"
 	@printf "\n"
 	@if [ "$$XDG_SESSION_TYPE" = "wayland" ]; then \
 		printf "$(COLOR_WARN)⚠  You're on Wayland - You must LOG OUT and LOG BACK IN to test changes.$(COLOR_RESET)\n"; \
@@ -188,7 +184,7 @@ dev: install-dev compile-schema enable
 	@printf "\n"
 
 # Quick reinstall during development
-reinstall: uninstall install-dev compile-schema
+reinstall: lint uninstall install
 	@printf "$(COLOR_SUCCESS)✓ Extension reinstalled$(COLOR_RESET)\n"
 	@printf "$(COLOR_WARN)⚠ Remember to reload GNOME Shell to see changes$(COLOR_RESET)\n"
 
@@ -213,7 +209,7 @@ vm-logs:
 	@printf "$(COLOR_INFO)Watching VM logs...$(COLOR_RESET)\n"
 	@./scripts/vm-logs
 
-vm-dev: vm-install
+vm-dev: lint vm-install
 	@printf "$(COLOR_SUCCESS)✓ VM development cycle complete$(COLOR_RESET)\n"
 	@printf "\n"
 	@printf "$(COLOR_INFO)To see changes:$(COLOR_RESET)\n"
