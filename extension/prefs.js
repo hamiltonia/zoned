@@ -13,6 +13,10 @@ import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import {
+    GNOME_BINDINGS,
+    normalizeAccelerator,
+} from './utils/keybindingConfig.js';
 
 // Simple logging for prefs (console.log goes to journalctl)
 function log(msg) {
@@ -144,67 +148,7 @@ function parseAccelerator(accelerator) {
     return null;
 }
 
-/**
- * Key name aliases - different names that map to the same physical key
- * GNOME GSettings sometimes uses different names than GTK accelerator syntax
- */
-const KEY_ALIASES = {
-    // The backtick/grave key (left of 1 on US keyboards)
-    'Above_Tab': 'grave',      // GNOME uses Above_Tab, GTK uses grave
-    'quoteleft': 'grave',      // Another alias for the same key
-
-    // Enter key
-    'KP_Enter': 'Return',      // Keypad enter
-
-    // Tab variants
-    'ISO_Left_Tab': 'Tab',     // Shift+Tab generates this
-
-    // Page navigation (some systems use Prior/Next)
-    'Prior': 'Page_Up',
-    'Next': 'Page_Down',
-
-    // Numpad operators
-    'KP_Add': 'plus',
-    'KP_Subtract': 'minus',
-    'KP_Multiply': 'asterisk',
-    'KP_Divide': 'slash',
-    'KP_Decimal': 'period',
-
-    // Numpad numbers (map to regular numbers)
-    'KP_0': '0',
-    'KP_1': '1',
-    'KP_2': '2',
-    'KP_3': '3',
-    'KP_4': '4',
-    'KP_5': '5',
-    'KP_6': '6',
-    'KP_7': '7',
-    'KP_8': '8',
-    'KP_9': '9',
-};
-
-/**
- * Normalize an accelerator string to use GTK-compatible key names
- * @param {string} accel - The accelerator string
- * @returns {string} Normalized accelerator
- */
-function normalizeAccelerator(accel) {
-    if (!accel) return accel;
-
-    let normalized = accel;
-    for (const [alias, canonical] of Object.entries(KEY_ALIASES)) {
-        // Replace the alias with the canonical name (case-insensitive for the key part)
-        const regex = new RegExp(`>${alias}$`, 'i');
-        if (regex.test(normalized)) {
-            normalized = normalized.replace(regex, `>${canonical}`);
-        }
-        // Also handle case where there's no > prefix
-        if (normalized === alias) {
-            normalized = canonical;
-        }
-    }
-    return normalized;
-}
+// KEY_ALIASES and normalizeAccelerator are imported from utils/keybindingConfig.js
 
 /**
  * Check if two accelerators are equivalent (same key + same modifiers)
@@ -242,6 +186,7 @@ function acceleratorsMatch(accel1, accel2) {
 
 /**
  * Check for keybinding conflicts with GNOME system shortcuts
+ * Uses shared GNOME_BINDINGS from utils/keybindingConfig.js
  * @param {string} accelerator - The accelerator to check
  * @param {string} currentKey - The settings key being edited (to exclude self)
  * @returns {Object|null} Conflict info or null
@@ -249,33 +194,8 @@ function acceleratorsMatch(accel1, accel2) {
 function checkConflicts(accelerator, _currentKey) {
     if (!accelerator) return null;
 
-    // Known GNOME keybindings that might conflict
-    const gnomeBindings = [
-        // Window tiling (mutter)
-        {schema: 'org.gnome.mutter.keybindings', key: 'toggle-tiled-left', name: 'Tile window left'},
-        {schema: 'org.gnome.mutter.keybindings', key: 'toggle-tiled-right', name: 'Tile window right'},
-        // Window management (org.gnome.desktop.wm.keybindings)
-        {schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-group', name: 'Switch windows of app'},
-        {schema: 'org.gnome.desktop.wm.keybindings', key: 'maximize', name: 'Maximize window'},
-        {schema: 'org.gnome.desktop.wm.keybindings', key: 'unmaximize', name: 'Restore window'},  // Super+Down on GNOME
-        {schema: 'org.gnome.desktop.wm.keybindings', key: 'minimize', name: 'Minimize window'},
-        // Workspace switching (Ubuntu uses Super+Alt+Arrow by default)
-        {schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-left', name: 'Switch to workspace left'},
-        {schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-right', name: 'Switch to workspace right'},
-        {schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-up', name: 'Switch to workspace up'},
-        {schema: 'org.gnome.desktop.wm.keybindings', key: 'switch-to-workspace-down', name: 'Switch to workspace down'},
-        // Move window to workspace
-        {schema: 'org.gnome.desktop.wm.keybindings', key: 'move-to-workspace-left', name: 'Move window to workspace left'},
-        {schema: 'org.gnome.desktop.wm.keybindings', key: 'move-to-workspace-right', name: 'Move window to workspace right'},
-        // Tiling Assistant extension (Ubuntu 24+ default)
-        {schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-left-half', name: 'Tiling Assistant: Tile left'},
-        {schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-right-half', name: 'Tiling Assistant: Tile right'},
-        {schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-maximize', name: 'Tiling Assistant: Maximize'},
-        {schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-bottomhalf', name: 'Tiling Assistant: Tile bottom'},
-        {schema: 'org.gnome.shell.extensions.tiling-assistant', key: 'tile-tophalf', name: 'Tiling Assistant: Tile top'},
-    ];
-
-    for (const gnome of gnomeBindings) {
+    // Use shared GNOME_BINDINGS from keybindingConfig.js
+    for (const gnome of GNOME_BINDINGS) {
         try {
             const schema = new Gio.Settings({schema: gnome.schema});
             const bindings = schema.get_strv(gnome.key);
@@ -642,6 +562,12 @@ const ShortcutCaptureRow = GObject.registerClass({
 
         this._setAccelerator(accelerator);
         this._updateDisplay();
+
+        // Notify extension to re-check conflicts (async to ensure GSettings write completes)
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+            this._signalConflictChange();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     /**
@@ -802,6 +728,12 @@ const ShortcutCaptureRow = GObject.registerClass({
     _resetToDefault() {
         log(`Resetting ${this._settingsKey} to default: ${this._defaultAccelerator}`);
         this._setAccelerator(this._defaultAccelerator);
+
+        // Notify extension to re-check conflicts (async to ensure GSettings write completes)
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+            this._signalConflictChange();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     /**

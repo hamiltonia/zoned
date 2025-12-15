@@ -1,12 +1,20 @@
 /**
  * ConflictDetector - Detects keybinding conflicts with GNOME Shell
  *
- * Checks if Zoned's keybindings conflict with default GNOME bindings
+ * Checks if Zoned's keybindings conflict with system/GNOME bindings
  * and provides methods to resolve conflicts.
+ *
+ * Uses shared configuration from utils/keybindingConfig.js to ensure
+ * consistency with prefs.js conflict detection.
  */
 
 import Gio from 'gi://Gio';
 import {createLogger} from '../utils/debug.js';
+import {
+    GNOME_BINDINGS,
+    ZONED_BINDINGS,
+    acceleratorsMatch,
+} from '../utils/keybindingConfig.js';
 
 const logger = createLogger('ConflictDetector');
 
@@ -17,64 +25,44 @@ export class ConflictDetector {
     }
 
     /**
-     * Detect all keybinding conflicts with GNOME
+     * Detect all keybinding conflicts with GNOME/system
      * @returns {Array} Array of conflict objects
      */
     detectConflicts() {
         this._conflicts = [];
 
         try {
-            // Get GNOME Settings schemas
-            const mutterSettings = new Gio.Settings({
-                schema: 'org.gnome.mutter.keybindings',
-            });
-            const wmSettings = new Gio.Settings({
-                schema: 'org.gnome.desktop.wm.keybindings',
-            });
-
-            // Check each Zoned keybinding
-            this._checkBinding('cycle-zone-left', '<Super>Left', [
-                {
-                    schema: mutterSettings,
-                    key: 'toggle-tiled-left',
-                    description: 'GNOME: Tile window left',
-                },
-            ]);
-
-            this._checkBinding('cycle-zone-right', '<Super>Right', [
-                {
-                    schema: mutterSettings,
-                    key: 'toggle-tiled-right',
-                    description: 'GNOME: Tile window right',
-                },
-            ]);
-
-            this._checkBinding('show-layout-picker', '<Super>grave', [
-                {
-                    schema: wmSettings,
-                    key: 'switch-group',
-                    description: 'GNOME: Switch windows of application',
-                },
-            ]);
-
-            // Enhanced Window Management keybindings (only check if enabled)
+            // Check if enhanced window management is enabled
             const enhancedEnabled = this._settings.get_boolean('enhanced-window-management-enabled');
-            if (enhancedEnabled) {
-                this._checkBinding('minimize-window', '<Super>Down', [
-                    {
-                        schema: wmSettings,
-                        key: 'minimize',
-                        description: 'GNOME: Minimize window',
-                    },
-                ]);
 
-                this._checkBinding('maximize-window', '<Super>Up', [
-                    {
-                        schema: wmSettings,
-                        key: 'maximize',
-                        description: 'GNOME: Maximize window',
-                    },
-                ]);
+            // Check each Zoned keybinding against all GNOME bindings
+            for (const zonedBinding of ZONED_BINDINGS) {
+                // Skip enhanced bindings if feature is disabled
+                if (zonedBinding.enhanced && !enhancedEnabled) {
+                    continue;
+                }
+
+                // Get our current binding value
+                const ourBindingValue = this._settings.get_strv(zonedBinding.key);
+                if (!ourBindingValue || ourBindingValue.length === 0) {
+                    continue;
+                }
+
+                const ourAccel = ourBindingValue[0];
+
+                // Check against all GNOME bindings
+                for (const gnome of GNOME_BINDINGS) {
+                    const conflict = this._checkConflict(
+                        zonedBinding.key,
+                        zonedBinding.name,
+                        ourAccel,
+                        gnome,
+                    );
+
+                    if (conflict) {
+                        this._conflicts.push(conflict);
+                    }
+                }
             }
 
             logger.info(`Detected ${this._conflicts.length} keybinding conflicts`);
@@ -86,83 +74,40 @@ export class ConflictDetector {
     }
 
     /**
-     * Get all alias variations of a keybinding
+     * Check if a Zoned binding conflicts with a GNOME binding
      * @private
-     * @param {string} binding - The keybinding to get aliases for
-     * @returns {Array} Array of alias bindings including the original
+     * @param {string} zonedKey - Zoned settings key
+     * @param {string} zonedName - Human-readable name
+     * @param {string} ourAccel - Our accelerator string
+     * @param {Object} gnome - GNOME binding definition from GNOME_BINDINGS
+     * @returns {Object|null} Conflict object or null
      */
-    _getKeyAliases(binding) {
-        const aliases = [binding];
+    _checkConflict(zonedKey, zonedName, ourAccel, gnome) {
+        try {
+            const schema = new Gio.Settings({schema: gnome.schema});
+            const gnomeBindings = schema.get_strv(gnome.key);
 
-        // Handle grave/Above_Tab aliasing (backtick key)
-        if (binding.includes('grave')) {
-            aliases.push(binding.replace('grave', 'Above_Tab'));
-        } else if (binding.includes('Above_Tab')) {
-            aliases.push(binding.replace('Above_Tab', 'grave'));
-        }
+            // Check if any GNOME binding matches ours
+            for (const gnomeAccel of gnomeBindings) {
+                if (gnomeAccel && acceleratorsMatch(ourAccel, gnomeAccel)) {
+                    logger.debug(`Conflict: ${zonedKey} (${ourAccel}) conflicts with ${gnome.name} (${gnomeAccel})`);
 
-        return aliases;
-    }
-
-    /**
-     * Check if two bindings conflict (considering aliases)
-     * @private
-     * @param {string} binding1 - First binding
-     * @param {string} binding2 - Second binding
-     * @returns {boolean} True if bindings conflict
-     */
-    _bindingsConflict(binding1, binding2) {
-        // Direct match
-        if (binding1 === binding2) {
-            return true;
-        }
-
-        // Check aliases
-        const aliases1 = this._getKeyAliases(binding1);
-        const aliases2 = this._getKeyAliases(binding2);
-
-        return aliases1.some(alias1 => aliases2.includes(alias1));
-    }
-
-    /**
-     * Check a specific binding for conflicts
-     * @private
-     */
-    _checkBinding(ourAction, ourBinding, gnomeBindings) {
-        const ourBindingValue = this._settings.get_strv(ourAction);
-
-        if (!ourBindingValue || ourBindingValue.length === 0) {
-            return;
-        }
-
-        gnomeBindings.forEach(({schema, key, description}) => {
-            try {
-                const gnomeBindingValue = schema.get_strv(key);
-
-                // Check if any of our bindings conflict with GNOME bindings
-                // Now considering key aliases (e.g., grave vs Above_Tab)
-                const hasConflict = ourBindingValue.some(ourKey =>
-                    gnomeBindingValue.some(gnomeKey =>
-                        this._bindingsConflict(ourKey, gnomeKey),
-                    ),
-                );
-
-                if (hasConflict) {
-                    this._conflicts.push({
-                        zonedAction: ourAction,
-                        zonedBinding: ourBindingValue[0],
-                        gnomeSchema: schema.schema_id,
-                        gnomeKey: key,
-                        gnomeDescription: description,
-                        gnomeBinding: gnomeBindingValue,
-                    });
-
-                    logger.info(`Conflict: ${ourAction} (${ourBindingValue[0]}) conflicts with ${description}`);
+                    return {
+                        zonedAction: zonedKey,
+                        zonedName: zonedName,
+                        zonedBinding: ourAccel,
+                        gnomeSchema: gnome.schema,
+                        gnomeKey: gnome.key,
+                        gnomeDescription: gnome.name,
+                        gnomeBinding: gnomeBindings,
+                    };
                 }
-            } catch (error) {
-                logger.warn(`Could not check binding ${key}: ${error}`);
             }
-        });
+        } catch {
+            // Schema not available (e.g., Tiling Assistant not installed), skip silently
+        }
+
+        return null;
     }
 
     /**
