@@ -233,10 +233,11 @@ export class KeybindingManager {
             return;
         }
 
-        this._windowManager.moveWindowToZone(window, zone);
-
         // Get layout info (space-aware if per-workspace mode)
         const layout = this._layoutManager.getCurrentLayout(spaceKey);
+        const padding = layout?.padding || 0;
+
+        this._windowManager.moveWindowToZone(window, zone, padding);
         const zoneIndex = spaceKey
             ? this._layoutManager.getZoneIndexForSpace(spaceKey)
             : this._layoutManager.getCurrentZoneIndex();
@@ -275,10 +276,11 @@ export class KeybindingManager {
             return;
         }
 
-        this._windowManager.moveWindowToZone(window, zone);
-
         // Get layout info (space-aware if per-workspace mode)
         const layout = this._layoutManager.getCurrentLayout(spaceKey);
+        const padding = layout?.padding || 0;
+
+        this._windowManager.moveWindowToZone(window, zone, padding);
         const zoneIndex = spaceKey
             ? this._layoutManager.getZoneIndexForSpace(spaceKey)
             : this._layoutManager.getCurrentZoneIndex();

@@ -36,8 +36,9 @@ export class WindowManager {
      * @param {number} zone.y - Y position as percentage of screen height
      * @param {number} zone.w - Width as percentage of screen width
      * @param {number} zone.h - Height as percentage of screen height
+     * @param {number} [padding=0] - Padding in pixels to inset window from zone edges
      */
-    moveWindowToZone(window, zone) {
+    moveWindowToZone(window, zone, padding = 0) {
         if (!window) {
             logger.warn('No window provided to moveWindowToZone');
             return;
@@ -63,16 +64,22 @@ export class WindowManager {
         const width = Math.round(zone.w * workArea.width);
         const height = Math.round(zone.h * workArea.height);
 
+        // Apply padding inset (shrink window to create space around it)
+        const finalX = x + padding;
+        const finalY = y + padding;
+        const finalWidth = Math.max(width - (padding * 2), 1);
+        const finalHeight = Math.max(height - (padding * 2), 1);
+
         // Move and resize the window
         window.move_resize_frame(
             false,  // user_op (false = programmatic)
-            x,
-            y,
-            width,
-            height,
+            finalX,
+            finalY,
+            finalWidth,
+            finalHeight,
         );
 
-        logger.debug(`Moved window to zone: x=${x}, y=${y}, w=${width}, h=${height}`);
+        logger.debug(`Moved window to zone: x=${finalX}, y=${finalY}, w=${finalWidth}, h=${finalHeight}${padding > 0 ? ` (padding=${padding})` : ''}`);
     }
 
     /**

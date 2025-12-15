@@ -60,7 +60,7 @@ export class LayoutSettingsDialog {
         // Create working copy to avoid mutating input
         this._layout = layout ? JSON.parse(JSON.stringify(layout)) : {
             zones: [],
-            padding: 8,
+            padding: 0,  // Default: padding off (use 4 when enabled)
             name: this._generateDefaultName(),  // Always start with a default name
         };
 
@@ -360,7 +360,7 @@ export class LayoutSettingsDialog {
         paddingRow.add_child(paddingLabelBox);
 
         this._paddingSpinner = this._createSpinnerInput(colors, {
-            value: this._layout.padding || 8, min: 0, max: 16, step: 1,
+            value: this._layout.padding || 4, min: 0, max: 16, step: 1,
         });
         this._paddingSpinner.reactive = isChecked;
         this._paddingSpinner.opacity = isChecked ? 255 : 128;
@@ -1263,7 +1263,7 @@ export class LayoutSettingsDialog {
      * @private
      */
     _captureDialogState() {
-        const currentPadding = this._paddingSpinner?._value ?? this._layout.padding ?? 8;
+        const currentPadding = this._paddingSpinner?._value ?? this._layout.padding ?? 4;
         return {
             name: this._nameEntry.get_text().trim(),
             padding: currentPadding,
@@ -1285,7 +1285,7 @@ export class LayoutSettingsDialog {
             id: state.layoutData.id || `layout-${Date.now()}`,
             name: state.name,
             zones: editedLayout.zones,
-            padding: state.paddingEnabled ? (parseInt(state.padding) || 8) : 0,
+            padding: state.paddingEnabled ? (parseInt(state.padding) || 4) : 0,
             shortcut: state.shortcut,
             metadata: {
                 createdDate: state.layoutData.metadata?.createdDate || Date.now(),
@@ -1382,7 +1382,7 @@ export class LayoutSettingsDialog {
             id: this._generateId(),  // New unique ID
             name: `${this._layout.name} Copy`,
             zones: JSON.parse(JSON.stringify(this._layout.zones || [])),
-            padding: this._layout.padding || 8,
+            padding: this._layout.padding || 0,  // Preserve padding; default off
             shortcut: null,  // Don't copy shortcut to avoid conflicts
             metadata: {
                 createdDate: Date.now(),
@@ -1600,7 +1600,7 @@ export class LayoutSettingsDialog {
      */
     _collectPaddingValue() {
         const paddingEnabled = this._paddingCheckbox?._checked;
-        return paddingEnabled ? (this._paddingSpinner?._value ?? 8) : 0;
+        return paddingEnabled ? (this._paddingSpinner?._value ?? 4) : 0;
     }
 
     /**
