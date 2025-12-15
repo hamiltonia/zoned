@@ -1164,6 +1164,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
             // Enhanced window management
             'enhanced-window-management-enabled',
             // Appearance
+            'show-panel-indicator',
             'ui-theme',
             'option-force-tier',
             'layout-picker-size',
@@ -1305,6 +1306,14 @@ export default class ZonedPreferences extends ExtensionPreferences {
         });
 
         appearanceGroup.add(themeRow);
+
+        // Show Panel Indicator toggle
+        const showIndicatorRow = new Adw.SwitchRow({
+            title: 'Show Panel Indicator',
+            subtitle: 'Show Zoned icon in the top bar. When hidden, use keyboard shortcuts or this settings page.',
+        });
+        settings.bind('show-panel-indicator', showIndicatorRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        appearanceGroup.add(showIndicatorRow);
 
         // Layout Picker Size (Tier) preference
         const tierRow = new Adw.ComboRow({

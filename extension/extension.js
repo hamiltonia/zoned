@@ -50,6 +50,7 @@ export default class ZonedExtension extends Extension {
         this._workspaceSwitchedSignal = null;
         this._conflictCountSignal = null;
         this._previewSignal = null;
+        this._showIndicatorSignal = null;
 
         logger.info('Extension constructed');
     }
@@ -129,7 +130,20 @@ export default class ZonedExtension extends Extension {
                 this._zoneOverlay,
                 this._settings,
             );
+
+            // Add to status area, but check visibility setting
             Main.panel.addToStatusArea('zoned-indicator', this._panelIndicator);
+            const showIndicator = this._settings.get_boolean('show-panel-indicator');
+            this._panelIndicator.visible = showIndicator;
+
+            // Watch for show-panel-indicator changes to show/hide in real-time
+            this._showIndicatorSignal = this._settings.connect('changed::show-panel-indicator', () => {
+                const show = this._settings.get_boolean('show-panel-indicator');
+                logger.debug(`Panel indicator visibility changed to: ${show}`);
+                if (this._panelIndicator) {
+                    this._panelIndicator.visible = show;
+                }
+            });
 
             // Set conflict status in panel
             this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
@@ -174,19 +188,17 @@ export default class ZonedExtension extends Extension {
             this._setupWorkspaceHandler();
 
             // Show startup notification (uses notification settings)
+            // Include conflict warning as 2nd line if conflicts detected
+            const hasConflicts = this._conflictDetector.hasConflicts();
+            const conflictCount = conflicts.length;
+            let startupMessage = 'Zoned Enabled';
+            if (hasConflicts) {
+                startupMessage += `\n⚠️ ${conflictCount} keybinding conflict${conflictCount !== 1 ? 's' : ''}`;
+            }
             this._notificationService.notify(
                 NotifyCategory.STARTUP,
-                'Zoned Enabled',
+                startupMessage,
             );
-
-            // Warn if conflicts detected (uses notification settings)
-            if (this._conflictDetector.hasConflicts()) {
-                const conflictCount = conflicts.length;
-                this._notificationService.notify(
-                    NotifyCategory.CONFLICTS,
-                    `⚠️ ${conflictCount} keybinding conflict${conflictCount !== 1 ? 's' : ''} detected. Click icon for details.`,
-                );
-            }
 
             logger.info('Extension enabled successfully');
         } catch (error) {
@@ -248,6 +260,12 @@ export default class ZonedExtension extends Extension {
             this._settings.disconnect(this._previewSignal);
             this._previewSignal = null;
             logger.debug('Preview signal disconnected');
+        }
+
+        if (this._showIndicatorSignal && this._settings) {
+            this._settings.disconnect(this._showIndicatorSignal);
+            this._showIndicatorSignal = null;
+            logger.debug('Show indicator signal disconnected');
         }
     }
 

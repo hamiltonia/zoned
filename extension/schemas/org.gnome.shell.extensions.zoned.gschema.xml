@@ -92,6 +92,17 @@
       </description>
     </key>
     
+    <!-- Panel Indicator Visibility -->
+    <key name="show-panel-indicator" type="b">
+      <default>true</default>
+      <summary>Show panel indicator</summary>
+      <description>
+        Show the Zoned icon in the top bar panel. When disabled, all 
+        functionality remains accessible via keyboard shortcuts, the 
+        layout switcher, and the Extensions app settings.
+      </description>
+    </key>
+    
     <!-- UI Theme Preference -->
     <key name="ui-theme" type="s">
       <default>"system"</default>
