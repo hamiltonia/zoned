@@ -31,15 +31,15 @@ See: `memory/development/per-space-layouts-spec.md`
 - [x] Settings sync between LayoutSwitcher checkbox and prefs.js switch
 - [x] Multi-monitor support (needs testing)
 - [x] Revisit notifications (make them optional where needed, provide options for look & feel) ✅
-- [ ] Style updates, ensure consistency, polish, etc.
+- [x] Style updates, ensure consistency, polish, etc.
 
 **Phase 2: Keybinding Context Awareness**
 - [x] Zone cycling respects current space context
 - [x] Track zone index per-space (not just per-layout)
 
 **Phase 3: Quick Layout Shortcuts**
-- [ ] `Super+Ctrl+Alt+1-9` activates layouts by position
-- [ ] Apply to focused window's space
+- [x] `Super+Ctrl+Alt+1-9` activates layouts by position
+- [x] Apply to focused window's space
 
 ### UX/UI
 - [x] **Card top bar design** - Grey header with name (left) and circular edit button (right), zone preview below ✅
@@ -133,6 +133,7 @@ This comprehensive checklist covers:
 - Layout padding controls
 - Window rules/app preferences
 - Import/export layouts
+- Localization support
 
 ---
 

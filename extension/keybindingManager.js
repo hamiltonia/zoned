@@ -344,12 +344,13 @@ export class KeybindingManager {
 
         // Check if per-workspace mode is enabled
         const perSpaceEnabled = this._settings.get_boolean('use-per-workspace-layouts');
-        const window = this._windowManager.getFocusedWindow();
 
-        if (perSpaceEnabled && window) {
-            // Apply to the focused window's space
+        if (perSpaceEnabled) {
+            // Apply to the current space (works even without a focused window)
             const spatialStateManager = this._layoutManager.getSpatialStateManager();
             if (spatialStateManager) {
+                // getSpaceKeyForWindow handles null window → uses getCurrentSpaceKey()
+                const window = this._windowManager.getFocusedWindow();
                 const spaceKey = spatialStateManager.getSpaceKeyForWindow(window);
                 this._layoutManager.setLayoutForSpace(spaceKey, layout.id);
                 logger.info(`Applied layout '${layout.name}' to space ${spaceKey}`);
