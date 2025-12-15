@@ -1757,10 +1757,6 @@ export default class ZonedPreferences extends ExtensionPreferences {
                     enhancedExpander.set_expanded(true);
                     enhancedExpander.grab_focus();
                     log('Scrolled to enhanced shortcuts section');
-                } else if (target === 'about') {
-                    // Scroll to about section - focus on the reset button so full About is visible
-                    resetButton.grab_focus();
-                    log('Scrolled to about section');
                 }
                 return GLib.SOURCE_REMOVE;
             });

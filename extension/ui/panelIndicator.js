@@ -132,12 +132,6 @@ export const PanelIndicator = GObject.registerClass(
                 this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
             }
 
-            // About item
-            const aboutItem = new PopupMenu.PopupMenuItem('About Zoned');
-            aboutItem.connect('activate', () => {
-                this._showAbout();
-            });
-            this.menu.addMenuItem(aboutItem);
         }
 
         /**
@@ -288,23 +282,6 @@ export const PanelIndicator = GObject.registerClass(
 
                 this._settings.set_string('prefs-scroll-target', scrollTarget);
                 logger.debug(`Set prefs-scroll-target to: ${scrollTarget}`);
-            }
-
-            // Open settings
-            this._openSettings();
-        }
-
-        /**
-     * Show about - opens settings scrolled to About section
-     * @private
-     */
-        _showAbout() {
-            logger.debug('Opening About section in settings...');
-
-            // Set scroll target so prefs opens at the About section
-            if (this._settings) {
-                this._settings.set_string('prefs-scroll-target', 'about');
-                logger.debug('Set prefs-scroll-target to: about');
             }
 
             // Open settings
