@@ -3,15 +3,17 @@
  *
  * Card Design:
  * - Full grey background (rgba(68, 68, 68, 1))
- * - Compact header: layout name (left) + icon-only edit button (right)
+ * - Layout name label at top
  * - Zone preview: 85% width, 75% height, centered below header
- * - Click card to apply, click edit icon to edit/duplicate
- * - Hover effects: card border accent, icon brightens to white
+ * - Floating circular edit button in upper-right corner of card
+ * - Click card to apply, click edit button to edit/duplicate
+ * - Hover effects: card border accent, edit button brightens
  *
  * Responsible for:
  * - Template cards (built-in layouts with duplicate button)
  * - Custom layout cards (user layouts with edit button)
- * - Card headers with name and edit button
+ * - Card headers with layout name
+ * - Floating circular edit buttons
  * - Zone preview rendering (Cairo canvas)
  *
  * Part of the LayoutSwitcher module split for maintainability.
@@ -24,8 +26,86 @@ import {createLogger} from '../../utils/debug.js';
 const logger = createLogger('CardFactory');
 
 /**
+ * Create a floating circular edit button for overlay positioning
+ * Subtle appearance that brightens on hover
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param {boolean} isTemplate - True for templates (triggers duplicate), false for custom (triggers edit)
+ * @param {Object} layout - Layout object for click handlers
+ * @returns {St.Button} The circular edit button
+ */
+export function createFloatingEditButton(ctx, isTemplate, layout) {
+    const colors = ctx._themeManager.getColors();
+
+    // Scale button size: ~15% of card width, minimum 24px, maximum 36px
+    const buttonSize = Math.max(24, Math.min(36, Math.floor(ctx._cardWidth * 0.15)));
+    const iconSize = Math.floor(buttonSize * 0.55);
+
+    // Idle state: subtle, semi-transparent
+    const idleStyle = `
+        width: ${buttonSize}px;
+        height: ${buttonSize}px;
+        border-radius: ${buttonSize / 2}px;
+        background-color: rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    `;
+
+    // Hover state: accent background, more prominent
+    const hoverStyle = `
+        width: ${buttonSize}px;
+        height: ${buttonSize}px;
+        border-radius: ${buttonSize / 2}px;
+        background-color: ${colors.accentHex};
+        border: 1px solid ${colors.accentHex};
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    `;
+
+    const button = new St.Button({
+        style_class: 'floating-edit-button',
+        style: idleStyle,
+        reactive: true,
+        track_hover: true,
+    });
+
+    const icon = new St.Icon({
+        icon_name: 'document-edit-symbolic',
+        icon_size: iconSize,
+        style: 'color: rgba(255, 255, 255, 0.7);',
+    });
+    button.set_child(icon);
+
+    // Hover effects
+    button.connect('enter-event', () => {
+        button.style = hoverStyle;
+        icon.style = 'color: white;';
+        return Clutter.EVENT_PROPAGATE;
+    });
+
+    button.connect('leave-event', () => {
+        button.style = idleStyle;
+        icon.style = 'color: rgba(255, 255, 255, 0.7);';
+        return Clutter.EVENT_PROPAGATE;
+    });
+
+    // Click handler - use button-press-event to stop propagation to parent card
+    button.connect('button-press-event', () => {
+        if (isTemplate) {
+            ctx._onEditTemplateClicked(layout);
+        } else {
+            ctx._onEditLayoutClicked(layout);
+        }
+        return Clutter.EVENT_STOP;
+    });
+
+    // Store size for positioning
+    button._buttonSize = buttonSize;
+
+    return button;
+}
+
+/**
  * Create a template card with full-card grey background
- * Header at top (name + edit button), small preview below
+ * Name label at top, zone preview with floating edit button overlay
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {Object} template - Template definition
  * @param {Object} currentLayout - Currently active layout
@@ -41,6 +121,7 @@ export function createTemplateCard(ctx, template, currentLayout) {
     // Theme-aware card background (dark grey for dark theme, light grey for light theme)
     const cardBg = colors.cardBg;
 
+    // Use St.Widget with FixedLayout so we can position floating button over entire card
     const card = new St.Button({
         style_class: 'template-card',
         style: 'padding: 0; ' +
@@ -56,42 +137,57 @@ export function createTemplateCard(ctx, template, currentLayout) {
         clip_to_allocation: true,
     });
 
-    // Use BoxLayout for vertical stacking (header + preview area)
+    // Card wrapper with FixedLayout for floating button overlay at card level
+    const cardWrapper = new St.Widget({
+        layout_manager: new Clutter.FixedLayout(),
+        width: ctx._cardWidth,
+        height: ctx._cardHeight,
+    });
+
+    // Content container for vertical stacking (header + preview area)
     const container = new St.BoxLayout({
         vertical: true,
         x_expand: true,
         y_expand: true,
         clip_to_allocation: true,
         style: `border-radius: ${cardRadius}px; padding: 6px 8px 8px 8px;`,
+        width: ctx._cardWidth,
+        height: ctx._cardHeight,
     });
 
-    // Header row with name and edit button
-    const header = createCardHeader(ctx, template.name, true, template);
+    // Header with name only
+    const header = createCardHeader(ctx, template.name);
     container.add_child(header);
 
     // Calculate preview size proportionally (accounts for scaling and tiers)
-    // Use 85% of card width for the preview
     const previewWidth = Math.floor(ctx._cardWidth * 0.85);
-    // Use 75% of card height for the preview (more space with reduced header padding)
     const previewHeight = Math.floor(ctx._cardHeight * 0.75);
 
-    // Zone preview - explicit size, centered in remaining space
+    // Preview container centered
     const previewContainer = new St.Bin({
         x_align: Clutter.ActorAlign.CENTER,
         y_align: Clutter.ActorAlign.CENTER,
         x_expand: true,
         y_expand: true,
-        clip_to_allocation: true,
     });
 
+    // Zone preview canvas
     const preview = createZonePreview(ctx, template.zones);
-    // Set explicit size on the DrawingArea
     preview.set_size(previewWidth, previewHeight);
-
     previewContainer.set_child(preview);
-    container.add_child(previewContainer);
 
-    card.set_child(container);
+    container.add_child(previewContainer);
+    cardWrapper.add_child(container);
+
+    // Floating edit button - positioned in upper right of the CARD (not preview)
+    const editButton = createFloatingEditButton(ctx, true, template);
+    const buttonSize = editButton._buttonSize;
+    const buttonOffsetY = 1;  // Offset from top edge
+    const buttonOffsetX = 3;  // Offset from right edge (to match visual top offset)
+    editButton.set_position(ctx._cardWidth - buttonSize - buttonOffsetX, buttonOffsetY);
+    cardWrapper.add_child(editButton);
+
+    card.set_child(cardWrapper);
 
     // Click card to apply layout
     card.connect('clicked', () => {
@@ -135,7 +231,7 @@ export function createTemplateCard(ctx, template, currentLayout) {
 
 /**
  * Create a custom layout card with theme-aware background
- * Header at top (name + edit button), small preview below
+ * Name label at top, zone preview with floating edit button overlay
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {Object} layout - Layout definition
  * @param {Object} currentLayout - Currently active layout
@@ -166,42 +262,57 @@ export function createCustomLayoutCard(ctx, layout, currentLayout) {
         clip_to_allocation: true,
     });
 
-    // Use BoxLayout for vertical stacking (header + preview area)
+    // Card wrapper with FixedLayout for floating button overlay at card level
+    const cardWrapper = new St.Widget({
+        layout_manager: new Clutter.FixedLayout(),
+        width: ctx._cardWidth,
+        height: ctx._cardHeight,
+    });
+
+    // Content container for vertical stacking (header + preview area)
     const container = new St.BoxLayout({
         vertical: true,
         x_expand: true,
         y_expand: true,
         clip_to_allocation: true,
         style: `border-radius: ${cardRadius}px; padding: 6px 8px 8px 8px;`,
+        width: ctx._cardWidth,
+        height: ctx._cardHeight,
     });
 
-    // Header row with name and edit button
-    const header = createCardHeader(ctx, layout.name, false, layout);
+    // Header with name only
+    const header = createCardHeader(ctx, layout.name);
     container.add_child(header);
 
     // Calculate preview size proportionally (accounts for scaling and tiers)
-    // Use 85% of card width for the preview
     const previewWidth = Math.floor(ctx._cardWidth * 0.85);
-    // Use 75% of card height for the preview (more space with reduced header padding)
     const previewHeight = Math.floor(ctx._cardHeight * 0.75);
 
-    // Zone preview - explicit size, centered in remaining space
+    // Preview container centered
     const previewContainer = new St.Bin({
         x_align: Clutter.ActorAlign.CENTER,
         y_align: Clutter.ActorAlign.CENTER,
         x_expand: true,
         y_expand: true,
-        clip_to_allocation: true,
     });
 
+    // Zone preview canvas
     const preview = createZonePreview(ctx, layout.zones);
-    // Set explicit size on the DrawingArea
     preview.set_size(previewWidth, previewHeight);
-
     previewContainer.set_child(preview);
-    container.add_child(previewContainer);
 
-    card.set_child(container);
+    container.add_child(previewContainer);
+    cardWrapper.add_child(container);
+
+    // Floating edit button - positioned in upper right of the CARD (not preview)
+    const editButton = createFloatingEditButton(ctx, false, layout);
+    const buttonSize = editButton._buttonSize;
+    const buttonOffsetY = 1;  // Offset from top edge
+    const buttonOffsetX = 3;  // Offset from right edge (to match visual top offset)
+    editButton.set_position(ctx._cardWidth - buttonSize - buttonOffsetX, buttonOffsetY);
+    cardWrapper.add_child(editButton);
+
+    card.set_child(cardWrapper);
 
     // Click to apply layout
     card.connect('clicked', () => {
@@ -248,22 +359,20 @@ export function createCustomLayoutCard(ctx, layout, currentLayout) {
 }
 
 /**
- * Create card header with name (left) and edit button (right)
- * No background - relies on full-card grey background
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * Create card header with layout name only
+ * Edit button is now a floating circular button over the preview
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance (unused, kept for API consistency)
  * @param {string} name - Layout name to display
- * @param {boolean} isTemplate - True for template cards (duplicate), false for custom layouts (edit)
- * @param {object} layout - Layout object for button handlers
  * @returns {St.BoxLayout} The header widget
  */
-export function createCardHeader(ctx, name, isTemplate, layout) {
+export function createCardHeader(ctx, name) {
     const header = new St.BoxLayout({
         vertical: false,
         x_expand: true,
         y_align: Clutter.ActorAlign.START,
     });
 
-    // Name label (left-aligned)
+    // Name label (left-aligned, takes full width now)
     const nameLabel = new St.Label({
         text: name,
         style: 'color: white; font-size: 11px; font-weight: 500;',
@@ -272,45 +381,6 @@ export function createCardHeader(ctx, name, isTemplate, layout) {
         x_expand: true,
     });
     header.add_child(nameLabel);
-
-    // Icon-only edit button (no background, just the icon)
-    const editButton = new St.Button({
-        style_class: 'card-edit-button',
-        style: 'background-color: transparent; padding: 0; min-width: 16px; min-height: 16px;',
-        reactive: true,
-        track_hover: true,
-        y_align: Clutter.ActorAlign.CENTER,
-    });
-
-    const editIcon = new St.Icon({
-        icon_name: 'document-edit-symbolic',
-        style_class: 'system-status-icon',
-        icon_size: 14,
-        style: 'color: rgba(255, 255, 255, 0.6);',
-    });
-    editButton.set_child(editIcon);
-
-    // Hover effect - change icon color to white
-    editButton.connect('enter-event', () => {
-        editIcon.style = 'color: rgba(255, 255, 255, 1);';
-    });
-
-    editButton.connect('leave-event', () => {
-        editIcon.style = 'color: rgba(255, 255, 255, 0.6);';
-    });
-
-    // Click handler - duplicate for templates, edit for custom layouts
-    // Use button-press-event instead of clicked to prevent event propagation to parent card
-    editButton.connect('button-press-event', () => {
-        if (isTemplate) {
-            ctx._onEditTemplateClicked(layout);
-        } else {
-            ctx._onEditLayoutClicked(layout);
-        }
-        return Clutter.EVENT_STOP;  // Prevents card from receiving the click
-    });
-
-    header.add_child(editButton);
 
     return header;
 }

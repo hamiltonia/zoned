@@ -18,8 +18,8 @@
  *
  * FancyZones-Style UI Design:
  * - Header: "Edit layout" title with action icons (Duplicate, Delete)
- * - Layout Preview: Visual zone preview centered below header
- * - Edit Zone Layout: Hyperlink-style button with pencil icon
+ * - Layout Preview: Visual zone preview centered below header with floating edit button
+ * - Floating Edit Button: Circular button centered over preview, opens zone editor
  * - Settings Section:
  *   - Name field (disabled for templates)
  *   - Show Space Around Zones: Checkbox + number input (padding)
@@ -444,7 +444,7 @@ export class LayoutSettingsDialog {
         // Header
         this._dialogCard.add_child(this._buildHeaderRow(colors));
 
-        // Layout Preview
+        // Layout Preview with floating edit button
         this._previewContainer = new St.BoxLayout({
             vertical: true,
             style: `background-color: ${colors.sectionBg}; border: 1px solid ${colors.sectionBorder}; ` +
@@ -454,14 +454,7 @@ export class LayoutSettingsDialog {
         this._buildLayoutPreview(colors);
         this._dialogCard.add_child(this._previewContainer);
 
-        // Edit Zone Layout link
-        const editLinkBox = new St.BoxLayout({
-            vertical: false, style: 'margin-bottom: 20px;', x_align: Clutter.ActorAlign.CENTER,
-        });
-        editLinkBox.add_child(this._createHyperlinkButton(colors, '✏️ Edit zone layout', () => this._openZoneEditor()));
-        this._dialogCard.add_child(editLinkBox);
-
-        // Settings Section
+        // Settings Section (no hyperlink - floating button is on preview)
         this._dialogCard.add_child(this._buildSettingsSection(colors));
 
         // Button Row
@@ -471,7 +464,7 @@ export class LayoutSettingsDialog {
     }
 
     /**
-     * Build the layout preview visualization
+     * Build the layout preview visualization with floating edit button centered
      * @param {Object} colors - Theme colors
      * @private
      */
@@ -481,6 +474,13 @@ export class LayoutSettingsDialog {
 
         const previewWidth = 280;
         const previewHeight = 160;
+
+        // Wrapper with FixedLayout for floating button overlay
+        const previewWrapper = new St.Widget({
+            layout_manager: new Clutter.FixedLayout(),
+            width: previewWidth,
+            height: previewHeight,
+        });
 
         const previewArea = new St.Widget({
             width: previewWidth,
@@ -524,7 +524,88 @@ export class LayoutSettingsDialog {
             previewArea.add_child(emptyLabel);
         }
 
-        this._previewContainer.add_child(previewArea);
+        previewWrapper.add_child(previewArea);
+
+        // Floating circular edit button - centered over preview
+        const editButton = this._createFloatingEditButton(colors);
+        const buttonSize = editButton._buttonSize;
+        // Center the button
+        const buttonX = Math.floor((previewWidth - buttonSize) / 2);
+        const buttonY = Math.floor((previewHeight - buttonSize) / 2);
+        editButton.set_position(buttonX, buttonY);
+        previewWrapper.add_child(editButton);
+
+        this._previewContainer.add_child(previewWrapper);
+    }
+
+    /**
+     * Create a floating circular edit button for the layout preview
+     * Centered over the preview, opens zone editor on click
+     * @param {Object} colors - Theme colors
+     * @returns {St.Button} The circular edit button
+     * @private
+     */
+    _createFloatingEditButton(colors) {
+        // Fixed size for dialog preview (larger than card buttons)
+        const buttonSize = 42;
+        const iconSize = 20;
+
+        // Idle state: subtle, semi-transparent
+        const idleStyle = `
+            width: ${buttonSize}px;
+            height: ${buttonSize}px;
+            border-radius: ${buttonSize / 2}px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        `;
+
+        // Hover state: accent background, more prominent
+        const hoverStyle = `
+            width: ${buttonSize}px;
+            height: ${buttonSize}px;
+            border-radius: ${buttonSize / 2}px;
+            background-color: ${colors.accentHex};
+            border: 1px solid ${colors.accentHex};
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        `;
+
+        const button = new St.Button({
+            style_class: 'floating-edit-button',
+            style: idleStyle,
+            reactive: true,
+            track_hover: true,
+        });
+
+        const icon = new St.Icon({
+            icon_name: 'document-edit-symbolic',
+            icon_size: iconSize,
+            style: 'color: rgba(255, 255, 255, 0.8);',
+        });
+        button.set_child(icon);
+
+        // Hover effects
+        button.connect('enter-event', () => {
+            button.style = hoverStyle;
+            icon.style = 'color: white;';
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        button.connect('leave-event', () => {
+            button.style = idleStyle;
+            icon.style = 'color: rgba(255, 255, 255, 0.8);';
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        // Click opens zone editor
+        button.connect('clicked', () => {
+            this._openZoneEditor();
+        });
+
+        // Store size for positioning
+        button._buttonSize = buttonSize;
+
+        return button;
     }
 
     /**

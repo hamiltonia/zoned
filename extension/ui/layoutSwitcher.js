@@ -1203,9 +1203,22 @@ export class LayoutSwitcher {
      * @private
      */
     _handleNavigationKey(symbol) {
-        // Use actual column count for vertical navigation (default to 5 if not yet set)
-        const columnsPerRow = this._customColumns || 5;
+        // Handle action keys first
+        if (this._handleActionKey(symbol)) {
+            return true;
+        }
 
+        // Handle arrow key navigation
+        return this._handleArrowKey(symbol);
+    }
+
+    /**
+     * Handle action keys (Escape, Enter, E)
+     * @param {number} symbol - Key symbol
+     * @returns {boolean} True if handled
+     * @private
+     */
+    _handleActionKey(symbol) {
         switch (symbol) {
             case Clutter.KEY_Escape:
                 this.hide();
@@ -1214,6 +1227,25 @@ export class LayoutSwitcher {
             case Clutter.KEY_KP_Enter:
                 this._handleEnterKey();
                 return true;
+            case Clutter.KEY_e:
+            case Clutter.KEY_E:
+                this._handleEditKey();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Handle arrow key navigation
+     * @param {number} symbol - Key symbol
+     * @returns {boolean} True if handled
+     * @private
+     */
+    _handleArrowKey(symbol) {
+        const columnsPerRow = this._customColumns || 5;
+
+        switch (symbol) {
             case Clutter.KEY_Left:
                 this._navigateCards(NAV_LEFT);
                 return true;
@@ -1240,6 +1272,30 @@ export class LayoutSwitcher {
             this._applyCardAtIndex(this._selectedCardIndex);
         } else if (this._allCards.length > 0) {
             this._applyCardAtIndex(0);
+        }
+    }
+
+    /**
+     * Handle E key to edit the selected card
+     * Opens edit dialog for templates (duplicate) or custom layouts (edit)
+     * @private
+     */
+    _handleEditKey() {
+        if (this._selectedCardIndex < 0 || this._selectedCardIndex >= this._allCards.length) {
+            // No card selected, select the first one
+            if (this._allCards.length > 0) {
+                this._selectedCardIndex = 0;
+                this._updateCardFocus();
+            } else {
+                return;
+            }
+        }
+
+        const cardObj = this._allCards[this._selectedCardIndex];
+        if (cardObj.isTemplate) {
+            this._onEditTemplateClicked(cardObj.layout);
+        } else {
+            this._onEditLayoutClicked(cardObj.layout);
         }
     }
 
