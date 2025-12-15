@@ -64,6 +64,29 @@ const ENHANCED_KEYBINDINGS = [
 ];
 
 /**
+ * Key display name mapping for human-readable shortcuts
+ * Converts GTK key names to user-friendly symbols/names
+ */
+const KEY_DISPLAY_MAP = {
+    'Left': '←',
+    'Right': '→',
+    'Up': '↑',
+    'Down': '↓',
+    'grave': '`',
+    'asciitilde': '~',
+    'space': 'Space',
+    'Return': 'Enter',
+    'Tab': 'Tab',
+    'Escape': 'Esc',
+    'BackSpace': 'Backspace',
+    'Delete': 'Delete',
+    'Home': 'Home',
+    'End': 'End',
+    'Page_Up': 'Page Up',
+    'Page_Down': 'Page Down',
+};
+
+/**
  * Convert Gtk accelerator string to human-readable format
  * e.g., '<Super>Left' -> 'Super + ←'
  */
@@ -72,33 +95,12 @@ function acceleratorToLabel(accelerator) {
         return 'Disabled';
     }
 
-    // Parse the accelerator
-    let keyval, mods;
-    try {
-        const result = Gtk.accelerator_parse(accelerator);
-        // GTK4 returns [success, keyval, mods] or just [keyval, mods] depending on version
-        if (Array.isArray(result)) {
-            if (result.length === 3) {
-                const [success, kv, m] = result;
-                if (!success) return accelerator;
-                keyval = kv;
-                mods = m;
-            } else if (result.length === 2) {
-                [keyval, mods] = result;
-            } else {
-                return accelerator;
-            }
-        } else {
-            return accelerator;
-        }
-    } catch (e) {
-        log(`Error parsing accelerator '${accelerator}': ${e.message}`);
+    const parsed = parseAccelerator(accelerator);
+    if (!parsed) {
         return accelerator;
     }
 
-    if (keyval === 0) {
-        return accelerator;
-    }
+    const {keyval, mods} = parsed;
 
     // Build modifier string (keyboard order: Shift, Ctrl, Super, Alt)
     const parts = [];
@@ -108,31 +110,9 @@ function acceleratorToLabel(accelerator) {
     if (mods & Gdk.ModifierType.SUPER_MASK) parts.push('Super');
     if (mods & Gdk.ModifierType.ALT_MASK) parts.push('Alt');
 
-    // Get key name
-    let keyName = Gdk.keyval_name(keyval);
-
-    // Prettify common key names
-    const keyNameMap = {
-        'Left': '←',
-        'Right': '→',
-        'Up': '↑',
-        'Down': '↓',
-        'grave': '`',
-        'asciitilde': '~',
-        'space': 'Space',
-        'Return': 'Enter',
-        'Tab': 'Tab',
-        'Escape': 'Esc',
-        'BackSpace': 'Backspace',
-        'Delete': 'Delete',
-        'Home': 'Home',
-        'End': 'End',
-        'Page_Up': 'Page Up',
-        'Page_Down': 'Page Down',
-    };
-
-    keyName = keyNameMap[keyName] || keyName;
-    parts.push(keyName);
+    // Get key name and prettify using lookup table
+    const keyName = Gdk.keyval_name(keyval);
+    parts.push(KEY_DISPLAY_MAP[keyName] || keyName);
 
     return parts.join(' + ');
 }
@@ -717,25 +697,7 @@ const ShortcutCaptureRow = GObject.registerClass({
      * Prettify key name for display
      */
     _prettifyKeyName(keyName) {
-        const keyNameMap = {
-            'Left': '←',
-            'Right': '→',
-            'Up': '↑',
-            'Down': '↓',
-            'grave': '`',
-            'asciitilde': '~',
-            'space': 'Space',
-            'Return': 'Enter',
-            'Tab': 'Tab',
-            'Escape': 'Esc',
-            'BackSpace': 'Backspace',
-            'Delete': 'Delete',
-            'Home': 'Home',
-            'End': 'End',
-            'Page_Up': 'Page Up',
-            'Page_Down': 'Page Down',
-        };
-        return keyNameMap[keyName] || keyName;
+        return KEY_DISPLAY_MAP[keyName] || keyName;
     }
 
     /**

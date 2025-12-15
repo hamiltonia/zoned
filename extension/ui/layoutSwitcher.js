@@ -34,6 +34,10 @@ import {selectTier, calculateDialogDimensions, validateDimensions, generateDebug
 
 const logger = createLogger('LayoutSwitcher');
 
+// Navigation delta constants for keyboard navigation
+const NAV_LEFT = -1;
+const NAV_RIGHT = 1;
+
 export class LayoutSwitcher {
     /**
      * @param {LayoutManager} layoutManager - Layout manager instance
@@ -461,35 +465,7 @@ export class LayoutSwitcher {
         // Click on background (outside container) dismisses the dialog
         // Use coordinate check since event.get_source() isn't reliable with modal
         this._dialog.connect('button-press-event', (actor, event) => {
-            const [clickX, clickY] = event.get_coords();
-            const containerAlloc = this._container ? this._container.get_transformed_extents() : null;
-
-            if (containerAlloc) {
-                // Check if click is outside the container bounds
-                const isOutsideContainer = clickX < containerAlloc.origin.x ||
-                                  clickX > containerAlloc.origin.x + containerAlloc.size.width ||
-                                  clickY < containerAlloc.origin.y ||
-                                  clickY > containerAlloc.origin.y + containerAlloc.size.height;
-
-                // Also check if click is inside the monitor dropdown menu (which floats outside container)
-                let isInsideMenu = false;
-                if (this._monitorMenu) {
-                    const menuAlloc = this._monitorMenu.get_transformed_extents();
-                    if (menuAlloc) {
-                        isInsideMenu = clickX >= menuAlloc.origin.x &&
-                                       clickX <= menuAlloc.origin.x + menuAlloc.size.width &&
-                                       clickY >= menuAlloc.origin.y &&
-                                       clickY <= menuAlloc.origin.y + menuAlloc.size.height;
-                    }
-                }
-
-                // Only dismiss if outside container AND not clicking on the menu
-                if (isOutsideContainer && !isInsideMenu) {
-                    this.hide();
-                    return Clutter.EVENT_STOP;
-                }
-            }
-            return Clutter.EVENT_PROPAGATE;
+            return this._handleBackgroundClick(event);
         });
 
         // Main container - no left/right padding, sections extend to edges
@@ -1098,78 +1074,191 @@ export class LayoutSwitcher {
      */
     _connectKeyEvents() {
         this._keyPressId = this._dialog.connect('key-press-event', (actor, event) => {
-            const symbol = event.get_key_symbol();
-            const modifiers = event.get_state();
-            const ctrlPressed = (modifiers & Clutter.ModifierType.CONTROL_MASK) !== 0;
-
-            // Ctrl+D: Toggle debug rectangles
-            if (ctrlPressed && (symbol === Clutter.KEY_d || symbol === Clutter.KEY_D)) {
-                this._toggleDebugMode();
-                return Clutter.EVENT_STOP;
-            }
-
-            // Ctrl+T: Cycle through tiers (for debugging)
-            if (ctrlPressed && (symbol === Clutter.KEY_t || symbol === Clutter.KEY_T)) {
-                this._cycleTier();
-                return Clutter.EVENT_STOP;
-            }
-
-            // Ctrl+O: Toggle debug overlay
-            if (ctrlPressed && (symbol === Clutter.KEY_o || symbol === Clutter.KEY_O)) {
-                this._toggleDebugOverlay();
-                return Clutter.EVENT_STOP;
-            }
-
-            switch (symbol) {
-                case Clutter.KEY_Escape:
-                    this.hide();
-                    return Clutter.EVENT_STOP;
-
-                case Clutter.KEY_Return:
-                case Clutter.KEY_KP_Enter:
-                    if (this._selectedCardIndex >= 0 && this._selectedCardIndex < this._allCards.length) {
-                        this._applyCardAtIndex(this._selectedCardIndex);
-                    } else if (this._allCards.length > 0) {
-                        this._applyCardAtIndex(0);
-                    }
-                    return Clutter.EVENT_STOP;
-
-                case Clutter.KEY_Left:
-                    this._navigateCards(-1);
-                    return Clutter.EVENT_STOP;
-
-                case Clutter.KEY_Right:
-                    this._navigateCards(1);
-                    return Clutter.EVENT_STOP;
-
-                case Clutter.KEY_Up:
-                    this._navigateCards(-4);
-                    return Clutter.EVENT_STOP;
-
-                case Clutter.KEY_Down:
-                    this._navigateCards(4);
-                    return Clutter.EVENT_STOP;
-
-                case Clutter.KEY_1:
-                case Clutter.KEY_2:
-                case Clutter.KEY_3:
-                case Clutter.KEY_4:
-                case Clutter.KEY_5:
-                case Clutter.KEY_6:
-                case Clutter.KEY_7:
-                case Clutter.KEY_8:
-                case Clutter.KEY_9: {
-                    const number = symbol - Clutter.KEY_0;
-                    const index = number - 1;
-                    if (index >= 0 && index < this._allCards.length) {
-                        this._applyCardAtIndex(index);
-                    }
-                    return Clutter.EVENT_STOP;
-                }
-            }
-
-            return Clutter.EVENT_PROPAGATE;
+            return this._handleKeyPress(event);
         });
+    }
+
+    /**
+     * Handle background click to dismiss dialog
+     * Checks if click is outside container and not on floating menus
+     * @param {Clutter.Event} event - The button press event
+     * @returns {Clutter.EVENT_STOP|Clutter.EVENT_PROPAGATE}
+     * @private
+     */
+    _handleBackgroundClick(event) {
+        const [clickX, clickY] = event.get_coords();
+        const containerAlloc = this._container ? this._container.get_transformed_extents() : null;
+
+        if (!containerAlloc) {
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+        const isOutsideContainer = this._isOutsideBounds(clickX, clickY, containerAlloc);
+        const isInsideMenu = this._isInsideMonitorMenu(clickX, clickY);
+
+        // Only dismiss if outside container AND not clicking on the menu
+        if (isOutsideContainer && !isInsideMenu) {
+            this.hide();
+            return Clutter.EVENT_STOP;
+        }
+
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    /**
+     * Check if coordinates are outside a bounding box
+     * @param {number} x - X coordinate
+     * @param {number} y - Y coordinate
+     * @param {Object} bounds - Bounds with origin and size
+     * @returns {boolean} True if outside bounds
+     * @private
+     */
+    _isOutsideBounds(x, y, bounds) {
+        return x < bounds.origin.x ||
+               x > bounds.origin.x + bounds.size.width ||
+               y < bounds.origin.y ||
+               y > bounds.origin.y + bounds.size.height;
+    }
+
+    /**
+     * Check if coordinates are inside the monitor dropdown menu
+     * @param {number} x - X coordinate
+     * @param {number} y - Y coordinate
+     * @returns {boolean} True if inside menu
+     * @private
+     */
+    _isInsideMonitorMenu(x, y) {
+        if (!this._monitorMenu) {
+            return false;
+        }
+
+        const menuAlloc = this._monitorMenu.get_transformed_extents();
+        if (!menuAlloc) {
+            return false;
+        }
+
+        return x >= menuAlloc.origin.x &&
+               x <= menuAlloc.origin.x + menuAlloc.size.width &&
+               y >= menuAlloc.origin.y &&
+               y <= menuAlloc.origin.y + menuAlloc.size.height;
+    }
+
+    /**
+     * Handle key press events for keyboard navigation and debug shortcuts
+     * @param {Clutter.Event} event - The key press event
+     * @returns {Clutter.EVENT_STOP|Clutter.EVENT_PROPAGATE}
+     * @private
+     */
+    _handleKeyPress(event) {
+        const symbol = event.get_key_symbol();
+        const modifiers = event.get_state();
+        const ctrlPressed = (modifiers & Clutter.ModifierType.CONTROL_MASK) !== 0;
+
+        // Handle Ctrl+key debug shortcuts
+        if (ctrlPressed && this._handleCtrlKey(symbol)) {
+            return Clutter.EVENT_STOP;
+        }
+
+        // Handle navigation and action keys
+        if (this._handleNavigationKey(symbol)) {
+            return Clutter.EVENT_STOP;
+        }
+
+        // Handle number keys (1-9) for quick card selection
+        if (this._handleNumberKey(symbol)) {
+            return Clutter.EVENT_STOP;
+        }
+
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    /**
+     * Handle Ctrl+key debug shortcuts
+     * @param {number} symbol - Key symbol
+     * @returns {boolean} True if handled
+     * @private
+     */
+    _handleCtrlKey(symbol) {
+        switch (symbol) {
+            case Clutter.KEY_d:
+            case Clutter.KEY_D:
+                this._toggleDebugMode();
+                return true;
+            case Clutter.KEY_t:
+            case Clutter.KEY_T:
+                this._cycleTier();
+                return true;
+            case Clutter.KEY_o:
+            case Clutter.KEY_O:
+                this._toggleDebugOverlay();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Handle navigation and action keys
+     * @param {number} symbol - Key symbol
+     * @returns {boolean} True if handled
+     * @private
+     */
+    _handleNavigationKey(symbol) {
+        // Use actual column count for vertical navigation (default to 5 if not yet set)
+        const columnsPerRow = this._customColumns || 5;
+
+        switch (symbol) {
+            case Clutter.KEY_Escape:
+                this.hide();
+                return true;
+            case Clutter.KEY_Return:
+            case Clutter.KEY_KP_Enter:
+                this._handleEnterKey();
+                return true;
+            case Clutter.KEY_Left:
+                this._navigateCards(NAV_LEFT);
+                return true;
+            case Clutter.KEY_Right:
+                this._navigateCards(NAV_RIGHT);
+                return true;
+            case Clutter.KEY_Up:
+                this._navigateCards(-columnsPerRow);
+                return true;
+            case Clutter.KEY_Down:
+                this._navigateCards(columnsPerRow);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Handle Enter key to apply selected/first card
+     * @private
+     */
+    _handleEnterKey() {
+        if (this._selectedCardIndex >= 0 && this._selectedCardIndex < this._allCards.length) {
+            this._applyCardAtIndex(this._selectedCardIndex);
+        } else if (this._allCards.length > 0) {
+            this._applyCardAtIndex(0);
+        }
+    }
+
+    /**
+     * Handle number keys (1-9) for quick card selection
+     * @param {number} symbol - Key symbol
+     * @returns {boolean} True if handled
+     * @private
+     */
+    _handleNumberKey(symbol) {
+        if (symbol >= Clutter.KEY_1 && symbol <= Clutter.KEY_9) {
+            const index = symbol - Clutter.KEY_1;
+            if (index >= 0 && index < this._allCards.length) {
+                this._applyCardAtIndex(index);
+            }
+            return true;
+        }
+        return false;
     }
 
     /**

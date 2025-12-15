@@ -182,83 +182,13 @@ export default class ZonedExtension extends Extension {
         logger.info('Disabling extension...');
 
         try {
-            // Unregister keybindings
-            if (this._keybindingManager) {
-                this._keybindingManager.destroy();
-                this._keybindingManager = null;
-                logger.debug('KeybindingManager destroyed');
-            }
+            // Disconnect signal handlers first
+            this._disconnectSignals();
 
-            // Destroy panel indicator
-            if (this._panelIndicator) {
-                this._panelIndicator.destroy();
-                this._panelIndicator = null;
-                logger.debug('PanelIndicator destroyed');
-            }
+            // Destroy components in reverse initialization order
+            this._destroyComponents();
 
-            // Disconnect workspace handler
-            if (this._workspaceSwitchedSignal) {
-                global.workspace_manager.disconnect(this._workspaceSwitchedSignal);
-                this._workspaceSwitchedSignal = null;
-                logger.debug('Workspace handler disconnected');
-            }
-
-            // Disconnect conflict count watcher
-            if (this._conflictCountSignal && this._settings) {
-                this._settings.disconnect(this._conflictCountSignal);
-                this._conflictCountSignal = null;
-                logger.debug('Conflict count watcher disconnected');
-            }
-
-            // Destroy UI components
-            if (this._layoutSwitcher) {
-                this._layoutSwitcher.destroy();
-                this._layoutSwitcher = null;
-                logger.debug('LayoutSwitcher destroyed');
-            }
-
-            // TemplateManager has no destroy method (no cleanup needed)
-            this._templateManager = null;
-
-            if (this._zoneOverlay) {
-                this._zoneOverlay.destroy();
-                this._zoneOverlay = null;
-                logger.debug('ZoneOverlay destroyed');
-            }
-
-            if (this._notificationManager) {
-                this._notificationManager.destroy();
-                this._notificationManager = null;
-                logger.debug('NotificationManager destroyed');
-            }
-
-            // Destroy conflict detector
-            if (this._conflictDetector) {
-                this._conflictDetector.destroy();
-                this._conflictDetector = null;
-                logger.debug('ConflictDetector destroyed');
-            }
-
-            // Destroy managers
-            if (this._spatialStateManager) {
-                this._spatialStateManager.destroy();
-                this._spatialStateManager = null;
-                logger.debug('SpatialStateManager destroyed');
-            }
-
-            if (this._layoutManager) {
-                this._layoutManager.destroy();
-                this._layoutManager = null;
-                logger.debug('LayoutManager destroyed');
-            }
-
-            if (this._windowManager) {
-                this._windowManager.destroy();
-                this._windowManager = null;
-                logger.debug('WindowManager destroyed');
-            }
-
-            // Clear settings
+            // Clear settings reference
             this._settings = null;
 
             logger.info('Extension disabled successfully');
@@ -266,6 +196,54 @@ export default class ZonedExtension extends Extension {
             logger.error(`Error disabling extension: ${error}`);
             logger.error(error.stack);
         }
+    }
+
+    /**
+     * Disconnect signal handlers during disable
+     * @private
+     */
+    _disconnectSignals() {
+        if (this._workspaceSwitchedSignal) {
+            global.workspace_manager.disconnect(this._workspaceSwitchedSignal);
+            this._workspaceSwitchedSignal = null;
+            logger.debug('Workspace handler disconnected');
+        }
+
+        if (this._conflictCountSignal && this._settings) {
+            this._settings.disconnect(this._conflictCountSignal);
+            this._conflictCountSignal = null;
+            logger.debug('Conflict count watcher disconnected');
+        }
+    }
+
+    /**
+     * Destroy all extension components in proper order
+     * @private
+     */
+    _destroyComponents() {
+        // Components with destroy() methods, in reverse init order
+        const components = [
+            ['_keybindingManager', 'KeybindingManager'],
+            ['_panelIndicator', 'PanelIndicator'],
+            ['_layoutSwitcher', 'LayoutSwitcher'],
+            ['_zoneOverlay', 'ZoneOverlay'],
+            ['_notificationManager', 'NotificationManager'],
+            ['_conflictDetector', 'ConflictDetector'],
+            ['_spatialStateManager', 'SpatialStateManager'],
+            ['_layoutManager', 'LayoutManager'],
+            ['_windowManager', 'WindowManager'],
+        ];
+
+        for (const [prop, name] of components) {
+            if (this[prop]) {
+                this[prop].destroy();
+                this[prop] = null;
+                logger.debug(`${name} destroyed`);
+            }
+        }
+
+        // TemplateManager has no destroy method (no cleanup needed)
+        this._templateManager = null;
     }
 
     /**

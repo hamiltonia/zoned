@@ -9,6 +9,31 @@ import {createLogger} from './debug.js';
 
 const logger = createLogger('LayoutConverter');
 
+// Boundary edge lookup by type and normalized position (0 or 1)
+const BOUNDARY_EDGE_IDS = {
+    'vertical-0': 'left',
+    'vertical-1': 'right',
+    'horizontal-0': 'top',
+    'horizontal-1': 'bottom',
+};
+
+/**
+ * Check if a position is at a boundary edge
+ * @param {string} type - Edge type ('vertical' or 'horizontal')
+ * @param {number} position - Position to check (0.0 to 1.0)
+ * @param {number} tolerance - Position tolerance
+ * @returns {string|null} Boundary edge ID or null
+ */
+function getBoundaryEdgeId(type, position, tolerance) {
+    if (Math.abs(position) < tolerance) {
+        return BOUNDARY_EDGE_IDS[`${type}-0`] || null;
+    }
+    if (Math.abs(position - 1.0) < tolerance) {
+        return BOUNDARY_EDGE_IDS[`${type}-1`] || null;
+    }
+    return null;
+}
+
 /**
  * Convert zone-based layout to edge-based representation
  * Creates segmented edges - each zone boundary becomes a separate edge segment
@@ -132,24 +157,19 @@ export function zonesToEdges(zoneLayout) {
 
     // Helper to find edge ID by position, type, and range
     const findEdgeId = (type, position, rangeStart, rangeEnd) => {
-        // Check boundaries first
-        if (type === 'vertical') {
-            if (Math.abs(position) < TOLERANCE) return 'left';
-            if (Math.abs(position - 1.0) < TOLERANCE) return 'right';
-        } else {
-            if (Math.abs(position) < TOLERANCE) return 'top';
-            if (Math.abs(position - 1.0) < TOLERANCE) return 'bottom';
-        }
+        // Check boundaries first using lookup
+        const boundaryId = getBoundaryEdgeId(type, position, TOLERANCE);
+        if (boundaryId) return boundaryId;
 
         // Find edge that matches position and contains the range
         for (const edge of edges) {
-            if (edge.type === type && Math.abs(edge.position - position) < TOLERANCE) {
-                // Check if edge segment contains this range
-                const edgeEnd = edge.start + edge.length;
-                if (edge.start <= rangeStart + TOLERANCE && edgeEnd >= rangeEnd - TOLERANCE) {
-                    return edge.id;
-                }
-            }
+            const positionMatch = edge.type === type && Math.abs(edge.position - position) < TOLERANCE;
+            if (!positionMatch) continue;
+
+            // Check if edge segment contains this range
+            const edgeEnd = edge.start + edge.length;
+            const containsRange = edge.start <= rangeStart + TOLERANCE && edgeEnd >= rangeEnd - TOLERANCE;
+            if (containsRange) return edge.id;
         }
 
         logger.error(`Could not find edge: type=${type}, position=${position}, range=[${rangeStart}, ${rangeEnd}]`);
