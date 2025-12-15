@@ -67,6 +67,10 @@ export default [
             // Code Quality
             // ==========================================
             
+            // Disallow direct console usage (use Logger class from utils/debug.js)
+            // This ensures consistent logging that respects debug-logging setting
+            'no-console': ['warn', {allow: ['error', 'warn']}],
+            
             // Complexity check (as per mvp-release-checklist)
             'complexity': ['error', 10],
             
@@ -118,6 +122,22 @@ export default [
             // Consistent comma style
             'comma-dangle': ['warn', 'always-multiline'],
             'comma-spacing': ['warn', { before: false, after: true }],
+        },
+    },
+
+    // Special rules for debug utility (allows console usage)
+    {
+        files: ['extension/utils/debug.js'],
+        rules: {
+            'no-console': 'off',
+        },
+    },
+
+    // Special rules for prefs.js (runs in separate GTK process, uses local log helper)
+    {
+        files: ['extension/prefs.js'],
+        rules: {
+            'no-console': 'off',
         },
     },
 

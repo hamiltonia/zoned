@@ -18,9 +18,30 @@ import {
     normalizeAccelerator,
 } from './utils/keybindingConfig.js';
 
-// Simple logging for prefs (console.log goes to journalctl)
+// Debug logging for prefs (console.log goes to journalctl)
+// Reads debug-logging setting to gate verbose output
+let _debugLoggingEnabled = null;
+
+function isDebugEnabled() {
+    if (_debugLoggingEnabled === null) {
+        try {
+            const settings = new Gio.Settings({schema_id: 'org.gnome.shell.extensions.zoned'});
+            _debugLoggingEnabled = settings.get_boolean('debug-logging');
+            // Watch for changes
+            settings.connect('changed::debug-logging', () => {
+                _debugLoggingEnabled = settings.get_boolean('debug-logging');
+            });
+        } catch {
+            _debugLoggingEnabled = false;
+        }
+    }
+    return _debugLoggingEnabled;
+}
+
 function log(msg) {
-    console.log(`[Zoned Prefs] ${msg}`);
+    if (isDebugEnabled()) {
+        console.log(`[Zoned Prefs] ${msg}`);
+    }
 }
 
 /**

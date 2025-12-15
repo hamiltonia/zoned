@@ -56,7 +56,7 @@ This comprehensive checklist covers:
 
 **Code Quality Tasks:**
 - [x] **ESLint validation** - Added to Makefile, runs via `make lint` ✅
-- [ ] **Review logging** - Clean up log statements for tidiness, gate debug logs appropriately
+- [x] **Review logging** - Clean up log statements, gated debug logs in prefs.js, downgraded verbose logs in zoneEditor.js, added ESLint no-console rule ✅
 - [ ] **Review try/catch statements** - Remove unnecessary ones, ensure proper error handling
 - [ ] **Review Schema naming** - ensure the schema for settings has consistent and appropriate naming
 

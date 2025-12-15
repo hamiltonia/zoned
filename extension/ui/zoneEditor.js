@@ -106,17 +106,17 @@ export class ZoneEditor {
      * @private
      */
     _logLayoutState(context) {
-        logger.info(`=== ZONE STATE [${context}] ===`);
-        logger.info(`Regions: ${this._edgeLayout.regions.length}, Edges: ${this._edgeLayout.edges.length}`);
+        logger.debug(`=== ZONE STATE [${context}] ===`);
+        logger.debug(`Regions: ${this._edgeLayout.regions.length}, Edges: ${this._edgeLayout.edges.length}`);
 
         // Log all edges
         this._edgeLayout.edges.forEach(edge => {
-            logger.info(`  Edge ${edge.id}: ${edge.type} at ${edge.position.toFixed(3)}, start=${edge.start.toFixed(3)}, len=${edge.length.toFixed(3)}, fixed=${edge.fixed}`);
+            logger.debug(`  Edge ${edge.id}: ${edge.type} at ${edge.position.toFixed(3)}, start=${edge.start.toFixed(3)}, len=${edge.length.toFixed(3)}, fixed=${edge.fixed}`);
         });
 
         // Log all regions
         this._edgeLayout.regions.forEach((region, i) => {
-            logger.info(`  Region ${i}: ${region.name} [L:${region.left}, R:${region.right}, T:${region.top}, B:${region.bottom}]`);
+            logger.debug(`  Region ${i}: ${region.name} [L:${region.left}, R:${region.right}, T:${region.top}, B:${region.bottom}]`);
         });
 
         // Validate all region edge references
@@ -139,7 +139,7 @@ export class ZoneEditor {
             logger.error(`!!! ${invalidCount} regions have invalid edge references !!!`);
         }
 
-        logger.info('=== END ZONE STATE ===');
+        logger.debug('=== END ZONE STATE ===');
     }
 
     /**
@@ -1584,9 +1584,9 @@ export class ZoneEditor {
      * @private
      */
     _refreshDisplay() {
-        logger.info('[REFRESH] Starting display refresh');
-        logger.info(`[REFRESH] Current state: ${this._regionActors.length} region actors, ${this._edgeActors.length} edge actors`);
-        logger.info(`[REFRESH] Data state: ${this._edgeLayout.regions.length} regions, ${this._edgeLayout.edges.length} edges`);
+        logger.debug('[REFRESH] Starting display refresh');
+        logger.debug(`[REFRESH] Current state: ${this._regionActors.length} region actors, ${this._edgeActors.length} edge actors`);
+        logger.debug(`[REFRESH] Data state: ${this._edgeLayout.regions.length} regions, ${this._edgeLayout.edges.length} edges`);
 
         // Remove old actors (but keep help text and toolbar)
         const oldRegionCount = this._regionActors.length;
@@ -1605,8 +1605,8 @@ export class ZoneEditor {
         });
         this._edgeActors = [];
 
-        logger.info(`[REFRESH] Cleanup complete: removed ${oldRegionCount} region actors, ${oldEdgeCount} edge actors`);
-        logger.info(`[REFRESH] Creating new actors for ${this._edgeLayout.regions.length} regions, ${this._edgeLayout.edges.filter(e => !e.fixed).length} edges`);
+        logger.debug(`[REFRESH] Cleanup complete: removed ${oldRegionCount} region actors, ${oldEdgeCount} edge actors`);
+        logger.debug(`[REFRESH] Creating new actors for ${this._edgeLayout.regions.length} regions, ${this._edgeLayout.edges.filter(e => !e.fixed).length} edges`);
 
         // Recreate regions and edges
         this._createRegions();
