@@ -1,6 +1,6 @@
 # Zoned Development Roadmap
 
-**Last Updated:** 2025-12-13  
+**Last Updated:** 2025-12-14  
 **Current Status:** Pre-release (active development)  
 **Current Branch:** `initial_dev`
 
@@ -54,8 +54,15 @@ This comprehensive checklist covers:
 - **Phases 1-6**: Static analysis, lifecycle audit, GNOME compliance, architecture review, runtime validation, code quality
 - **Phase 7**: Release infrastructure (unit testing decision, GitHub Actions, issue templates)
 
+**Code Quality Tasks:**
+- [x] **ESLint validation** - Added to Makefile, runs via `make lint` ✅
+- [ ] **Review logging** - Clean up log statements for tidiness, gate debug logs appropriately
+- [ ] **Review try/catch statements** - Remove unnecessary ones, ensure proper error handling
+
 ### Documentation & Testing
-- [ ] **Documentation cleanup** - Final documentation review and cleanup
+- [ ] **Documentation audit** - Review all repo documentation for cruft before pushing to main (public repo)
+- [ ] **Memory bank cleanup** - Remove outdated/internal development notes not needed for public release
+- [ ] **README review** - Ensure README accurately reflects v1.0 features and installation
 
 ---
 
