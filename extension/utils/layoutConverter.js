@@ -249,42 +249,83 @@ export function edgesToZones(edgeLayout) {
 }
 
 /**
+ * Check if layout has required structure
+ * @param {Object} edgeLayout - Layout to validate
+ * @returns {boolean} True if structure is valid
+ */
+function hasValidStructure(edgeLayout) {
+    if (!edgeLayout || !edgeLayout.edges || !edgeLayout.regions) {
+        logger.warn('Layout missing edges or regions');
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Check if layout has all required boundary edges
+ * @param {Array} edges - Edges array
+ * @returns {boolean} True if all boundary edges present
+ */
+function hasBoundaryEdges(edges) {
+    const edgeIds = new Set(edges.map(e => e.id));
+    const required = ['left', 'right', 'top', 'bottom'];
+    const missing = required.filter(id => !edgeIds.has(id));
+
+    if (missing.length > 0) {
+        logger.warn(`Layout missing required boundary edges: ${missing.join(', ')}`);
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Check if all edges have valid positions (0-1 range)
+ * @param {Array} edges - Edges array
+ * @returns {boolean} True if all edge positions are valid
+ */
+function hasValidEdgePositions(edges) {
+    for (const edge of edges) {
+        const pos = edge.position;
+        if (typeof pos !== 'number' || pos < 0 || pos > 1) {
+            logger.warn(`Edge ${edge.id} has invalid position: ${pos}`);
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Check if all regions reference valid edges
+ * @param {Array} regions - Regions array
+ * @param {Map} edgeMap - Edge lookup map
+ * @returns {boolean} True if all region edge references are valid
+ */
+function hasValidRegionEdges(regions, edgeMap) {
+    for (const region of regions) {
+        const refs = [region.left, region.right, region.top, region.bottom];
+        const invalid = refs.filter(ref => !edgeMap.has(ref));
+
+        if (invalid.length > 0) {
+            logger.warn(`Region has invalid edge references: ${invalid.join(', ')}`);
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
  * Validate edge-based layout
  *
  * @param {Object} edgeLayout - Layout to validate
  * @returns {boolean} True if valid
  */
 export function validateEdgeLayout(edgeLayout) {
-    if (!edgeLayout || !edgeLayout.edges || !edgeLayout.regions) {
-        logger.warn('Layout missing edges or regions');
-        return false;
-    }
+    if (!hasValidStructure(edgeLayout)) return false;
+    if (!hasBoundaryEdges(edgeLayout.edges)) return false;
+    if (!hasValidEdgePositions(edgeLayout.edges)) return false;
 
-    // Check for required boundary edges
-    const edgeIds = new Set(edgeLayout.edges.map(e => e.id));
-    if (!edgeIds.has('left') || !edgeIds.has('right') ||
-        !edgeIds.has('top') || !edgeIds.has('bottom')) {
-        logger.warn('Layout missing required boundary edges');
-        return false;
-    }
-
-    // Validate each edge
-    for (const edge of edgeLayout.edges) {
-        if (typeof edge.position !== 'number' || edge.position < 0 || edge.position > 1) {
-            logger.warn(`Edge ${edge.id} has invalid position: ${edge.position}`);
-            return false;
-        }
-    }
-
-    // Validate regions reference valid edges
     const edgeMap = new Map(edgeLayout.edges.map(e => [e.id, e]));
-    for (const region of edgeLayout.regions) {
-        if (!edgeMap.has(region.left) || !edgeMap.has(region.right) ||
-            !edgeMap.has(region.top) || !edgeMap.has(region.bottom)) {
-            logger.warn('Region has invalid edge references');
-            return false;
-        }
-    }
+    if (!hasValidRegionEdges(edgeLayout.regions, edgeMap)) return false;
 
     logger.debug('Edge layout validation passed');
     return true;

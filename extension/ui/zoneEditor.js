@@ -1116,6 +1116,80 @@ export class ZoneEditor {
     }
 
     /**
+     * Group regions by which side of an edge they're on
+     * @param {Object} edge - The edge to group by
+     * @param {Array} regions - Regions referencing this edge
+     * @returns {Object} {leftOrTop: Array, rightOrBottom: Array}
+     * @private
+     */
+    _groupRegionsBySide(edge, regions) {
+        const leftOrTop = [];
+        const rightOrBottom = [];
+
+        regions.forEach(region => {
+            if (edge.type === 'vertical') {
+                if (region.right === edge.id) leftOrTop.push(region);
+                else if (region.left === edge.id) rightOrBottom.push(region);
+            } else {
+                if (region.bottom === edge.id) leftOrTop.push(region);
+                else if (region.top === edge.id) rightOrBottom.push(region);
+            }
+        });
+
+        return {leftOrTop, rightOrBottom};
+    }
+
+    /**
+     * Check if regions have vertical (Y-axis) overlap
+     * @param {Array} leftRegions - Regions on left side
+     * @param {Array} rightRegions - Regions on right side
+     * @param {Map} edgeMap - Edge lookup map
+     * @returns {boolean} True if any regions overlap vertically
+     * @private
+     */
+    _hasVerticalOverlap(leftRegions, rightRegions, edgeMap) {
+        for (const leftReg of leftRegions) {
+            const leftTop = edgeMap.get(leftReg.top).position;
+            const leftBottom = edgeMap.get(leftReg.bottom).position;
+
+            for (const rightReg of rightRegions) {
+                const rightTop = edgeMap.get(rightReg.top).position;
+                const rightBottom = edgeMap.get(rightReg.bottom).position;
+
+                if (leftTop < rightBottom && leftBottom > rightTop) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if regions have horizontal (X-axis) overlap
+     * @param {Array} topRegions - Regions on top side
+     * @param {Array} bottomRegions - Regions on bottom side
+     * @param {Map} edgeMap - Edge lookup map
+     * @returns {boolean} True if any regions overlap horizontally
+     * @private
+     */
+    _hasHorizontalOverlap(topRegions, bottomRegions, edgeMap) {
+        for (const topReg of topRegions) {
+            const topLeft = edgeMap.get(topReg.left).position;
+            const topRight = edgeMap.get(topReg.right).position;
+
+            for (const bottomReg of bottomRegions) {
+                const bottomLeft = edgeMap.get(bottomReg.left).position;
+                const bottomRight = edgeMap.get(bottomReg.right).position;
+
+                if (topLeft < bottomRight && topRight > bottomLeft) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * Check if an edge can be safely deleted
      * @param {Object} edge - Edge to check
      * @returns {boolean} True if edge can be deleted
@@ -1123,93 +1197,31 @@ export class ZoneEditor {
      */
     _canDeleteEdge(edge) {
         // Never delete fixed boundary edges
-        if (edge.fixed) {
-            return false;
-        }
+        if (edge.fixed) return false;
 
         // Must keep at least 2 regions
-        if (this._edgeLayout.regions.length <= 1) {
-            return false;
-        }
+        if (this._edgeLayout.regions.length <= 1) return false;
 
         // Find all regions using this edge
         const regions = this._findRegionsReferencingEdge(edge.id);
-
-        // Must have at least one region using this edge
-        if (regions.length === 0) {
-            return false;
-        }
+        if (regions.length === 0) return false;
 
         // Group regions by side
-        const leftOrTopRegions = [];
-        const rightOrBottomRegions = [];
-
-        regions.forEach(region => {
-            if (edge.type === 'vertical') {
-                if (region.right === edge.id) {
-                    leftOrTopRegions.push(region);
-                } else if (region.left === edge.id) {
-                    rightOrBottomRegions.push(region);
-                }
-            } else {
-                if (region.bottom === edge.id) {
-                    leftOrTopRegions.push(region);
-                } else if (region.top === edge.id) {
-                    rightOrBottomRegions.push(region);
-                }
-            }
-        });
+        const {leftOrTop, rightOrBottom} = this._groupRegionsBySide(edge, regions);
 
         // Must have regions on both sides
-        if (leftOrTopRegions.length === 0 || rightOrBottomRegions.length === 0) {
+        if (leftOrTop.length === 0 || rightOrBottom.length === 0) {
             logger.warn(`[EDGE-DELETE] Edge ${edge.id} only has regions on one side`);
             return false;
         }
 
-        // Check if ANY region from one side OVERLAPS with ANY region from the other side
-        // in the perpendicular direction (uses position-based overlap, not exact edge ID matching)
+        // Check perpendicular overlap based on edge type
         const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
-        let hasOverlap = false;
+        const hasOverlap = edge.type === 'vertical'
+            ? this._hasVerticalOverlap(leftOrTop, rightOrBottom, edgeMap)
+            : this._hasHorizontalOverlap(leftOrTop, rightOrBottom, edgeMap);
 
-        if (edge.type === 'vertical') {
-            // For vertical edges: check perpendicular (vertical/Y-axis) overlap
-            for (const leftReg of leftOrTopRegions) {
-                const leftTop = edgeMap.get(leftReg.top).position;
-                const leftBottom = edgeMap.get(leftReg.bottom).position;
-
-                for (const rightReg of rightOrBottomRegions) {
-                    const rightTop = edgeMap.get(rightReg.top).position;
-                    const rightBottom = edgeMap.get(rightReg.bottom).position;
-
-                    // Overlap: leftTop < rightBottom AND leftBottom > rightTop
-                    if (leftTop < rightBottom && leftBottom > rightTop) {
-                        hasOverlap = true;
-                        break;
-                    }
-                }
-                if (hasOverlap) break;
-            }
-        } else {
-            // For horizontal edges: check perpendicular (horizontal/X-axis) overlap
-            for (const topReg of leftOrTopRegions) {
-                const topLeft = edgeMap.get(topReg.left).position;
-                const topRight = edgeMap.get(topReg.right).position;
-
-                for (const bottomReg of rightOrBottomRegions) {
-                    const bottomLeft = edgeMap.get(bottomReg.left).position;
-                    const bottomRight = edgeMap.get(bottomReg.right).position;
-
-                    // Overlap: topLeft < bottomRight AND topRight > bottomLeft
-                    if (topLeft < bottomRight && topRight > bottomLeft) {
-                        hasOverlap = true;
-                        break;
-                    }
-                }
-                if (hasOverlap) break;
-            }
-        }
-
-        logger.debug(`[EDGE-DELETE] Edge ${edge.id}: leftOrTop=${leftOrTopRegions.length}, rightOrBottom=${rightOrBottomRegions.length}, hasOverlap=${hasOverlap}`);
+        logger.debug(`[EDGE-DELETE] Edge ${edge.id}: leftOrTop=${leftOrTop.length}, rightOrBottom=${rightOrBottom.length}, hasOverlap=${hasOverlap}`);
 
         return hasOverlap;
     }

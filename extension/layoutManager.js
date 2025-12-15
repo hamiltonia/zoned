@@ -215,37 +215,92 @@ export class LayoutManager {
     }
 
     /**
-     * Validate a layout structure
+     * Validate layout has valid id
+     * @param {Object} layout - Layout to validate
+     * @returns {boolean} True if id is valid
      * @private
      */
-    _validateLayout(layout) {
+    _validateLayoutId(layout) {
         if (!layout.id || typeof layout.id !== 'string') {
             logger.warn('Layout missing valid id:', layout);
             return false;
         }
+        return true;
+    }
 
+    /**
+     * Validate layout has valid name
+     * @param {Object} layout - Layout to validate
+     * @returns {boolean} True if name is valid
+     * @private
+     */
+    _validateLayoutName(layout) {
         if (!layout.name || typeof layout.name !== 'string') {
             logger.warn(`Layout '${layout.id}' missing valid name`);
             return false;
         }
+        return true;
+    }
 
+    /**
+     * Validate layout has valid zones array
+     * @param {Object} layout - Layout to validate
+     * @returns {boolean} True if zones array is valid
+     * @private
+     */
+    _validateLayoutZonesArray(layout) {
         if (!Array.isArray(layout.zones) || layout.zones.length === 0) {
             logger.warn(`Layout '${layout.id}' missing valid zones array`);
             return false;
         }
+        return true;
+    }
+
+    /**
+     * Validate a single zone has proper coordinate types
+     * @param {Object} zone - Zone to validate
+     * @returns {boolean} True if zone coordinates are numbers
+     * @private
+     */
+    _validateZoneTypes(zone) {
+        return typeof zone.x === 'number' &&
+               typeof zone.y === 'number' &&
+               typeof zone.w === 'number' &&
+               typeof zone.h === 'number';
+    }
+
+    /**
+     * Validate a single zone has coordinates in valid range (0-1)
+     * @param {Object} zone - Zone to validate
+     * @returns {boolean} True if zone coordinates are in range
+     * @private
+     */
+    _validateZoneRanges(zone) {
+        return zone.x >= 0 && zone.x <= 1 &&
+               zone.y >= 0 && zone.y <= 1 &&
+               zone.w >= 0 && zone.w <= 1 &&
+               zone.h >= 0 && zone.h <= 1;
+    }
+
+    /**
+     * Validate a layout structure
+     * @private
+     */
+    _validateLayout(layout) {
+        if (!this._validateLayoutId(layout)) return false;
+        if (!this._validateLayoutName(layout)) return false;
+        if (!this._validateLayoutZonesArray(layout)) return false;
 
         // Validate each zone
         for (let i = 0; i < layout.zones.length; i++) {
             const zone = layout.zones[i];
-            if (typeof zone.x !== 'number' || typeof zone.y !== 'number' ||
-                typeof zone.w !== 'number' || typeof zone.h !== 'number') {
+
+            if (!this._validateZoneTypes(zone)) {
                 logger.warn(`Layout '${layout.id}' zone ${i} has invalid coordinates`);
                 return false;
             }
 
-            // Check ranges (0-1)
-            if (zone.x < 0 || zone.x > 1 || zone.y < 0 || zone.y > 1 ||
-                zone.w < 0 || zone.w > 1 || zone.h < 0 || zone.h > 1) {
+            if (!this._validateZoneRanges(zone)) {
                 logger.warn(`Layout '${layout.id}' zone ${i} has out-of-range coordinates`);
                 return false;
             }
@@ -516,6 +571,55 @@ export class LayoutManager {
     }
 
     /**
+     * Try to restore a template-based layout from saved ID
+     * @param {string} savedLayoutId - The saved layout ID starting with "template-"
+     * @param {number} savedZoneIndex - The saved zone index
+     * @returns {boolean} True if template was restored successfully
+     * @private
+     */
+    _tryRestoreTemplateLayout(savedLayoutId, savedZoneIndex) {
+        const templateId = savedLayoutId.replace('template-', '');
+        try {
+            const templateManager = new TemplateManager();
+            const layout = templateManager.createLayoutFromTemplate(templateId);
+            if (!layout) return false;
+
+            this.registerLayoutTemporary(layout);
+            this._currentLayout = layout;
+            this._currentZoneIndex = this._clampZoneIndex(savedZoneIndex, layout.zones.length);
+            logger.info(`Restored template layout: ${savedLayoutId}, zone ${this._currentZoneIndex}`);
+            return true;
+        } catch (e) {
+            logger.warn(`Failed to restore template '${templateId}': ${e}`);
+            return false;
+        }
+    }
+
+    /**
+     * Clamp zone index to valid range
+     * @param {number} zoneIndex - Zone index to clamp
+     * @param {number} zonesLength - Number of zones in layout
+     * @returns {number} Valid zone index (0 if out of range)
+     * @private
+     */
+    _clampZoneIndex(zoneIndex, zonesLength) {
+        return (zoneIndex >= 0 && zoneIndex < zonesLength) ? zoneIndex : 0;
+    }
+
+    /**
+     * Use first available layout as fallback
+     * @private
+     */
+    _useDefaultLayout() {
+        if (this._layouts.length > 0) {
+            this._currentLayout = this._layouts[0];
+            this._currentZoneIndex = 0;
+            logger.info(`Using default layout: ${this._currentLayout.id}`);
+            this._saveState();
+        }
+    }
+
+    /**
      * Restore state from GSettings
      * @private
      */
@@ -525,44 +629,20 @@ export class LayoutManager {
 
         // Try to restore saved layout from persistent layouts first
         if (savedLayoutId && this.setLayout(savedLayoutId)) {
-            // Validate zone index
-            if (this._currentLayout && savedZoneIndex >= 0 &&
-                savedZoneIndex < this._currentLayout.zones.length) {
-                this._currentZoneIndex = savedZoneIndex;
-                logger.info(`Restored state: ${savedLayoutId}, zone ${savedZoneIndex}`);
-            }
+            this._currentZoneIndex = this._clampZoneIndex(savedZoneIndex, this._currentLayout.zones.length);
+            logger.info(`Restored state: ${savedLayoutId}, zone ${this._currentZoneIndex}`);
             return;
         }
 
         // If ID starts with "template-", recreate from template
         if (savedLayoutId && savedLayoutId.startsWith('template-')) {
-            const templateId = savedLayoutId.replace('template-', '');
-            try {
-                const templateManager = new TemplateManager();
-                const layout = templateManager.createLayoutFromTemplate(templateId);
-                if (layout) {
-                    this.registerLayoutTemporary(layout);
-                    this._currentLayout = layout;
-                    this._currentZoneIndex = 0;
-                    // Validate zone index
-                    if (savedZoneIndex >= 0 && savedZoneIndex < layout.zones.length) {
-                        this._currentZoneIndex = savedZoneIndex;
-                    }
-                    logger.info(`Restored template layout: ${savedLayoutId}, zone ${this._currentZoneIndex}`);
-                    return;
-                }
-            } catch (e) {
-                logger.warn(`Failed to restore template '${templateId}': ${e}`);
+            if (this._tryRestoreTemplateLayout(savedLayoutId, savedZoneIndex)) {
+                return;
             }
         }
 
         // Fall back to first layout
-        if (this._layouts.length > 0) {
-            this._currentLayout = this._layouts[0];
-            this._currentZoneIndex = 0;
-            logger.info(`Using default layout: ${this._currentLayout.id}`);
-            this._saveState();
-        }
+        this._useDefaultLayout();
     }
 
     /**
