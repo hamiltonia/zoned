@@ -1166,13 +1166,14 @@ export class LayoutSwitcher {
                 case Clutter.KEY_6:
                 case Clutter.KEY_7:
                 case Clutter.KEY_8:
-                case Clutter.KEY_9:
+                case Clutter.KEY_9: {
                     const number = symbol - Clutter.KEY_0;
                     const index = number - 1;
                     if (index >= 0 && index < this._allCards.length) {
                         this._applyCardAtIndex(index);
                     }
                     return Clutter.EVENT_STOP;
+                }
             }
 
             return Clutter.EVENT_PROPAGATE;

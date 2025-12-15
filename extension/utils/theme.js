@@ -52,10 +52,11 @@ export class ThemeManager {
                     return true;
 
                 case 'system':
-                default:
+                default: {
                     // Check GNOME system preference
                     const scheme = this._interfaceSettings.get_string('color-scheme');
                     return scheme === 'prefer-dark';
+                }
             }
         } catch (e) {
             logger.error('Error detecting theme mode:', e);
