@@ -1531,15 +1531,6 @@ export default class ZonedPreferences extends ExtensionPreferences {
         );
         group.add(applyGloballyRow);
 
-        // Add info row explaining how to access features
-        const infoRow = new Adw.ActionRow({
-            title: 'Access Layout Tools',
-            subtitle: 'Use the panel menu (top bar) to create and manage layouts:\n' +
-                     '• "Choose Layout..." - Quick layout picker\n' +
-                     '• "New Layout..." - Create custom layouts',
-        });
-        group.add(infoRow);
-
         // Add keyboard shortcuts group
         const kbGroup = new Adw.PreferencesGroup({
             title: 'Keyboard Shortcuts',

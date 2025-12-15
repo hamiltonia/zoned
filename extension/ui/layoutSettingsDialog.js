@@ -13,7 +13,7 @@
  * - Edit: layout=existing (modify existing layout)
  *
  * Template vs Custom Layout Behavior:
- * - Templates (id starts with 'template-'): Name disabled, no Save/Delete, Duplicate only
+ * - Templates (id starts with 'template-'): View-only (all controls disabled), Duplicate only
  * - Custom layouts: Full editing capability with Save, Delete, Duplicate
  *
  * FancyZones-Style UI Design:
@@ -341,14 +341,21 @@ export class LayoutSettingsDialog {
         const isChecked = Boolean(this._layout.padding && this._layout.padding > 0);
         this._paddingCheckbox = this._createCheckbox(colors, isChecked);
 
-        this._paddingCheckbox.connect('clicked', () => {
-            this._toggleCheckbox(this._paddingCheckbox, colors);
-            const isEnabled = this._paddingCheckbox._checked;
-            if (this._paddingSpinner) {
-                this._paddingSpinner.reactive = isEnabled;
-                this._paddingSpinner.opacity = isEnabled ? 255 : 128;
-            }
-        });
+        // Only allow interaction for custom layouts (not templates)
+        if (!this._isTemplate) {
+            this._paddingCheckbox.connect('clicked', () => {
+                this._toggleCheckbox(this._paddingCheckbox, colors);
+                const isEnabled = this._paddingCheckbox._checked;
+                if (this._paddingSpinner) {
+                    this._paddingSpinner.reactive = isEnabled;
+                    this._paddingSpinner.opacity = isEnabled ? 255 : 128;
+                }
+            });
+        } else {
+            // Disable checkbox for templates (no save button to persist changes)
+            this._paddingCheckbox.reactive = false;
+            this._paddingCheckbox.opacity = 128;
+        }
         paddingLabelBox.add_child(this._paddingCheckbox);
 
         const paddingLabel = new St.Label({
@@ -362,8 +369,16 @@ export class LayoutSettingsDialog {
         this._paddingSpinner = this._createSpinnerInput(colors, {
             value: this._layout.padding || 4, min: 0, max: 16, step: 1,
         });
-        this._paddingSpinner.reactive = isChecked;
-        this._paddingSpinner.opacity = isChecked ? 255 : 128;
+
+        if (this._isTemplate) {
+            // Templates: spinner always disabled (no save button to persist changes)
+            this._paddingSpinner.reactive = false;
+            this._paddingSpinner.opacity = 128;
+        } else {
+            // Custom layouts: spinner enabled based on checkbox state
+            this._paddingSpinner.reactive = isChecked;
+            this._paddingSpinner.opacity = isChecked ? 255 : 128;
+        }
         paddingRow.add_child(this._paddingSpinner);
 
         return paddingRow;
@@ -395,6 +410,13 @@ export class LayoutSettingsDialog {
             ['None', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
             this._layout.shortcut || 'None',
         );
+
+        // Disable dropdown for templates (no save button to persist changes)
+        if (this._isTemplate) {
+            this._shortcutDropdown.reactive = false;
+            this._shortcutDropdown.opacity = 128;
+        }
+
         shortcutRow.add_child(this._shortcutDropdown);
 
         return shortcutRow;
@@ -527,13 +549,16 @@ export class LayoutSettingsDialog {
         previewWrapper.add_child(previewArea);
 
         // Floating circular edit button - centered over preview
-        const editButton = this._createFloatingEditButton(colors);
-        const buttonSize = editButton._buttonSize;
-        // Center the button
-        const buttonX = Math.floor((previewWidth - buttonSize) / 2);
-        const buttonY = Math.floor((previewHeight - buttonSize) / 2);
-        editButton.set_position(buttonX, buttonY);
-        previewWrapper.add_child(editButton);
+        // Only show for custom layouts (templates cannot have zones modified)
+        if (!this._isTemplate) {
+            const editButton = this._createFloatingEditButton(colors);
+            const buttonSize = editButton._buttonSize;
+            // Center the button
+            const buttonX = Math.floor((previewWidth - buttonSize) / 2);
+            const buttonY = Math.floor((previewHeight - buttonSize) / 2);
+            editButton.set_position(buttonX, buttonY);
+            previewWrapper.add_child(editButton);
+        }
 
         this._previewContainer.add_child(previewWrapper);
     }
