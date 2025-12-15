@@ -11,6 +11,7 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from './utils/debug.js';
+import {NotifyCategory} from './utils/notificationService.js';
 
 const logger = createLogger('KeybindingManager');
 
@@ -19,17 +20,22 @@ export class KeybindingManager {
      * @param {Gio.Settings} settings - GSettings object
      * @param {LayoutManager} layoutManager - Layout manager instance
      * @param {WindowManager} windowManager - Window manager instance
-     * @param {NotificationManager} notificationManager - Notification manager instance
+     * @param {NotificationManager} notificationManager - Notification manager instance (legacy)
      * @param {LayoutSwitcher} layoutSwitcher - Layout editor instance
      * @param {ZoneOverlay} zoneOverlay - Zone overlay instance (optional)
+     * @param {NotificationService} notificationService - Notification service for routing (optional)
      */
-    constructor(settings, layoutManager, windowManager, notificationManager, layoutEditor, zoneOverlay = null) {
+    constructor(
+        settings, layoutManager, windowManager, notificationManager,
+        layoutEditor, zoneOverlay = null, notificationService = null,
+    ) {
         this._settings = settings;
         this._layoutManager = layoutManager;
         this._windowManager = windowManager;
         this._notificationManager = notificationManager;
         this._layoutSwitcher = layoutEditor;
         this._zoneOverlay = zoneOverlay;
+        this._notificationService = notificationService;
         this._registeredKeys = [];
         this._enhancedWindowManagementKeys = ['minimize-window', 'maximize-window'];
         this._quickLayoutKeys = ['quick-layout-1', 'quick-layout-2', 'quick-layout-3',
@@ -236,9 +242,14 @@ export class KeybindingManager {
             : this._layoutManager.getCurrentZoneIndex();
         const totalZones = layout.zones.length;
 
-        // Show zone overlay (center-screen notification for user action)
-        if (this._zoneOverlay) {
-            this._zoneOverlay.show(layout.name, zoneIndex, totalZones);
+        // Show zone notification (uses notification settings)
+        if (this._notificationService) {
+            this._notificationService.notifyZone(
+                NotifyCategory.WINDOW_SNAPPING,
+                layout.name,
+                zoneIndex,
+                totalZones,
+            );
         }
     }
 
@@ -273,9 +284,14 @@ export class KeybindingManager {
             : this._layoutManager.getCurrentZoneIndex();
         const totalZones = layout.zones.length;
 
-        // Show zone overlay (center-screen notification for user action)
-        if (this._zoneOverlay) {
-            this._zoneOverlay.show(layout.name, zoneIndex, totalZones);
+        // Show zone notification (uses notification settings)
+        if (this._notificationService) {
+            this._notificationService.notifyZone(
+                NotifyCategory.WINDOW_SNAPPING,
+                layout.name,
+                zoneIndex,
+                totalZones,
+            );
         }
     }
 
@@ -308,8 +324,11 @@ export class KeybindingManager {
         // Check if position is valid
         if (index >= layouts.length) {
             logger.debug(`No layout at position ${position} (only ${layouts.length} layouts available)`);
-            if (this._zoneOverlay) {
-                this._zoneOverlay.showMessage(`No layout at position ${position}`);
+            if (this._notificationService) {
+                this._notificationService.notify(
+                    NotifyCategory.LAYOUT_SWITCHING,
+                    `No layout at position ${position}`,
+                );
             }
             return;
         }
@@ -334,9 +353,12 @@ export class KeybindingManager {
             this._layoutManager.setLayout(layout.id);
         }
 
-        // Show notification
-        if (this._zoneOverlay) {
-            this._zoneOverlay.showMessage(`Switched to: ${layout.name}`);
+        // Show notification (uses notification settings)
+        if (this._notificationService) {
+            this._notificationService.notify(
+                NotifyCategory.LAYOUT_SWITCHING,
+                `Switched to: ${layout.name}`,
+            );
         }
     }
 
@@ -353,8 +375,11 @@ export class KeybindingManager {
             // No focused window - try to restore the last minimized
             const restored = this._windowManager.restoreMinimizedWindow();
             if (restored) {
-                if (this._zoneOverlay) {
-                    this._zoneOverlay.showMessage('Restored');
+                if (this._notificationService) {
+                    this._notificationService.notify(
+                        NotifyCategory.WINDOW_MANAGEMENT,
+                        'Restored',
+                    );
                 }
             }
             return;
@@ -362,8 +387,11 @@ export class KeybindingManager {
 
         // Minimize the focused window
         this._windowManager.minimizeWindow(window);
-        if (this._zoneOverlay) {
-            this._zoneOverlay.showMessage('Minimized');
+        if (this._notificationService) {
+            this._notificationService.notify(
+                NotifyCategory.WINDOW_MANAGEMENT,
+                'Minimized',
+            );
         }
     }
 
@@ -379,8 +407,11 @@ export class KeybindingManager {
         // First, try to restore a minimized window
         const restored = this._windowManager.restoreMinimizedWindow();
         if (restored) {
-            if (this._zoneOverlay) {
-                this._zoneOverlay.showMessage('Restored');
+            if (this._notificationService) {
+                this._notificationService.notify(
+                    NotifyCategory.WINDOW_MANAGEMENT,
+                    'Restored',
+                );
             }
             return;
         }
@@ -395,8 +426,11 @@ export class KeybindingManager {
         const wasMaximized = window.maximized_horizontally || window.maximized_vertically;
         this._windowManager.maximizeWindow(window);
 
-        if (this._zoneOverlay) {
-            this._zoneOverlay.showMessage(wasMaximized ? 'Unmaximized' : 'Maximized');
+        if (this._notificationService) {
+            this._notificationService.notify(
+                NotifyCategory.WINDOW_MANAGEMENT,
+                wasMaximized ? 'Unmaximized' : 'Maximized',
+            );
         }
     }
 

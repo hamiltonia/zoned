@@ -259,6 +259,109 @@
     </key>
     
     <!-- Developer Mode Settings -->
+    <!-- Notification Settings -->
+    <key name="notifications-enabled" type="b">
+      <default>true</default>
+      <summary>Enable notifications</summary>
+      <description>
+        Master toggle for all Zoned notifications. When disabled, no 
+        notifications will be shown for any action.
+      </description>
+    </key>
+    
+    <key name="notification-duration" type="i">
+      <default>1000</default>
+      <range min="500" max="5000"/>
+      <summary>Notification duration in milliseconds</summary>
+      <description>
+        How long notifications stay visible before auto-dismissing.
+        Default is 1000ms (1 second). Range: 500ms to 5000ms.
+      </description>
+    </key>
+    
+    <key name="center-notification-size" type="s">
+      <default>"small"</default>
+      <summary>Center notification size</summary>
+      <description>
+        Size of the center-screen notification overlay.
+        Options: "small" (256px), "medium" (384px), "large" (512px).
+      </description>
+    </key>
+    
+    <key name="center-notification-opacity" type="i">
+      <default>80</default>
+      <range min="50" max="100"/>
+      <summary>Center notification background opacity</summary>
+      <description>
+        Opacity of the center notification background (50-100%).
+        Default is 85%.
+      </description>
+    </key>
+    
+    <key name="center-notification-preview" type="b">
+      <default>false</default>
+      <summary>Trigger center notification preview</summary>
+      <description>
+        Internal flag used to trigger a preview notification from preferences.
+        When set to true, extension shows a sample notification and resets to false.
+      </description>
+    </key>
+    
+    <key name="notify-window-snapping" type="s">
+      <default>"disabled"</default>
+      <summary>Window snapping notification style</summary>
+      <description>
+        Notification style for zone cycling (Super+Left/Right).
+        Options: "center" (large center-screen), "system" (top-bar), "disabled".
+      </description>
+    </key>
+    
+    <key name="notify-layout-switching" type="s">
+      <default>"disabled"</default>
+      <summary>Layout switching notification style</summary>
+      <description>
+        Notification style for layout/profile changes via picker, menu, or shortcuts.
+        Options: "center" (large center-screen), "system" (top-bar), "disabled".
+      </description>
+    </key>
+    
+    <key name="notify-window-management" type="s">
+      <default>"disabled"</default>
+      <summary>Window management notification style</summary>
+      <description>
+        Notification style for minimize/maximize/restore actions.
+        Options: "center" (large center-screen), "system" (top-bar), "disabled".
+      </description>
+    </key>
+    
+    <key name="notify-workspace-changes" type="s">
+      <default>"disabled"</default>
+      <summary>Workspace changes notification style</summary>
+      <description>
+        Notification style for per-space layout display when switching workspaces.
+        Options: "center" (large center-screen), "system" (top-bar), "disabled".
+      </description>
+    </key>
+    
+    <key name="notify-startup" type="s">
+      <default>"center"</default>
+      <summary>Startup messages notification style</summary>
+      <description>
+        Notification style for extension startup messages.
+        Options: "center" (large center-screen), "system" (top-bar), "disabled".
+      </description>
+    </key>
+    
+    <key name="notify-conflicts" type="s">
+      <default>"system"</default>
+      <summary>Conflict warnings notification style</summary>
+      <description>
+        Notification style for keybinding conflict detection.
+        Options: "center" (large center-screen), "system" (top-bar), "disabled".
+      </description>
+    </key>
+    
+    <!-- Debug Settings -->
     <key name="debug-logging" type="b">
       <default>false</default>
       <summary>Enable verbose debug logging</summary>

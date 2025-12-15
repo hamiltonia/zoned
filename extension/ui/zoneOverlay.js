@@ -16,9 +16,17 @@ import {createLogger} from '../utils/debug.js';
 
 const logger = createLogger('ZoneOverlay');
 
+// Size configurations: small, medium, large
+const SIZE_CONFIG = {
+    small: {container: 256, icon: 256, titleFont: 14, messageFont: 12, padding: '14px 20px'},
+    medium: {container: 384, icon: 384, titleFont: 16, messageFont: 14, padding: '18px 26px'},
+    large: {container: 512, icon: 512, titleFont: 18, messageFont: 16, padding: '20px 32px'},
+};
+
 export class ZoneOverlay {
     constructor(extension) {
         this._extension = extension;
+        this._settings = extension.getSettings();
         this._overlay = null;
         this._timeoutId = null;
     }
@@ -56,12 +64,20 @@ export class ZoneOverlay {
         this._hide();
 
         try {
+            // Get size and opacity settings
+            const sizeSetting = this._settings.get_string('center-notification-size');
+            const opacityPercent = this._settings.get_int('center-notification-opacity');
+            const config = SIZE_CONFIG[sizeSetting] || SIZE_CONFIG.medium;
+            const bgOpacity = opacityPercent / 100;
+
+            logger.debug(`Overlay settings: size=${sizeSetting}, opacity=${opacityPercent}%`);
+
             // Create main container with BinLayout for proper stacking
             const container = new St.Widget({
                 style_class: 'zone-overlay-container',
                 layout_manager: new Clutter.BinLayout(),
-                width: 512,
-                height: 512,
+                width: config.container,
+                height: config.container,
             });
 
             // Add icon as full background (first child = back layer)
@@ -70,10 +86,13 @@ export class ZoneOverlay {
                 const iconFile = Gio.File.new_for_path(iconPath);
 
                 if (iconFile.query_exists(null)) {
+                    // Icon opacity scales from subtle (30) at 50% to solid (255) at 100%
+                    // Formula: 30 + 225 * ((opacity - 0.5) / 0.5) = 30 + 450 * (opacity - 0.5)
+                    const iconOpacity = Math.floor(30 + 450 * (bgOpacity - 0.5));
                     const backgroundIcon = new St.Icon({
                         gicon: Gio.icon_new_for_string(iconPath),
-                        icon_size: 512,
-                        opacity: 80,  // Semi-transparent icon background
+                        icon_size: config.icon,
+                        opacity: iconOpacity,
                         x_align: Clutter.ActorAlign.CENTER,
                         y_align: Clutter.ActorAlign.CENTER,
                         x_expand: true,
@@ -81,16 +100,20 @@ export class ZoneOverlay {
                     });
 
                     container.add_child(backgroundIcon);
-                    logger.debug('Background icon added to overlay');
+                    logger.debug(`Background icon added with opacity ${iconOpacity}`);
                 }
             } catch (iconError) {
                 logger.debug(`Background icon not loaded: ${iconError}`);
             }
 
             // Add content box on top of icon (second child = front layer)
+            // Semi-transparent dark pill background for better readability
             const contentBox = new St.BoxLayout({
                 vertical: true,
-                style: 'spacing: 8px; padding: 30px 40px;',
+                style: 'spacing: 12px; ' +
+                       `padding: ${config.padding}; ` +
+                       `background-color: rgba(30, 30, 30, ${bgOpacity}); ` +
+                       'border-radius: 16px;',
                 x_align: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER,
                 x_expand: true,
@@ -101,21 +124,23 @@ export class ZoneOverlay {
             if (titleText) {
                 const titleLabel = new St.Label({
                     text: titleText,
-                    style: 'font-weight: bold; ' +
+                    style: `font-size: ${config.titleFont}px; ` +
+                           'font-weight: bold; ' +
                            'color: #ffffff; ' +
                            'text-align: center; ' +
-                           'text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);',
+                           'text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.9);',
                 });
                 contentBox.add_child(titleLabel);
             }
 
-            // Add message text
+            // Add message text (brighter blue for better contrast)
             const messageLabel = new St.Label({
                 text: messageText,
-                style: 'font-weight: normal; ' +
-                       'color: #4a90d9; ' +
+                style: `font-size: ${config.messageFont}px; ` +
+                       'font-weight: normal; ' +
+                       'color: #88c0ff; ' +
                        'text-align: center; ' +
-                       'text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);',
+                       'text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.9);',
             });
             contentBox.add_child(messageLabel);
 
@@ -126,12 +151,17 @@ export class ZoneOverlay {
             // Add to UI
             Main.uiGroup.add_child(this._overlay);
 
-            // Center on current monitor
+            // Position notification with text pill centered at same screen location for all sizes
+            // The text pill is centered within the container, so we offset based on container size
             const monitor = Main.layoutManager.currentMonitor;
-            this._overlay.set_position(
-                Math.floor(monitor.x + (monitor.width - this._overlay.width) / 2),
-                Math.floor(monitor.y + monitor.height / 4),  // Top quarter of screen
-            );
+            const calcX = Math.floor(monitor.x + (monitor.width - config.container) / 2);
+            // Target: put pill center at true center of screen (50%)
+            // Pill center = container top + (container / 2)
+            // So: container top = target - (container / 2)
+            const targetPillY = Math.floor(monitor.height * 0.50);  // 50% = true center
+            const calcY = Math.floor(monitor.y + targetPillY - (config.container / 2));
+
+            this._overlay.set_position(calcX, calcY);
 
             // Auto-hide after duration
             this._timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, duration, () => {

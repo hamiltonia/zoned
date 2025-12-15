@@ -1,6 +1,6 @@
 # Zoned Development Roadmap
 
-**Last Updated:** 2025-12-14  
+**Last Updated:** 2025-12-15  
 **Current Status:** Pre-release (active development)  
 **Current Branch:** `initial_dev`
 
@@ -30,7 +30,7 @@ See: `memory/development/per-space-layouts-spec.md`
 - [x] Auto-switch layout on workspace change (via `workspace-switched` signal)
 - [x] Settings sync between LayoutSwitcher checkbox and prefs.js switch
 - [x] Multi-monitor support (needs testing)
-- [ ] Revisit notifications (make them optional where needed, provide options for look & feel)
+- [x] Revisit notifications (make them optional where needed, provide options for look & feel) ✅
 - [ ] Style updates, ensure consistency, polish, etc.
 
 **Phase 2: Keybinding Context Awareness**
@@ -58,6 +58,7 @@ This comprehensive checklist covers:
 - [x] **ESLint validation** - Added to Makefile, runs via `make lint` ✅
 - [ ] **Review logging** - Clean up log statements for tidiness, gate debug logs appropriately
 - [ ] **Review try/catch statements** - Remove unnecessary ones, ensure proper error handling
+- [ ] **Review Schema naming** - ensure the schema for settings has consistent and appropriate naming
 
 ### Documentation & Testing
 - [ ] **Documentation audit** - Review all repo documentation for cruft before pushing to main (public repo)

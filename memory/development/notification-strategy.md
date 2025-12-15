@@ -1,36 +1,102 @@
 # Notification Strategy
 
-Last Updated: 2024-11-24 (Final Implementation)
+Last Updated: 2024-12-15 (User-Configurable Notifications)
 
-**Status:** ✅ Complete and Production-Ready
+**Status:** ✅ Complete with User Settings
 
 ## Overview
 
-Zoned uses a dual-notification system to provide clear, context-appropriate feedback:
+Zoned uses a dual-notification system with user-configurable preferences:
 
-1. **Center-Screen Notifications** - For user-initiated actions
-2. **Top-Bar Notifications** - For system messages and alerts
+1. **Center-Screen Notifications** - For user-initiated actions (ZoneOverlay)
+2. **Top-Bar Notifications** - For system messages and alerts (NotificationManager)
+3. **NotificationService** - Routes notifications based on user settings
+
+## User Settings
+
+Users can control notifications through the **Settings > Notifications** section:
+
+### Master Controls
+- **Enable Notifications** - Global toggle to disable all notifications
+- **Notification Duration** - How long notifications stay visible (Quick 0.5s / Normal 1s / Slow 2s / Long 3s)
+
+### Per-Category Settings
+
+Each category can be set to: **Center (Large)**, **System (Top Bar)**, or **Disabled**
+
+| Category | Description | Default |
+|----------|-------------|---------|
+| **Window Snapping** | Zone cycling with Super+Left/Right | Disabled |
+| **Layout/Profile Changes** | Switching layouts via any method | Disabled |
+| **Window Management** | Minimize/maximize/restore actions | Disabled |
+| **Workspace Changes** | Per-space layout display when switching | Disabled |
+| **Startup Messages** | "Enabled: [layout]" on extension load | Center |
+| **Conflict Warnings** | Keybinding conflict detection alerts | System |
+
+## Architecture
+
+### NotificationService
+
+The `NotificationService` (`extension/utils/notificationService.js`) acts as a router:
+
+```javascript
+import {NotificationService, NotifyCategory} from './utils/notificationService.js';
+
+// In extension initialization:
+this._notificationService = new NotificationService(
+    this,                      // extension object
+    this._zoneOverlay,         // for center notifications
+    this._notificationManager, // for system notifications
+);
+
+// Usage:
+this._notificationService.notify(
+    NotifyCategory.WINDOW_SNAPPING,
+    'Zone 1 of 3',
+);
+
+// For zone cycling with layout info:
+this._notificationService.notifyZone(
+    NotifyCategory.WINDOW_SNAPPING,
+    layoutName,
+    zoneIndex,
+    totalZones,
+);
+```
+
+### NotifyCategory Constants
+
+```javascript
+export const NotifyCategory = {
+    WINDOW_SNAPPING: 'window-snapping',
+    LAYOUT_SWITCHING: 'layout-switching',
+    WINDOW_MANAGEMENT: 'window-management',
+    WORKSPACE_CHANGES: 'workspace-changes',
+    STARTUP: 'startup',
+    CONFLICTS: 'conflicts',
+};
+```
 
 ## Center-Screen Notifications (ZoneOverlay)
 
-**Purpose**: Immediate visual feedback for user actions
-
 **Component**: `ZoneOverlay` (`extension/ui/zoneOverlay.js`)
 
-**Design**:
-- Square container with rounded corners (12px border radius)
-- Semi-transparent dark background (rgba(40, 40, 40, 0.9))
-- Faint PNG watermark of Zoned icon (opacity: 40/255)
-- White text for primary message
-- Blue accent text for secondary information
+**Design** (User-configurable for readability):
+- **Size options**: Small (256px), Medium (384px), Large (512px)
+- **Opacity slider**: 50-100% for background and icon
+- Watermark icon background (scaled with size)
+- **Dark pill background** behind text (opacity from settings)
+- **Font sizes scale with size**: Small 14/12px, Medium 16/14px, Large 18/16px
+- **Brighter blue accent** (#88c0ff) for message text
+- **Strong text shadows** for contrast
 - Positioned at top quarter of screen (centered horizontally)
-- Auto-dismisses after 1 second (default)
 
-**Use Cases**:
-- Window snapping to zones (Super+Left/Right)
-- Layout switching (via picker or menu)
-- Window minimize (Super+Down)
-- Window maximize/restore (Super+Up)
+**Size Configurations**:
+| Size | Container | Icon | Title Font | Message Font |
+|------|-----------|------|------------|--------------|
+| Small | 256px | 256px | 14px | 12px |
+| Medium | 384px | 384px | 16px | 14px |
+| Large | 512px | 512px | 18px | 16px |
 
 **API**:
 ```javascript
@@ -41,141 +107,83 @@ zoneOverlay.show(layoutName, zoneIndex, totalZones, duration);
 zoneOverlay.showMessage(message, duration);
 ```
 
-**Example Usage**:
-```javascript
-// In keybindingManager.js - window minimize
-this._zoneOverlay.showMessage('Minimized');
-
-// In layoutManager.js - layout switch
-zoneOverlay.showMessage(`Switched to: ${layout.name}`);
-```
-
 ## Top-Bar Notifications (NotificationManager)
-
-**Purpose**: System messages and alerts that don't interrupt workflow
 
 **Component**: `NotificationManager` (`extension/ui/notificationManager.js`)
 
 **Design**:
 - [Icon] | Message layout
-- Colorful Zoned icon on left (36px, branded SVG)
-- Vertical separator line
-- Message text on right (wraps as needed)
-- Semi-transparent dark background (rgba(40, 40, 40, 0.95))
-- Rounded corners (8px border radius)
-- Positioned below top panel (proper allocation timing)
-- Auto-dismisses after 2 seconds (default)
-
-**Use Cases**:
-- Extension startup confirmation
-- Keybinding conflict warnings
-- Auto-fix success messages
-- Background operations
+- Colorful Zoned icon on left (36px)
+- Positioned below top panel
+- Auto-dismisses after configured duration
 
 **API**:
 ```javascript
-// Simple message notification
 notificationManager.show(message, duration);
 ```
 
-**Example Usage**:
-```javascript
-// In extension.js - startup
-this._notificationManager.show(`Enabled: ${currentLayout.name}`, 1500);
+## GSettings Keys
 
-// In panelIndicator.js - auto-fix success
-this._notificationManager.show(`✓ Fixed ${count} conflict${count !== 1 ? 's' : ''}`, 2000);
+```xml
+<!-- Master toggle -->
+<key name="notifications-enabled" type="b">
+  <default>true</default>
+</key>
+
+<!-- Duration in milliseconds (500-5000) -->
+<key name="notification-duration" type="i">
+  <default>1000</default>
+</key>
+
+<!-- Center notification appearance -->
+<key name="center-notification-size" type="s">
+  <default>"medium"</default>  <!-- "small", "medium", "large" -->
+</key>
+
+<key name="center-notification-opacity" type="i">
+  <default>85</default>  <!-- 50-100% -->
+</key>
+
+<!-- Per-category: "center", "system", or "disabled" -->
+<key name="notify-window-snapping" type="s"><default>"disabled"</default></key>
+<key name="notify-layout-switching" type="s"><default>"disabled"</default></key>
+<key name="notify-window-management" type="s"><default>"disabled"</default></key>
+<key name="notify-workspace-changes" type="s"><default>"disabled"</default></key>
+<key name="notify-startup" type="s"><default>"center"</default></key>
+<key name="notify-conflicts" type="s"><default>"system"</default></key>
 ```
 
-## Design Principles
+## Migration Notes
 
-### When to Use Center-Screen (ZoneOverlay)
-- User explicitly triggered an action (keyboard shortcut, menu selection)
-- Immediate visual confirmation is valuable
-- Action affects window layout or positioning
-- Brief, contextual feedback
+### For Developers
+When adding new notifications:
+1. Determine the appropriate category from `NotifyCategory`
+2. Use `_notificationService.notify()` instead of direct overlay/manager calls
+3. For zone-specific display, use `_notificationService.notifyZone()`
 
-### When to Use Top-Bar (NotificationManager)
-- System-initiated messages
-- Background operations completed
-- Warnings or alerts
-- Information that should be noticed but not interrupt
+### Legacy Code
+The `_zoneOverlay` and `_notificationManager` are still available for components that haven't been migrated, but new code should use `_notificationService`.
 
-### When to Use MessageDialog
-- Errors requiring acknowledgment
-- Detailed information that user requested
-- Actions that cannot be completed
-- User needs to make a decision
+## File Summary
 
-## Implementation Details
-
-### ZoneOverlay Features
-- **Watermark**: PNG icon (`extension/icons/zoned-watermark.svg`) rendered at low opacity
-- **Layering**: Uses `St.Bin` with multiple children for watermark + content
-- **Positioning**: Calculated dynamically based on `global.screen_width` and `global.screen_height`
-- **Flexibility**: Can show zone-specific info or generic messages
-
-### NotificationManager Features
-- **Icon Loading**: Uses `Gio.icon_new_for_string()` for SVG icon
-- **Text Wrapping**: Supports multi-line messages with `Pango.WrapMode.WORD_CHAR`
-- **Fade Animations**: Smooth fade-in/fade-out with Clutter animations
-- **Graceful Fallback**: If icon fails to load, shows message without icon
-
-### Font Scaling
-Both notification systems respect GNOME's text scaling settings by:
-- Avoiding hardcoded `font-size` declarations
-- Using system default font sizes
-- Allowing text to scale with user preferences
-
-## File Updates Summary
-
-All notification routing updated in:
-- ✅ `extension/extension.js` - Pass extension object to both managers
-- ✅ `extension/keybindingManager.js` - Route user actions to ZoneOverlay
-- ✅ `extension/layoutManager.js` - Use ZoneOverlay for layout switching
-- ✅ `extension/ui/layoutPicker.js` - Use ZoneOverlay instead of NotificationManager
-- ✅ `extension/ui/panelIndicator.js` - Use both (ZoneOverlay for layout switch, NotificationManager for auto-fix)
-- ✅ `extension/ui/zoneOverlay.js` - Enhanced with watermark and generic message support
-- ✅ `extension/ui/notificationManager.js` - Redesigned with [Icon] | Message layout
+| File | Purpose |
+|------|---------|
+| `extension/utils/notificationService.js` | Routes notifications based on settings |
+| `extension/ui/zoneOverlay.js` | Center-screen overlay display |
+| `extension/ui/notificationManager.js` | Top-bar notification display |
+| `extension/schemas/...gschema.xml` | Notification GSettings keys |
+| `extension/prefs.js` | Notification settings UI |
 
 ## Testing Checklist
 
-- [x] Super+Left/Right shows center notification with layout and zone info
-- [x] Super+Down shows center "Minimized" notification
-- [x] Super+Up shows center "Maximized"/"Unmaximized"/"Restored" notification
-- [x] Layout picker selection shows center "Switched to: [Layout]" notification
-- [x] Panel menu layout selection shows center "Switched to: [Layout]" notification
-- [x] Extension startup shows top "Enabled: [Layout]" notification
-- [x] Keybinding conflicts show top warning notification
-- [x] Auto-fix success shows top success notification
-- [x] Full colorful icon appears as background in center notifications (512x512)
-- [x] Colorful icon appears in top notifications (36px, left side with separator)
-- [x] All notifications respect GNOME text scaling
-- [x] All notifications auto-dismiss at correct timing
-- [x] No notification overlap or conflicts (proper positioning)
-- [x] Top notification properly positioned below panel (no overlap)
-
-## Implementation Notes
-
-**Icon Assets:**
-- All icons stored in `extension/icons/`
-- SVG format for resolution independence (~7KB total)
-- `zoned-watermark.svg` (4.5KB) - Used in both notification types
-- `zoned-symbolic.svg` (1.2KB) - Panel indicator (normal state)
-- `zoned-warning.svg` (1.2KB) - Panel indicator (conflict state)
-
-**Key Decisions:**
-1. **Colorful vs Symbolic**: Chose branded colorful icons over GNOME symbolic icons for better recognition and branding
-2. **Icon Size**: 36px for top notifications (larger than symbolic standard of 24px) for better visibility
-3. **Center Notification**: 512x512 full icon background provides strong visual presence
-4. **Positioning**: Wait for widget allocation before positioning to ensure correct centering
-
-## Future Enhancements
-
-Potential improvements to consider:
-- User-configurable notification durations
-- Notification position preferences
-- Animation style options
-- Notification history/log
-- Sound effects (optional)
-- Configurable icon opacity for center notifications
+- [x] Master toggle disables all notifications
+- [x] Duration setting affects all notification types
+- [x] Each category can be set to center/system/disabled
+- [x] Window snapping notifications respect settings
+- [x] Layout switching notifications respect settings
+- [x] Window management notifications respect settings
+- [x] Workspace change notifications respect settings
+- [x] Startup message respects settings
+- [x] Conflict warnings respect settings
+- [x] Center notification styling is readable (dark pill, larger fonts)
+- [x] Settings persist across restarts

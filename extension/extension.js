@@ -26,6 +26,7 @@ import {ZoneOverlay} from './ui/zoneOverlay.js';
 import {ConflictDetector} from './ui/conflictDetector.js';
 import {PanelIndicator} from './ui/panelIndicator.js';
 import {createLogger, initDebugSettings, destroyDebugSettings} from './utils/debug.js';
+import {NotificationService, NotifyCategory} from './utils/notificationService.js';
 
 const logger = createLogger('Extension');
 
@@ -40,6 +41,7 @@ export default class ZonedExtension extends Extension {
         this._spatialStateManager = null;
         this._templateManager = null;
         this._notificationManager = null;
+        this._notificationService = null;
         this._layoutSwitcher = null;
         this._zoneOverlay = null;
         this._conflictDetector = null;
@@ -47,6 +49,7 @@ export default class ZonedExtension extends Extension {
         this._keybindingManager = null;
         this._workspaceSwitchedSignal = null;
         this._conflictCountSignal = null;
+        this._previewSignal = null;
 
         logger.info('Extension constructed');
     }
@@ -97,6 +100,14 @@ export default class ZonedExtension extends Extension {
             this._zoneOverlay = new ZoneOverlay(this);
             logger.debug('ZoneOverlay initialized');
 
+            // Initialize NotificationService (routes notifications based on settings)
+            this._notificationService = new NotificationService(
+                this,
+                this._zoneOverlay,
+                this._notificationManager,
+            );
+            logger.debug('NotificationService initialized');
+
             // Initialize TemplateManager
             this._templateManager = new TemplateManager();
             logger.debug('TemplateManager initialized');
@@ -131,7 +142,20 @@ export default class ZonedExtension extends Extension {
             });
             logger.debug('PanelIndicator initialized');
 
-            // Initialize KeybindingManager (with zone overlay)
+            // Watch for preview trigger from prefs (shows sample center notification)
+            this._previewSignal = this._settings.connect('changed::center-notification-preview', () => {
+                if (this._settings.get_boolean('center-notification-preview')) {
+                    logger.debug('Preview triggered from preferences');
+                    // Show preview with current settings
+                    const duration = this._settings.get_int('notification-duration');
+                    this._zoneOverlay.showMessage('Preview Notification', duration);
+                    // Reset the flag
+                    this._settings.set_boolean('center-notification-preview', false);
+                }
+            });
+            logger.debug('Preview signal handler initialized');
+
+            // Initialize KeybindingManager (with notification service)
             this._keybindingManager = new KeybindingManager(
                 this._settings,
                 this._layoutManager,
@@ -139,6 +163,7 @@ export default class ZonedExtension extends Extension {
                 this._notificationManager,
                 this._layoutSwitcher,
                 this._zoneOverlay,
+                this._notificationService,
             );
 
             // Register all keybindings
@@ -148,21 +173,21 @@ export default class ZonedExtension extends Extension {
             // Setup workspace switching handler (if workspace mode enabled)
             this._setupWorkspaceHandler();
 
-            // Show startup notification
+            // Show startup notification (uses notification settings)
             const currentLayout = this._layoutManager.getCurrentLayout();
             if (currentLayout) {
-                this._notificationManager.show(
+                this._notificationService.notify(
+                    NotifyCategory.STARTUP,
                     `Enabled: ${currentLayout.name}`,
-                    1500,
                 );
             }
 
-            // Warn if conflicts detected
+            // Warn if conflicts detected (uses notification settings)
             if (this._conflictDetector.hasConflicts()) {
                 const conflictCount = conflicts.length;
-                this._notificationManager.show(
+                this._notificationService.notify(
+                    NotifyCategory.CONFLICTS,
                     `⚠️ ${conflictCount} keybinding conflict${conflictCount !== 1 ? 's' : ''} detected. Click icon for details.`,
-                    3000,
                 );
             }
 
@@ -221,6 +246,12 @@ export default class ZonedExtension extends Extension {
             this._conflictCountSignal = null;
             logger.debug('Conflict count watcher disconnected');
         }
+
+        if (this._previewSignal && this._settings) {
+            this._settings.disconnect(this._previewSignal);
+            this._previewSignal = null;
+            logger.debug('Preview signal disconnected');
+        }
     }
 
     /**
@@ -233,6 +264,7 @@ export default class ZonedExtension extends Extension {
             ['_keybindingManager', 'KeybindingManager'],
             ['_panelIndicator', 'PanelIndicator'],
             ['_layoutSwitcher', 'LayoutSwitcher'],
+            ['_notificationService', 'NotificationService'],
             ['_zoneOverlay', 'ZoneOverlay'],
             ['_notificationManager', 'NotificationManager'],
             ['_conflictDetector', 'ConflictDetector'],
@@ -287,14 +319,20 @@ export default class ZonedExtension extends Extension {
                     const layout = this._layoutManager.getAllLayouts().find(l => l.id === layoutId);
                     if (layout) {
                         this._layoutManager.setLayout(layoutId);
-                        // Show notification with workspace number
-                        this._zoneOverlay.showMessage(`Workspace ${toIndex + 1}: ${layout.name}`);
+                        // Show notification with workspace number (uses notification settings)
+                        this._notificationService.notify(
+                            NotifyCategory.WORKSPACE_CHANGES,
+                            `Workspace ${toIndex + 1}: ${layout.name}`,
+                        );
                     } else {
                         // Layout not found - use fallback
                         const fallbackId = 'halves';
                         this._layoutManager.setLayout(fallbackId);
                         logger.warn(`Layout '${layoutId}' not found, using fallback`);
-                        this._zoneOverlay.showMessage(`Workspace ${toIndex + 1}: Halves (fallback)`);
+                        this._notificationService.notify(
+                            NotifyCategory.WORKSPACE_CHANGES,
+                            `Workspace ${toIndex + 1}: Halves (fallback)`,
+                        );
                     }
                 } catch (e) {
                     logger.error(`Error switching layout for workspace ${toIndex}: ${e}`);

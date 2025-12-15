@@ -1257,6 +1257,175 @@ export default class ZonedPreferences extends ExtensionPreferences {
 
         appearanceGroup.add(tierRow);
 
+        // Create notifications group
+        const notifyGroup = new Adw.PreferencesGroup({
+            title: 'Notifications',
+            description: 'Control when and how notifications are displayed',
+        });
+        page.add(notifyGroup);
+
+        // Master toggle for notifications
+        const notifyEnabledRow = new Adw.SwitchRow({
+            title: 'Enable Notifications',
+            subtitle: 'Show visual feedback for actions like snapping, layout switching, etc.',
+        });
+        settings.bind('notifications-enabled', notifyEnabledRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        notifyGroup.add(notifyEnabledRow);
+
+        // Duration setting
+        const durationRow = new Adw.ComboRow({
+            title: 'Notification Duration',
+            subtitle: 'How long notifications stay visible',
+        });
+        const durationModel = new Gtk.StringList();
+        durationModel.splice(0, 0, ['Quick (0.5s)', 'Normal (1s)', 'Slow (2s)', 'Long (3s)']);
+        durationRow.set_model(durationModel);
+
+        // Map durations in milliseconds
+        const durationMapping = [500, 1000, 2000, 3000];
+        const currentDuration = settings.get_int('notification-duration');
+        // Find closest match
+        let selectedDurationIdx = durationMapping.findIndex(d => d >= currentDuration);
+        if (selectedDurationIdx === -1) selectedDurationIdx = 3;
+        durationRow.set_selected(selectedDurationIdx);
+
+        durationRow.connect('notify::selected', () => {
+            settings.set_int('notification-duration', durationMapping[durationRow.get_selected()]);
+        });
+        notifyGroup.add(durationRow);
+
+        // Center notification size setting
+        const sizeRow = new Adw.ComboRow({
+            title: 'Center Notification Size',
+            subtitle: 'Size of the large center-screen notification',
+        });
+        const sizeModel = new Gtk.StringList();
+        sizeModel.splice(0, 0, ['Small', 'Medium', 'Large']);
+        sizeRow.set_model(sizeModel);
+
+        const sizeMapping = ['small', 'medium', 'large'];
+        const currentSize = settings.get_string('center-notification-size');
+        sizeRow.set_selected(sizeMapping.indexOf(currentSize));
+
+        sizeRow.connect('notify::selected', () => {
+            settings.set_string('center-notification-size', sizeMapping[sizeRow.get_selected()]);
+        });
+        notifyGroup.add(sizeRow);
+
+        // Center notification opacity setting
+        const opacityRow = new Adw.ActionRow({
+            title: 'Center Notification Opacity',
+            subtitle: 'Background opacity of center notification (50-100%)',
+        });
+
+        const opacityScale = new Gtk.Scale({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            adjustment: new Gtk.Adjustment({
+                lower: 50,
+                upper: 100,
+                step_increment: 5,
+                page_increment: 10,
+                value: settings.get_int('center-notification-opacity'),
+            }),
+            draw_value: true,
+            value_pos: Gtk.PositionType.RIGHT,
+            hexpand: true,
+            width_request: 200,
+        });
+        opacityScale.add_mark(50, Gtk.PositionType.BOTTOM, null);
+        opacityScale.add_mark(75, Gtk.PositionType.BOTTOM, null);
+        opacityScale.add_mark(100, Gtk.PositionType.BOTTOM, null);
+
+        opacityScale.connect('value-changed', () => {
+            settings.set_int('center-notification-opacity', Math.round(opacityScale.get_value()));
+        });
+        opacityRow.add_suffix(opacityScale);
+        notifyGroup.add(opacityRow);
+
+        // Preview button row
+        const previewRow = new Adw.ActionRow({
+            title: 'Preview Center Notification',
+            subtitle: 'Show a sample notification with current size and opacity settings',
+        });
+
+        const previewButton = new Gtk.Button({
+            label: 'Preview',
+            valign: Gtk.Align.CENTER,
+        });
+        previewButton.add_css_class('suggested-action');
+        previewButton.connect('clicked', () => {
+            log('Preview button clicked - triggering center notification');
+            // Trigger preview via GSettings flag (extension will show notification)
+            settings.set_boolean('center-notification-preview', true);
+        });
+        previewRow.add_suffix(previewButton);
+        notifyGroup.add(previewRow);
+
+        // Category settings expander
+        const categoryExpander = new Adw.ExpanderRow({
+            title: 'Notification Categories',
+            subtitle: 'Choose notification style per action type',
+        });
+        notifyGroup.add(categoryExpander);
+
+        // Helper to create category rows
+        const createCategoryRow = (settingsKey, title, subtitle) => {
+            const row = new Adw.ComboRow({
+                title: title,
+                subtitle: subtitle,
+            });
+            const model = new Gtk.StringList();
+            model.splice(0, 0, ['Center (Large)', 'System (Top Bar)', 'Disabled']);
+            row.set_model(model);
+
+            const styleMapping = ['center', 'system', 'disabled'];
+            const currentStyle = settings.get_string(settingsKey);
+            row.set_selected(styleMapping.indexOf(currentStyle));
+
+            row.connect('notify::selected', () => {
+                settings.set_string(settingsKey, styleMapping[row.get_selected()]);
+            });
+
+            return row;
+        };
+
+        // Add category rows
+        categoryExpander.add_row(createCategoryRow(
+            'notify-window-snapping',
+            'Window Snapping',
+            'Zone cycling with Super+Left/Right',
+        ));
+
+        categoryExpander.add_row(createCategoryRow(
+            'notify-layout-switching',
+            'Layout/Profile Changes',
+            'Switching layouts via picker, menu, or shortcuts',
+        ));
+
+        categoryExpander.add_row(createCategoryRow(
+            'notify-window-management',
+            'Window Management',
+            'Minimize, maximize, and restore actions',
+        ));
+
+        categoryExpander.add_row(createCategoryRow(
+            'notify-workspace-changes',
+            'Workspace Changes',
+            'Per-space layout display when switching workspaces',
+        ));
+
+        categoryExpander.add_row(createCategoryRow(
+            'notify-startup',
+            'Startup Messages',
+            'Extension enabled notification on startup',
+        ));
+
+        categoryExpander.add_row(createCategoryRow(
+            'notify-conflicts',
+            'Conflict Warnings',
+            'Keybinding conflict detection alerts',
+        ));
+
         // Create layout management group
         const group = new Adw.PreferencesGroup({
             title: 'Layout Management',
