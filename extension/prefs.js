@@ -1139,6 +1139,76 @@ export default class ZonedPreferences extends ExtensionPreferences {
     }
 
     /**
+     * Reset all settings to their default values
+     * @param {Gio.Settings} settings - GSettings object
+     */
+    _resetAllSettings(settings) {
+        // List of all schema keys to reset
+        const keysToReset = [
+            // Keybindings
+            'show-layout-picker',
+            'cycle-zone-left',
+            'cycle-zone-right',
+            'minimize-window',
+            'maximize-window',
+            // Quick layout shortcuts
+            'quick-layout-1',
+            'quick-layout-2',
+            'quick-layout-3',
+            'quick-layout-4',
+            'quick-layout-5',
+            'quick-layout-6',
+            'quick-layout-7',
+            'quick-layout-8',
+            'quick-layout-9',
+            // Enhanced window management
+            'enhanced-window-management-enabled',
+            // Appearance
+            'ui-theme',
+            'option-force-tier',
+            'layout-picker-size',
+            // Layout management
+            'use-per-workspace-layouts',
+            'layout-order',
+            'current-layout-id',
+            'current-zone-index',
+            'last-selected-layout',
+            // State (clear spatial state)
+            'spatial-state-map',
+            'workspace-layout-map',
+            // Notifications
+            'notifications-enabled',
+            'notification-duration',
+            'center-notification-size',
+            'center-notification-opacity',
+            'notify-window-snapping',
+            'notify-layout-switching',
+            'notify-window-management',
+            'notify-workspace-changes',
+            'notify-startup',
+            'notify-conflicts',
+            // Debug
+            'debug-logging',
+            'debug-layout-rects',
+            'debug-layout-overlay',
+            'developer-mode-revealed',
+            // Conflict count
+            'keybinding-conflict-count',
+        ];
+
+        for (const key of keysToReset) {
+            try {
+                settings.reset(key);
+                log(`Reset setting: ${key}`);
+            } catch (e) {
+                log(`Could not reset ${key}: ${e.message}`);
+            }
+        }
+
+        log('All settings have been reset to defaults');
+    }
+
+    /**
      * Apply theme override to Libadwaita StyleManager
      * This ensures the preferences window honors the ui-theme setting
      * @param {string} themePref - Theme preference ('system', 'light', 'dark')
@@ -1375,7 +1445,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
                 subtitle: subtitle,
             });
             const model = new Gtk.StringList();
-            model.splice(0, 0, ['Center (Large)', 'System (Top Bar)', 'Disabled']);
+            model.splice(0, 0, ['Center', 'System', 'Disabled']);
             row.set_model(model);
 
             const styleMapping = ['center', 'system', 'disabled'];
@@ -1541,15 +1611,66 @@ export default class ZonedPreferences extends ExtensionPreferences {
             title: 'Zoned',
             subtitle: 'Version 1.0 (Pre-release)',
         });
+        aboutGroup.add(aboutRow);
 
-        // Add GitHub link button
-        const githubButton = new Gtk.LinkButton({
-            label: 'GitHub',
-            uri: 'https://github.com/hamiltonia/zoned',
+        // GitHub link row with icon
+        const githubRow = new Adw.ActionRow({
+            title: 'GitHub',
+            subtitle: 'View source code and report issues',
+        });
+        const githubButton = new Gtk.Button({
             valign: Gtk.Align.CENTER,
         });
-        aboutRow.add_suffix(githubButton);
-        aboutGroup.add(aboutRow);
+        // Use custom github-symbolic icon from extension icons folder
+        const githubIcon = new Gtk.Image({
+            icon_name: 'web-browser-symbolic',  // Fallback, custom icon loaded below
+        });
+        try {
+            const iconPath = GLib.build_filenamev([this.path, 'icons', 'github-symbolic.svg']);
+            const iconFile = Gio.File.new_for_path(iconPath);
+            if (iconFile.query_exists(null)) {
+                githubIcon.set_from_gicon(Gio.FileIcon.new(iconFile));
+            }
+        } catch (e) {
+            log(`Could not load github icon: ${e.message}`);
+        }
+        githubButton.set_child(githubIcon);
+        githubButton.add_css_class('flat');
+        githubButton.connect('clicked', () => {
+            Gtk.show_uri(null, 'https://github.com/hamiltonia/zoned', Gdk.CURRENT_TIME);
+        });
+        githubRow.add_suffix(githubButton);
+        aboutGroup.add(githubRow);
+
+        // Buy Me a Coffee link row with icon
+        const coffeeRow = new Adw.ActionRow({
+            title: 'Buy Me a Coffee',
+            subtitle: 'Support the development of Zoned',
+        });
+        const coffeeButton = new Gtk.Button({
+            valign: Gtk.Align.CENTER,
+        });
+        // Use custom bmc-symbolic icon from extension icons folder
+        const coffeeIcon = new Gtk.Image({
+            icon_name: 'starred-symbolic',  // Fallback
+        });
+        try {
+            const iconPath = GLib.build_filenamev([this.path, 'icons', 'bmc-symbolic.svg']);
+            const iconFile = Gio.File.new_for_path(iconPath);
+            if (iconFile.query_exists(null)) {
+                coffeeIcon.set_from_gicon(Gio.FileIcon.new(iconFile));
+            }
+        } catch (e) {
+            log(`Could not load bmc icon: ${e.message}`);
+        }
+        coffeeButton.set_child(coffeeIcon);
+        coffeeButton.add_css_class('flat');
+        coffeeButton.connect('clicked', () => {
+            Gtk.show_uri(null, 'https://buymeacoffee.com/hamiltonia', Gdk.CURRENT_TIME);
+        });
+        coffeeRow.add_suffix(coffeeButton);
+        aboutGroup.add(coffeeRow);
+
 
         // ========================================
         // Hidden Developer Section
@@ -1614,6 +1735,49 @@ export default class ZonedPreferences extends ExtensionPreferences {
         const resetDebugRow = new Adw.PreferencesRow();
         resetDebugRow.set_child(resetDebugBox);
         developerGroup.add(resetDebugRow);
+
+        // ========================================
+        // Reset All Section - at very bottom
+        // ========================================
+        const resetGroup = new Adw.PreferencesGroup({
+            title: 'Reset',
+        });
+        page.add(resetGroup);
+
+        const resetRow = new Adw.ActionRow({
+            title: 'Reset All Settings',
+            subtitle: 'Restore all options to their default values',
+        });
+        const resetButton = new Gtk.Button({
+            label: 'Reset All',
+            valign: Gtk.Align.CENTER,
+        });
+        resetButton.add_css_class('destructive-action');
+        resetButton.connect('clicked', () => {
+            // Show confirmation dialog
+            const dialog = new Adw.AlertDialog({
+                heading: 'Reset All Settings?',
+                body: 'All custom settings will be reset to their default values. This cannot be undone.',
+            });
+
+            dialog.add_response('cancel', 'Cancel');
+            dialog.add_response('reset', 'Continue');
+            dialog.set_response_appearance('reset', Adw.ResponseAppearance.DESTRUCTIVE);
+            dialog.set_default_response('cancel');
+
+            dialog.connect('response', (dlg, response) => {
+                if (response === 'reset') {
+                    log('Resetting all settings to defaults');
+                    this._resetAllSettings(settings);
+                    // Close the preferences window after reset
+                    window.close();
+                }
+            });
+
+            dialog.present(window);
+        });
+        resetRow.add_suffix(resetButton);
+        resetGroup.add(resetRow);
 
         // ========================================
         // Ctrl+Shift+D Handler to Toggle Developer Section
