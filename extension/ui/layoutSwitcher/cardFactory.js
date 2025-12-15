@@ -6,6 +6,7 @@
  * - Layout name label at top
  * - Zone preview: 85% width, 75% height, centered below header
  * - Floating circular edit button in upper-right corner of card
+ * - Keybinding badge in lower-right corner showing shortcut number (1-9)
  * - Click card to apply, click edit button to edit/duplicate
  * - Hover effects: card border accent, edit button brightens
  *
@@ -14,6 +15,7 @@
  * - Custom layout cards (user layouts with edit button)
  * - Card headers with layout name
  * - Floating circular edit buttons
+ * - Keybinding badges (per-layout quick-access shortcuts from layout.shortcut)
  * - Zone preview rendering (Cairo canvas)
  *
  * Part of the LayoutSwitcher module split for maintainability.
@@ -24,6 +26,65 @@ import St from 'gi://St';
 import {createLogger} from '../../utils/debug.js';
 
 const logger = createLogger('CardFactory');
+
+/**
+ * Create a keybinding badge showing the quick-access shortcut number
+ * Subtle, static appearance in lower-right corner (below edit button)
+ * Only shown for layouts that have a shortcut assigned (1-9)
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param {string|number|null} shortcut - Layout's shortcut value ('1'-'9', 1-9, or null/undefined)
+ * @returns {St.Widget|null} The keybinding badge widget, or null if no shortcut
+ */
+export function createKeybindingBadge(ctx, shortcut) {
+    // Only show badge if a shortcut is assigned
+    // Shortcut can be string ('1'-'9') or number (1-9), or null/undefined/'None'
+    if (!shortcut || shortcut === 'None') {
+        return null;
+    }
+
+    // Convert to number for validation
+    const position = typeof shortcut === 'string' ? parseInt(shortcut, 10) : shortcut;
+
+    // Validate it's a valid shortcut key (1-9)
+    if (isNaN(position) || position < 1 || position > 9) {
+        return null;
+    }
+
+    // Scale button size: ~75% of edit button size, minimum 18px, maximum 28px
+    const badgeSize = Math.max(18, Math.min(28, Math.floor(ctx._cardWidth * 0.12)));
+
+    // Static, subtle appearance (more transparent than edit button)
+    const style = `
+        width: ${badgeSize}px;
+        height: ${badgeSize}px;
+        border-radius: ${badgeSize / 2}px;
+        background-color: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+    `;
+
+    // Scale font size proportionally
+    const fontSize = Math.max(9, Math.floor(badgeSize * 0.55));
+
+    const badge = new St.Bin({
+        style: style,
+        reactive: false,  // Non-interactive, informational only
+    });
+
+    const label = new St.Label({
+        text: String(position),
+        style: `color: rgba(255, 255, 255, 0.6); font-size: ${fontSize}px; font-weight: 500;`,
+        x_align: Clutter.ActorAlign.CENTER,
+        y_align: Clutter.ActorAlign.CENTER,
+        x_expand: true,
+        y_expand: true,
+    });
+    badge.set_child(label);
+
+    // Store size for positioning
+    badge._badgeSize = badgeSize;
+
+    return badge;
+}
 
 /**
  * Create a floating circular edit button for overlay positioning
@@ -106,8 +167,9 @@ export function createFloatingEditButton(ctx, isTemplate, layout) {
 /**
  * Create a template card with full-card grey background
  * Name label at top, zone preview with floating edit button overlay
+ * Keybinding badge in lower-right corner if layout has a shortcut assigned
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {Object} template - Template definition
+ * @param {Object} template - Template definition (may have .shortcut property)
  * @param {Object} currentLayout - Currently active layout
  * @returns {St.Button} The created card widget
  */
@@ -187,6 +249,17 @@ export function createTemplateCard(ctx, template, currentLayout) {
     editButton.set_position(ctx._cardWidth - buttonSize - buttonOffsetX, buttonOffsetY);
     cardWrapper.add_child(editButton);
 
+    // Keybinding badge - positioned in lower right of the CARD (below edit button)
+    // Uses the template's shortcut property (set via layout settings dialog)
+    const keybindingBadge = createKeybindingBadge(ctx, template.shortcut);
+    if (keybindingBadge) {
+        const badgeSize = keybindingBadge._badgeSize;
+        const badgeOffsetX = 3;  // Offset from right edge
+        const badgeOffsetY = 3;  // Offset from bottom edge
+        keybindingBadge.set_position(ctx._cardWidth - badgeSize - badgeOffsetX, ctx._cardHeight - badgeSize - badgeOffsetY);
+        cardWrapper.add_child(keybindingBadge);
+    }
+
     card.set_child(cardWrapper);
 
     // Click card to apply layout
@@ -232,8 +305,9 @@ export function createTemplateCard(ctx, template, currentLayout) {
 /**
  * Create a custom layout card with theme-aware background
  * Name label at top, zone preview with floating edit button overlay
+ * Keybinding badge in lower-right corner if layout has a shortcut assigned
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {Object} layout - Layout definition
+ * @param {Object} layout - Layout definition (may have .shortcut property)
  * @param {Object} currentLayout - Currently active layout
  * @returns {St.Button} The created card widget
  */
@@ -311,6 +385,17 @@ export function createCustomLayoutCard(ctx, layout, currentLayout) {
     const buttonOffsetX = 3;  // Offset from right edge (to match visual top offset)
     editButton.set_position(ctx._cardWidth - buttonSize - buttonOffsetX, buttonOffsetY);
     cardWrapper.add_child(editButton);
+
+    // Keybinding badge - positioned in lower right of the CARD (below edit button)
+    // Uses the layout's shortcut property (set via layout settings dialog)
+    const keybindingBadge = createKeybindingBadge(ctx, layout.shortcut);
+    if (keybindingBadge) {
+        const badgeSize = keybindingBadge._badgeSize;
+        const badgeOffsetX = 3;  // Offset from right edge
+        const badgeOffsetY = 3;  // Offset from bottom edge
+        keybindingBadge.set_position(ctx._cardWidth - badgeSize - badgeOffsetX, ctx._cardHeight - badgeSize - badgeOffsetY);
+        cardWrapper.add_child(keybindingBadge);
+    }
 
     card.set_child(cardWrapper);
 
