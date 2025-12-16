@@ -28,9 +28,13 @@ fi
 if [ "$QUICK_MODE" = true ]; then
     ENABLE_DISABLE_CYCLES=10
     UI_STRESS_ITERATIONS=20
+    ZONE_CYCLING_ITERATIONS=100
+    LAYOUT_SWITCH_CYCLES=3
 else
     ENABLE_DISABLE_CYCLES=50
     UI_STRESS_ITERATIONS=50
+    ZONE_CYCLING_ITERATIONS=500
+    LAYOUT_SWITCH_CYCLES=10
 fi
 
 echo "========================================"
@@ -43,6 +47,15 @@ echo ""
 
 # Check prerequisites
 check_prerequisites
+
+# Reload extension to ensure fresh code is loaded
+echo ""
+echo "Reloading extension for clean state..."
+gnome-extensions disable zoned@hamiltonia.dev 2>/dev/null || true
+sleep 1
+gnome-extensions enable zoned@hamiltonia.dev 2>/dev/null || true
+sleep 2
+echo "Extension reloaded"
 
 # Enable debug features
 echo ""
@@ -68,12 +81,23 @@ echo "  Test 1: Enable/Disable Cycle"
 echo "========================================"
 "$SCRIPT_DIR/test-enable-disable.sh" "$ENABLE_DISABLE_CYCLES" 500
 
-# Future tests can be added here:
-# echo ""
-# echo "========================================"
-# echo "  Test 2: UI Stress Test"
-# echo "========================================"
-# "$SCRIPT_DIR/test-ui-stress.sh" "$UI_STRESS_ITERATIONS"
+echo ""
+echo "========================================"
+echo "  Test 2: UI Stress Test"
+echo "========================================"
+"$SCRIPT_DIR/test-ui-stress.sh" "$UI_STRESS_ITERATIONS"
+
+echo ""
+echo "========================================"
+echo "  Test 3: Zone Cycling"
+echo "========================================"
+"$SCRIPT_DIR/test-zone-cycling.sh" "$ZONE_CYCLING_ITERATIONS"
+
+echo ""
+echo "========================================"
+echo "  Test 4: Layout Switching"
+echo "========================================"
+"$SCRIPT_DIR/test-layout-switching.sh" "$LAYOUT_SWITCH_CYCLES"
 
 # Disable debug features
 echo ""

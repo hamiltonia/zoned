@@ -49,10 +49,12 @@ dbus_get_component_reports() {
 }
 
 # Trigger an action
+# Note: params should be JSON without quotes - gdbus handles the variant conversion
 dbus_trigger() {
     local action=$1
     local params=${2:-"{}"}
-    dbus_call "TriggerAction" "\"$action\"" "\"$params\""
+    # Don't quote $params - gdbus needs the raw JSON for D-Bus string type
+    dbus_call "TriggerAction" "\"$action\"" "$params"
 }
 
 # Reset resource tracking counters
@@ -98,5 +100,6 @@ ensure_dbus_available() {
 extract_variant() {
     local key=$1
     local data=$2
-    echo "$data" | grep -oP "'$key': <[^>]+>" | grep -oP "<[^>]+>" | tr -d '<>'
+    # Extract value and strip quotes
+    echo "$data" | grep -oP "'$key': <[^>]+>" | grep -oP "<[^>]+>" | tr -d "<>'" 
 }

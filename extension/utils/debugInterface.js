@@ -107,8 +107,10 @@ function handleHideLayoutSwitcher(extension) {
 
 function handleShowZoneOverlay(extension) {
     const layout = extension._layoutManager?.getCurrentLayout();
-    const zoneIndex = extension._layoutManager?.getCurrentZoneIndex() || 0;
-    extension._zoneOverlay?.showLayoutZones(layout, zoneIndex);
+    const zoneIndex = extension._layoutManager?.getCurrentZoneIndex() ?? 0;
+    const totalZones = layout?.zones?.length ?? 0;
+    const layoutName = layout?.name ?? 'Unknown';
+    extension._zoneOverlay?.show(layoutName, zoneIndex, totalZones);
     return [true, ''];
 }
 
