@@ -12,7 +12,7 @@
 - [ ] Final testing pass on X11 and Wayland
 
 **Documentation:**
-- [ ] README review and update for v1.0 features
+- [x] README review and update for v1.0 features
 
 ### Known Issues
 
@@ -56,6 +56,8 @@ None critical at this time.
 ## Post-v1.0 Roadmap
 
 ### v1.1: UX Improvements
+- Add screenshots to README (Layout Switcher, Zone Editor)
+- Revisit default layout templates (current set was placeholder)
 - Child dialog behavior refinement
 - Workspace switcher integration improvements
 - Monitor hot-plug handling
@@ -65,6 +67,7 @@ None critical at this time.
 - Layout padding/margin controls
 - Window rules (per-app layout preferences)
 - Import/export layouts
+- Document JSON format for custom layouts (power users)
 
 ### v1.3: Polish
 - Animated window transitions (optional)

@@ -1,260 +1,144 @@
+![Zoned Banner](zoned-assets/github/github-banner.png)
+
+<div align="center">
+
 # Zoned
 
-A GNOME Shell extension that brings FancyZones-style window management to Linux. Organize windows into customizable zones with keyboard-driven workflows.
+**FancyZones-style window management for GNOME Shell**
 
-**Inspired by PowerToys Fancy Zones**
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![GNOME Shell](https://img.shields.io/badge/GNOME_Shell-46%2B-4A86CF.svg)](https://extensions.gnome.org/)
 
-## Features
+</div>
 
-- 🎯 **Layout-Based Window Management** - 9 built-in layouts plus custom layout support
-- ⌨️ **Keyboard-First** - Cycle through zones with simple keyboard shortcuts
-- 💾 **State Persistence** - Remembers your layout and zone across sessions
-- 🎨 **Visual Layout Picker** - Quick layout switching with ASCII previews
-- 🔧 **Auto-Fix Conflicts** - Detects and resolves keyboard shortcut conflicts with GNOME
-- 🖥️ **Multi-Monitor Ready** - Works seamlessly with multiple displays
-- ⚙️ **Customizable** - Define your own zone layouts via JSON
+---
 
 ## What is Zoned?
 
-Zoned provides Windows PowerToys FancyZones-like functionality for GNOME. Instead of dragging windows to snap them, you use keyboard shortcuts to cycle through predefined zones in your chosen layout.
+Inspired by [Windows PowerToys FancyZones](https://learn.microsoft.com/en-us/windows/powertoys/fancyzones), Zoned brings layout-based window management to GNOME. A must-have for ultrawide and super-ultrawide monitors where a simple left/right split isn't enough.
 
-**Inspiration:** This project brings the layout-based window management workflow I created with Hammerspoon on macOS to Linux/GNOME.
+**A helpful in-between:** Zoned sits between full tiling window managers and free-floating windows. Snap windows into predefined zones with keyboard shortcuts, or move them around freely — Zoned won't stop you.
 
-## Installation
+### About This Project
 
-### Prerequisites
+This is a hobby project fulfilling a personal need for better window management on GNOME with a super-ultrawide monitor (5120×1440). Built entirely using agentic AI as a learning opportunity, exploring best practices for code hygiene and development workflow.
 
-- GNOME Shell 49+
-- Fedora or other Linux distribution with GNOME
+## Features
 
-### Quick Install from Source
+- 🎯 **Layout-Based Window Management** — Built-in templates plus a visual editor for custom layouts
+- ⌨️ **Keyboard-First** — Snap windows to zones with shortcuts; layout picker menu also available
+- 💾 **State Persistence** — Remembers your layout and zone across sessions
+- 🖥️ **Multi-Monitor & Multi-Workspace** — Use different layouts per monitor/workspace, or one layout for all
+- 🔧 **Auto-Fix Conflicts** — Detects and resolves keyboard shortcut conflicts with GNOME
+
+## Quick Install
 
 ```bash
-# Clone repository
 git clone https://github.com/hamiltonia/zoned.git
 cd zoned
-
-# Complete setup: install + compile schema + enable
 make dev
-
-# Log out and log back in (Wayland) or reload GNOME Shell (X11)
-# Wayland: Top-right → Power → Log Out
-# X11: Alt+F2 → type 'r' → Enter
 ```
 
-### Manual Install
+Then reload GNOME Shell:
+- **Wayland:** Log out → Log back in
+- **X11:** `Alt+F2` → type `r` → Enter
 
-```bash
-# Clone repository
-git clone https://github.com/hamiltonia/zoned.git
-cd zoned
+## Basic Workflow
 
-# Install extension files
-make install
+1. **Choose a layout:** Press `Super+grave` to open the layout picker
+2. **Select a layout** (e.g., "Halves", "Thirds", "Main Left")
+3. **Snap windows:** Focus any window and press `Super+Right` to snap it to the next zone
+4. **Repeat:** Focus another window, press `Super+Right` again to fill the layout
 
-# Compile GSettings schema (required)
-make compile-schema
+Your layout choice persists — just snap windows as you open them.
 
-# Enable extension
-make enable
-
-# Or manually enable via GNOME Extensions app
-```
-
-### Install from extensions.gnome.org
-
-*(Coming soon)*
-
-## Quick Start
-
-### Default Keyboard Shortcuts
+## Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| `Super+Left` | Cycle to previous zone |
-| `Super+Right` | Cycle to next zone |
+| `Super+Left` | Snap window to previous zone |
+| `Super+Right` | Snap window to next zone |
 | `Super+grave` | Open layout picker (backtick key) |
 | `Super+Up` | Maximize/restore window |
 | `Super+Down` | Minimize window |
 
-**Note:** `Super` is the Windows key (⊞)
+> **Note:** `Super` is the Windows key (⊞)
 
-### Basic Workflow
+## Built-in Layout Templates
 
-1. Open some windows
-2. Focus a window you want to position
-3. Press `Super+grave` to open the layout picker
-4. Select a layout (e.g., "Halves")
-5. Press `Super+Right` to cycle through zones
-6. Window positions itself in each zone as you cycle
+| Layout | Zones |
+|--------|-------|
+| Center (60%) | 20% / 60% / 20% |
+| Balanced (50%) | 25% / 50% / 25% |
+| Thirds | 33% / 33% / 33% |
+| Halves | 50% / 50% |
+| Quarters | 2×2 grid |
+| Main Left | 67% / 33% |
+| Main Right | 33% / 67% |
+| Balanced Left | 40% / 40% / 20% |
+| Balanced Right | 20% / 40% / 40% |
 
-### Example: Setting Up a Coding Layout
+### Custom Layouts
 
-```
-1. Open layout picker (Super+grave)
-2. Select "Main Left" layout (67% left, 33% right)
-3. Focus your code editor
-4. Press Super+Right → Editor fills left 67%
-5. Focus your terminal
-6. Press Super+Right → Terminal fills right 33%
-```
+Create your own layouts using the **Layout Switcher** and **Zone Editor**:
 
-## Built-in Layouts
-
-1. **Center Focus (60%)** - Center window with narrow sides (20/60/20)
-2. **Balanced Focus (50%)** - Balanced center with sides (25/50/25)
-3. **Thirds** - Three equal columns (33/33/33)
-4. **Halves** - Two equal columns (50/50)
-5. **Quarters** - Four quadrants (2×2 grid)
-6. **Main Left** - Large left, small right (67/33)
-7. **Main Right** - Small left, large right (33/67)
-8. **Balanced Left** - Two left, one right (40/40/20)
-9. **Balanced Right** - One left, two right (20/40/40)
-
-## Custom Layouts
-
-Create your own layouts by editing:
-`~/.config/zoned/custom-layouts.json`
-
-Example custom layout:
-
-```json
-{
-  "layouts": [
-    {
-      "id": "my_custom",
-      "name": "My Custom Layout",
-      "zones": [
-        {"name": "Left 40%", "x": 0, "y": 0, "w": 0.4, "h": 1},
-        {"name": "Right 60%", "x": 0.4, "y": 0, "w": 0.6, "h": 1}
-      ]
-    }
-  ]
-}
-```
-
-See [Layout Documentation](docs/customization.md) for details.
+1. Press `Super+grave` to open the layout picker
+2. Click "New Layout" to create a custom layout
+3. Use the visual zone editor to define your zones
 
 ## Documentation
 
-- [Installation Guide](docs/installation.md)
-- [Usage Guide](docs/usage.md)
-- [Customization](docs/customization.md)
-- [Keyboard Shortcuts](memory/api-reference/keybindings.md)
-- [Layout API](memory/api-reference/layouts.md)
-
-### For Developers
-
-- [Architecture Overview](memory/architecture/overview.md)
-- [Development Setup](memory/development/setup.md)
-- [Component Design](memory/architecture/component-design.md)
-- [Contributing Guidelines](CONTRIBUTING.md)
+| Document | Description |
+|----------|-------------|
+| [DEVELOPMENT.md](DEVELOPMENT.md) | Developer quick reference, Makefile commands |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines, code style, PR process |
+| [docs/architecture.md](docs/architecture.md) | Component overview, system design |
+| [docs/keybindings.md](docs/keybindings.md) | Complete keyboard shortcut reference |
+| [docs/technical-specs.md](docs/technical-specs.md) | Data structures, edge layouts |
+| [docs/coding-patterns.md](docs/coding-patterns.md) | Code style guide |
+| [docs/vm-setup-guide.md](docs/vm-setup-guide.md) | VM development environment setup |
+| [ROADMAP.md](ROADMAP.md) | Planned features and project direction |
+| [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
 
 ## Troubleshooting
 
-### Extension Not Loading
-
+**Extension not loading?**
 ```bash
-# Check if extension is enabled
-gnome-extensions list --enabled | grep zoned
-
-# View logs for errors
-journalctl -f -o cat /usr/bin/gnome-shell | grep -i zoned
-
-# Reset to defaults
-gsettings reset-recursively org.gnome.shell.extensions.zoned
+gnome-extensions list --enabled | grep zoned  # Check if enabled
+make logs                                      # View errors
+gsettings reset-recursively org.gnome.shell.extensions.zoned  # Reset
 ```
 
-### Keyboard Shortcuts Conflicting
-
-Zoned includes automatic conflict detection and resolution!
-
-**Using the Panel Indicator (Recommended):**
-1. Look for the orange grid icon in your top panel
-2. Click on it to view detected conflicts
-3. Click "Auto-Fix Conflicts" to automatically disable conflicting GNOME shortcuts
-4. Log out and log back in to apply changes
-
-**Manual Fix:**
-
-If you prefer to disable conflicts manually:
-
-```bash
-# Disable GNOME's default tiling shortcuts
-gsettings set org.gnome.mutter.keybindings toggle-tiled-left "[]"
-gsettings set org.gnome.mutter.keybindings toggle-tiled-right "[]"
-
-# Disable GNOME's switch-group shortcut (for Super+grave)
-gsettings set org.gnome.desktop.wm.keybindings switch-group "[]"
-
-# Disable GNOME's maximize shortcut (optional)
-gsettings set org.gnome.desktop.wm.keybindings maximize "[]"
-
-# Disable GNOME's minimize shortcut (optional)
-gsettings set org.gnome.desktop.wm.keybindings minimize "[]"
-```
-
-**Note:** The conflict detector handles key name aliases (e.g., `grave` and `Above_Tab` both refer to the backtick key) to ensure accurate detection.
-
-See [Troubleshooting Guide](docs/troubleshooting.md) for more help.
-
-## Development
-
-```bash
-# Install for development (symlink)
-make install
-
-# View logs
-make logs
-
-# Reload extension (X11 only)
-make reload
-
-# Run tests
-make test
-```
-
-For detailed development setup, see [Development Guide](memory/development/setup.md).
+**Keyboard conflicts?** Look for the orange indicator in your panel → Click → "Auto-Fix Conflicts"
 
 ## Contributing
 
-Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-Areas where help is appreciated:
+**Ways to help:**
 - Testing on different GNOME versions
-- Additional layout designs
-- UI/UX improvements
 - Bug reports and fixes
 - Documentation improvements
-
-## Roadmap
-
-- [x] Core zone cycling functionality
-- [x] Layout system with 9 default layouts
-- [x] State persistence
-- [x] Layout picker UI
-- [ ] Preferences UI for visual layout editing
-- [ ] Per-application layout assignments
-- [ ] Zone preview overlay
-- [ ] Animated transitions (optional)
-- [ ] Wayland optimization
+- New layout designs
 
 ## License
 
-GNU General Public License v3.0 - see [LICENSE](LICENSE) for details.
+[GNU General Public License v3.0](LICENSE)
 
 ## Acknowledgments
 
-- **Windows PowerToys FancyZones** - Original inspiration for zone-based window management
-- **GNOME Shell** - Excellent extensibility platform
-- **Hammerspoon** - macOS automation tool used to prototype the initial implementation
+- **Windows PowerToys FancyZones** — Original inspiration for zone-based window management
+- **Hammerspoon** — Inspiration for solving a similar problem on macOS
+- **GNOME Shell** — Excellent extensibility platform
 
-## Support
-
-- 🐛 [Report bugs](https://github.com/hamiltonia/zoned/issues)
-- 💬 [Discussions](https://github.com/hamiltonia/zoned/discussions)
-- 📧 Contact: [GitHub Layout](https://github.com/hamiltonia)
+**Coming soon:** Zoned for macOS
 
 ---
 
-**Note:** This is an independent project and is not affiliated with Microsoft PowerToys, GNOME, or Hammerspoon.
+<div align="center">
+
+🐛 [Report bugs](https://github.com/hamiltonia/zoned/issues) · 💬 [Discussions](https://github.com/hamiltonia/zoned/discussions)
+
+*Not affiliated with Microsoft PowerToys, GNOME, or Hammerspoon*
+
+</div>
