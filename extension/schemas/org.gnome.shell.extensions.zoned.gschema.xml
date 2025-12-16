@@ -413,5 +413,32 @@
       </description>
     </key>
     
+    <!-- Stability Testing Settings -->
+    <key name="debug-expose-dbus" type="b">
+      <default>false</default>
+      <summary>Expose D-Bus debug interface</summary>
+      <description>
+        When enabled, exposes the org.gnome.Shell.Extensions.Zoned.Debug
+        D-Bus interface for automated stability testing. This allows external
+        scripts to trigger actions, query state, and check resource usage.
+        
+        Security: Only enable during development/testing. The interface
+        allows triggering any extension action programmatically.
+      </description>
+    </key>
+    
+    <key name="debug-track-resources" type="b">
+      <default>false</default>
+      <summary>Enable resource leak tracking</summary>
+      <description>
+        When enabled, tracks all signal connections, timers, and actors
+        to detect potential memory leaks. Adds slight performance overhead.
+        
+        Resource warnings are logged when destroy() is called with
+        unreleased resources. Use with debug-expose-dbus to query
+        resource reports via D-Bus for automated testing.
+      </description>
+    </key>
+    
   </schema>
 </schemalist>

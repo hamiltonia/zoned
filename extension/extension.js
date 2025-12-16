@@ -27,6 +27,8 @@ import {ConflictDetector} from './ui/conflictDetector.js';
 import {PanelIndicator} from './ui/panelIndicator.js';
 import {createLogger, initDebugSettings, destroyDebugSettings} from './utils/debug.js';
 import {NotificationService, NotifyCategory} from './utils/notificationService.js';
+import {initResourceTracking, destroyResourceTracking} from './utils/resourceTracker.js';
+import {createDebugInterface} from './utils/debugInterface.js';
 
 const logger = createLogger('Extension');
 
@@ -51,6 +53,7 @@ export default class ZonedExtension extends Extension {
         this._conflictCountSignal = null;
         this._previewSignal = null;
         this._showIndicatorSignal = null;
+        this._debugInterface = null;
 
         logger.info('Extension constructed');
     }
@@ -68,6 +71,15 @@ export default class ZonedExtension extends Extension {
         // Initialize debug logging from GSettings (must be early)
         initDebugSettings(this._settings);
         logger.debug('Debug settings initialized');
+
+        // Initialize resource tracking (for stability testing)
+        initResourceTracking(this._settings);
+        logger.debug('Resource tracking initialized');
+
+        // Initialize D-Bus debug interface (for automated testing)
+        this._debugInterface = createDebugInterface(this);
+        this._debugInterface.init();
+        logger.debug('Debug interface initialized');
 
         // Initialize WindowManager
         this._windowManager = new WindowManager();
@@ -214,6 +226,17 @@ export default class ZonedExtension extends Extension {
 
         // Destroy components in reverse initialization order
         this._destroyComponents();
+
+        // Clean up debug interface
+        if (this._debugInterface) {
+            this._debugInterface.destroy();
+            this._debugInterface = null;
+            logger.debug('Debug interface destroyed');
+        }
+
+        // Clean up resource tracking
+        destroyResourceTracking();
+        logger.debug('Resource tracking destroyed');
 
         // Clean up debug settings listener
         destroyDebugSettings();

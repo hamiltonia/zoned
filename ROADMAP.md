@@ -10,7 +10,9 @@
 
 **Code Quality:**
 - [ ] Final testing pass on X11 and Wayland
-- [ ] Automated testing for memory leaks
+- [x] Stability testing infrastructure (D-Bus interface, resource tracking)
+- [ ] Run stability tests and verify no leaks
+- [ ] Integrate resource tracking into remaining components
 
 ### Known Issues
 
@@ -62,8 +64,6 @@ None critical at this time.
 - Accessibility (keyboard nav)
 
 ### v1.3: Advanced Features
-- Per-layout keyboard shortcuts
-- Layout padding/margin controls
 - Window rules (per-app layout preferences)
 - Import/export layouts
 - Document JSON format for custom layouts (power users)

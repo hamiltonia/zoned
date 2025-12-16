@@ -1,5 +1,6 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean zip \
         vm-init vm-network-setup vm-setup vm-install vm-logs vm-dev vm-restart-spice \
+        vm-stability-test vm-quick-test vm-enable-debug vm-disable-debug \
         lint lint-strict lint-fix dev reinstall
 
 # Detect OS for sed compatibility
@@ -48,6 +49,12 @@ help:
 	@printf "  make vm-logs           - Watch extension logs from VM\n"
 	@printf "  make vm-dev            - Quick VM development (install + reload)\n"
 	@printf "  make vm-restart-spice  - Fix SPICE display connection issues\n"
+	@printf "\n"
+	@printf "$(COLOR_SUCCESS)Stability Testing:$(COLOR_RESET)\n"
+	@printf "  make vm-stability-test - Run full stability test suite in VM\n"
+	@printf "  make vm-quick-test     - Run quick stability tests (10 cycles)\n"
+	@printf "  make vm-enable-debug   - Enable debug features in VM\n"
+	@printf "  make vm-disable-debug  - Disable debug features in VM\n"
 	@printf "\n"
 	@printf "$(COLOR_SUCCESS)Packaging:$(COLOR_RESET)\n"
 	@printf "  make zip            - Create extension zip for distribution\n"
@@ -221,3 +228,64 @@ vm-dev: lint vm-install
 vm-restart-spice:
 	@printf "$(COLOR_INFO)Restarting SPICE services in VM...$(COLOR_RESET)\n"
 	@./scripts/vm-restart-spice
+
+# VM config file location
+VM_CONFIG = $(HOME)/.config/zoned-dev/config
+
+# VM Stability Testing targets
+# Helper to find mount path in VM (similar to vm-install logic)
+define VM_FIND_MOUNT
+	MOUNT_PATH=""; \
+	if ssh $${VM_USER}@$${VM_IP} "test -d $${VM_SPICE_MOUNT}" 2>/dev/null; then \
+		MOUNT_PATH="$${VM_SPICE_MOUNT}"; \
+	else \
+		GVFS_MOUNT=$$(ssh $${VM_USER}@$${VM_IP} "find /run/user/1000/gvfs -maxdepth 1 -name 'dav*:*' -type d 2>/dev/null | head -n1" || echo ""); \
+		if [ -n "$$GVFS_MOUNT" ]; then \
+			if ssh $${VM_USER}@$${VM_IP} "test -d $$GVFS_MOUNT/zoned" 2>/dev/null; then \
+				MOUNT_PATH="$$GVFS_MOUNT/zoned"; \
+			else \
+				MOUNT_PATH="$$GVFS_MOUNT"; \
+			fi; \
+		fi; \
+	fi; \
+	if [ -z "$$MOUNT_PATH" ]; then \
+		printf "$(COLOR_ERROR)Shared folder not mounted in VM$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi
+endef
+
+vm-stability-test:
+	@printf "$(COLOR_INFO)Running full stability test suite in VM...$(COLOR_RESET)\n"
+	@if [ ! -f $(VM_CONFIG) ]; then \
+		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-init' first.$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi
+	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh $${VM_USER}@$${VM_IP} "cd $$MOUNT_PATH && ./scripts/vm-test/run-all.sh"
+
+vm-quick-test:
+	@printf "$(COLOR_INFO)Running quick stability tests in VM...$(COLOR_RESET)\n"
+	@if [ ! -f $(VM_CONFIG) ]; then \
+		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-init' first.$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi
+	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh $${VM_USER}@$${VM_IP} "cd $$MOUNT_PATH && ./scripts/vm-test/run-all.sh --quick"
+
+vm-enable-debug:
+	@printf "$(COLOR_INFO)Enabling debug features in VM...$(COLOR_RESET)\n"
+	@if [ ! -f $(VM_CONFIG) ]; then \
+		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-init' first.$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi
+	@. $(VM_CONFIG) && ssh $${VM_USER}@$${VM_IP} "gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true && \
+	    gsettings set org.gnome.shell.extensions.zoned debug-track-resources true"
+	@printf "$(COLOR_SUCCESS)✓ Debug features enabled in VM$(COLOR_RESET)\n"
+
+vm-disable-debug:
+	@printf "$(COLOR_INFO)Disabling debug features in VM...$(COLOR_RESET)\n"
+	@if [ ! -f $(VM_CONFIG) ]; then \
+		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-init' first.$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi
+	@. $(VM_CONFIG) && ssh $${VM_USER}@$${VM_IP} "gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus false && \
+	    gsettings set org.gnome.shell.extensions.zoned debug-track-resources false"
+	@printf "$(COLOR_SUCCESS)✓ Debug features disabled in VM$(COLOR_RESET)\n"
