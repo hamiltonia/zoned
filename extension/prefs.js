@@ -971,7 +971,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
 
         // Subtitle/description label
         const subtitleLabel = new Gtk.Label({
-            label: 'Switch to layout by position (1-9 for first 9 layouts)',
+            label: 'Switch to layouts that have shortcuts assigned (1-9)',
             xalign: 0,
             hexpand: true,
             wrap: true,
@@ -1114,6 +1114,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
             'quick-layout-7',
             'quick-layout-8',
             'quick-layout-9',
+            'quick-layout-shortcuts-enabled',
             // Enhanced window management
             'enhanced-window-management-enabled',
             // Appearance
@@ -1506,9 +1507,36 @@ export default class ZonedPreferences extends ExtensionPreferences {
         }
         log('All shortcut rows created');
 
+        // Quick Layout Shortcuts section (collapsible)
+        const quickLayoutGroup = new Adw.PreferencesGroup({
+            title: 'Quick Layout Shortcuts',
+            description: 'Use global shortcuts to switch layouts from anywhere.',
+        });
+        page.add(quickLayoutGroup);
+
+        // Use ExpanderRow for collapsible content tied to the enable switch
+        const quickLayoutExpander = new Adw.ExpanderRow({
+            title: 'Enable Quick Layout Shortcuts',
+            subtitle: 'Switch to layouts that have shortcuts assigned. Assign shortcuts in each layout\'s settings.',
+            show_enable_switch: true,
+        });
+
+        // Bind the enable switch to the setting
+        settings.bind(
+            'quick-layout-shortcuts-enabled',
+            quickLayoutExpander,
+            'enable-expansion',
+            Gio.SettingsBindFlags.DEFAULT,
+        );
+
+        // Set initial expanded state based on setting
+        quickLayoutExpander.set_expanded(settings.get_boolean('quick-layout-shortcuts-enabled'));
+
+        quickLayoutGroup.add(quickLayoutExpander);
+
         // Add Quick Layout Switch row (modifiers only, key is fixed to 1-9)
         const quickLayoutRow = this._createQuickLayoutRow(settings);
-        kbGroup.add(quickLayoutRow);
+        quickLayoutExpander.add_row(quickLayoutRow);
         log('Quick layout row created');
 
         // Enhanced Windows Management section (collapsible)

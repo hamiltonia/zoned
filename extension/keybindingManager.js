@@ -70,7 +70,7 @@ export class KeybindingManager {
         // Enhanced window management (optional)
         this._registerEnhancedWindowManagement();
 
-        // Quick layout shortcuts (Super+Ctrl+Alt+1-9)
+        // Quick layout shortcuts (Super+Ctrl+Alt+1-9) - optional
         this._registerQuickLayoutShortcuts();
 
         // Listen for settings changes to toggle enhanced window management
@@ -79,14 +79,27 @@ export class KeybindingManager {
             () => this._onEnhancedWindowManagementChanged(),
         );
 
+        // Listen for settings changes to toggle quick layout shortcuts
+        this._quickLayoutSettingsChangedId = this._settings.connect(
+            'changed::quick-layout-shortcuts-enabled',
+            () => this._onQuickLayoutShortcutsChanged(),
+        );
+
         logger.info(`Registered ${this._registeredKeys.length} keybindings`);
     }
 
     /**
-     * Register quick layout shortcuts (Super+Ctrl+Alt+1-9)
+     * Register quick layout shortcuts (Super+Ctrl+Alt+1-9) if enabled
      * @private
      */
     _registerQuickLayoutShortcuts() {
+        const enabled = this._settings.get_boolean('quick-layout-shortcuts-enabled');
+
+        if (!enabled) {
+            logger.debug('Quick layout shortcuts disabled, skipping registration');
+            return;
+        }
+
         logger.info('Registering quick layout shortcuts...');
 
         for (let i = 1; i <= 9; i++) {
@@ -95,6 +108,41 @@ export class KeybindingManager {
                 () => this._onQuickLayout(i),
             );
         }
+    }
+
+    /**
+     * Handle quick layout shortcuts setting change
+     * @private
+     */
+    _onQuickLayoutShortcutsChanged() {
+        const enabled = this._settings.get_boolean('quick-layout-shortcuts-enabled');
+        logger.info(`Quick layout shortcuts ${enabled ? 'enabled' : 'disabled'}`);
+
+        if (enabled) {
+            // Register if not already registered
+            this._registerQuickLayoutShortcuts();
+        } else {
+            // Unregister quick layout keybindings
+            this._unregisterQuickLayoutShortcuts();
+        }
+    }
+
+    /**
+     * Unregister only quick layout shortcuts keybindings
+     * @private
+     */
+    _unregisterQuickLayoutShortcuts() {
+        this._quickLayoutKeys.forEach(name => {
+            if (this._registeredKeys.includes(name)) {
+                try {
+                    Main.wm.removeKeybinding(name);
+                    this._registeredKeys = this._registeredKeys.filter(k => k !== name);
+                    logger.debug(`Unregistered quick layout keybinding: ${name}`);
+                } catch (error) {
+                    logger.error(`Failed to unregister quick layout keybinding '${name}': ${error}`);
+                }
+            }
+        });
     }
 
     /**
@@ -445,10 +493,15 @@ export class KeybindingManager {
      * Clean up resources
      */
     destroy() {
-        // Disconnect settings listener
+        // Disconnect settings listeners
         if (this._settingsChangedId) {
             this._settings.disconnect(this._settingsChangedId);
             this._settingsChangedId = null;
+        }
+
+        if (this._quickLayoutSettingsChangedId) {
+            this._settings.disconnect(this._quickLayoutSettingsChangedId);
+            this._quickLayoutSettingsChangedId = null;
         }
 
         this.unregisterKeybindings();

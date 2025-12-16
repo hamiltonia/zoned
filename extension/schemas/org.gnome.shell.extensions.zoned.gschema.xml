@@ -44,6 +44,16 @@
       </description>
     </key>
     
+    <!-- Quick Layout Shortcuts (optional feature) -->
+    <key name="quick-layout-shortcuts-enabled" type="b">
+      <default>false</default>
+      <summary>Enable quick layout shortcuts</summary>
+      <description>
+        When enabled, registers global shortcuts (Super+Ctrl+Alt+1-9) to quickly switch
+        layouts. When disabled, number keys 1-9 still work within the layout picker dialog.
+      </description>
+    </key>
+    
     <!-- Enhanced Windows Management (optional feature) -->
     <key name="enhanced-window-management-enabled" type="b">
       <default>true</default>
@@ -153,59 +163,59 @@
       </description>
     </key>
     
-    <!-- Quick layout shortcuts (position-based, 1-9) -->
+    <!-- Quick layout shortcuts (by assigned shortcut, 1-9) -->
     <key name="quick-layout-1" type="as">
       <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;1']</default>
-      <summary>Activate first layout</summary>
-      <description>Activate the first layout in display order.</description>
+      <summary>Activate layout assigned to shortcut 1</summary>
+      <description>Activate the layout that has shortcut "1" assigned in its settings.</description>
     </key>
     
     <key name="quick-layout-2" type="as">
       <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;2']</default>
-      <summary>Activate second layout</summary>
-      <description>Activate the second layout in display order.</description>
+      <summary>Activate layout assigned to shortcut 2</summary>
+      <description>Activate the layout that has shortcut "2" assigned in its settings.</description>
     </key>
     
     <key name="quick-layout-3" type="as">
       <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;3']</default>
-      <summary>Activate third layout</summary>
-      <description>Activate the third layout in display order.</description>
+      <summary>Activate layout assigned to shortcut 3</summary>
+      <description>Activate the layout that has shortcut "3" assigned in its settings.</description>
     </key>
     
     <key name="quick-layout-4" type="as">
       <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;4']</default>
-      <summary>Activate fourth layout</summary>
-      <description>Activate the fourth layout in display order.</description>
+      <summary>Activate layout assigned to shortcut 4</summary>
+      <description>Activate the layout that has shortcut "4" assigned in its settings.</description>
     </key>
     
     <key name="quick-layout-5" type="as">
       <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;5']</default>
-      <summary>Activate fifth layout</summary>
-      <description>Activate the fifth layout in display order.</description>
+      <summary>Activate layout assigned to shortcut 5</summary>
+      <description>Activate the layout that has shortcut "5" assigned in its settings.</description>
     </key>
     
     <key name="quick-layout-6" type="as">
       <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;6']</default>
-      <summary>Activate sixth layout</summary>
-      <description>Activate the sixth layout in display order.</description>
+      <summary>Activate layout assigned to shortcut 6</summary>
+      <description>Activate the layout that has shortcut "6" assigned in its settings.</description>
     </key>
     
     <key name="quick-layout-7" type="as">
       <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;7']</default>
-      <summary>Activate seventh layout</summary>
-      <description>Activate the seventh layout in display order.</description>
+      <summary>Activate layout assigned to shortcut 7</summary>
+      <description>Activate the layout that has shortcut "7" assigned in its settings.</description>
     </key>
     
     <key name="quick-layout-8" type="as">
       <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;8']</default>
-      <summary>Activate eighth layout</summary>
-      <description>Activate the eighth layout in display order.</description>
+      <summary>Activate layout assigned to shortcut 8</summary>
+      <description>Activate the layout that has shortcut "8" assigned in its settings.</description>
     </key>
     
     <key name="quick-layout-9" type="as">
       <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;9']</default>
-      <summary>Activate ninth layout</summary>
-      <description>Activate the ninth layout in display order.</description>
+      <summary>Activate layout assigned to shortcut 9</summary>
+      <description>Activate the layout that has shortcut "9" assigned in its settings.</description>
     </key>
     
     <!-- Debug Settings -->
