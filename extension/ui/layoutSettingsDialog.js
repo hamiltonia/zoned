@@ -1669,6 +1669,18 @@ export class LayoutSettingsDialog {
 
         const finalLayout = this._buildFinalLayout();
 
+        // Clear duplicate shortcuts from other layouts before saving
+        if (finalLayout.shortcut) {
+            const allLayouts = this._layoutManager.getAllLayouts();
+            for (const layout of allLayouts) {
+                if (layout.id !== finalLayout.id && layout.shortcut === finalLayout.shortcut) {
+                    logger.info(`Clearing duplicate shortcut ${layout.shortcut} from layout: ${layout.name}`);
+                    layout.shortcut = null;
+                    this._layoutManager.saveLayout(layout);
+                }
+            }
+        }
+
         logger.info(`Saving layout: ${finalLayout.name} (${finalLayout.id}), padding: ${finalLayout.padding}, shortcut: ${finalLayout.shortcut}`);
 
         const success = this._layoutManager.saveLayout(finalLayout);
