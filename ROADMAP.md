@@ -6,13 +6,11 @@
 ## v1.0 Release
 
 ### Remaining Work
+- [ ] Revisit default layout templates (current set was placeholder)
 
 **Code Quality:**
-- [ ] Review GSettings schema naming for consistency
 - [ ] Final testing pass on X11 and Wayland
-
-**Documentation:**
-- [x] README review and update for v1.0 features
+- [ ] Automated testing for memory leaks
 
 ### Known Issues
 
@@ -57,22 +55,19 @@ None critical at this time.
 
 ### v1.1: UX Improvements
 - Add screenshots to README (Layout Switcher, Zone Editor)
-- Revisit default layout templates (current set was placeholder)
-- Child dialog behavior refinement
-- Workspace switcher integration improvements
 - Monitor hot-plug handling
 
-### v1.2: Advanced Features
+### v1.2: Polish
+- Localization support
+- Accessibility (keyboard nav)
+
+### v1.3: Advanced Features
 - Per-layout keyboard shortcuts
 - Layout padding/margin controls
 - Window rules (per-app layout preferences)
 - Import/export layouts
 - Document JSON format for custom layouts (power users)
-
-### v1.3: Polish
-- Animated window transitions (optional)
-- Localization support
-- Extension preferences cleanup
+- Grid Editor (allow arbitrary layouts)
 
 ---
 
