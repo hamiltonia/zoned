@@ -60,8 +60,8 @@ export class LayoutSwitcher {
         this._allCards = [];
         this._selectedCardIndex = -1;
 
-        // Debug mode configuration
-        this._debugMode = this._settings.get_boolean('debug-layout-rects');
+        // Debug mode configuration (re-read fresh each time dialog opens)
+        this._debugMode = false;
         this._DEBUG_COLORS = {
             container: 'rgba(255, 0, 0, 0.8)',
             section: 'rgba(0, 0, 255, 0.8)',
@@ -404,6 +404,9 @@ export class LayoutSwitcher {
      * Create the main dialog UI
      */
     _createDialog() {
+        // Re-read debug settings fresh (may have been reset by hiding developer mode)
+        this._debugMode = this._settings.get_boolean('debug-layout-rects');
+
         const colors = this._themeManager.getColors();
         const monitor = Main.layoutManager.currentMonitor;
 
@@ -1173,22 +1176,31 @@ export class LayoutSwitcher {
 
     /**
      * Handle Ctrl+key debug shortcuts
+     * Ctrl+D and Ctrl+O only work when developer-mode-revealed is enabled
+     * Ctrl+T stays enabled as it has a discoverable 'option-force-tier' setting
      * @param {number} symbol - Key symbol
      * @returns {boolean} True if handled
      * @private
      */
     _handleCtrlKey(symbol) {
+        const developerModeRevealed = this._settings.get_boolean('developer-mode-revealed');
+
         switch (symbol) {
             case Clutter.KEY_d:
             case Clutter.KEY_D:
+                // Only in developer mode - prevents accidental activation
+                if (!developerModeRevealed) return false;
                 this._toggleDebugMode();
                 return true;
             case Clutter.KEY_t:
             case Clutter.KEY_T:
+                // Ctrl+T stays enabled - has discoverable 'option-force-tier' setting in preferences
                 this._cycleTier();
                 return true;
             case Clutter.KEY_o:
             case Clutter.KEY_O:
+                // Only in developer mode - prevents accidental activation
+                if (!developerModeRevealed) return false;
                 this._toggleDebugOverlay();
                 return true;
             default:

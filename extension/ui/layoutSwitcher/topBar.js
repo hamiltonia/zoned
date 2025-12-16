@@ -131,27 +131,21 @@ export function createTopBar(ctx) {
         // Use hadjustment directly - hscroll.adjustment doesn't work as expected
         const adjustment = workspaceScrollView.hadjustment;
 
-        logger.info(`[SCROLL] Event received on scrollWrapper! direction=${direction}`);
-
         if (!adjustment) {
             logger.warn('[SCROLL] No adjustment available!');
             return Clutter.EVENT_PROPAGATE;
         }
 
-        logger.info(`[SCROLL] adjustment: value=${adjustment.value}, lower=${adjustment.lower}, upper=${adjustment.upper}, page_size=${adjustment.page_size}`);
-
         const scrollAmount = thumbW + thumbGap;  // Scroll by one thumbnail
 
         // Handle smooth scrolling (touchpad, high-res wheel)
         if (direction === Clutter.ScrollDirection.SMOOTH) {
-            const [deltaX, deltaY] = event.get_scroll_delta();
-            logger.info(`[SCROLL] SMOOTH: deltaX=${deltaX}, deltaY=${deltaY}`);
+            const [_deltaX, deltaY] = event.get_scroll_delta();
             // Convert vertical scroll to horizontal
             const newValue = Math.max(
                 adjustment.lower,
                 Math.min(adjustment.value + deltaY * scrollAmount * 0.5, adjustment.upper - adjustment.page_size),
             );
-            logger.info(`[SCROLL] Setting value from ${adjustment.value} to ${newValue}`);
             adjustment.value = newValue;
             return Clutter.EVENT_STOP;
         }
@@ -160,24 +154,15 @@ export function createTopBar(ctx) {
         if (direction === Clutter.ScrollDirection.DOWN ||
             direction === Clutter.ScrollDirection.RIGHT) {
             const newValue = Math.min(adjustment.value + scrollAmount, adjustment.upper - adjustment.page_size);
-            logger.info(`[SCROLL] DOWN/RIGHT: Setting value from ${adjustment.value} to ${newValue}`);
             adjustment.value = newValue;
             return Clutter.EVENT_STOP;
         } else if (direction === Clutter.ScrollDirection.UP ||
                    direction === Clutter.ScrollDirection.LEFT) {
             const newValue = Math.max(adjustment.value - scrollAmount, adjustment.lower);
-            logger.info(`[SCROLL] UP/LEFT: Setting value from ${adjustment.value} to ${newValue}`);
             adjustment.value = newValue;
             return Clutter.EVENT_STOP;
         }
 
-        logger.info(`[SCROLL] Unhandled direction, propagating`);
-        return Clutter.EVENT_PROPAGATE;
-    });
-
-    // Also log if scrollView itself receives scroll events
-    workspaceScrollView.connect('scroll-event', (actor, event) => {
-        logger.info(`[SCROLL] Event on ScrollView itself (should not happen with enable_mouse_scrolling=false)`);
         return Clutter.EVENT_PROPAGATE;
     });
 
@@ -483,14 +468,6 @@ export function createWorkspaceThumbnails(ctx) {
                 onWorkspaceThumbnailClicked(ctx, i);
             });
         }
-
-        // Log scroll events on buttons to debug event propagation
-        thumb.connect('scroll-event', (actor, event) => {
-            const direction = event.get_scroll_direction();
-            logger.info(`[SCROLL] Button ${i} received scroll-event, direction=${direction}`);
-            // Do NOT stop the event - let it propagate to parent
-            return Clutter.EVENT_PROPAGATE;
-        });
 
         ctx._workspaceButtons.push(thumb);
         container.add_child(thumb);

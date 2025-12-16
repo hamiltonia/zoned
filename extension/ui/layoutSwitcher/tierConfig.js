@@ -30,32 +30,6 @@ const logger = createLogger('TierConfig');
  * Section border (1px each side = 2px total) is accounted for in calculateDialogDimensions()
  */
 export const TIERS = {
-    TINY: {
-        name: 'TINY',
-        // Card dimensions (16:9 aspect ratio)
-        cardWidth: 90,
-        cardHeight: 51,
-        // Spacing
-        cardGap: 8,           // Gap between cards in a row
-        rowGap: 8,            // Gap between rows in custom section
-        internalMargin: 10,   // Left/right margin inside sections (for card centering)
-        sectionPadding: 8,    // Padding inside section containers
-        sectionGap: 12,       // Gap between sections (templates, custom)
-        containerPadding: 8,  // Top/bottom padding of main dialog container
-        // Fixed UI elements (topBarHeight sized for workspace thumbnails)
-        topBarHeight: 72,     // Increased to fit 16:9 workspace thumbnails
-        sectionHeaderHeight: 24,
-        sectionHeaderMargin: 8,
-        buttonHeight: 40,
-        buttonMargin: 12,
-        // Workspace thumbnails (16:9 aspect ratio, scaled to fit in topBar)
-        workspaceThumb: {w: 64, h: 36},
-        workspaceThumbGap: 6, // Gap between workspace thumbnails
-        // Border radius
-        containerRadius: 8,
-        sectionRadius: 6,
-        cardRadius: 4,  // Reduced for more square appearance
-    },
     SMALL: {
         name: 'SMALL',
         // Card dimensions (16:9 aspect ratio)
@@ -163,17 +137,17 @@ export const TIERS = {
 };
 
 // Tier names for cycling (index 0 = auto)
-export const TIER_NAMES = ['auto', 'TINY', 'SMALL', 'MEDIUM', 'LARGE', 'XLARGE'];
+export const TIER_NAMES = ['auto', 'SMALL', 'MEDIUM', 'LARGE', 'XLARGE'];
 
 /**
  * Select appropriate tier based on logical screen height
  * @param {number} logicalHeight - Screen height in logical pixels (after scale factor)
- * @param {number} forceTier - 0=auto, 1=TINY, 2=SMALL, 3=MEDIUM, 4=LARGE, 5=XLARGE
+ * @param {number} forceTier - 0=auto, 1=SMALL, 2=MEDIUM, 3=LARGE, 4=XLARGE
  * @returns {Object} The selected tier configuration
  */
 export function selectTier(logicalHeight, forceTier = 0) {
     // Honor forced tier for debugging
-    if (forceTier > 0 && forceTier <= 5) {
+    if (forceTier > 0 && forceTier <= 4) {
         const tierName = TIER_NAMES[forceTier];
         logger.info(`[TIER] Forced to ${tierName}`);
         return TIERS[tierName];
@@ -181,16 +155,13 @@ export function selectTier(logicalHeight, forceTier = 0) {
 
     // Auto-select based on height thresholds
     // Thresholds are tuned for common resolutions at various scale factors:
-    // - TINY: Very small screens or extreme scaling (e.g., 720p, 1080p@300%)
-    // - SMALL: 1080p@200%, smaller laptops
+    // - SMALL: Small screens, high scaling (720p, 1080p@200%, small laptops)
     // - MEDIUM: 1440p, 1080p@100%, 4K@200%
     // - LARGE: 1440p@100%, 4K@150%
     // - XLARGE: 4K@100%, 5K displays
     let tier;
-    if (logicalHeight <= 540) {
-        tier = TIERS.TINY;      // 1080p@200% = 540, 720p@100% = 720
-    } else if (logicalHeight <= 900) {
-        tier = TIERS.SMALL;     // 1080p@100% would be 1080, but 1440@200%=720, 4K@200%=940
+    if (logicalHeight <= 900) {
+        tier = TIERS.SMALL;     // 1024x768, 1080p@200%, smaller screens
     } else if (logicalHeight <= 1200) {
         tier = TIERS.MEDIUM;    // Most common: 1080p, 1440p scaled
     } else if (logicalHeight <= 1600) {

@@ -326,41 +326,45 @@ global.workspaceManager.connect('workspace-switched', (manager, from, to) => {
 
 ## Layout Picker Tier System
 
-The LayoutSwitcher uses resolution-based sizing tiers for responsive display.
+The LayoutSwitcher uses resolution-based sizing tiers for responsive display across different screen sizes and scale factors.
 
-### Tier Definitions
+### Why Tiers?
 
-| Tier | Min Logical Height | Card Size | Grid |
-|------|-------------------|-----------|------|
-| TINY | < 600px | 120×68 | 3 col |
-| SMALL | 600px | 160×90 | 3 col |
-| MEDIUM | 800px | 200×112 | 4 col |
-| LARGE | 1000px | 240×135 | 4 col |
-| XLARGE | 1200px | 280×158 | 5 col |
+Rather than percentage-based scaling (which can produce awkward intermediate sizes), the tier system uses discrete sizing profiles. Each tier provides pre-calculated values for card dimensions, spacing, and UI element sizes that are guaranteed to work well together.
+
+**Benefits:**
+- Consistent visual proportions at any resolution
+- 5 layout cards always fit per row
+- 2 rows of custom layouts visible without scrolling
+- Dialog occupies appropriate screen percentage (50-67%)
+- Simple to debug and reason about
+
+### How It Works
 
 **Logical height** = Physical height ÷ Scale factor
 
-### Tier Selection Algorithm
+The tier is auto-selected based on logical screen height. For example:
+- 1024×768 display → SMALL tier
+- 1080p at 100% scaling → MEDIUM tier
+- 4K at 200% scaling → MEDIUM tier
+- 4K at 100% scaling → XLARGE tier
 
-```javascript
-function selectTier(monitor) {
-    const logicalHeight = monitor.height / monitor.scale;
-    
-    if (logicalHeight < 600) return TINY;
-    if (logicalHeight < 800) return SMALL;
-    if (logicalHeight < 1000) return MEDIUM;
-    if (logicalHeight < 1200) return LARGE;
-    return XLARGE;
-}
-```
+### Available Tiers
 
-### Debug Mode
+- **SMALL** - Small screens and high scaling scenarios
+- **MEDIUM** - Most common: 1080p, 1440p with moderate scaling
+- **LARGE** - Larger displays with moderate/no scaling
+- **XLARGE** - 4K+ displays at low/no scaling
 
-For development, force specific tier:
-- GSettings key: `debug-force-tier` (0=auto, 1-5=forced tier)
-- Ctrl+T in picker: Cycle through tiers
-- Ctrl+D: Show debug rectangles
-- Ctrl+O: Toggle overlay mode
+See `extension/ui/layoutSwitcher/tierConfig.js` for exact thresholds and dimensions.
+
+### Debug Features
+
+For development, the tier system provides debugging tools:
+- **GSettings key:** `debug-force-tier` (0=auto, 1-4=forced tier)
+- **Ctrl+T** in picker: Cycle through tiers
+- **Ctrl+D**: Show debug rectangles with dimension info
+- **Ctrl+O**: Toggle overlay mode
 
 ---
 
