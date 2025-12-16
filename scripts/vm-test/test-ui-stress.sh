@@ -33,13 +33,15 @@ if ! dbus_interface_available; then
     exit 1
 fi
 
-# Reset resource tracking
+# Reset resource tracking and show baseline
 dbus_reset_tracking >/dev/null 2>&1
+print_resource_baseline "Initial"
 
 # Test 1: Layout Switcher
 echo ""
 echo "Testing Layout Switcher (open/close $ITERATIONS times)..."
-baseline=$(get_gnome_shell_memory)
+baseline_mem=$(get_gnome_shell_memory)
+baseline_res=$(snapshot_resources)
 
 for i in $(seq 1 $ITERATIONS); do
     dbus_trigger "show-layout-switcher" "{}" >/dev/null 2>&1
@@ -49,20 +51,19 @@ for i in $(seq 1 $ITERATIONS); do
     progress $i $ITERATIONS
 done
 
-final=$(get_gnome_shell_memory)
-diff=$((final - baseline))
-info "Memory change: ${diff}KB"
+final_mem=$(get_gnome_shell_memory)
+final_res=$(snapshot_resources)
+mem_diff=$((final_mem - baseline_mem))
+info "Memory change: ${mem_diff}KB"
 
-# Check for resource leaks
-report=$(dbus_get_resource_report)
-leaked_signals=$(extract_variant "leakedSignals" "$report" 2>/dev/null || echo "0")
-leaked_timers=$(extract_variant "leakedTimers" "$report" 2>/dev/null || echo "0")
-
-if [ "${leaked_signals:-0}" -gt 0 ] || [ "${leaked_timers:-0}" -gt 0 ]; then
-    fail "LayoutSwitcher: Resources leaked (signals: ${leaked_signals:-0}, timers: ${leaked_timers:-0})"
-else
-    pass "LayoutSwitcher: No resource leaks after $ITERATIONS cycles"
+# Check for resource growth and leaks
+res_diff=$(compare_snapshots "$baseline_res" "$final_res")
+read signal_diff timer_diff <<< "$res_diff"
+if [ "$signal_diff" -ne 0 ] || [ "$timer_diff" -ne 0 ]; then
+    info "Resource delta: signals=${signal_diff}, timers=${timer_diff}"
 fi
+
+check_leaks_and_report "LayoutSwitcher after $ITERATIONS cycles"
 
 # Reset tracking for next test
 dbus_reset_tracking >/dev/null 2>&1
@@ -70,7 +71,8 @@ dbus_reset_tracking >/dev/null 2>&1
 # Test 2: Zone Overlay
 echo ""
 echo "Testing Zone Overlay (show/hide $ITERATIONS times)..."
-baseline=$(get_gnome_shell_memory)
+baseline_mem=$(get_gnome_shell_memory)
+baseline_res=$(snapshot_resources)
 
 for i in $(seq 1 $ITERATIONS); do
     dbus_trigger "show-zone-overlay" "{}" >/dev/null 2>&1
@@ -80,19 +82,18 @@ for i in $(seq 1 $ITERATIONS); do
     progress $i $ITERATIONS
 done
 
-final=$(get_gnome_shell_memory)
-diff=$((final - baseline))
-info "Memory change: ${diff}KB"
+final_mem=$(get_gnome_shell_memory)
+final_res=$(snapshot_resources)
+mem_diff=$((final_mem - baseline_mem))
+info "Memory change: ${mem_diff}KB"
 
-# Check for resource leaks
-report=$(dbus_get_resource_report)
-leaked_signals=$(extract_variant "leakedSignals" "$report" 2>/dev/null || echo "0")
-leaked_timers=$(extract_variant "leakedTimers" "$report" 2>/dev/null || echo "0")
-
-if [ "${leaked_signals:-0}" -gt 0 ] || [ "${leaked_timers:-0}" -gt 0 ]; then
-    fail "ZoneOverlay: Resources leaked (signals: ${leaked_signals:-0}, timers: ${leaked_timers:-0})"
-else
-    pass "ZoneOverlay: No resource leaks after $ITERATIONS cycles"
+# Check for resource growth and leaks
+res_diff=$(compare_snapshots "$baseline_res" "$final_res")
+read signal_diff timer_diff <<< "$res_diff"
+if [ "$signal_diff" -ne 0 ] || [ "$timer_diff" -ne 0 ]; then
+    info "Resource delta: signals=${signal_diff}, timers=${timer_diff}"
 fi
+
+check_leaks_and_report "ZoneOverlay after $ITERATIONS cycles"
 
 print_summary

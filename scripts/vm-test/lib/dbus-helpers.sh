@@ -103,3 +103,114 @@ extract_variant() {
     # Extract value and strip quotes
     echo "$data" | grep -oP "'$key': <[^>]+>" | grep -oP "<[^>]+>" | tr -d "<>'" 
 }
+
+# =============================================================================
+# ResourceTracker Integration
+# =============================================================================
+
+# Get resource leak counts
+# Returns: "leaked_signals leaked_timers leaked_actors"
+get_leak_counts() {
+    local report
+    report=$(dbus_get_resource_report 2>/dev/null)
+    
+    local leaked_signals leaked_timers
+    leaked_signals=$(extract_variant "leakedSignals" "$report" 2>/dev/null || echo "0")
+    leaked_timers=$(extract_variant "leakedTimers" "$report" 2>/dev/null || echo "0")
+    
+    echo "${leaked_signals:-0} ${leaked_timers:-0}"
+}
+
+# Get detailed leak info
+# Returns: active signals, active timers, components with leaks
+get_resource_summary() {
+    local report
+    report=$(dbus_get_resource_report 2>/dev/null)
+    
+    local active_signals active_timers leaked_signals leaked_timers
+    active_signals=$(extract_variant "activeSignals" "$report" 2>/dev/null || echo "0")
+    active_timers=$(extract_variant "activeTimers" "$report" 2>/dev/null || echo "0")
+    leaked_signals=$(extract_variant "leakedSignals" "$report" 2>/dev/null || echo "0")
+    leaked_timers=$(extract_variant "leakedTimers" "$report" 2>/dev/null || echo "0")
+    
+    # Extract components with leaks (array parsing)
+    local components_raw
+    components_raw=$(echo "$report" | grep -oP "'componentsWithLeaks': <\[.*?\]>" | grep -oP "\[.*?\]" || echo "[]")
+    
+    echo "Active: signals=${active_signals:-0}, timers=${active_timers:-0}"
+    echo "Leaked: signals=${leaked_signals:-0}, timers=${leaked_timers:-0}"
+    
+    if [ "$components_raw" != "[]" ]; then
+        echo "Components with leaks: $components_raw"
+    fi
+}
+
+# Check for leaks and return status
+# Returns: 0 if no leaks, 1 if leaks detected
+check_for_leaks() {
+    local counts
+    counts=$(get_leak_counts)
+    
+    local leaked_signals leaked_timers
+    read leaked_signals leaked_timers <<< "$counts"
+    
+    local total=$((leaked_signals + leaked_timers))
+    if [ "$total" -gt 0 ]; then
+        return 1
+    fi
+    return 0
+}
+
+# Print leak report with details
+print_leak_report() {
+    local context=${1:-"Resource Check"}
+    
+    local report
+    report=$(dbus_get_resource_report 2>/dev/null)
+    
+    local leaked_signals leaked_timers components
+    leaked_signals=$(extract_variant "leakedSignals" "$report" 2>/dev/null || echo "0")
+    leaked_timers=$(extract_variant "leakedTimers" "$report" 2>/dev/null || echo "0")
+    
+    echo "=== $context ==="
+    echo "  Leaked signals: ${leaked_signals:-0}"
+    echo "  Leaked timers: ${leaked_timers:-0}"
+    
+    # Get component details if available
+    local comp_report
+    comp_report=$(dbus_get_component_reports 2>/dev/null)
+    if [ -n "$comp_report" ] && [ "$comp_report" != "{}" ]; then
+        echo "  Component details:"
+        echo "$comp_report" | head -50  # Limit output
+    fi
+}
+
+# Snapshot resource state (for before/after comparison)
+# Stores: active signals, active timers
+snapshot_resources() {
+    local report
+    report=$(dbus_get_resource_report 2>/dev/null)
+    
+    local active_signals active_timers
+    active_signals=$(extract_variant "activeSignals" "$report" 2>/dev/null || echo "0")
+    active_timers=$(extract_variant "activeTimers" "$report" 2>/dev/null || echo "0")
+    
+    echo "${active_signals:-0} ${active_timers:-0}"
+}
+
+# Compare resource snapshots
+# Usage: compare_snapshots "before_signals before_timers" "after_signals after_timers"
+# Returns: "signal_diff timer_diff"
+compare_snapshots() {
+    local before=$1
+    local after=$2
+    
+    local before_signals before_timers after_signals after_timers
+    read before_signals before_timers <<< "$before"
+    read after_signals after_timers <<< "$after"
+    
+    local signal_diff=$((after_signals - before_signals))
+    local timer_diff=$((after_timers - before_timers))
+    
+    echo "$signal_diff $timer_diff"
+}

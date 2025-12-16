@@ -42,11 +42,13 @@ info "Initial layout: $initial_layout"
 info "Zone count: $zone_count"
 echo ""
 
-# Reset resource tracking
+# Reset resource tracking and show baseline
 dbus_reset_tracking >/dev/null 2>&1
+print_resource_baseline "Initial"
 
-# Record baseline memory
-baseline=$(get_gnome_shell_memory)
+# Record baseline memory and resources
+baseline_mem=$(get_gnome_shell_memory)
+baseline_res=$(snapshot_resources)
 
 echo "Running zone cycling ($CYCLES operations)..."
 for i in $(seq 1 $CYCLES); do
@@ -82,25 +84,24 @@ done
 
 echo ""
 
-# Compare memory
-final=$(get_gnome_shell_memory)
-diff=$((final - baseline))
-info "Memory change: ${diff}KB"
+# Compare memory and resources
+final_mem=$(get_gnome_shell_memory)
+final_res=$(snapshot_resources)
+mem_diff=$((final_mem - baseline_mem))
+info "Memory change: ${mem_diff}KB"
 
 # Check for excessive memory growth
-if [ $diff -gt 5000 ]; then
-    warn "Memory grew by ${diff}KB after $CYCLES zone cycles"
+if [ $mem_diff -gt 5000 ]; then
+    warn "Memory grew by ${mem_diff}KB after $CYCLES zone cycles"
 fi
 
-# Check for resource leaks
-report=$(dbus_get_resource_report)
-leaked_signals=$(extract_variant "leakedSignals" "$report" 2>/dev/null || echo "0")
-leaked_timers=$(extract_variant "leakedTimers" "$report" 2>/dev/null || echo "0")
-
-if [ "${leaked_signals:-0}" -gt 0 ] || [ "${leaked_timers:-0}" -gt 0 ]; then
-    fail "Zone cycling: Resources leaked (signals: ${leaked_signals:-0}, timers: ${leaked_timers:-0})"
-else
-    pass "Zone cycling: $CYCLES operations completed, state consistent"
+# Check for resource growth
+res_diff=$(compare_snapshots "$baseline_res" "$final_res")
+read signal_diff timer_diff <<< "$res_diff"
+if [ "$signal_diff" -ne 0 ] || [ "$timer_diff" -ne 0 ]; then
+    info "Resource delta: signals=${signal_diff}, timers=${timer_diff}"
 fi
+
+check_leaks_and_report "Zone cycling: $CYCLES operations completed, state consistent"
 
 print_summary

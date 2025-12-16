@@ -53,11 +53,13 @@ info "Available layouts: ${layouts[*]}"
 info "Layout count: $layout_count"
 echo ""
 
-# Reset resource tracking
+# Reset resource tracking and show baseline
 dbus_reset_tracking >/dev/null 2>&1
+print_resource_baseline "Initial"
 
-# Record baseline memory
-baseline=$(get_gnome_shell_memory)
+# Record baseline memory and resources
+baseline_mem=$(get_gnome_shell_memory)
+baseline_res=$(snapshot_resources)
 
 echo "Running layout switching ($CYCLES full cycles through $layout_count layouts)..."
 total_switches=$((CYCLES * layout_count))
@@ -87,26 +89,25 @@ done
 
 echo ""
 
-# Compare memory
-final=$(get_gnome_shell_memory)
-diff=$((final - baseline))
+# Compare memory and resources
+final_mem=$(get_gnome_shell_memory)
+final_res=$(snapshot_resources)
+mem_diff=$((final_mem - baseline_mem))
 info "Total layout switches: $total_switches"
-info "Memory change: ${diff}KB"
+info "Memory change: ${mem_diff}KB"
 
 # Check for excessive memory growth
-if [ $diff -gt 10000 ]; then
-    warn "Memory grew by ${diff}KB after $total_switches layout switches"
+if [ $mem_diff -gt 10000 ]; then
+    warn "Memory grew by ${mem_diff}KB after $total_switches layout switches"
 fi
 
-# Check for resource leaks
-report=$(dbus_get_resource_report)
-leaked_signals=$(extract_variant "leakedSignals" "$report" 2>/dev/null || echo "0")
-leaked_timers=$(extract_variant "leakedTimers" "$report" 2>/dev/null || echo "0")
-
-if [ "${leaked_signals:-0}" -gt 0 ] || [ "${leaked_timers:-0}" -gt 0 ]; then
-    fail "Layout switching: Resources leaked (signals: ${leaked_signals:-0}, timers: ${leaked_timers:-0})"
-else
-    pass "Layout switching: $total_switches switches completed, all layouts accessible"
+# Check for resource growth
+res_diff=$(compare_snapshots "$baseline_res" "$final_res")
+read signal_diff timer_diff <<< "$res_diff"
+if [ "$signal_diff" -ne 0 ] || [ "$timer_diff" -ne 0 ]; then
+    info "Resource delta: signals=${signal_diff}, timers=${timer_diff}"
 fi
+
+check_leaks_and_report "Layout switching: $total_switches switches completed, all layouts accessible"
 
 print_summary

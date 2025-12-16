@@ -81,6 +81,67 @@ assert_no_leaks() {
     fi
 }
 
+# Assert no resource growth between snapshots
+# Usage: assert_no_resource_growth "$before" "$after" "context"
+assert_no_resource_growth() {
+    local before=$1
+    local after=$2
+    local context=$3
+    local tolerance=${4:-0}  # Allow some tolerance for timing variations
+    
+    local diffs
+    diffs=$(compare_snapshots "$before" "$after")
+    
+    local signal_diff timer_diff
+    read signal_diff timer_diff <<< "$diffs"
+    
+    if [ "$signal_diff" -gt "$tolerance" ] || [ "$timer_diff" -gt "$tolerance" ]; then
+        fail "$context: Resource growth detected (signals: +$signal_diff, timers: +$timer_diff)"
+    fi
+}
+
+# Check leaks and pass/fail with detailed report
+# Usage: check_leaks_and_report "context"
+check_leaks_and_report() {
+    local context=$1
+    
+    local counts
+    counts=$(get_leak_counts 2>/dev/null)
+    
+    local leaked_signals leaked_timers
+    read leaked_signals leaked_timers <<< "$counts"
+    
+    local total=$((leaked_signals + leaked_timers))
+    
+    if [ "$total" -gt 0 ]; then
+        print_leak_report "$context"
+        fail "$context: $total resources leaked (signals: $leaked_signals, timers: $leaked_timers)"
+    else
+        pass "$context: No resource leaks"
+    fi
+}
+
+# Check leaks silently (returns status only)
+# Usage: if has_leaks; then ... fi
+has_leaks() {
+    ! check_for_leaks
+}
+
+# Print resource tracking status at test start
+print_resource_baseline() {
+    local context=${1:-"Baseline"}
+    
+    local summary
+    summary=$(get_resource_summary 2>/dev/null)
+    
+    if [ -n "$summary" ]; then
+        info "$context resource state:"
+        echo "$summary" | while read line; do
+            info "  $line"
+        done
+    fi
+}
+
 # Get GNOME Shell memory usage in KB
 get_gnome_shell_memory() {
     local pid
