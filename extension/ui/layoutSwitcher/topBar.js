@@ -315,11 +315,11 @@ export function createWorkspaceThumbnails(ctx) {
         });
 
         // Zone preview layer
+        // Use CENTER alignment (matching cardFactory) to maintain 16:9 aspect ratio
+        // FILL alignment caused thumbnails to expand to monitor aspect ratio on relayout
         const previewContainer = new St.Bin({
-            x_align: Clutter.ActorAlign.FILL,
-            y_align: Clutter.ActorAlign.FILL,
-            x_expand: true,
-            y_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
             clip_to_allocation: true,
             style: `border-radius: ${thumbRadius}px;`,
         });
