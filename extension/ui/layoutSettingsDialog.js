@@ -814,8 +814,8 @@ export class LayoutSettingsDialog {
         upButton.set_child(upIcon);
 
         upButton.connect('clicked', () => {
-            // Cycle backwards through options
-            container._selectedIndex = (container._selectedIndex - 1 + options.length) % options.length;
+            // Cycle forwards through options (higher numbers)
+            container._selectedIndex = (container._selectedIndex + 1) % options.length;
             valueLabel.text = options[container._selectedIndex];
         });
 
@@ -856,8 +856,8 @@ export class LayoutSettingsDialog {
         downButton.set_child(downIcon);
 
         downButton.connect('clicked', () => {
-            // Cycle forwards through options
-            container._selectedIndex = (container._selectedIndex + 1) % options.length;
+            // Cycle backwards through options (lower numbers)
+            container._selectedIndex = (container._selectedIndex - 1 + options.length) % options.length;
             valueLabel.text = options[container._selectedIndex];
         });
 

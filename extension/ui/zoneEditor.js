@@ -32,7 +32,7 @@ const logger = createLogger('ZoneEditor');
  * ZoneEditor - Full-screen visual layout editor (edge-based)
  *
  * Edits the layout geometry (zones/edges) portion of a layout.
- * Users see this as "Layout Editor" - the component for designing window zones.
+ * Users see this as "Zone Editor" - the component for designing window zones.
  *
  * Usage:
  *   const editor = new ZoneEditor(
@@ -270,7 +270,7 @@ export class ZoneEditor {
         this._helpTextBox.width = helpWidth;
 
         const title = new St.Label({
-            text: 'Layout Editor',
+            text: 'Zone Editor',
             style: `font-size: 14pt; font-weight: bold; color: ${colors.textPrimary}; margin-bottom: 8px;`,
         });
         this._helpTextBox.add_child(title);

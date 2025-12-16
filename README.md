@@ -45,7 +45,7 @@ Then reload GNOME Shell:
 
 ## Basic Workflow
 
-1. **Choose a layout:** Press `Super+grave` to open the layout picker
+1. **Choose a layout:** Press `Super+grave` to open the Layout Switcher
 2. **Select a layout** (e.g., "Halves", "Thirds", "Main Left")
 3. **Snap windows:** Focus any window and press `Super+Right` to snap it to the next zone
 4. **Repeat:** Focus another window, press `Super+Right` again to fill the layout
@@ -58,7 +58,7 @@ Your layout choice persists — just snap windows as you open them.
 |----------|--------|
 | `Super+Left` | Snap window to previous zone |
 | `Super+Right` | Snap window to next zone |
-| `Super+grave` | Open layout picker (backtick key) |
+| `Super+grave` | Open Layout Switcher (backtick key) |
 | `Super+Up` | Maximize/restore window |
 | `Super+Down` | Minimize window |
 
@@ -82,7 +82,7 @@ Your layout choice persists — just snap windows as you open them.
 
 Create your own layouts using the **Layout Switcher** and **Zone Editor**:
 
-1. Press `Super+grave` to open the layout picker
+1. Press `Super+grave` to open the Layout Switcher
 2. Click "New Layout" to create a custom layout
 3. Use the visual zone editor to define your zones
 

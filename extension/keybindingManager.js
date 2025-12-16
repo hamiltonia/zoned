@@ -21,7 +21,7 @@ export class KeybindingManager {
      * @param {LayoutManager} layoutManager - Layout manager instance
      * @param {WindowManager} windowManager - Window manager instance
      * @param {NotificationManager} notificationManager - Notification manager instance (legacy)
-     * @param {LayoutSwitcher} layoutSwitcher - Layout editor instance
+     * @param {LayoutSwitcher} layoutSwitcher - Layout Switcher instance
      * @param {ZoneOverlay} zoneOverlay - Zone overlay instance (optional)
      * @param {NotificationService} notificationService - Notification service for routing (optional)
      */
@@ -346,16 +346,16 @@ export class KeybindingManager {
     }
 
     /**
-     * Handler: Show layout editor (Super+grave)
+     * Handler: Show Layout Switcher (Super+grave)
      * @private
      */
     _onShowLayoutSwitcher() {
-        logger.debug('Show layout editor triggered');
+        logger.debug('Show Layout Switcher triggered');
 
         if (this._layoutSwitcher) {
             this._layoutSwitcher.show();
         } else {
-            logger.warn('Layout editor not available');
+            logger.warn('Layout Switcher not available');
         }
     }
 

@@ -17,7 +17,7 @@
  *
  * USER-FACING (UI):
  * - Users see "ZONE" everywhere in the UI
- * - "Choose a layout", "Edit layout", "Layout Editor"
+ * - "Choose a layout", "Edit layout", "Zone Editor"
  * - ZoneEditor component edits the zones array (geometry portion)
  * - TemplatePicker shows layouts but calls them "layouts"
  *

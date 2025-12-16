@@ -38,9 +38,9 @@
     
     <key name="show-layout-picker" type="as">
       <default>['&lt;Super&gt;grave']</default>
-      <summary>Open layout picker</summary>
+      <summary>Open Layout Switcher</summary>
       <description>
-        Display the layout selection dialog.
+        Display the Layout Switcher dialog for selecting and managing layouts.
       </description>
     </key>
     
@@ -50,7 +50,7 @@
       <summary>Enable quick layout shortcuts</summary>
       <description>
         When enabled, registers global shortcuts (Super+Ctrl+Alt+1-9) to quickly switch
-        layouts. When disabled, number keys 1-9 still work within the layout picker dialog.
+        layouts. When disabled, number keys 1-9 still work within the Layout Switcher dialog.
       </description>
     </key>
     
@@ -83,13 +83,13 @@
       </description>
     </key>
     
-    <!-- Layout Picker Settings -->
+    <!-- Layout Switcher Settings -->
     <key name="layout-picker-size" type="d">
       <default>0.8</default>
       <range min="0.3" max="0.9"/>
-      <summary>Layout picker dialog size</summary>
+      <summary>Layout Switcher dialog size</summary>
       <description>
-        Size of the layout picker dialog as a fraction of screen size (0.3-0.9). Default is 0.8 (80%).
+        Size of the Layout Switcher dialog as a fraction of screen size (0.3-0.9). Default is 0.8 (80%).
       </description>
     </key>
     
@@ -109,7 +109,7 @@
       <description>
         Show the Zoned icon in the top bar panel. When disabled, all 
         functionality remains accessible via keyboard shortcuts, the 
-        layout switcher, and the Extensions app settings.
+        Layout Switcher, and the Extensions app settings.
       </description>
     </key>
     
@@ -224,7 +224,7 @@
       <summary>Show debug layout rectangles</summary>
       <description>
         When enabled, shows colored debug borders around all layout elements 
-        in the layout switcher dialog to help visualize layout issues.
+        in the Layout Switcher dialog to help visualize layout issues.
         Red=container, Blue=section, Green=row, Yellow=card, Magenta=spacer.
       </description>
     </key>
@@ -245,7 +245,7 @@
       <description>
         Override automatic tier selection for testing. 
         0=auto (default), 1=tiny, 2=small, 3=medium, 4=large, 5=xlarge.
-        Use Ctrl+T in layout switcher to cycle through tiers.
+        Use Ctrl+T in Layout Switcher to cycle through tiers.
       </description>
     </key>
     

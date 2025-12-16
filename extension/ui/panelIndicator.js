@@ -21,7 +21,8 @@ const logger = createLogger('PanelIndicator');
 
 export const PanelIndicator = GObject.registerClass(
     class ZonedPanelIndicator extends PanelMenu.Button {
-        _init(layoutManager, conflictDetector, layoutEditor, notificationManager, zoneOverlay, settings, notificationService) {
+        _init(layoutManager, conflictDetector, layoutEditor, notificationManager,
+            zoneOverlay, settings, notificationService) {
             super._init(0.0, 'Zoned Indicator', false);
 
             this._layoutManager = layoutManager;
@@ -96,8 +97,8 @@ export const PanelIndicator = GObject.registerClass(
 
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-            // Full layout editor (LayoutSwitcher)
-            const layoutsItem = new PopupMenu.PopupMenuItem('Layout Editor');
+            // Full layout switcher (LayoutSwitcher)
+            const layoutsItem = new PopupMenu.PopupMenuItem('Layout Switcher');
             layoutsItem.connect('activate', () => {
                 this._openLayoutSwitcher();
             });
@@ -168,11 +169,11 @@ export const PanelIndicator = GObject.registerClass(
         }
 
         /**
-     * Open the layout editor (comprehensive layout management)
+     * Open the layout switcher (comprehensive layout management)
      * @private
      */
         _openLayoutSwitcher() {
-            logger.debug('Opening layout editor...');
+            logger.debug('Opening layout switcher...');
 
             // Close menu first to release keyboard grab
             this.menu.close();
@@ -181,7 +182,7 @@ export const PanelIndicator = GObject.registerClass(
                 this._layoutSwitcher.show();
             } else {
                 logger.error('LayoutSwitcher not available');
-                this._notificationManager.show('Layout editor not available', 2000);
+                this._notificationManager.show('Layout switcher not available', 2000);
             }
         }
 

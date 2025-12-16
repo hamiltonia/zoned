@@ -971,7 +971,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
 
         // Subtitle/description label
         const subtitleLabel = new Gtk.Label({
-            label: 'Switch to layouts that have shortcuts assigned (1-9)',
+            label: 'Assign shortcuts to layouts in the Layout Switcher',
             xalign: 0,
             hexpand: true,
             wrap: true,
@@ -1517,7 +1517,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // Use ExpanderRow for collapsible content tied to the enable switch
         const quickLayoutExpander = new Adw.ExpanderRow({
             title: 'Enable Quick Layout Shortcuts',
-            subtitle: 'Switch to layouts that have shortcuts assigned. Assign shortcuts in each layout\'s settings.',
+            subtitle: 'Switch to layouts that have shortcuts assigned.',
             show_enable_switch: true,
         });
 

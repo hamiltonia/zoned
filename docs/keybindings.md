@@ -20,11 +20,11 @@ Complete keyboard shortcut reference for Zoned.
 | `Super+Up` | Maximize/Restore | Toggle maximize state |
 | `Super+Down` | Minimize | Minimize focused window |
 
-### Layout Picker
+### Layout Switcher
 
 | Shortcut | Action | Description |
 |----------|--------|-------------|
-| `Super+`` | Show layout picker | Open the layout selection dialog |
+| `Super+`` | Show Layout Switcher | Open the Layout Switcher dialog |
 
 ### Quick Layout Switching
 
@@ -40,11 +40,11 @@ Complete keyboard shortcut reference for Zoned.
 | `Super+Ctrl+Alt+8` | Quick layout 8 | Apply eighth layout |
 | `Super+Ctrl+Alt+9` | Quick layout 9 | Apply ninth layout |
 
-Quick layout shortcuts are assigned per-layout in the layout settings dialog. Edit a layout and assign it to one of the 1-9 slots.
+Quick layout shortcuts are assigned per-layout in the Layout Settings dialog. Edit a layout and assign it to one of the 1-9 slots.
 
-## Layout Picker Shortcuts
+## Layout Switcher Shortcuts
 
-When the layout picker is open:
+When the Layout Switcher is open:
 
 | Key | Action |
 |-----|--------|
@@ -64,7 +64,7 @@ When the zone editor is open:
 | Shift+click zone | Split vertically |
 | Drag edge | Resize adjacent zones |
 | Ctrl+click edge | Delete edge (merge zones) |
-| `E` | Open layout settings |
+| `E` | Open Layout Settings |
 | `Escape` | Cancel without saving |
 | `Enter` | Save and close |
 
@@ -88,7 +88,7 @@ Once enabled, debug settings appear in preferences:
 - **Debug Layout Rectangles** - Show zone boundary overlays
 - **Debug Measurement UI** - Display sizing and measurement info
 
-**Debug shortcuts in Layout Picker:**
+**Debug shortcuts in Layout Switcher:**
 
 | Key | Action |
 |-----|--------|
@@ -216,7 +216,7 @@ The conflict detector handles these aliases when checking for conflicts.
 
 ### Basic Usage
 
-1. `Super+`` to open layout picker
+1. `Super+`` to open Layout Switcher
 2. Use `1-9` to quickly select a layout
 3. `Super+Left/Right` to cycle through zones
 

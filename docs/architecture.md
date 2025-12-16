@@ -88,7 +88,7 @@ Registers and handles keyboard shortcuts.
 |----------|--------|
 | `Super+Left` | Cycle to previous zone |
 | `Super+Right` | Cycle to next zone |
-| `Super+`` | Open layout switcher |
+| `Super+`` | Open Layout Switcher |
 | `Super+Up` | Maximize/restore window |
 | `Super+Down` | Minimize window |
 | `Super+Alt+Left/Right` | Cycle zones (alternative) |
@@ -140,7 +140,7 @@ Modal grid of layout cards for quick selection.
 
 ### ZoneEditor (`ui/zoneEditor.js`)
 
-Full-screen layout editor using edge-based system.
+Full-screen zone editor using edge-based system.
 
 **Features:**
 - Click zone to split (horizontal)
@@ -157,7 +157,7 @@ Top bar icon with dropdown menu.
 **Shows:**
 - Current layout name
 - Quick layout switching
-- Access to layout editor
+- Access to Layout Switcher
 - Keybinding conflict status
 
 ### Other UI Components
@@ -191,7 +191,7 @@ GSettings.save(layoutId, zoneIndex)
 ### Layout Switching
 
 ```
-User: Super+`
+User: Super+`  (Open Layout Switcher)
     ↓
 KeybindingManager._onShowLayoutSwitcher()
     ↓

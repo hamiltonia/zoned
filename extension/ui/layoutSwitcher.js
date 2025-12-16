@@ -122,7 +122,7 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Show the layout editor dialog
+     * Show the Layout Switcher dialog
      */
     show() {
         if (this._dialog) {
@@ -169,7 +169,7 @@ export class LayoutSwitcher {
     }
 
     /**
-     * Hide the layout editor dialog
+     * Hide the Layout Switcher dialog
      */
     hide() {
         if (!this._dialog) {

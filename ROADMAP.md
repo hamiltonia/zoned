@@ -45,8 +45,8 @@ None critical at this time.
 ### Key Features
 
 - **Zone cycling:** Super+Left/Right to move windows between zones
-- **Layout picker:** Super+` for visual layout selection
-- **Custom layouts:** Create and edit via full-screen editor
+- **Layout Switcher:** Super+` for visual layout selection
+- **Custom layouts:** Create and edit via Zone Editor
 - **Per-space layouts:** Different layouts per workspace×monitor
 - **Quick shortcuts:** Super+Ctrl+Alt+1-9 for instant layout switching
 - **Conflict detection:** Auto-detect and fix GNOME keybinding conflicts
