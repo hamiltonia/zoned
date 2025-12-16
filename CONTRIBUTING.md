@@ -61,7 +61,7 @@ make enable
 make logs
 ```
 
-See [Development Setup](memory/development/setup.md) for detailed instructions.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed instructions.
 
 #### Code Style
 
@@ -196,9 +196,7 @@ Documentation improvements are always welcome!
 - Architecture diagrams
 
 **Documentation locations:**
-- User docs: `docs/`
-- Developer docs: `memory/`
-- API reference: `memory/api-reference/`
+- Developer docs: `docs/`
 - README.md for overview
 
 ### Layout Contributions
@@ -319,11 +317,8 @@ zoned/
 │   ├── ui/
 │   ├── schemas/
 │   └── config/
-├── memory/             # Developer documentation
-│   ├── architecture/
-│   ├── development/
-│   └── api-reference/
-├── docs/               # User documentation
+├── docs/               # Documentation
+├── scripts/            # Development scripts
 ├── README.md
 ├── LICENSE
 ├── CONTRIBUTING.md
@@ -338,11 +333,10 @@ zoned/
 - [Extension Review Guidelines](https://gjs.guide/extensions/review-guidelines/review-guidelines.html)
 
 ### Project Documentation
-- [Architecture Overview](memory/architecture/overview.md)
-- [Component Design](memory/architecture/component-design.md)
-- [Development Setup](memory/development/setup.md)
-- [Layout API](memory/api-reference/layouts.md)
-- [Keybindings API](memory/api-reference/keybindings.md)
+- [Architecture](docs/architecture.md) - Component overview
+- [Technical Specs](docs/technical-specs.md) - Edge layouts, data structures
+- [Coding Patterns](docs/coding-patterns.md) - Code style guide
+- [Keybindings](docs/keybindings.md) - Keyboard shortcuts
 
 ### Community
 - [GitHub Issues](https://github.com/hamiltonia/zoned/issues)
@@ -364,7 +358,7 @@ zoned/
 
 - Open a [Discussion](https://github.com/hamiltonia/zoned/discussions)
 - Check existing [Issues](https://github.com/hamiltonia/zoned/issues)
-- Review [Documentation](memory/)
+- Review [Documentation](docs/)
 
 ## License
 
