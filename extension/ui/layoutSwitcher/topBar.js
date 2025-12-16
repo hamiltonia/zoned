@@ -77,9 +77,111 @@ export function createTopBar(ctx) {
     });
     workspaceGroup.add_child(applyLabel);
 
-    // Workspace pills (compact buttons)
+    // Calculate dimensions for workspace thumbnails
+    const tier = ctx._currentTier;
+    const thumbW = tier.workspaceThumb.w;
+    const thumbH = tier.workspaceThumb.h;
+    const thumbGap = tier.workspaceThumbGap || 8;
+    const dialogWidth = ctx._calculatedSpacing?.dialogWidth || 1000;
+    const reservedWidth = 600;  // Space for monitor pill, label, checkbox, margins
+    const maxScrollWidth = Math.max(dialogWidth - reservedWidth, thumbW * 4);
+
+    // Calculate if content will overflow (need scrollbar)
+    const nWorkspaces = global.workspace_manager.get_n_workspaces();
+    const totalContentWidth = nWorkspaces * thumbW + (nWorkspaces - 1) * thumbGap;
+    const willOverflow = totalContentWidth > maxScrollWidth;
+
+    // Create horizontal ScrollView for workspace thumbnails
+    // IMPORTANT: Disable ScrollView's built-in mouse scrolling - we handle it ourselves
+    // This follows the GNOME Shell pattern from workspaceIndicator.js
+    const workspaceScrollView = new St.ScrollView({
+        style: `max-width: ${maxScrollWidth}px;`,
+        // Only show scrollbar when content overflows
+        hscrollbar_policy: willOverflow ? St.PolicyType.AUTOMATIC : St.PolicyType.NEVER,
+        vscrollbar_policy: St.PolicyType.NEVER,
+        enable_mouse_scrolling: false,  // CRITICAL: Disable - we handle manually
+        overlay_scrollbars: false,  // External scrollbar visible below content
+        y_align: Clutter.ActorAlign.CENTER,
+    });
+
+    // Set height - only add scrollbar space if content will overflow
+    const scrollbarHeight = willOverflow ? 10 : 0;
+    workspaceScrollView.style += ` height: ${thumbH + scrollbarHeight + 8}px;`;
+
+    // Store reference for updates
+    ctx._workspaceScrollView = workspaceScrollView;
+
+    // Create workspace pills (buttons)
     const workspacePills = createWorkspacePills(ctx);
-    workspaceGroup.add_child(workspacePills);
+    workspaceScrollView.add_child(workspacePills);
+
+    // Wrap ScrollView in a reactive Clutter.Actor - GNOME Shell pattern
+    // This catches scroll events that would otherwise be consumed by the buttons
+    // Events bubble up from buttons to this wrapper since ScrollView has mouse scrolling disabled
+    const scrollWrapper = new Clutter.Actor({
+        layout_manager: new Clutter.BinLayout(),
+        reactive: true,  // CRITICAL: Must be reactive to receive scroll events
+        y_align: Clutter.ActorAlign.CENTER,
+    });
+    scrollWrapper.add_child(workspaceScrollView);
+
+    // Handle scroll events on the wrapper - this catches all scroll events in the area
+    scrollWrapper.connect('scroll-event', (actor, event) => {
+        const direction = event.get_scroll_direction();
+        // Use hadjustment directly - hscroll.adjustment doesn't work as expected
+        const adjustment = workspaceScrollView.hadjustment;
+
+        logger.info(`[SCROLL] Event received on scrollWrapper! direction=${direction}`);
+
+        if (!adjustment) {
+            logger.warn('[SCROLL] No adjustment available!');
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+        logger.info(`[SCROLL] adjustment: value=${adjustment.value}, lower=${adjustment.lower}, upper=${adjustment.upper}, page_size=${adjustment.page_size}`);
+
+        const scrollAmount = thumbW + thumbGap;  // Scroll by one thumbnail
+
+        // Handle smooth scrolling (touchpad, high-res wheel)
+        if (direction === Clutter.ScrollDirection.SMOOTH) {
+            const [deltaX, deltaY] = event.get_scroll_delta();
+            logger.info(`[SCROLL] SMOOTH: deltaX=${deltaX}, deltaY=${deltaY}`);
+            // Convert vertical scroll to horizontal
+            const newValue = Math.max(
+                adjustment.lower,
+                Math.min(adjustment.value + deltaY * scrollAmount * 0.5, adjustment.upper - adjustment.page_size),
+            );
+            logger.info(`[SCROLL] Setting value from ${adjustment.value} to ${newValue}`);
+            adjustment.value = newValue;
+            return Clutter.EVENT_STOP;
+        }
+
+        // Handle discrete scroll directions
+        if (direction === Clutter.ScrollDirection.DOWN ||
+            direction === Clutter.ScrollDirection.RIGHT) {
+            const newValue = Math.min(adjustment.value + scrollAmount, adjustment.upper - adjustment.page_size);
+            logger.info(`[SCROLL] DOWN/RIGHT: Setting value from ${adjustment.value} to ${newValue}`);
+            adjustment.value = newValue;
+            return Clutter.EVENT_STOP;
+        } else if (direction === Clutter.ScrollDirection.UP ||
+                   direction === Clutter.ScrollDirection.LEFT) {
+            const newValue = Math.max(adjustment.value - scrollAmount, adjustment.lower);
+            logger.info(`[SCROLL] UP/LEFT: Setting value from ${adjustment.value} to ${newValue}`);
+            adjustment.value = newValue;
+            return Clutter.EVENT_STOP;
+        }
+
+        logger.info(`[SCROLL] Unhandled direction, propagating`);
+        return Clutter.EVENT_PROPAGATE;
+    });
+
+    // Also log if scrollView itself receives scroll events
+    workspaceScrollView.connect('scroll-event', (actor, event) => {
+        logger.info(`[SCROLL] Event on ScrollView itself (should not happen with enable_mouse_scrolling=false)`);
+        return Clutter.EVENT_PROPAGATE;
+    });
+
+    workspaceGroup.add_child(scrollWrapper);
 
     leftGroup.add_child(workspaceGroup);
     ctx._spacesSection.add_child(leftGroup);
@@ -381,6 +483,14 @@ export function createWorkspaceThumbnails(ctx) {
                 onWorkspaceThumbnailClicked(ctx, i);
             });
         }
+
+        // Log scroll events on buttons to debug event propagation
+        thumb.connect('scroll-event', (actor, event) => {
+            const direction = event.get_scroll_direction();
+            logger.info(`[SCROLL] Button ${i} received scroll-event, direction=${direction}`);
+            // Do NOT stop the event - let it propagate to parent
+            return Clutter.EVENT_PROPAGATE;
+        });
 
         ctx._workspaceButtons.push(thumb);
         container.add_child(thumb);
