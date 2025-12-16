@@ -46,7 +46,7 @@ Then reload GNOME Shell:
 ## Basic Workflow
 
 1. **Choose a layout:** Press `Super+grave` to open the Layout Switcher
-2. **Select a layout** (e.g., "Halves", "Thirds", "Main Left")
+2. **Select a layout** (e.g., "Split", "Triple", "Wide")
 3. **Snap windows:** Focus any window and press `Super+Right` to snap it to the next zone
 4. **Repeat:** Focus another window, press `Super+Right` again to fill the layout
 
@@ -66,17 +66,17 @@ Your layout choice persists — just snap windows as you open them.
 
 ## Built-in Layout Templates
 
-| Layout | Zones |
-|--------|-------|
-| Center (60%) | 20% / 60% / 20% |
-| Balanced (50%) | 25% / 50% / 25% |
-| Thirds | 33% / 33% / 33% |
-| Halves | 50% / 50% |
+Five essential templates for common workflows:
+
+| Layout | Description |
+|--------|-------------|
+| Split | Two equal halves (50/50) |
+| Triple | Three equal columns (33/33/33) |
+| Wide | Center-focused (25/50/25) |
 | Quarters | 2×2 grid |
-| Main Left | 67% / 33% |
-| Main Right | 33% / 67% |
-| Balanced Left | 40% / 40% / 20% |
-| Balanced Right | 20% / 40% / 40% |
+| Triple Stack | Three columns with stacked right panel |
+
+Create custom layouts using the Zone Editor for specialized needs.
 
 ### Custom Layouts
 

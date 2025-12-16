@@ -128,32 +128,46 @@ export class LayoutManager {
     /**
      * Load default layouts from extension directory
      * @private
+     * @returns {Array} Array of default layout objects
      */
     _loadDefaultLayouts() {
+        const data = this._loadDefaultLayoutsData();
+        return data.layouts || [];
+    }
+
+    /**
+     * Load default layouts data including version
+     * @private
+     * @returns {Object} Object with version and layouts array
+     */
+    _loadDefaultLayoutsData() {
         try {
             const layoutsPath = `${this._extensionPath}/config/default-layouts.json`;
             const file = Gio.File.new_for_path(layoutsPath);
 
             if (!file.query_exists(null)) {
                 logger.error(`Default layouts file not found: ${layoutsPath}`);
-                return [];
+                return {version: 0, layouts: []};
             }
 
             const [success, contents] = file.load_contents(null);
             if (!success) {
                 logger.error('Failed to read default layouts file');
-                return [];
+                return {version: 0, layouts: []};
             }
 
             const decoder = new TextDecoder('utf-8');
             const jsonString = decoder.decode(contents);
             const data = JSON.parse(jsonString);
 
-            logger.info(`Loaded ${data.layouts.length} default layouts`);
-            return data.layouts;
+            logger.info(`Loaded ${data.layouts.length} default layouts (version ${data.version || 0})`);
+            return {
+                version: data.version || 0,
+                layouts: data.layouts || [],
+            };
         } catch (error) {
             logger.error(`Error loading default layouts: ${error}`);
-            return [];
+            return {version: 0, layouts: []};
         }
     }
 
@@ -342,8 +356,14 @@ export class LayoutManager {
         const layout = this._layouts.find(l => l.id === state.layoutId);
 
         if (!layout) {
-            logger.warn(`Layout '${state.layoutId}' not found for space ${spaceKey}, using fallback`);
-            return this._currentLayout || this._layouts[0];
+            // Layout no longer exists (e.g., old template removed)
+            // Use fallback and persist it to prevent repeated warnings
+            const fallback = this._currentLayout || this._layouts[0];
+            if (fallback) {
+                logger.info(`Layout '${state.layoutId}' not found for space ${spaceKey}, migrating to '${fallback.id}'`);
+                this._spatialStateManager.setState(spaceKey, fallback.id, 0);
+            }
+            return fallback;
         }
 
         return layout;
@@ -647,6 +667,7 @@ export class LayoutManager {
 
     /**
      * Ensure user layouts directory and file exist (first-run setup)
+     * Also handles template version migration
      * @private
      */
     _ensureUserLayoutsExist() {
@@ -655,13 +676,6 @@ export class LayoutManager {
             const zonedDir = `${configDir}/zoned`;
             const layoutsPath = `${zonedDir}/layouts.json`;
 
-            // Check if layouts.json already exists
-            const file = Gio.File.new_for_path(layoutsPath);
-            if (file.query_exists(null)) {
-                logger.debug('User layouts already exist');
-                return;
-            }
-
             // Create zoned directory if needed
             const dir = Gio.File.new_for_path(zonedDir);
             if (!dir.query_exists(null)) {
@@ -669,28 +683,129 @@ export class LayoutManager {
                 logger.info('Created user config directory');
             }
 
-            // Copy default layouts to user config
-            const defaultLayouts = this._loadDefaultLayouts();
-            const data = {
-                layouts: defaultLayouts,
-                layout_order: [],
-            };
+            // Load default layouts with version info
+            const defaultData = this._loadDefaultLayoutsData();
+            const installedVersion = this._settings.get_int('templates-version');
 
-            const encoder = new TextEncoder();
-            const jsonString = JSON.stringify(data, null, 2);
-            const contents = encoder.encode(jsonString);
+            const file = Gio.File.new_for_path(layoutsPath);
 
-            file.replace_contents(
-                contents,
-                null,
-                false,
-                Gio.FileCreateFlags.REPLACE_DESTINATION,
-                null,
-            );
+            // First-run: file doesn't exist
+            if (!file.query_exists(null)) {
+                this._writeUserLayoutsFile(file, defaultData.layouts, []);
+                this._settings.set_int('templates-version', defaultData.version);
+                logger.info(`First-run: Installed templates v${defaultData.version}`);
+                return;
+            }
 
-            logger.info('First-run: Copied default layouts to user config');
+            // Check if template migration is needed
+            if (defaultData.version > installedVersion) {
+                logger.info(`Template migration needed: v${installedVersion} → v${defaultData.version}`);
+                this._migrateTemplates(defaultData);
+                this._settings.set_int('templates-version', defaultData.version);
+            } else {
+                logger.debug(`Templates up to date (v${installedVersion})`);
+            }
         } catch (error) {
             logger.error(`Error ensuring user layouts exist: ${error}`);
+        }
+    }
+
+    /**
+     * Write user layouts file to disk
+     * @private
+     */
+    _writeUserLayoutsFile(file, layouts, layoutOrder) {
+        const data = {
+            layouts: layouts,
+            layout_order: layoutOrder,
+        };
+
+        const encoder = new TextEncoder();
+        const jsonString = JSON.stringify(data, null, 2);
+        const contents = encoder.encode(jsonString);
+
+        file.replace_contents(
+            contents,
+            null,
+            false,
+            Gio.FileCreateFlags.REPLACE_DESTINATION,
+            null,
+        );
+    }
+
+    /**
+     * Check if a layout ID is a built-in template (vs user custom)
+     * Templates have simple IDs like: split, triple, wide, quarters, triple_stack
+     * Custom layouts have prefixed IDs like: layout-*, custom_*
+     * @private
+     */
+    _isTemplateId(layoutId) {
+        // Custom layout patterns
+        if (layoutId.startsWith('layout-')) return false;
+        if (layoutId.startsWith('custom_')) return false;
+        if (layoutId.startsWith('template-')) return false;
+
+        // All other simple IDs are likely templates
+        return true;
+    }
+
+    /**
+     * Migrate templates to new version while preserving user custom layouts
+     * @private
+     */
+    _migrateTemplates(defaultData) {
+        try {
+            // Backup existing layouts
+            this._backupUserLayouts();
+
+            // Load existing user data
+            const userData = this._loadUserLayoutsData();
+
+            // Get template IDs from new defaults
+            const newTemplateIds = new Set(defaultData.layouts.map(l => l.id));
+
+            // Separate user customs from old templates
+            const userCustoms = userData.layouts.filter(layout => {
+                // Keep if it's a user custom layout
+                if (!this._isTemplateId(layout.id)) {
+                    return true;
+                }
+                // Keep if it's a template ID that's also in the new templates
+                // (will be replaced below)
+                return false;
+            });
+
+            // Also keep any old templates that user explicitly modified
+            // (detected by checking if they exist in user file but differ from defaults)
+            const preservedOldTemplates = userData.layouts.filter(layout => {
+                // Only consider template-like IDs
+                if (!this._isTemplateId(layout.id)) return false;
+                // Skip if it's being replaced by a new template
+                if (newTemplateIds.has(layout.id)) return false;
+                // This is an old template that's being removed - don't keep it
+                return false;
+            });
+
+            // Combine: new templates + user customs
+            const migratedLayouts = [
+                ...defaultData.layouts,    // New templates first
+                ...userCustoms,            // Then user custom layouts
+                ...preservedOldTemplates,  // Any preserved old templates
+            ];
+
+            // Update layout order: keep custom layout ordering, let templates use default order
+            const newOrder = userData.layout_order.filter(id => {
+                return !this._isTemplateId(id) || newTemplateIds.has(id);
+            });
+
+            // Save migrated layouts
+            const layoutsPath = this._getUserLayoutsPath();
+            const file = Gio.File.new_for_path(layoutsPath);
+            this._writeUserLayoutsFile(file, migratedLayouts, newOrder);
+
+            logger.info(`Template migration complete: ${defaultData.layouts.length} templates, ${userCustoms.length} user customs preserved`);
+        } catch (error) {
+            logger.error(`Error migrating templates: ${error}`);
         }
     }
 

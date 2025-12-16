@@ -1,11 +1,9 @@
 /**
  * TemplateManager - Manages built-in layout templates
  *
- * Provides pre-configured layout templates that users can apply:
- * - Halves: 50/50 split
- * - Thirds: 33/33/33 columns
- * - Quarters: 2x2 grid
- * - Focus: 70/30 main+sidebar
+ * Provides pre-configured layout templates that users can apply.
+ * Note: Primary templates are loaded from config/default-layouts.json.
+ * This class provides a fallback mechanism for legacy "template-*" IDs.
  */
 
 import {createLogger} from './utils/debug.js';
@@ -15,22 +13,25 @@ const logger = createLogger('TemplateManager');
 /**
  * Built-in layout templates
  * All coordinates are normalized (0.0 to 1.0)
+ *
+ * NOTE: These should match the templates in config/default-layouts.json
+ * This is a fallback for legacy template-* ID restoration.
  */
 const BUILTIN_TEMPLATES = {
-    halves: {
-        id: 'halves',
-        name: 'Halves',
-        icon: '⫿',  // Unicode split icon
+    split: {
+        id: 'split',
+        name: 'Split',
+        icon: '⫿',
         description: '50/50 split - Left and Right',
         zones: [
             {name: 'Left', x: 0.0, y: 0.0, w: 0.5, h: 1.0},
             {name: 'Right', x: 0.5, y: 0.0, w: 0.5, h: 1.0},
         ],
     },
-    thirds: {
-        id: 'thirds',
-        name: 'Thirds',
-        icon: '⫴',  // Unicode thirds icon
+    triple: {
+        id: 'triple',
+        name: 'Triple',
+        icon: '⫴',
         description: '33/33/33 columns',
         zones: [
             {name: 'Left', x: 0.0, y: 0.0, w: 0.333, h: 1.0},
@@ -38,40 +39,39 @@ const BUILTIN_TEMPLATES = {
             {name: 'Right', x: 0.667, y: 0.0, w: 0.333, h: 1.0},
         ],
     },
+    wide: {
+        id: 'wide',
+        name: 'Wide',
+        icon: '◧',
+        description: '25/50/25 - Center-focused',
+        zones: [
+            {name: 'Left', x: 0.0, y: 0.0, w: 0.25, h: 1.0},
+            {name: 'Center', x: 0.25, y: 0.0, w: 0.5, h: 1.0},
+            {name: 'Right', x: 0.75, y: 0.0, w: 0.25, h: 1.0},
+        ],
+    },
     quarters: {
         id: 'quarters',
         name: 'Quarters',
-        icon: '⊞',  // Unicode grid icon
+        icon: '⊞',
         description: '2×2 grid layout',
         zones: [
-            {name: 'Top Left', x: 0.0, y: 0.0, w: 0.5, h: 0.5},
-            {name: 'Top Right', x: 0.5, y: 0.0, w: 0.5, h: 0.5},
-            {name: 'Bottom Left', x: 0.0, y: 0.5, w: 0.5, h: 0.5},
-            {name: 'Bottom Right', x: 0.5, y: 0.5, w: 0.5, h: 0.5},
+            {name: 'Top-Left', x: 0.0, y: 0.0, w: 0.5, h: 0.5},
+            {name: 'Top-Right', x: 0.5, y: 0.0, w: 0.5, h: 0.5},
+            {name: 'Bottom-Left', x: 0.0, y: 0.5, w: 0.5, h: 0.5},
+            {name: 'Bottom-Right', x: 0.5, y: 0.5, w: 0.5, h: 0.5},
         ],
     },
-    focus: {
-        id: 'focus',
-        name: 'Focus',
-        icon: '◧',  // Unicode focus icon
-        description: '70/30 - Main work area + sidebar',
+    triple_stack: {
+        id: 'triple_stack',
+        name: 'Triple Stack',
+        icon: '⊡',
+        description: 'Three columns with stacked right panel',
         zones: [
-            {name: 'Main', x: 0.0, y: 0.0, w: 0.7, h: 1.0},
-            {name: 'Side', x: 0.7, y: 0.0, w: 0.3, h: 1.0},
-        ],
-    },
-    sixths: {
-        id: 'sixths',
-        name: 'Sixths',
-        icon: '⊡',  // Unicode grid icon
-        description: '2×3 grid layout',
-        zones: [
-            {name: 'Top Left', x: 0.0, y: 0.0, w: 0.333, h: 0.5},
-            {name: 'Top Center', x: 0.333, y: 0.0, w: 0.334, h: 0.5},
-            {name: 'Top Right', x: 0.667, y: 0.0, w: 0.333, h: 0.5},
-            {name: 'Bottom Left', x: 0.0, y: 0.5, w: 0.333, h: 0.5},
-            {name: 'Bottom Center', x: 0.333, y: 0.5, w: 0.334, h: 0.5},
-            {name: 'Bottom Right', x: 0.667, y: 0.5, w: 0.333, h: 0.5},
+            {name: 'Left', x: 0.0, y: 0.0, w: 0.333, h: 1.0},
+            {name: 'Center', x: 0.333, y: 0.0, w: 0.334, h: 1.0},
+            {name: 'Top-Right', x: 0.667, y: 0.0, w: 0.333, h: 0.5},
+            {name: 'Bottom-Right', x: 0.667, y: 0.5, w: 0.333, h: 0.5},
         ],
     },
 };
@@ -83,7 +83,7 @@ const BUILTIN_TEMPLATES = {
 export class TemplateManager {
     constructor() {
         this._templates = {...BUILTIN_TEMPLATES};
-        logger.info('TemplateManager initialized with 5 built-in templates');
+        logger.info(`TemplateManager initialized with ${Object.keys(this._templates).length} built-in templates`);
     }
 
     /**
@@ -96,7 +96,7 @@ export class TemplateManager {
 
     /**
      * Get a specific template by ID
-     * @param {string} templateId - Template ID (e.g., 'halves')
+     * @param {string} templateId - Template ID (e.g., 'split')
      * @returns {Object|null} Template object or null if not found
      */
     getTemplate(templateId) {

@@ -226,7 +226,7 @@ Examples:
         "zoneIndex": 0
     },
     "DP-1:1": {
-        "layoutId": "halves",
+        "layoutId": "split",
         "zoneIndex": 1
     },
     "eDP-1:0": {
@@ -433,7 +433,7 @@ Custom layouts are stored in user config and can be freely edited.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `current-layout-id` | string | "halves" | Active layout ID |
+| `current-layout-id` | string | "split" | Active layout ID |
 | `current-zone-index` | int | 0 | Active zone (0-based) |
 | `last-selected-layout` | string | "" | Fallback layout |
 | `show-notifications` | bool | true | Show zone change OSD |

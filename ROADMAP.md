@@ -6,7 +6,7 @@
 ## v1.0 Release
 
 ### Remaining Work
-- [ ] Revisit default layout templates (current set was placeholder)
+- No major feature work remaining
 
 **Code Quality:**
 - [ ] Final testing pass on X11 and Wayland

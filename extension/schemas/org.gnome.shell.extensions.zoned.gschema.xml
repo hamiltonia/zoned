@@ -3,8 +3,18 @@
   <schema id="org.gnome.shell.extensions.zoned" path="/org/gnome/shell/extensions/zoned/">
     
     <!-- State persistence -->
+    <key name="templates-version" type="i">
+      <default>0</default>
+      <summary>Installed templates version</summary>
+      <description>
+        Tracks the version of built-in templates installed to user config.
+        When extension ships newer templates (higher version), they are
+        automatically migrated while preserving user custom layouts.
+      </description>
+    </key>
+    
     <key name="current-layout-id" type="s">
-      <default>"halves"</default>
+      <default>"split"</default>
       <summary>Current active layout ID</summary>
       <description>
         The ID of the currently active window layout layout.
@@ -155,7 +165,7 @@
     </key>
     
     <key name="last-selected-layout" type="s">
-      <default>"halves"</default>
+      <default>"split"</default>
       <summary>Most recently selected layout</summary>
       <description>
         Used as default for unconfigured spaces when per-space mode enabled.

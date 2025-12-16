@@ -1772,9 +1772,10 @@ export default class ZonedPreferences extends ExtensionPreferences {
             if (ctrlPressed && shiftPressed && isDKey) {
                 const isCurrentlyRevealed = settings.get_boolean('developer-mode-revealed');
                 if (isCurrentlyRevealed) {
-                    // Hide developer section and reset debug visualizations
+                    // Hide developer section and reset all debug settings
                     // This prevents users from accidentally leaving debug features on
                     log('Developer mode hidden via Ctrl+Shift+D');
+                    settings.reset('debug-logging');
                     settings.reset('debug-layout-rects');
                     settings.reset('debug-layout-overlay');
                     settings.set_boolean('developer-mode-revealed', false);
