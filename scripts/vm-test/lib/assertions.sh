@@ -13,6 +13,70 @@ TEST_START_TIME=""
 TEST_START_MEM=0
 TEST_RESULTS_FILE="${TEST_RESULTS_FILE:-/tmp/zoned-test-results.txt}"
 
+# Memory thresholds (in KB)
+# WARN if memory grows more than this during a single test
+MEM_WARN_THRESHOLD_KB=${MEM_WARN_THRESHOLD_KB:-5120}   # 5 MB
+# FAIL if memory grows more than this during a single test
+MEM_FAIL_THRESHOLD_KB=${MEM_FAIL_THRESHOLD_KB:-20480}  # 20 MB
+
+# Assert memory growth is within acceptable bounds
+# Usage: assert_memory_growth $mem_diff_kb "context"
+# Returns: 0=ok, 1=warn, 2=fail
+assert_memory_growth() {
+    local mem_diff=$1
+    local context=${2:-"Memory check"}
+    
+    # Skip check if memory tracking unavailable
+    if [ "$TEST_START_MEM" -eq 0 ]; then
+        return 0
+    fi
+    
+    # Convert to absolute value for comparison
+    local abs_diff=$mem_diff
+    [ $abs_diff -lt 0 ] && abs_diff=$((-abs_diff))
+    
+    # Only check positive growth (memory increase)
+    if [ "$mem_diff" -gt "$MEM_FAIL_THRESHOLD_KB" ]; then
+        local mb=$((mem_diff / 1024))
+        fail "$context: Memory grew by ${mb}MB (${mem_diff}KB) - exceeds fail threshold (${MEM_FAIL_THRESHOLD_KB}KB)"
+        return 2
+    elif [ "$mem_diff" -gt "$MEM_WARN_THRESHOLD_KB" ]; then
+        local mb=$((mem_diff / 1024))
+        warn "$context: Memory grew by ${mb}MB (${mem_diff}KB) - exceeds warn threshold (${MEM_WARN_THRESHOLD_KB}KB)"
+        return 1
+    fi
+    
+    return 0
+}
+
+# Format memory value with color based on thresholds
+# Usage: format_memory_colored $mem_diff_kb
+# Returns colored string suitable for printf
+format_memory_colored() {
+    local mem=$1
+    local mem_str
+    
+    # Format the base string
+    if [ "$mem" -gt 0 ]; then
+        mem_str="+${mem}KB"
+    elif [ "$mem" -lt 0 ]; then
+        mem_str="${mem}KB"
+    else
+        mem_str="0KB"
+    fi
+    
+    # Color based on threshold (only for growth)
+    if [ "$mem" -gt "$MEM_FAIL_THRESHOLD_KB" ]; then
+        echo -e "${RED:-\033[0;31m}${mem_str}${NC:-\033[0m}"
+    elif [ "$mem" -gt "$MEM_WARN_THRESHOLD_KB" ]; then
+        echo -e "${YELLOW:-\033[1;33m}${mem_str}${NC:-\033[0m}"
+    elif [ "$mem" -le 0 ]; then
+        echo -e "${GREEN:-\033[0;32m}${mem_str}${NC:-\033[0m}"
+    else
+        echo "$mem_str"
+    fi
+}
+
 # Initialize test timing
 init_test() {
     local name=$1
@@ -206,6 +270,7 @@ sleep_ms() {
 print_summary() {
     local status="PASS"
     local exit_code=0
+    local mem_status=""
     
     # Calculate timing
     local end_time=$(date +%s)
@@ -217,8 +282,23 @@ print_summary() {
     # Calculate memory change
     local end_mem=$(get_gnome_shell_memory)
     local mem_diff=0
-    if [ "$TEST_START_MEM" -gt 0 ]; then
+    if [ "$TEST_START_MEM" -gt 0 ] && [ "$end_mem" -gt 0 ]; then
         mem_diff=$((end_mem - TEST_START_MEM))
+    fi
+    
+    # Check memory thresholds (only for positive growth)
+    if [ "$TEST_START_MEM" -gt 0 ] && [ "$mem_diff" -gt 0 ]; then
+        if [ "$mem_diff" -gt "$MEM_FAIL_THRESHOLD_KB" ]; then
+            local mb=$((mem_diff / 1024))
+            echo -e "${RED:-\033[0;31m}⚠ MEMORY LEAK: +${mb}MB exceeds fail threshold${NC:-\033[0m}"
+            mem_status="MEM_FAIL"
+            FAIL_COUNT=$((FAIL_COUNT + 1))
+        elif [ "$mem_diff" -gt "$MEM_WARN_THRESHOLD_KB" ]; then
+            local mb=$((mem_diff / 1024))
+            echo -e "${YELLOW:-\033[1;33m}⚠ MEMORY WARNING: +${mb}MB exceeds warn threshold${NC:-\033[0m}"
+            mem_status="MEM_WARN"
+            WARN_COUNT=$((WARN_COUNT + 1))
+        fi
     fi
     
     echo ""
@@ -228,6 +308,10 @@ print_summary() {
     echo "  Passed:   $PASS_COUNT"
     echo "  Failed:   $FAIL_COUNT"
     echo "  Warnings: $WARN_COUNT"
+    if [ "$TEST_START_MEM" -gt 0 ]; then
+        local mem_str=$(format_memory_colored $mem_diff)
+        echo -e "  Memory:   $mem_str"
+    fi
     echo "========================================"
     
     if [ "$FAIL_COUNT" -gt 0 ]; then
@@ -240,8 +324,8 @@ print_summary() {
     
     # Write result to shared file if TEST_RESULTS_FILE is set and non-empty
     if [ -n "$TEST_RESULTS_FILE" ]; then
-        # Format: test_name|status|pass|fail|warn|mem_diff|duration
-        echo "${TEST_NAME}|${status}|${PASS_COUNT}|${FAIL_COUNT}|${WARN_COUNT}|${mem_diff}|${duration}" >> "$TEST_RESULTS_FILE"
+        # Format: test_name|status|pass|fail|warn|mem_diff|duration|mem_status
+        echo "${TEST_NAME}|${status}|${PASS_COUNT}|${FAIL_COUNT}|${WARN_COUNT}|${mem_diff}|${duration}|${mem_status}" >> "$TEST_RESULTS_FILE"
     fi
     
     return $exit_code

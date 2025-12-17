@@ -21,6 +21,10 @@ source "$SCRIPT_DIR/lib/setup.sh"
 export TEST_RESULTS_FILE="/tmp/zoned-test-results.txt"
 SUITE_START_TIME=$(date +%s)
 
+# Suite-level memory thresholds (in KB)
+SUITE_MEM_WARN_THRESHOLD_KB=${SUITE_MEM_WARN_THRESHOLD_KB:-30720}   # 30 MB
+SUITE_MEM_FAIL_THRESHOLD_KB=${SUITE_MEM_FAIL_THRESHOLD_KB:-51200}   # 50 MB
+
 # Parse arguments
 QUICK_MODE=false
 if [ "$1" == "--quick" ]; then
@@ -171,38 +175,53 @@ total_warn=0
 total_mem=0
 passed_tests=0
 skipped_tests=0
+mem_warnings=0
+mem_failures=0
 
-while IFS='|' read -r name status pass fail warn mem duration; do
+while IFS='|' read -r name status pass fail warn mem duration mem_status; do
     # Skip empty lines
     [ -z "$name" ] && continue
     
-    # Format memory change
-    if [ "$mem" -gt 0 ]; then
+    # Format memory change with color
+    if [ "$mem" -gt "$MEM_FAIL_THRESHOLD_KB" ] 2>/dev/null; then
+        mem_str="${RED}+${mem}KB${NC}"
+        ((++mem_failures))
+    elif [ "$mem" -gt "$MEM_WARN_THRESHOLD_KB" ] 2>/dev/null; then
+        mem_str="${YELLOW}+${mem}KB${NC}"
+        ((++mem_warnings))
+    elif [ "$mem" -gt 0 ] 2>/dev/null; then
         mem_str="+${mem}KB"
-    elif [ "$mem" -lt 0 ]; then
-        mem_str="${mem}KB"
+    elif [ "$mem" -lt 0 ] 2>/dev/null; then
+        mem_str="${GREEN}${mem}KB${NC}"
     else
-        mem_str="0KB"
+        mem_str="${GREEN}0KB${NC}"
     fi
     
     # Format duration
-    if [ "$duration" -gt 0 ]; then
+    if [ "$duration" -gt 0 ] 2>/dev/null; then
         dur_str="${duration}s"
     else
         dur_str="-"
     fi
     
-    # Status symbol
+    # Status symbol (consider mem_status too)
     case "$status" in
         PASS) 
-            status_str="  ✓   "
-            ((++passed_tests))
+            if [ "$mem_status" = "MEM_FAIL" ]; then
+                status_str="${RED}  ✗   ${NC}"
+            elif [ "$mem_status" = "MEM_WARN" ]; then
+                status_str="${YELLOW}  ⚠   ${NC}"
+                ((++passed_tests))
+            else
+                status_str="${GREEN}  ✓   ${NC}"
+                ((++passed_tests))
+            fi
             ;;
         FAIL) 
-            status_str="  ✗   "
+            status_str="${RED}  ✗   ${NC}"
             ;;
         SKIP) 
-            status_str=" SKIP "
+            status_str="${YELLOW} SKIP ${NC}"
             ((++skipped_tests))
             ;;
         *) 
@@ -210,7 +229,7 @@ while IFS='|' read -r name status pass fail warn mem duration; do
             ;;
     esac
     
-    printf "%-20s | %s | %4s | %4s | %4s | %8s | %6s\n" "$name" "$status_str" "$pass" "$fail" "$warn" "$mem_str" "$dur_str"
+    printf "%-20s | %b | %4s | %4s | %4s | %b | %6s\n" "$name" "$status_str" "$pass" "$fail" "$warn" "$mem_str" "$dur_str"
     
     if [ "$status" != "SKIP" ]; then
         total_pass=$((total_pass + pass))
@@ -223,30 +242,57 @@ done < "$TEST_RESULTS_FILE"
 echo ""
 printf "%-20s-|-%6s-|-%4s-|-%4s-|-%4s-|-%8s-|-%6s\n" "--------------------" "------" "----" "----" "----" "--------" "------"
 
-# Format total memory
-if [ "$total_mem" -gt 0 ]; then
+# Format total memory with color
+if [ "$total_mem" -gt "$SUITE_MEM_FAIL_THRESHOLD_KB" ]; then
+    total_mem_str="${RED}+${total_mem}KB${NC}"
+elif [ "$total_mem" -gt "$SUITE_MEM_WARN_THRESHOLD_KB" ]; then
+    total_mem_str="${YELLOW}+${total_mem}KB${NC}"
+elif [ "$total_mem" -gt 0 ]; then
     total_mem_str="+${total_mem}KB"
 elif [ "$total_mem" -lt 0 ]; then
-    total_mem_str="${total_mem}KB"
+    total_mem_str="${GREEN}${total_mem}KB${NC}"
 else
-    total_mem_str="0KB"
+    total_mem_str="${GREEN}0KB${NC}"
 fi
 
-printf "%-20s | %6s | %4s | %4s | %4s | %8s | %dm %02ds\n" "TOTALS" "" "$total_pass" "$total_fail" "$total_warn" "$total_mem_str" "$SUITE_MINS" "$SUITE_SECS"
+printf "%-20s | %6s | %4s | %4s | %4s | %b | %dm %02ds\n" "TOTALS" "" "$total_pass" "$total_fail" "$total_warn" "$total_mem_str" "$SUITE_MINS" "$SUITE_SECS"
 
 echo ""
+
+# Suite-level memory validation
+SUITE_MEM_STATUS=""
+if [ "$total_mem" -gt "$SUITE_MEM_FAIL_THRESHOLD_KB" ]; then
+    mb=$((total_mem / 1024))
+    echo -e "${RED}⚠ SUITE MEMORY LEAK: Total memory grew by ${mb}MB - exceeds fail threshold (${SUITE_MEM_FAIL_THRESHOLD_KB}KB)${NC}"
+    SUITE_MEM_STATUS="FAIL"
+    ((++FAILED_TESTS))
+elif [ "$total_mem" -gt "$SUITE_MEM_WARN_THRESHOLD_KB" ]; then
+    mb=$((total_mem / 1024))
+    echo -e "${YELLOW}⚠ SUITE MEMORY WARNING: Total memory grew by ${mb}MB - exceeds warn threshold (${SUITE_MEM_WARN_THRESHOLD_KB}KB)${NC}"
+    SUITE_MEM_STATUS="WARN"
+fi
+
 echo "========================================"
 
 # Count total tests from results file
 total_tests=$(wc -l < "$TEST_RESULTS_FILE" 2>/dev/null || echo "0")
 total_tests=${total_tests:-0}
 
+# Build summary message
+summary_parts=""
+if [ "$mem_failures" -gt 0 ]; then
+    summary_parts="${summary_parts}, ${RED}${mem_failures} memory fail${NC}"
+fi
+if [ "$mem_warnings" -gt 0 ]; then
+    summary_parts="${summary_parts}, ${YELLOW}${mem_warnings} memory warn${NC}"
+fi
+
 if [ "$FAILED_TESTS" -gt 0 ]; then
-    echo -e "${RED}  $total_tests tests: $passed_tests passed, $FAILED_TESTS failed, $skipped_tests skipped${NC}"
+    echo -e "${RED}  $total_tests tests: $passed_tests passed, $FAILED_TESTS failed, $skipped_tests skipped${summary_parts}${NC}"
     echo "========================================"
     exit 1
 else
-    echo -e "${GREEN}  $total_tests tests: $passed_tests passed, 0 failed, $skipped_tests skipped${NC}"
+    echo -e "${GREEN}  $total_tests tests: $passed_tests passed, 0 failed, $skipped_tests skipped${summary_parts}${NC}"
     echo "========================================"
     exit 0
 fi
