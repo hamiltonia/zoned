@@ -16,13 +16,15 @@
  */
 
 import GLib from 'gi://GLib';
-import Gio from 'gi://Gio';
+import {createLogger} from './debug.js';
+
+const logger = createLogger('ResourceTracker');
 
 // Global tracking state
 let _trackingEnabled = false;
 let _settings = null;
 let _settingsChangedId = null;
-let _allTrackers = new Set();
+const _allTrackers = new Set();
 
 /**
  * Initialize resource tracking from GSettings
@@ -41,11 +43,11 @@ export function initResourceTracking(settings) {
     }
     _settingsChangedId = _settings.connect('changed::debug-track-resources', () => {
         _trackingEnabled = _settings.get_boolean('debug-track-resources');
-        console.log(`[Zoned:ResourceTracker] Resource tracking ${_trackingEnabled ? 'enabled' : 'disabled'}`);
+        logger.info(`Resource tracking ${_trackingEnabled ? 'enabled' : 'disabled'}`);
     });
 
     if (_trackingEnabled) {
-        console.log('[Zoned:ResourceTracker] Resource tracking enabled');
+        logger.info('Resource tracking enabled');
     }
 }
 
@@ -196,9 +198,9 @@ export class ResourceTracker {
 
         if (_trackingEnabled) {
             // Find and remove the signal info
-            for (const [key, info] of this._signals) {
+            for (const [_key, info] of this._signals) {
                 if (info.signalId === signalId) {
-                    this._signals.delete(key);
+                    this._signals.delete(info.key);
                     break;
                 }
             }
@@ -209,7 +211,7 @@ export class ResourceTracker {
      * Disconnect all tracked signals
      */
     disconnectAllSignals() {
-        for (const [key, info] of this._signals) {
+        for (const [_key, info] of this._signals) {
             const objectRef = info.object.deref();
             if (objectRef) {
                 try {
@@ -391,7 +393,7 @@ export class ResourceTracker {
         const warnings = [];
 
         // Check for leaked signals
-        for (const [key, info] of this._signals) {
+        for (const [_key, info] of this._signals) {
             const objectRef = info.object.deref();
             if (objectRef) {
                 leakedSignals.push({
@@ -403,9 +405,9 @@ export class ResourceTracker {
         }
 
         // Check for leaked timers
-        for (const [sourceId, info] of this._timers) {
+        for (const [_sourceId, info] of this._timers) {
             leakedTimers.push({
-                sourceId,
+                sourceId: info.sourceId,
                 type: info.type,
                 addedAt: info.addedAt,
             });
@@ -467,7 +469,7 @@ export class ResourceTracker {
             return;
 
         const report = this.getReport();
-        console.log(`${this._prefix} State:`, JSON.stringify(report, null, 2));
+        logger.debug(`${this._componentName} State: ${JSON.stringify(report, null, 2)}`);
     }
 
     /**
@@ -479,24 +481,24 @@ export class ResourceTracker {
             const report = this.getReport();
 
             if (report.warnings.length > 0) {
-                console.warn(`${this._prefix} Resource warnings during destroy:`);
+                logger.warn(`${this._componentName} Resource warnings during destroy:`);
                 for (const warning of report.warnings) {
-                    console.warn(`  - ${warning}`);
+                    logger.warn(`  - ${warning}`);
                 }
 
                 // Log details for leaked signals
                 if (report.signals.leaked.length > 0) {
-                    console.warn(`${this._prefix} Leaked signals:`);
+                    logger.warn(`${this._componentName} Leaked signals:`);
                     for (const sig of report.signals.leaked) {
-                        console.warn(`    ${sig.objectType}.${sig.signalName} (connected at ${sig.connectedAt})`);
+                        logger.warn(`    ${sig.objectType}.${sig.signalName} (connected at ${sig.connectedAt})`);
                     }
                 }
 
                 // Log details for leaked timers
                 if (report.timers.leaked.length > 0) {
-                    console.warn(`${this._prefix} Leaked timers:`);
+                    logger.warn(`${this._componentName} Leaked timers:`);
                     for (const timer of report.timers.leaked) {
-                        console.warn(`    ${timer.type} source ${timer.sourceId} (added at ${timer.addedAt})`);
+                        logger.warn(`    ${timer.type} source ${timer.sourceId} (added at ${timer.addedAt})`);
                     }
                 }
             }
