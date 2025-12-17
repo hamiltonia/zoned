@@ -2,6 +2,8 @@
 
 Automated stability tests for the Zoned GNOME Shell extension. These tests run inside a VM with a desktop session and test extension lifecycle, resource leaks, and UI stability.
 
+For the reasoning behind these tests and how they work, see [docs/testing-strategy.md](../../docs/testing-strategy.md).
+
 ## Prerequisites
 
 - A VM with GNOME Shell (see [vm-setup-guide.md](../../docs/vm-setup-guide.md))
@@ -10,28 +12,63 @@ Automated stability tests for the Zoned GNOME Shell extension. These tests run i
 
 ## Running Tests
 
-### From Host (via SSH)
+### From Host (via Makefile)
 
 ```bash
-# Run full stability test suite
+# Full stability test suite
 make vm-stability-test
 
-# Run quick subset (10 cycles instead of 50)
+# Quick mode (reduced iterations)
 make vm-quick-test
+
+# Long-haul soak test (extended duration)
+make vm-long-haul DURATION=1h
 ```
 
 ### Inside VM
 
 ```bash
-# Run all tests
+# Full stability mode
 ./scripts/vm-test/run-all.sh
 
 # Quick mode
 ./scripts/vm-test/run-all.sh --quick
 
-# Run individual tests
-./scripts/vm-test/test-enable-disable.sh 50 500
+# Long-haul mode
+./scripts/vm-test/run-all.sh --long-haul 8h
 ```
+
+## Test Modes
+
+### Stability Mode (default)
+
+Full verification with substantial iterations per test. Use before releases or after significant changes.
+
+### Quick Mode (`--quick`)
+
+Reduced iterations for fast sanity checks during development.
+
+### Long-Haul Mode (`--long-haul DURATION`)
+
+Extended soak testing that cycles through all 9 tests repeatedly for the specified duration (e.g., `8h`, `30m`, `1h30m`).
+
+**Features:**
+- Per-test memory delta tracking to identify consistent leakers
+- Statistical analysis (min/max/avg/stddev) to distinguish GC noise from real leaks
+- Safety limits with automatic shutdown if memory exceeds thresholds
+- CSV export to `results/` directory for external analysis
+- Graceful abort with Ctrl+C (prints results gathered so far)
+
+**Output interpretation:**
+- `OK` — Memory oscillates around zero (healthy)
+- `WARN` — High average growth but some negative deltas (investigate)
+- `LEAK` — Always positive delta, never shrinks (likely a real leak)
+
+**Exit codes:**
+- `0` — No leaks detected
+- `1` — Leaks detected (test ran successfully, found issues)
+- `2` — Safety bailout (memory exceeded limits)
+- `130` — Interrupted by Ctrl+C
 
 ## Test Suites
 
@@ -44,14 +81,6 @@ Tests extension lifecycle stability by enabling and disabling the extension repe
 - Resource cleanup during disable
 - Memory leak detection
 
-**Arguments:**
-- `cycles` - Number of enable/disable cycles (default: 50)
-- `delay_ms` - Delay between operations in ms (default: 500)
-
-**Pass criteria:**
-- No resource leaks detected
-- Memory growth < 10MB after all cycles
-
 ### 2. UI Stress Test (`test-ui-stress.sh`)
 
 Rapidly opens and closes UI components (LayoutSwitcher, ZoneOverlay) to test for memory leaks.
@@ -60,13 +89,6 @@ Rapidly opens and closes UI components (LayoutSwitcher, ZoneOverlay) to test for
 - LayoutSwitcher show/hide cycles
 - ZoneOverlay show/hide cycles
 - UI component cleanup
-
-**Arguments:**
-- `iterations` - Number of open/close cycles per component (default: 50)
-
-**Pass criteria:**
-- No resource leaks after cycling
-- Minimal memory growth
 
 ### 3. Zone Cycling (`test-zone-cycling.sh`)
 
@@ -77,14 +99,6 @@ Tests zone cycling operations for state consistency and stability.
 - State consistency (zone index stays valid)
 - Layout state preservation
 
-**Arguments:**
-- `cycles` - Number of zone cycle operations (default: 500)
-
-**Pass criteria:**
-- Zone index always valid (0 to zoneCount-1)
-- Layout unchanged during zone cycling
-- No resource leaks
-
 ### 4. Layout Switching (`test-layout-switching.sh`)
 
 Cycles through all available layouts to test layout switching stability.
@@ -93,14 +107,6 @@ Cycles through all available layouts to test layout switching stability.
 - Layout switching between all layouts
 - Zone index reset on layout change
 - State consistency
-
-**Arguments:**
-- `cycles` - Number of full layout rotation cycles (default: 10)
-
-**Pass criteria:**
-- All layouts switch successfully
-- No resource leaks
-- Valid zone state after each switch
 
 ### 5. Combined Stress (`test-combined-stress.sh`)
 
@@ -111,14 +117,6 @@ Interleaves multiple operations (layout switching, zone cycling, UI components) 
 - Race conditions between different features
 - Memory stability under mixed workload
 
-**Arguments:**
-- `iterations` - Number of combined operation cycles (default: 100)
-
-**Pass criteria:**
-- State remains consistent throughout
-- No resource leaks
-- Memory growth < 10MB
-
 ### 6. Multi-Monitor (`test-multi-monitor.sh`)
 
 Tests layout switching and zone cycling across multiple monitors. **Gracefully skips with success if only one monitor is available.**
@@ -126,14 +124,6 @@ Tests layout switching and zone cycling across multiple monitors. **Gracefully s
 **What it tests:**
 - Multi-monitor layout handling
 - UI component placement on correct monitor
-- State consistency across monitors
-
-**Arguments:**
-- `iterations` - Number of test cycles per monitor (default: 25)
-
-**Pass criteria:**
-- Skips successfully on single-monitor (exit 0)
-- No resource leaks on multi-monitor
 - State consistency across monitors
 
 ### 7. Window Movement (`test-window-movement.sh`)
@@ -145,16 +135,8 @@ Tests actual window movement to zones using a GTK4 test window with D-Bus self-r
 - Geometry verification after moves
 - Resource cleanup with real windows
 
-**Arguments:**
-- `cycles` - Number of zone cycle + move operations (default: 50)
-
 **Requirements:**
 - python3 with GTK4 (for test window)
-
-**Pass criteria:**
-- Window position within 50px tolerance of zone coordinates
-- Movement accuracy > 90%
-- No resource leaks
 
 ### 8. Edge Cases (`test-edge-cases.sh`)
 
@@ -167,17 +149,6 @@ Tests boundary conditions and error handling for robustness.
 - Actions without focused window
 - Double show/hide operations
 - Invalid D-Bus parameters
-- Extreme direction values
-- Concurrent-like rapid operations
-
-**Arguments:**
-- None (runs predefined edge case scenarios)
-
-**Pass criteria:**
-- Extension handles all edge cases without crashing
-- Invalid inputs rejected gracefully
-- Zone index always stays valid
-- No resource leaks
 
 ### 9. Workspace Tests (`test-workspace.sh`)
 
@@ -187,19 +158,7 @@ Tests per-workspace layout functionality and workspace switching.
 - Per-workspace mode enable/disable toggle
 - Independent layouts per workspace
 - Layout state preservation across workspace switches
-- Spatial state query via D-Bus
 - Rapid workspace cycling
-- Invalid workspace index handling
-
-**Arguments:**
-- None (runs predefined workspace scenarios)
-
-**Pass criteria:**
-- Per-workspace mode toggles correctly
-- Each workspace can maintain independent layout
-- State preserved when switching back to workspace
-- Invalid workspace indices rejected gracefully
-- No resource leaks
 
 ## Debug Features
 
@@ -217,21 +176,11 @@ These are automatically enabled by `run-all.sh`.
 
 ## D-Bus Interface
 
-When `debug-expose-dbus` is enabled, the extension exposes a D-Bus interface:
+When `debug-expose-dbus` is enabled, the extension exposes a D-Bus interface for test automation.
 
 **Service:** `org.gnome.Shell`  
 **Path:** `/org/gnome/Shell/Extensions/Zoned/Debug`  
 **Interface:** `org.gnome.Shell.Extensions.Zoned.Debug`
-
-### Methods
-
-| Method | Description |
-|--------|-------------|
-| `GetState()` | Get current extension state |
-| `GetResourceReport()` | Get resource tracking report |
-| `TriggerAction(action, params)` | Trigger an extension action |
-| `ResetResourceTracking()` | Reset tracking counters |
-| `Ping()` | Health check |
 
 ### Example
 
@@ -269,42 +218,8 @@ scripts/vm-test/
     └── test-window.py       # GTK4 test window with D-Bus
 ```
 
-## Adding New Tests
-
-1. Create a new test script in `scripts/vm-test/`
-2. Source the setup library: `source "$SCRIPT_DIR/lib/setup.sh"`
-3. Use helper functions from `dbus-helpers.sh` and `assertions.sh`
-4. Add to `run-all.sh`
-
-### Example Test Template
-
-```bash
-#!/bin/bash
-set -e
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/lib/setup.sh"
-
-echo "Running my test..."
-
-# Your test logic here
-ensure_dbus_available
-
-for i in $(seq 1 10); do
-    dbus_trigger "switch-layout" '{"layoutId": "halves"}'
-    sleep_ms 100
-    progress $i 10
-done
-
-report=$(dbus_get_resource_report)
-assert_no_leaks "$report" "My test"
-
-pass "My test completed"
-print_summary
-```
-
 ## See Also
 
-- [stability-testing-spec.md](../../docs/stability-testing-spec.md) - Full testing specification
-- [vm-setup-guide.md](../../docs/vm-setup-guide.md) - VM development setup
-- [DEVELOPMENT.md](../../DEVELOPMENT.md) - Development workflow
+- [testing-strategy.md](../../docs/testing-strategy.md) — Why and how these tests work
+- [vm-setup-guide.md](../../docs/vm-setup-guide.md) — VM development setup
+- [DEVELOPMENT.md](../../DEVELOPMENT.md) — Development workflow

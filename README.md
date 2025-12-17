@@ -97,6 +97,7 @@ Create your own layouts using the **Layout Switcher** and **Zone Editor**:
 | [docs/technical-specs.md](docs/technical-specs.md) | Data structures, edge layouts |
 | [docs/coding-patterns.md](docs/coding-patterns.md) | Code style guide |
 | [docs/vm-setup-guide.md](docs/vm-setup-guide.md) | VM development environment setup |
+| [docs/testing-strategy.md](docs/testing-strategy.md) | Testing strategy and VM test infrastructure |
 | [ROADMAP.md](ROADMAP.md) | Planned features and project direction |
 | [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
 
