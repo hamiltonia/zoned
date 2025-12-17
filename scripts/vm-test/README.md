@@ -35,7 +35,7 @@ make vm-quick-test
 
 ## Test Suites
 
-### Enable/Disable Cycle (`test-enable-disable.sh`)
+### 1. Enable/Disable Cycle (`test-enable-disable.sh`)
 
 Tests extension lifecycle stability by enabling and disabling the extension repeatedly.
 
@@ -51,6 +51,90 @@ Tests extension lifecycle stability by enabling and disabling the extension repe
 **Pass criteria:**
 - No resource leaks detected
 - Memory growth < 10MB after all cycles
+
+### 2. UI Stress Test (`test-ui-stress.sh`)
+
+Rapidly opens and closes UI components (LayoutSwitcher, ZoneOverlay) to test for memory leaks.
+
+**What it tests:**
+- LayoutSwitcher show/hide cycles
+- ZoneOverlay show/hide cycles
+- UI component cleanup
+
+**Arguments:**
+- `iterations` - Number of open/close cycles per component (default: 50)
+
+**Pass criteria:**
+- No resource leaks after cycling
+- Minimal memory growth
+
+### 3. Zone Cycling (`test-zone-cycling.sh`)
+
+Tests zone cycling operations for state consistency and stability.
+
+**What it tests:**
+- Rapid zone cycling in both directions
+- State consistency (zone index stays valid)
+- Layout state preservation
+
+**Arguments:**
+- `cycles` - Number of zone cycle operations (default: 500)
+
+**Pass criteria:**
+- Zone index always valid (0 to zoneCount-1)
+- Layout unchanged during zone cycling
+- No resource leaks
+
+### 4. Layout Switching (`test-layout-switching.sh`)
+
+Cycles through all available layouts to test layout switching stability.
+
+**What it tests:**
+- Layout switching between all layouts
+- Zone index reset on layout change
+- State consistency
+
+**Arguments:**
+- `cycles` - Number of full layout rotation cycles (default: 10)
+
+**Pass criteria:**
+- All layouts switch successfully
+- No resource leaks
+- Valid zone state after each switch
+
+### 5. Combined Stress (`test-combined-stress.sh`)
+
+Interleaves multiple operations (layout switching, zone cycling, UI components) to simulate realistic usage patterns and test for race conditions.
+
+**What it tests:**
+- Concurrent operations stress
+- Race conditions between different features
+- Memory stability under mixed workload
+
+**Arguments:**
+- `iterations` - Number of combined operation cycles (default: 100)
+
+**Pass criteria:**
+- State remains consistent throughout
+- No resource leaks
+- Memory growth < 10MB
+
+### 6. Multi-Monitor (`test-multi-monitor.sh`)
+
+Tests layout switching and zone cycling across multiple monitors. **Gracefully skips with success if only one monitor is available.**
+
+**What it tests:**
+- Multi-monitor layout handling
+- UI component placement on correct monitor
+- State consistency across monitors
+
+**Arguments:**
+- `iterations` - Number of test cycles per monitor (default: 25)
+
+**Pass criteria:**
+- Skips successfully on single-monitor (exit 0)
+- No resource leaks on multi-monitor
+- State consistency across monitors
 
 ## Debug Features
 
@@ -102,13 +186,18 @@ gdbus call -e -d org.gnome.Shell \
 
 ```
 scripts/vm-test/
-├── README.md              # This file
-├── run-all.sh             # Run complete test suite
-├── test-enable-disable.sh # Extension lifecycle test
+├── README.md                # This file
+├── run-all.sh               # Run complete test suite
+├── test-enable-disable.sh   # Extension lifecycle test
+├── test-ui-stress.sh        # UI component stress test
+├── test-zone-cycling.sh     # Zone cycling test
+├── test-layout-switching.sh # Layout switching test
+├── test-combined-stress.sh  # Combined operations stress test
+├── test-multi-monitor.sh    # Multi-monitor test
 └── lib/
-    ├── setup.sh           # Test setup and prerequisites
-    ├── dbus-helpers.sh    # D-Bus interaction utilities
-    └── assertions.sh      # Test assertion functions
+    ├── setup.sh             # Test setup and prerequisites
+    ├── dbus-helpers.sh      # D-Bus interaction utilities
+    └── assertions.sh        # Test assertion functions
 ```
 
 ## Adding New Tests

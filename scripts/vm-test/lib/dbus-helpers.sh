@@ -214,3 +214,36 @@ compare_snapshots() {
     
     echo "$signal_diff $timer_diff"
 }
+
+# =============================================================================
+# Monitor Detection
+# =============================================================================
+
+# Get monitor count from extension via D-Bus
+# Returns: number of monitors (integer)
+get_monitor_count() {
+    local result
+    result=$(dbus_trigger "get-monitor-count" "{}" 2>/dev/null)
+    
+    # Parse the JSON response to extract count
+    if [ -n "$result" ] && echo "$result" | grep -q "true"; then
+        # Extract the JSON string from the D-Bus response
+        local json_str
+        json_str=$(echo "$result" | grep -oP '"\{[^}]+\}"' | tr -d '"' | sed 's/\\"/"/g')
+        if [ -n "$json_str" ]; then
+            echo "$json_str" | grep -oP '"count":\s*\K[0-9]+' || echo "1"
+        else
+            echo "1"
+        fi
+    else
+        echo "1"
+    fi
+}
+
+# Check if multi-monitor setup is available
+# Returns: 0 if multi-monitor, 1 if single monitor
+is_multi_monitor() {
+    local count
+    count=$(get_monitor_count)
+    [ "$count" -gt 1 ]
+}

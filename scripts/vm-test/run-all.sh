@@ -30,11 +30,15 @@ if [ "$QUICK_MODE" = true ]; then
     UI_STRESS_ITERATIONS=20
     ZONE_CYCLING_ITERATIONS=100
     LAYOUT_SWITCH_CYCLES=3
+    COMBINED_STRESS_ITERATIONS=25
+    MULTI_MONITOR_ITERATIONS=10
 else
     ENABLE_DISABLE_CYCLES=50
     UI_STRESS_ITERATIONS=50
     ZONE_CYCLING_ITERATIONS=500
     LAYOUT_SWITCH_CYCLES=10
+    COMBINED_STRESS_ITERATIONS=100
+    MULTI_MONITOR_ITERATIONS=25
 fi
 
 echo "========================================"
@@ -98,6 +102,18 @@ echo "========================================"
 echo "  Test 4: Layout Switching"
 echo "========================================"
 "$SCRIPT_DIR/test-layout-switching.sh" "$LAYOUT_SWITCH_CYCLES"
+
+echo ""
+echo "========================================"
+echo "  Test 5: Combined Stress"
+echo "========================================"
+"$SCRIPT_DIR/test-combined-stress.sh" "$COMBINED_STRESS_ITERATIONS"
+
+echo ""
+echo "========================================"
+echo "  Test 6: Multi-Monitor"
+echo "========================================"
+"$SCRIPT_DIR/test-multi-monitor.sh" "$MULTI_MONITOR_ITERATIONS"
 
 # Disable debug features
 echo ""

@@ -15,6 +15,7 @@
 
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from './debug.js';
 import {
     getAggregatedReport,
@@ -71,6 +72,7 @@ const ACTION_HANDLERS = {
     'show-zone-overlay': handleShowZoneOverlay,
     'hide-zone-overlay': handleHideZoneOverlay,
     'get-layout-ids': handleGetLayoutIds,
+    'get-monitor-count': handleGetMonitorCount,
 };
 
 function handleCycleZone(extension, params) {
@@ -122,6 +124,11 @@ function handleHideZoneOverlay(extension) {
 function handleGetLayoutIds(extension) {
     const layouts = extension._layoutManager?.getAllLayouts() || [];
     return [true, JSON.stringify(layouts.map(l => l.id))];
+}
+
+function handleGetMonitorCount(_extension) {
+    const monitorCount = Main.layoutManager.monitors?.length ?? 1;
+    return [true, JSON.stringify({count: monitorCount})];
 }
 
 /**
