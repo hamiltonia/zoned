@@ -95,9 +95,9 @@ for i in $(seq 1 $ITERATIONS); do
         sleep_ms 30
     done
     
-    # Cycle zones
+    # Cycle zones - state only, no window movement
     for z in 1 2 3; do
-        dbus_trigger "cycle-zone" "{\"direction\": 1}" >/dev/null 2>&1
+        dbus_trigger "cycle-zone-state" "{\"direction\": 1}" >/dev/null 2>&1
         sleep_ms 20
     done
     

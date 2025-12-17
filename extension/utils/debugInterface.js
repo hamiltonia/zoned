@@ -66,6 +66,7 @@ const DBUS_INTERFACE_XML = `
 // Action handlers map for TriggerAction
 const ACTION_HANDLERS = {
     'cycle-zone': handleCycleZone,
+    'cycle-zone-state': handleCycleZoneState,
     'switch-layout': handleSwitchLayout,
     'show-layout-switcher': handleShowLayoutSwitcher,
     'hide-layout-switcher': handleHideLayoutSwitcher,
@@ -88,6 +89,14 @@ function handleCycleZone(extension, params) {
             extension._windowManager?.moveWindowToZone(window, zone);
         }
     }
+    return [true, ''];
+}
+
+function handleCycleZoneState(extension, params) {
+    // State-only zone cycling - does NOT move any windows
+    // Used for stress testing zone state management without side effects
+    const direction = params.direction || 1;
+    extension._layoutManager?.cycleZone(direction);
     return [true, ''];
 }
 

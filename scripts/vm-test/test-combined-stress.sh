@@ -76,9 +76,9 @@ for i in $(seq 1 $ITERATIONS); do
     dbus_trigger "switch-layout" "{\"layoutId\": \"$layout_id\"}" >/dev/null 2>&1
     sleep_ms 50
     
-    # 2. Cycle through zones (3 times)
+    # 2. Cycle through zones (3 times) - state only, no window movement
     for z in 1 2 3; do
-        dbus_trigger "cycle-zone" "{\"direction\": 1}" >/dev/null 2>&1
+        dbus_trigger "cycle-zone-state" "{\"direction\": 1}" >/dev/null 2>&1
         sleep_ms 20
     done
     
@@ -94,8 +94,8 @@ for i in $(seq 1 $ITERATIONS); do
     dbus_trigger "hide-zone-overlay" "{}" >/dev/null 2>&1
     sleep_ms 30
     
-    # 5. More zone cycling
-    dbus_trigger "cycle-zone" "{\"direction\": -1}" >/dev/null 2>&1
+    # 5. More zone cycling - state only, no window movement
+    dbus_trigger "cycle-zone-state" "{\"direction\": -1}" >/dev/null 2>&1
     sleep_ms 20
     
     # Every 10 iterations, verify state consistency

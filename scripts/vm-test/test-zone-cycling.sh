@@ -59,7 +59,8 @@ for i in $(seq 1 $CYCLES); do
         direction=-1
     fi
     
-    dbus_trigger "cycle-zone" "{\"direction\": $direction}" >/dev/null 2>&1
+    # Use cycle-zone-state to test state management without moving windows
+    dbus_trigger "cycle-zone-state" "{\"direction\": $direction}" >/dev/null 2>&1
     sleep_ms 10
     
     # Every 100 cycles, verify state consistency

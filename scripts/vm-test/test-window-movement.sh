@@ -3,13 +3,14 @@
 # test-window-movement.sh - Window movement to zones test
 #
 # Tests actual window movement to zones using a test window.
-# Verifies windows are positioned correctly within zone bounds.
+# Verifies windows are positioned and sized correctly against
+# the zone definitions in each layout template.
 #
 # Usage:
-#   ./test-window-movement.sh [cycles]
+#   ./test-window-movement.sh [passes]
 #
 # Arguments:
-#   cycles - Number of zone cycle + move operations (default: 50)
+#   passes - Number of complete passes through all layouts (default: 2)
 #
 # Requirements:
 #   - D-Bus debug interface enabled
@@ -22,7 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/setup.sh"
 
 # Configuration
-CYCLES=${1:-50}
+PASSES=${1:-2}
 TEST_WINDOW_PID=""
 TEST_WINDOW_DBUS="org.zoned.TestWindow"
 TEST_WINDOW_PATH="/org/zoned/TestWindow"
@@ -31,10 +32,14 @@ TEST_WINDOW_PATH="/org/zoned/TestWindow"
 # Windows may not be exactly at zone position due to window decorations
 POSITION_TOLERANCE=50
 
+# Tolerance for size matching (pixels)
+# Windows may have decorations or constraints that affect exact sizing
+SIZE_TOLERANCE=50
+
 echo "========================================"
-echo "  Window Movement Test"
+echo "  Window Movement Test (Multi-Layout)"
 echo "========================================"
-echo "  Cycles: $CYCLES"
+echo "  Passes: $PASSES"
 echo ""
 
 cleanup_test_window() {
@@ -92,16 +97,6 @@ focus_test_window() {
     sleep 0.1
 }
 
-# Get test window geometry via its D-Bus interface
-get_test_window_geometry() {
-    local result
-    result=$(gdbus call -e -d "$TEST_WINDOW_DBUS" \
-        -o "$TEST_WINDOW_PATH" \
-        -m "${TEST_WINDOW_DBUS}.GetGeometry" 2>/dev/null)
-    # Extract JSON from result like "('{"x": 0, "y": 0, "width": 400, "height": 300}',)"
-    echo "$result" | sed "s/^('//; s/',)$//"
-}
-
 # Get focused window geometry via extension D-Bus
 get_focused_window_geometry() {
     local result
@@ -144,11 +139,8 @@ check_window_in_zone() {
     local win_y="$2"
     local zone_x="$3"
     local zone_y="$4"
-    local zone_w="$5"
-    local zone_h="$6"
     
     # Window should be near the zone's top-left corner
-    # (Zoned positions windows at zone coordinates)
     local x_diff=$((win_x - zone_x))
     local y_diff=$((win_y - zone_y))
     
@@ -163,13 +155,49 @@ check_window_in_zone() {
     fi
 }
 
+# Check if window size matches zone size (with tolerance)
+check_window_size() {
+    local win_w="$1"
+    local win_h="$2"
+    local zone_w="$3"
+    local zone_h="$4"
+    
+    # Window should be approximately the same size as the zone
+    local w_diff=$((win_w - zone_w))
+    local h_diff=$((win_h - zone_h))
+    
+    # Use absolute value
+    [ $w_diff -lt 0 ] && w_diff=$((-w_diff))
+    [ $h_diff -lt 0 ] && h_diff=$((-h_diff))
+    
+    if [ $w_diff -le $SIZE_TOLERANCE ] && [ $h_diff -le $SIZE_TOLERANCE ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Get initial state
 initial_state=$(dbus_get_state)
 initial_layout=$(extract_variant "layoutId" "$initial_state" 2>/dev/null || echo "unknown")
-zone_count=$(extract_variant "zoneCount" "$initial_state" 2>/dev/null || echo "4")
 
 info "Initial layout: $initial_layout"
-info "Zone count: $zone_count"
+
+# Get available layout IDs
+layouts_result=$(dbus_trigger "get-layout-ids" "{}" 2>/dev/null || echo "")
+# Parse layouts from result - expect format like: (true, '["layout1","layout2"...]')
+layout_ids=$(echo "$layouts_result" | grep -oP '\[.*\]' | tr -d '[]"' | tr ',' ' ')
+
+if [ -z "$layout_ids" ]; then
+    warn "Could not fetch layout IDs via D-Bus, using initial layout only"
+    layout_ids="$initial_layout"
+fi
+
+# Convert to array
+read -ra LAYOUT_IDS <<< "$layout_ids"
+layout_count=${#LAYOUT_IDS[@]}
+
+info "Available layouts: $layout_count (${LAYOUT_IDS[*]})"
 echo ""
 
 # Reset resource tracking
@@ -185,73 +213,153 @@ info "Focusing test window..."
 focus_test_window
 sleep 0.3
 
-echo "Running window movement test ($CYCLES operations)..."
-move_failures=0
-move_successes=0
+# Tracking variables
+total_position_successes=0
+total_position_failures=0
+total_size_successes=0
+total_size_failures=0
+total_zones_tested=0
 
-for i in $(seq 1 $CYCLES); do
-    # Cycle to next zone
-    dbus_trigger "cycle-zone" '{"direction": 1}' >/dev/null 2>&1 || true
-    sleep_ms 50
-    
-    # Re-focus our test window (cycling may have changed focus)
-    focus_test_window
-    sleep_ms 100
-    
-    # Get zone geometry before move
-    zone_geom=$(get_zone_geometry)
-    zone_x=$(json_value "$zone_geom" "x")
-    zone_y=$(json_value "$zone_geom" "y")
-    zone_w=$(json_value "$zone_geom" "width")
-    zone_h=$(json_value "$zone_geom" "height")
-    
-    if [ -z "$zone_x" ] || [ -z "$zone_y" ]; then
-        warn "Could not get zone geometry at cycle $i"
-        continue
-    fi
-    
-    # Move window to zone
-    move_to_zone
-    sleep_ms 200
-    
-    # Get window geometry after move (via extension's view)
-    win_geom=$(get_focused_window_geometry)
-    win_x=$(json_value "$win_geom" "x")
-    win_y=$(json_value "$win_geom" "y")
-    
-    if [ -z "$win_x" ] || [ -z "$win_y" ]; then
-        warn "Could not get window geometry at cycle $i"
-        continue
-    fi
-    
-    # Verify window is in zone
-    if check_window_in_zone "$win_x" "$win_y" "$zone_x" "$zone_y" "$zone_w" "$zone_h"; then
-        ((++move_successes))
-    else
-        ((++move_failures))
-        if [ $move_failures -le 3 ]; then
-            warn "Window not in zone at cycle $i: win=($win_x,$win_y) zone=($zone_x,$zone_y)"
-        fi
-    fi
-    
-    # Progress indicator
-    if [ $((i % 10)) -eq 0 ]; then
-        progress $i $CYCLES
-    fi
-done
+# Per-layout results (stored as "layoutId:success:total")
+declare -a layout_results
 
+echo "Testing window movement across all layouts ($PASSES passes)..."
 echo ""
 
-# Report movement accuracy
-total_moves=$((move_successes + move_failures))
-if [ $total_moves -gt 0 ]; then
-    accuracy=$((move_successes * 100 / total_moves))
-    info "Movement accuracy: $move_successes/$total_moves ($accuracy%)"
+for pass in $(seq 1 $PASSES); do
+    echo "Pass $pass/$PASSES:"
     
-    if [ $move_failures -gt $((total_moves / 10)) ]; then
-        warn "High movement failure rate: $move_failures failures"
+    for layout_id in "${LAYOUT_IDS[@]}"; do
+        # Switch to this layout
+        dbus_trigger "switch-layout" "{\"layoutId\": \"$layout_id\"}" >/dev/null 2>&1
+        sleep_ms 100
+        
+        # Get zone count for this layout
+        state=$(dbus_get_state)
+        zone_count=$(extract_variant "zoneCount" "$state" 2>/dev/null || echo "0")
+        
+        if [ "$zone_count" -eq 0 ]; then
+            warn "  $layout_id: Could not get zone count, skipping"
+            continue
+        fi
+        
+        layout_pos_success=0
+        layout_size_success=0
+        layout_tested=0
+        
+        # Test each zone in this layout
+        for zone_idx in $(seq 0 $((zone_count - 1))); do
+            # Cycle to this specific zone (reset to zone 0 first, then cycle forward)
+            # First, set to zone 0 by cycling backward enough times
+            for reset in $(seq 1 $zone_count); do
+                dbus_trigger "cycle-zone-state" '{"direction": -1}' >/dev/null 2>&1 || true
+            done
+            
+            # Now cycle forward to the target zone
+            for forward in $(seq 0 $zone_idx); do
+                if [ "$forward" -gt 0 ]; then
+                    dbus_trigger "cycle-zone-state" '{"direction": 1}' >/dev/null 2>&1 || true
+                fi
+            done
+            sleep_ms 50
+            
+            # Focus test window
+            focus_test_window
+            sleep_ms 100
+            
+            # Get zone geometry (expected from layout definition)
+            zone_geom=$(get_zone_geometry)
+            zone_x=$(json_value "$zone_geom" "x")
+            zone_y=$(json_value "$zone_geom" "y")
+            zone_w=$(json_value "$zone_geom" "width")
+            zone_h=$(json_value "$zone_geom" "height")
+            
+            if [ -z "$zone_x" ] || [ -z "$zone_y" ]; then
+                warn "  $layout_id zone $zone_idx: Could not get zone geometry"
+                continue
+            fi
+            
+            # Move window to zone
+            move_to_zone
+            sleep_ms 200
+            
+            # Get window geometry (actual)
+            win_geom=$(get_focused_window_geometry)
+            win_x=$(json_value "$win_geom" "x")
+            win_y=$(json_value "$win_geom" "y")
+            win_w=$(json_value "$win_geom" "width")
+            win_h=$(json_value "$win_geom" "height")
+            
+            if [ -z "$win_x" ] || [ -z "$win_y" ]; then
+                warn "  $layout_id zone $zone_idx: Could not get window geometry"
+                continue
+            fi
+            
+            ((++layout_tested))
+            ((++total_zones_tested))
+            
+            # Check position accuracy
+            if check_window_in_zone "$win_x" "$win_y" "$zone_x" "$zone_y"; then
+                ((++layout_pos_success))
+                ((++total_position_successes))
+            else
+                ((++total_position_failures))
+                if [ $total_position_failures -le 5 ]; then
+                    warn "  $layout_id zone $zone_idx: Position mismatch - win=($win_x,$win_y) expected=($zone_x,$zone_y)"
+                fi
+            fi
+            
+            # Check size accuracy
+            if [ -n "$win_w" ] && [ -n "$win_h" ] && [ -n "$zone_w" ] && [ -n "$zone_h" ]; then
+                if check_window_size "$win_w" "$win_h" "$zone_w" "$zone_h"; then
+                    ((++layout_size_success))
+                    ((++total_size_successes))
+                else
+                    ((++total_size_failures))
+                    if [ $total_size_failures -le 5 ]; then
+                        warn "  $layout_id zone $zone_idx: Size mismatch - win=(${win_w}x${win_h}) expected=(${zone_w}x${zone_h})"
+                    fi
+                fi
+            fi
+        done
+        
+        # Report per-layout results
+        if [ $layout_tested -gt 0 ]; then
+            echo "  $layout_id: $layout_pos_success/$layout_tested positions, $layout_size_success/$layout_tested sizes"
+        fi
+    done
+    echo ""
+done
+
+echo "========================================"
+echo "  Results Summary"
+echo "========================================"
+echo ""
+
+# Report position accuracy
+total_pos_tests=$((total_position_successes + total_position_failures))
+if [ $total_pos_tests -gt 0 ]; then
+    pos_accuracy=$((total_position_successes * 100 / total_pos_tests))
+    info "Position accuracy: $total_position_successes/$total_pos_tests ($pos_accuracy%)"
+    
+    if [ $total_position_failures -gt $((total_pos_tests / 10)) ]; then
+        warn "High position failure rate: $total_position_failures failures"
     fi
 fi
+
+# Report size accuracy
+total_size_tests=$((total_size_successes + total_size_failures))
+if [ $total_size_tests -gt 0 ]; then
+    size_accuracy=$((total_size_successes * 100 / total_size_tests))
+    info "Size accuracy: $total_size_successes/$total_size_tests ($size_accuracy%)"
+    
+    if [ $total_size_failures -gt $((total_size_tests / 10)) ]; then
+        warn "High size failure rate: $total_size_failures failures"
+    fi
+fi
+
+info "Total zones tested: $total_zones_tested across $layout_count layouts ($PASSES passes)"
+echo ""
 
 # Compare memory and resources
 final_mem=$(get_gnome_shell_memory)
@@ -260,7 +368,7 @@ mem_diff=$((final_mem - baseline_mem))
 info "Memory change: ${mem_diff}KB"
 
 if [ $mem_diff -gt 5000 ]; then
-    warn "Memory grew by ${mem_diff}KB after $CYCLES window movements"
+    warn "Memory grew by ${mem_diff}KB during window movement tests"
 fi
 
 res_diff=$(compare_snapshots "$baseline_res" "$final_res")
@@ -274,7 +382,10 @@ info "Cleaning up test window..."
 cleanup_test_window
 TEST_WINDOW_PID=""  # Prevent double cleanup
 
+# Restore initial layout
+dbus_trigger "switch-layout" "{\"layoutId\": \"$initial_layout\"}" >/dev/null 2>&1
+
 # Final leak check
-check_leaks_and_report "Window movement: $CYCLES operations, $move_successes successful moves"
+check_leaks_and_report "Window movement: $total_zones_tested zones tested across $layout_count layouts"
 
 print_summary
