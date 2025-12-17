@@ -54,6 +54,9 @@ temp/
 Thumbs.db
 .directory
 
+# Test results (long haul CSV output)
+results/
+
 # Local development
 .env
 .env.local

@@ -1,6 +1,6 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean zip \
         vm-init vm-network-setup vm-setup vm-install vm-logs vm-dev vm-restart-spice \
-        vm-stability-test vm-quick-test vm-enable-debug vm-disable-debug \
+        vm-stability-test vm-quick-test vm-long-haul vm-test-single vm-enable-debug vm-disable-debug \
         lint lint-strict lint-fix dev reinstall
 
 # Detect OS for sed compatibility
@@ -53,6 +53,7 @@ help:
 	@printf "$(COLOR_SUCCESS)Stability Testing:$(COLOR_RESET)\n"
 	@printf "  make vm-stability-test - Run full stability test suite in VM\n"
 	@printf "  make vm-quick-test     - Run quick stability tests (10 cycles)\n"
+	@printf "  make vm-long-haul DURATION=8h - Extended soak test (default 8h)\n"
 	@printf "  make vm-test-single TEST=<name> - Run single test (e.g., window-movement)\n"
 	@printf "  make vm-enable-debug   - Enable debug features in VM\n"
 	@printf "  make vm-disable-debug  - Disable debug features in VM\n"
@@ -270,6 +271,21 @@ vm-quick-test:
 		exit 1; \
 	fi
 	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh $${VM_USER}@$${VM_IP} "cd $$MOUNT_PATH && ./scripts/vm-test/run-all.sh --quick"
+
+# Default long haul duration (DURATION is alias for convenience)
+LONG_HAUL_DURATION ?= 8h
+ifdef DURATION
+    LONG_HAUL_DURATION := $(DURATION)
+endif
+
+vm-long-haul:
+	@printf "$(COLOR_INFO)Running long haul stability test in VM ($(LONG_HAUL_DURATION))...$(COLOR_RESET)\n"
+	@printf "$(COLOR_WARN)This will run for $(LONG_HAUL_DURATION) - use Ctrl+C to stop early$(COLOR_RESET)\n"
+	@if [ ! -f $(VM_CONFIG) ]; then \
+		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-init' first.$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi
+	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh $${VM_USER}@$${VM_IP} "cd $$MOUNT_PATH && ./scripts/vm-test/run-all.sh --long-haul $(LONG_HAUL_DURATION)"
 
 vm-test-single:
 	@if [ -z "$(TEST)" ]; then \
