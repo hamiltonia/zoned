@@ -70,21 +70,23 @@ check_prerequisites
 # Reload extension to ensure fresh code is loaded
 echo ""
 echo "Reloading extension for clean state..."
-gnome-extensions disable zoned@hamiltonia.dev 2>/dev/null || true
+gnome-extensions disable zoned@hamiltonia.me 2>/dev/null || true
 sleep 1
-gnome-extensions enable zoned@hamiltonia.dev 2>/dev/null || true
+gnome-extensions enable zoned@hamiltonia.me 2>/dev/null || true
 sleep 2
 echo "Extension reloaded"
 
-# Enable debug features
+# Enable debug features (after reload so dynamic listener picks them up)
 echo ""
 echo "Enabling debug features..."
 gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true 2>/dev/null || true
 gsettings set org.gnome.shell.extensions.zoned debug-track-resources true 2>/dev/null || true
 
-# Give extension time to set up D-Bus
+# Wait for D-Bus interface with retries
 echo "Waiting for debug interface to initialize..."
-sleep 3
+if ! wait_for_dbus 20; then
+    echo -e "${YELLOW}Warning: D-Bus initialization timed out${NC}"
+fi
 
 # Check if D-Bus interface is available
 if dbus_interface_available; then
@@ -145,6 +147,13 @@ echo "  Test 7: Window Movement"
 echo "========================================"
 export TEST_NAME="Window Movement"
 "$SCRIPT_DIR/test-window-movement.sh" "$WINDOW_MOVEMENT_PASSES" "$WINDOW_MOVEMENT_LAYOUTS" || ((++FAILED_TESTS))
+
+echo ""
+echo "========================================"
+echo "  Test 8: Edge Cases"
+echo "========================================"
+export TEST_NAME="Edge Cases"
+"$SCRIPT_DIR/test-edge-cases.sh" || ((++FAILED_TESTS))
 
 # Disable debug features
 echo ""

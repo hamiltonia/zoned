@@ -276,7 +276,7 @@ vm-test-single:
 		printf "$(COLOR_ERROR)Usage: make vm-test-single TEST=<test-name>$(COLOR_RESET)\n"; \
 		printf "$(COLOR_INFO)Available tests:$(COLOR_RESET)\n"; \
 		printf "  enable-disable, ui-stress, zone-cycling, layout-switching\n"; \
-		printf "  combined-stress, multi-monitor, window-movement\n"; \
+		printf "  combined-stress, multi-monitor, window-movement, edge-cases\n"; \
 		exit 1; \
 	fi
 	@printf "$(COLOR_INFO)Running single test '$(TEST)' in VM...$(COLOR_RESET)\n"
@@ -286,11 +286,21 @@ vm-test-single:
 	fi
 	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh $${VM_USER}@$${VM_IP} "\
 		cd $$MOUNT_PATH && \
-		sleep 2 && \
 		export DISPLAY=:0 && \
 		export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus && \
-		gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true 2>/dev/null || true && \
-		gsettings set org.gnome.shell.extensions.zoned debug-track-resources true 2>/dev/null || true && \
+		export GSETTINGS_SCHEMA_DIR=\$$HOME/.local/share/gnome-shell/extensions/zoned@hamiltonia.me/schemas && \
+		echo 'Enabling debug features (triggers dynamic listener)...' && \
+		gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true && \
+		gsettings set org.gnome.shell.extensions.zoned debug-track-resources true && \
+		echo 'Waiting for D-Bus interface...' && \
+		for i in \$$(seq 1 20); do \
+			if gdbus call -e -d org.gnome.Shell -o /org/gnome/Shell/Extensions/Zoned/Debug -m org.gnome.Shell.Extensions.Zoned.Debug.Ping >/dev/null 2>&1; then \
+				echo 'D-Bus interface ready'; \
+				break; \
+			fi; \
+			sleep 0.5; \
+		done && \
+		echo 'Running test...' && \
 		./scripts/vm-test/test-$(TEST).sh 15"
 
 vm-enable-debug:

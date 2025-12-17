@@ -105,6 +105,12 @@ function handleSwitchLayout(extension, params) {
     if (!layoutId) {
         return [false, 'Missing layoutId parameter'];
     }
+    // Check if layout exists before switching
+    const layouts = extension._layoutManager?.getAllLayouts() || [];
+    const layoutExists = layouts.some(l => l.id === layoutId);
+    if (!layoutExists) {
+        return [false, `Layout not found: ${layoutId}`];
+    }
     extension._layoutManager?.setLayout(layoutId);
     return [true, ''];
 }
