@@ -26,6 +26,9 @@ echo "========================================"
 echo "  Full cycles: $CYCLES"
 echo ""
 
+# Initialize test for result tracking
+init_test "${TEST_NAME:-Layout Switching}"
+
 # Check if D-Bus interface is available
 if ! dbus_interface_available; then
     echo -e "${RED}Error: D-Bus debug interface required for layout switching test${NC}"

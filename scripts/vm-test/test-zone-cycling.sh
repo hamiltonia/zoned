@@ -26,6 +26,9 @@ echo "========================================"
 echo "  Cycles: $CYCLES"
 echo ""
 
+# Initialize test for result tracking
+init_test "${TEST_NAME:-Zone Cycling}"
+
 # Check if D-Bus interface is available
 if ! dbus_interface_available; then
     echo -e "${RED}Error: D-Bus debug interface required for zone cycling test${NC}"

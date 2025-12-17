@@ -27,6 +27,9 @@ echo "========================================"
 echo "  Iterations: $ITERATIONS"
 echo ""
 
+# Initialize test for result tracking
+init_test "${TEST_NAME:-Combined Stress}"
+
 # Check if D-Bus interface is available
 if ! dbus_interface_available; then
     echo -e "${RED}Error: D-Bus debug interface required for combined stress test${NC}"

@@ -7,6 +7,28 @@ PASS_COUNT=0
 FAIL_COUNT=0
 WARN_COUNT=0
 
+# Test context for rollup reporting
+TEST_NAME="${TEST_NAME:-unknown}"
+TEST_START_TIME=""
+TEST_START_MEM=0
+TEST_RESULTS_FILE="${TEST_RESULTS_FILE:-/tmp/zoned-test-results.txt}"
+
+# Initialize test timing
+init_test() {
+    local name=$1
+    TEST_NAME="$name"
+    TEST_START_TIME=$(date +%s)
+    TEST_START_MEM=$(get_gnome_shell_memory)
+    PASS_COUNT=0
+    FAIL_COUNT=0
+    WARN_COUNT=0
+    
+    # Debug: warn if memory tracking unavailable
+    if [ "$TEST_START_MEM" -eq 0 ]; then
+        echo -e "${YELLOW:-\033[1;33m}Note: Could not get gnome-shell memory - memory tracking disabled${NC:-\033[0m}"
+    fi
+}
+
 # Print pass message
 pass() {
     echo -e "${GREEN:-\033[0;32m}✓ PASS:${NC:-\033[0m} $1"
@@ -145,12 +167,27 @@ print_resource_baseline() {
 # Get GNOME Shell memory usage in KB
 get_gnome_shell_memory() {
     local pid
-    pid=$(pgrep -f "gnome-shell" | head -1)
-    if [ -n "$pid" ]; then
-        ps -o rss= -p "$pid" | tr -d ' '
-    else
-        echo "0"
+    local mem
+    
+    # Try multiple methods to find gnome-shell PID
+    pid=$(pgrep -x "gnome-shell" 2>/dev/null | head -1)
+    if [ -z "$pid" ]; then
+        pid=$(pgrep -f "/usr/bin/gnome-shell" 2>/dev/null | head -1)
     fi
+    if [ -z "$pid" ]; then
+        pid=$(pidof gnome-shell 2>/dev/null | awk '{print $1}')
+    fi
+    
+    if [ -n "$pid" ]; then
+        mem=$(ps -o rss= -p "$pid" 2>/dev/null | tr -d ' ')
+        # Ensure we return a valid number
+        if [[ "$mem" =~ ^[0-9]+$ ]]; then
+            echo "$mem"
+            return 0
+        fi
+    fi
+    
+    echo "0"
 }
 
 # Sleep for milliseconds
@@ -165,8 +202,25 @@ sleep_ms() {
     fi
 }
 
-# Print test summary
+# Print test summary and optionally write to results file
 print_summary() {
+    local status="PASS"
+    local exit_code=0
+    
+    # Calculate timing
+    local end_time=$(date +%s)
+    local duration=0
+    if [ -n "$TEST_START_TIME" ] && [ "$TEST_START_TIME" -gt 0 ]; then
+        duration=$((end_time - TEST_START_TIME))
+    fi
+    
+    # Calculate memory change
+    local end_mem=$(get_gnome_shell_memory)
+    local mem_diff=0
+    if [ "$TEST_START_MEM" -gt 0 ]; then
+        mem_diff=$((end_mem - TEST_START_MEM))
+    fi
+    
     echo ""
     echo "========================================"
     echo "  Test Summary"
@@ -178,9 +232,31 @@ print_summary() {
     
     if [ "$FAIL_COUNT" -gt 0 ]; then
         echo -e "  ${RED:-\033[0;31m}TESTS FAILED${NC:-\033[0m}"
-        return 1
+        status="FAIL"
+        exit_code=1
     else
         echo -e "  ${GREEN:-\033[0;32m}ALL TESTS PASSED${NC:-\033[0m}"
-        return 0
     fi
+    
+    # Write result to shared file if TEST_RESULTS_FILE is set and non-empty
+    if [ -n "$TEST_RESULTS_FILE" ]; then
+        # Format: test_name|status|pass|fail|warn|mem_diff|duration
+        echo "${TEST_NAME}|${status}|${PASS_COUNT}|${FAIL_COUNT}|${WARN_COUNT}|${mem_diff}|${duration}" >> "$TEST_RESULTS_FILE"
+    fi
+    
+    return $exit_code
+}
+
+# Mark test as skipped
+skip_test() {
+    local reason=${1:-"not applicable"}
+    
+    echo -e "${YELLOW:-\033[1;33m}SKIP:${NC:-\033[0m} $reason"
+    
+    # Write skip result to shared file
+    if [ -n "$TEST_RESULTS_FILE" ]; then
+        echo "${TEST_NAME}|SKIP|0|0|0|0|0" >> "$TEST_RESULTS_FILE"
+    fi
+    
+    exit 0
 }

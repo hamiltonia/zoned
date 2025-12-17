@@ -31,6 +31,9 @@ echo "  Cycles: $CYCLES"
 echo "  Delay: ${DELAY_MS}ms"
 echo ""
 
+# Initialize test for result tracking
+init_test "${TEST_NAME:-Enable/Disable}"
+
 # Record baseline memory
 info "Recording baseline memory..."
 baseline_memory=$(get_gnome_shell_memory)

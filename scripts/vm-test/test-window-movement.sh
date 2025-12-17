@@ -7,10 +7,11 @@
 # the zone definitions in each layout template.
 #
 # Usage:
-#   ./test-window-movement.sh [passes]
+#   ./test-window-movement.sh [passes] [max_layouts]
 #
 # Arguments:
-#   passes - Number of complete passes through all layouts (default: 2)
+#   passes      - Number of complete passes through layouts (default: 2)
+#   max_layouts - Maximum number of layouts to test (default: all)
 #
 # Requirements:
 #   - D-Bus debug interface enabled
@@ -24,6 +25,7 @@ source "$SCRIPT_DIR/lib/setup.sh"
 
 # Configuration
 PASSES=${1:-2}
+MAX_LAYOUTS=${2:-0}  # 0 means all layouts
 TEST_WINDOW_PID=""
 TEST_WINDOW_DBUS="org.zoned.TestWindow"
 TEST_WINDOW_PATH="/org/zoned/TestWindow"
@@ -41,6 +43,9 @@ echo "  Window Movement Test (Multi-Layout)"
 echo "========================================"
 echo "  Passes: $PASSES"
 echo ""
+
+# Initialize test for result tracking
+init_test "${TEST_NAME:-Window Movement}"
 
 cleanup_test_window() {
     if [ -n "$TEST_WINDOW_PID" ] && kill -0 "$TEST_WINDOW_PID" 2>/dev/null; then
@@ -195,9 +200,16 @@ fi
 
 # Convert to array
 read -ra LAYOUT_IDS <<< "$layout_ids"
+
+# Apply layout limit if specified
+if [ "$MAX_LAYOUTS" -gt 0 ] && [ "${#LAYOUT_IDS[@]}" -gt "$MAX_LAYOUTS" ]; then
+    LAYOUT_IDS=("${LAYOUT_IDS[@]:0:$MAX_LAYOUTS}")
+    info "Limited to $MAX_LAYOUTS layouts for quick test"
+fi
+
 layout_count=${#LAYOUT_IDS[@]}
 
-info "Available layouts: $layout_count (${LAYOUT_IDS[*]})"
+info "Testing layouts: $layout_count (${LAYOUT_IDS[*]})"
 echo ""
 
 # Reset resource tracking

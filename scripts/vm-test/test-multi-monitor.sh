@@ -29,6 +29,9 @@ echo "  Multi-Monitor Test"
 echo "========================================"
 echo ""
 
+# Initialize test for result tracking
+init_test "${TEST_NAME:-Multi-Monitor}"
+
 # Check if D-Bus interface is available
 if ! dbus_interface_available; then
     echo -e "${RED}Error: D-Bus debug interface required for multi-monitor test${NC}"
