@@ -77,6 +77,11 @@ const ACTION_HANDLERS = {
     'move-focused-to-zone': handleMoveFocusedToZone,
     'get-focused-window-geometry': handleGetFocusedWindowGeometry,
     'get-current-zone-geometry': handleGetCurrentZoneGeometry,
+    'switch-workspace': handleSwitchWorkspace,
+    'get-workspace-info': handleGetWorkspaceInfo,
+    'move-window-to-workspace': handleMoveWindowToWorkspace,
+    'set-per-workspace-mode': handleSetPerWorkspaceMode,
+    'get-spatial-state': handleGetSpatialState,
 };
 
 function handleCycleZone(extension, params) {
@@ -191,6 +196,80 @@ function handleGetCurrentZoneGeometry(extension) {
         y: Math.round(workarea.y + zone.y * workarea.height),
         width: Math.round(zone.w * workarea.width),
         height: Math.round(zone.h * workarea.height),
+    })];
+}
+
+function handleSwitchWorkspace(_extension, params) {
+    const index = params.index;
+    if (typeof index !== 'number') {
+        return [false, 'Missing or invalid index parameter'];
+    }
+    const ws = global.workspace_manager.get_workspace_by_index(index);
+    if (!ws) {
+        return [false, `Workspace ${index} does not exist`];
+    }
+    ws.activate(global.get_current_time());
+    return [true, ''];
+}
+
+function handleGetWorkspaceInfo(_extension) {
+    const workspaceManager = global.workspace_manager;
+    const currentIndex = workspaceManager.get_active_workspace_index();
+    const count = workspaceManager.get_n_workspaces();
+    return [true, JSON.stringify({
+        current: currentIndex,
+        count: count,
+    })];
+}
+
+function handleMoveWindowToWorkspace(extension, params) {
+    const targetIndex = params.index;
+    if (typeof targetIndex !== 'number') {
+        return [false, 'Missing or invalid index parameter'];
+    }
+    const window = extension._windowManager?.getFocusedWindow();
+    if (!window) {
+        return [false, 'No focused window'];
+    }
+    window.change_workspace_by_index(targetIndex, false);
+    return [true, ''];
+}
+
+function handleSetPerWorkspaceMode(extension, params) {
+    const enabled = params.enabled;
+    if (typeof enabled !== 'boolean') {
+        return [false, 'Missing or invalid enabled parameter'];
+    }
+    const settings = extension._settings;
+    if (!settings) {
+        return [false, 'Settings not available'];
+    }
+    settings.set_boolean('use-per-workspace-layouts', enabled);
+    // Sync settings to ensure the change is persisted
+    Gio.Settings.sync();
+    return [true, ''];
+}
+
+function handleGetSpatialState(extension) {
+    const spatialManager = extension._spatialStateManager;
+    if (!spatialManager) {
+        return [false, 'SpatialStateManager not available'];
+    }
+    // Build state object from all space keys
+    const spaceKeys = spatialManager.getAllSpaceKeys();
+    const state = {};
+    for (const key of spaceKeys) {
+        state[key] = spatialManager.getState(key);
+    }
+    // Also include current space info
+    const currentKey = spatialManager.getCurrentSpaceKey();
+    const currentState = spatialManager.getState(currentKey);
+    return [true, JSON.stringify({
+        current: {
+            key: currentKey,
+            ...currentState,
+        },
+        spaces: state,
     })];
 }
 

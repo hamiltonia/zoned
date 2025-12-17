@@ -276,7 +276,7 @@ vm-test-single:
 		printf "$(COLOR_ERROR)Usage: make vm-test-single TEST=<test-name>$(COLOR_RESET)\n"; \
 		printf "$(COLOR_INFO)Available tests:$(COLOR_RESET)\n"; \
 		printf "  enable-disable, ui-stress, zone-cycling, layout-switching\n"; \
-		printf "  combined-stress, multi-monitor, window-movement, edge-cases\n"; \
+		printf "  combined-stress, multi-monitor, window-movement, edge-cases, workspace\n"; \
 		exit 1; \
 	fi
 	@printf "$(COLOR_INFO)Running single test '$(TEST)' in VM...$(COLOR_RESET)\n"

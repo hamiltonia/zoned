@@ -156,6 +156,51 @@ Tests actual window movement to zones using a GTK4 test window with D-Bus self-r
 - Movement accuracy > 90%
 - No resource leaks
 
+### 8. Edge Cases (`test-edge-cases.sh`)
+
+Tests boundary conditions and error handling for robustness.
+
+**What it tests:**
+- Invalid layout ID handling
+- Zone cycling at boundaries (wrap-around)
+- Rapid toggle operations
+- Actions without focused window
+- Double show/hide operations
+- Invalid D-Bus parameters
+- Extreme direction values
+- Concurrent-like rapid operations
+
+**Arguments:**
+- None (runs predefined edge case scenarios)
+
+**Pass criteria:**
+- Extension handles all edge cases without crashing
+- Invalid inputs rejected gracefully
+- Zone index always stays valid
+- No resource leaks
+
+### 9. Workspace Tests (`test-workspace.sh`)
+
+Tests per-workspace layout functionality and workspace switching.
+
+**What it tests:**
+- Per-workspace mode enable/disable toggle
+- Independent layouts per workspace
+- Layout state preservation across workspace switches
+- Spatial state query via D-Bus
+- Rapid workspace cycling
+- Invalid workspace index handling
+
+**Arguments:**
+- None (runs predefined workspace scenarios)
+
+**Pass criteria:**
+- Per-workspace mode toggles correctly
+- Each workspace can maintain independent layout
+- State preserved when switching back to workspace
+- Invalid workspace indices rejected gracefully
+- No resource leaks
+
 ## Debug Features
 
 The tests use two GSettings to enable debug functionality:
@@ -215,6 +260,8 @@ scripts/vm-test/
 ├── test-combined-stress.sh  # Combined operations stress test
 ├── test-multi-monitor.sh    # Multi-monitor test
 ├── test-window-movement.sh  # Window movement test
+├── test-edge-cases.sh       # Edge case and boundary tests
+├── test-workspace.sh        # Per-workspace layout tests
 └── lib/
     ├── setup.sh             # Test setup and prerequisites
     ├── dbus-helpers.sh      # D-Bus interaction utilities

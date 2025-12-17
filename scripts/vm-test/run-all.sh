@@ -155,6 +155,13 @@ echo "========================================"
 export TEST_NAME="Edge Cases"
 "$SCRIPT_DIR/test-edge-cases.sh" || ((++FAILED_TESTS))
 
+echo ""
+echo "========================================"
+echo "  Test 9: Workspace Tests"
+echo "========================================"
+export TEST_NAME="Workspace"
+"$SCRIPT_DIR/test-workspace.sh" || ((++FAILED_TESTS))
+
 # Disable debug features
 echo ""
 echo "Disabling debug features..."
