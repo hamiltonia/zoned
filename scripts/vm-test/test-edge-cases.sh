@@ -144,33 +144,43 @@ else
 fi
 
 # ==========================================
-# Test 4: Actions without focused window
+# Test 4: Window-related actions graceful handling
 # ==========================================
 echo ""
-echo "Test 4: Actions without focused window..."
+echo "Test 4: Window-related actions graceful handling..."
 
-# Try to move "no window" to zone (should handle gracefully)
-result=$(dbus_trigger "move-focused-to-zone" "{}" 2>&1) || true
-# This should either succeed silently or return false - not crash
+# NOTE: We cannot reliably test "no focused window" scenario because
+# some window is almost always focused (terminal, system monitor, etc.)
+# Calling move-focused-to-zone would move that window unexpectedly.
+#
+# Instead, we test that the D-Bus interface responds correctly to
+# get-focused-window-geometry (which is read-only and safe).
+
+# Get focused window geometry - should return data or graceful error
+result=$(dbus_trigger "get-focused-window-geometry" "{}" 2>&1) || true
 sleep_ms 50
 
-# Verify state is still valid
-state=$(dbus_get_state 2>&1) || state=""
-if [ -n "$state" ]; then
-    pass "move-focused-to-zone handled gracefully without crash"
+# The result should be either a successful JSON response or a graceful "No focused window" error
+if [[ "$result" == *'"x"'* ]] || [[ "$result" == *"No focused window"* ]] || [[ "$result" == *"false"* ]]; then
+    pass "get-focused-window-geometry returned expected response"
 else
-    fail "Extension crashed or became unresponsive"
+    warn "Unexpected response format: $result"
 fi
 
-# Get focused window geometry (may be empty/null)
-result=$(dbus_trigger "get-focused-window-geometry" "{}" 2>&1) || true
-# Should return something (even if error)
+if dbus_interface_available; then
+    pass "D-Bus interface stable after window geometry query"
+else
+    fail "Extension crashed after get-focused-window-geometry"
+fi
+
+# Test get-current-zone-geometry (also safe, read-only)
+result=$(dbus_trigger "get-current-zone-geometry" "{}" 2>&1) || true
 sleep_ms 50
 
 if dbus_interface_available; then
-    pass "get-focused-window-geometry handled gracefully"
+    pass "get-current-zone-geometry handled gracefully"
 else
-    fail "Extension crashed after get-focused-window-geometry"
+    fail "Extension crashed after get-current-zone-geometry"
 fi
 
 # ==========================================

@@ -1,7 +1,7 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean zip \
         vm-init vm-network-setup vm-setup vm-install vm-logs vm-dev vm-restart-spice \
-        vm-stability-test vm-quick-test vm-long-haul vm-test-single vm-enable-debug vm-disable-debug \
-        lint lint-strict lint-fix dev reinstall
+        vm-stability-test vm-quick-test vm-long-haul vm-test-single vm-stop-test \
+        vm-enable-debug vm-disable-debug lint lint-strict lint-fix dev reinstall
 
 # Detect OS for sed compatibility
 UNAME_S := $(shell uname -s)
@@ -56,6 +56,7 @@ help:
 	@printf "  make vm-long-haul DURATION=8h - Soak test: cycles through all tests repeatedly\n"
 	@printf "                           tracking per-test memory to identify leaks\n"
 	@printf "  make vm-test-single TEST=<name> - Run single test (e.g., window-movement)\n"
+	@printf "  make vm-stop-test      - Kill any running test processes in VM\n"
 	@printf "  make vm-enable-debug   - Enable debug features in VM\n"
 	@printf "  make vm-disable-debug  - Disable debug features in VM\n"
 	@printf "\n"
@@ -263,7 +264,7 @@ vm-stability-test:
 		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-init' first.$(COLOR_RESET)\n"; \
 		exit 1; \
 	fi
-	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh $${VM_USER}@$${VM_IP} "cd $$MOUNT_PATH && ./scripts/vm-test/run-all.sh"
+	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh -t $${VM_USER}@$${VM_IP} "cd $$MOUNT_PATH && ./scripts/vm-test/run-all.sh"
 
 vm-quick-test:
 	@printf "$(COLOR_INFO)Running quick stability tests in VM...$(COLOR_RESET)\n"
@@ -271,7 +272,7 @@ vm-quick-test:
 		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-init' first.$(COLOR_RESET)\n"; \
 		exit 1; \
 	fi
-	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh $${VM_USER}@$${VM_IP} "cd $$MOUNT_PATH && ./scripts/vm-test/run-all.sh --quick"
+	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh -t $${VM_USER}@$${VM_IP} "cd $$MOUNT_PATH && ./scripts/vm-test/run-all.sh --quick"
 
 # Default long haul duration (DURATION is alias for convenience)
 LONG_HAUL_DURATION ?= 8h
@@ -286,7 +287,7 @@ vm-long-haul:
 		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-init' first.$(COLOR_RESET)\n"; \
 		exit 1; \
 	fi
-	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh $${VM_USER}@$${VM_IP} "cd $$MOUNT_PATH && ./scripts/vm-test/run-all.sh --long-haul $(LONG_HAUL_DURATION)"
+	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh -t $${VM_USER}@$${VM_IP} "cd $$MOUNT_PATH && ./scripts/vm-test/run-all.sh --long-haul $(LONG_HAUL_DURATION)"
 
 vm-test-single:
 	@if [ -z "$(TEST)" ]; then \
@@ -301,7 +302,7 @@ vm-test-single:
 		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-init' first.$(COLOR_RESET)\n"; \
 		exit 1; \
 	fi
-	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh $${VM_USER}@$${VM_IP} "\
+	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh -t $${VM_USER}@$${VM_IP} "\
 		cd $$MOUNT_PATH && \
 		export DISPLAY=:0 && \
 		export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus && \
@@ -339,3 +340,31 @@ vm-disable-debug:
 	@. $(VM_CONFIG) && ssh $${VM_USER}@$${VM_IP} "gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus false && \
 	    gsettings set org.gnome.shell.extensions.zoned debug-track-resources false"
 	@printf "$(COLOR_SUCCESS)✓ Debug features disabled in VM$(COLOR_RESET)\n"
+
+vm-stop-test:
+	@printf "$(COLOR_INFO)Stopping any running test processes in VM...$(COLOR_RESET)\n"
+	@if [ ! -f $(VM_CONFIG) ]; then \
+		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-init' first.$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi
+	@. $(VM_CONFIG) && ssh $${VM_USER}@$${VM_IP} "\
+		echo 'Looking for test processes...'; \
+		PIDS=\"\$$(pgrep -f 'run-all.sh|test-.*\.sh' 2>/dev/null || true)\"; \
+		if [ -n \"\$$PIDS\" ]; then \
+			echo \"Killing test processes: \$$PIDS\"; \
+			kill \$$PIDS 2>/dev/null || true; \
+			sleep 1; \
+			kill -9 \$$PIDS 2>/dev/null || true; \
+			echo 'Test processes stopped'; \
+		else \
+			echo 'No test processes found'; \
+		fi; \
+		WINDOW_PID=\"\$$(pgrep -f 'test-window.py' 2>/dev/null || true)\"; \
+		if [ -n \"\$$WINDOW_PID\" ]; then \
+			echo \"Killing test window: \$$WINDOW_PID\"; \
+			kill \$$WINDOW_PID 2>/dev/null || true; \
+		fi; \
+		echo 'Disabling debug features...'; \
+		gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus false 2>/dev/null || true; \
+		gsettings set org.gnome.shell.extensions.zoned debug-track-resources false 2>/dev/null || true"
+	@printf "$(COLOR_SUCCESS)✓ Test cleanup complete$(COLOR_RESET)\n"
