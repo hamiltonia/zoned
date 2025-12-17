@@ -53,6 +53,7 @@ help:
 	@printf "$(COLOR_SUCCESS)Stability Testing:$(COLOR_RESET)\n"
 	@printf "  make vm-stability-test - Run full stability test suite in VM\n"
 	@printf "  make vm-quick-test     - Run quick stability tests (10 cycles)\n"
+	@printf "  make vm-test-single TEST=<name> - Run single test (e.g., window-movement)\n"
 	@printf "  make vm-enable-debug   - Enable debug features in VM\n"
 	@printf "  make vm-disable-debug  - Disable debug features in VM\n"
 	@printf "\n"
@@ -269,6 +270,28 @@ vm-quick-test:
 		exit 1; \
 	fi
 	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh $${VM_USER}@$${VM_IP} "cd $$MOUNT_PATH && ./scripts/vm-test/run-all.sh --quick"
+
+vm-test-single:
+	@if [ -z "$(TEST)" ]; then \
+		printf "$(COLOR_ERROR)Usage: make vm-test-single TEST=<test-name>$(COLOR_RESET)\n"; \
+		printf "$(COLOR_INFO)Available tests:$(COLOR_RESET)\n"; \
+		printf "  enable-disable, ui-stress, zone-cycling, layout-switching\n"; \
+		printf "  combined-stress, multi-monitor, window-movement\n"; \
+		exit 1; \
+	fi
+	@printf "$(COLOR_INFO)Running single test '$(TEST)' in VM...$(COLOR_RESET)\n"
+	@if [ ! -f $(VM_CONFIG) ]; then \
+		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-init' first.$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi
+	@. $(VM_CONFIG) && $(VM_FIND_MOUNT) && ssh $${VM_USER}@$${VM_IP} "\
+		cd $$MOUNT_PATH && \
+		sleep 2 && \
+		export DISPLAY=:0 && \
+		export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus && \
+		gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true 2>/dev/null || true && \
+		gsettings set org.gnome.shell.extensions.zoned debug-track-resources true 2>/dev/null || true && \
+		./scripts/vm-test/test-$(TEST).sh 15"
 
 vm-enable-debug:
 	@printf "$(COLOR_INFO)Enabling debug features in VM...$(COLOR_RESET)\n"

@@ -73,6 +73,9 @@ const ACTION_HANDLERS = {
     'hide-zone-overlay': handleHideZoneOverlay,
     'get-layout-ids': handleGetLayoutIds,
     'get-monitor-count': handleGetMonitorCount,
+    'move-focused-to-zone': handleMoveFocusedToZone,
+    'get-focused-window-geometry': handleGetFocusedWindowGeometry,
+    'get-current-zone-geometry': handleGetCurrentZoneGeometry,
 };
 
 function handleCycleZone(extension, params) {
@@ -129,6 +132,51 @@ function handleGetLayoutIds(extension) {
 function handleGetMonitorCount(_extension) {
     const monitorCount = Main.layoutManager.monitors?.length ?? 1;
     return [true, JSON.stringify({count: monitorCount})];
+}
+
+function handleMoveFocusedToZone(extension) {
+    const window = extension._windowManager?.getFocusedWindow();
+    if (!window) {
+        return [false, 'No focused window'];
+    }
+    const zone = extension._layoutManager?.getCurrentZone();
+    if (!zone) {
+        return [false, 'No current zone'];
+    }
+    extension._windowManager?.moveWindowToZone(window, zone);
+    return [true, ''];
+}
+
+function handleGetFocusedWindowGeometry(extension) {
+    const window = extension._windowManager?.getFocusedWindow();
+    if (!window) {
+        return [false, 'No focused window'];
+    }
+    const rect = window.get_frame_rect();
+    return [true, JSON.stringify({
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+    })];
+}
+
+function handleGetCurrentZoneGeometry(extension) {
+    const zone = extension._layoutManager?.getCurrentZone();
+    if (!zone) {
+        return [false, 'No current zone'];
+    }
+    // Zones use w/h for width/height and are in percentage (0-1) format
+    // Convert to pixels using primary monitor workarea
+    const monitor = global.display.get_primary_monitor();
+    const workarea = Main.layoutManager.getWorkAreaForMonitor(monitor);
+
+    return [true, JSON.stringify({
+        x: Math.round(workarea.x + zone.x * workarea.width),
+        y: Math.round(workarea.y + zone.y * workarea.height),
+        width: Math.round(zone.w * workarea.width),
+        height: Math.round(zone.h * workarea.height),
+    })];
 }
 
 /**

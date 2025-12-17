@@ -136,6 +136,26 @@ Tests layout switching and zone cycling across multiple monitors. **Gracefully s
 - No resource leaks on multi-monitor
 - State consistency across monitors
 
+### 7. Window Movement (`test-window-movement.sh`)
+
+Tests actual window movement to zones using a GTK4 test window with D-Bus self-reporting.
+
+**What it tests:**
+- Window positioning to zone coordinates
+- Geometry verification after moves
+- Resource cleanup with real windows
+
+**Arguments:**
+- `cycles` - Number of zone cycle + move operations (default: 50)
+
+**Requirements:**
+- python3 with GTK4 (for test window)
+
+**Pass criteria:**
+- Window position within 50px tolerance of zone coordinates
+- Movement accuracy > 90%
+- No resource leaks
+
 ## Debug Features
 
 The tests use two GSettings to enable debug functionality:
@@ -194,10 +214,12 @@ scripts/vm-test/
 ├── test-layout-switching.sh # Layout switching test
 ├── test-combined-stress.sh  # Combined operations stress test
 ├── test-multi-monitor.sh    # Multi-monitor test
+├── test-window-movement.sh  # Window movement test
 └── lib/
     ├── setup.sh             # Test setup and prerequisites
     ├── dbus-helpers.sh      # D-Bus interaction utilities
-    └── assertions.sh        # Test assertion functions
+    ├── assertions.sh        # Test assertion functions
+    └── test-window.py       # GTK4 test window with D-Bus
 ```
 
 ## Adding New Tests
