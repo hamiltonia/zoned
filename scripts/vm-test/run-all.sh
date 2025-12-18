@@ -533,6 +533,26 @@ print_long_haul_results() {
     local total_cycles=$1
     local total_failures=$2
     
+    # Capture final memory state BEFORE GC
+    local mem_after_tests=$(get_shell_memory_kb)
+    local mem_after_tests_mb=$((mem_after_tests / 1024))
+    
+    # Force garbage collection
+    echo "Running garbage collection..."
+    force_gc
+    sleep 2  # Extra time for GC to complete
+    
+    # Capture memory AFTER GC
+    local mem_after_gc=$(get_shell_memory_kb)
+    local mem_after_gc_mb=$((mem_after_gc / 1024))
+    
+    # Calculate deltas
+    local baseline_mb=$((LONG_HAUL_BASELINE_MEM / 1024))
+    local gc_recovered=$((mem_after_tests - mem_after_gc))
+    local gc_recovered_mb=$((gc_recovered / 1024))
+    local net_retained=$((mem_after_gc - LONG_HAUL_BASELINE_MEM))
+    local net_retained_mb=$((net_retained / 1024))
+    
     echo "═══════════════════════════════════════════════════════════════════════════════"
     echo "                         LONG HAUL TEST RESULTS"
     echo "═══════════════════════════════════════════════════════════════════════════════"
@@ -540,6 +560,26 @@ print_long_haul_results() {
     echo "Duration: $(format_duration $(($(date +%s) - SUITE_START_TIME)))"
     echo "Cycles Completed: $total_cycles"
     echo "Test Failures: $total_failures"
+    echo ""
+    echo "MEMORY SUMMARY (Three-Point Measurement):"
+    echo "───────────────────────────────────────────────────────────────────────────────"
+    printf "  %-24s %8dMB (%dKB)\n" "Before Tests:" "$baseline_mb" "$LONG_HAUL_BASELINE_MEM"
+    printf "  %-24s %8dMB (%dKB)\n" "After Tests (raw):" "$mem_after_tests_mb" "$mem_after_tests"
+    printf "  %-24s %8dMB (%dKB)\n" "After GC (true cost):" "$mem_after_gc_mb" "$mem_after_gc"
+    echo "───────────────────────────────────────────────────────────────────────────────"
+    if [ "$gc_recovered" -gt 0 ]; then
+        printf "  %-24s %b\n" "GC Recovered:" "${GREEN}${gc_recovered_mb}MB (${gc_recovered}KB)${NC}"
+    else
+        printf "  %-24s %dMB (%dKB)\n" "GC Recovered:" "$gc_recovered_mb" "$gc_recovered"
+    fi
+    if [ "$net_retained" -gt 10240 ]; then  # > 10MB retained is concerning
+        printf "  %-24s %b\n" "Net Retained:" "${YELLOW}+${net_retained_mb}MB (+${net_retained}KB)${NC}"
+    elif [ "$net_retained" -gt 0 ]; then
+        printf "  %-24s +%dMB (+%dKB)\n" "Net Retained:" "$net_retained_mb" "$net_retained"
+    else
+        printf "  %-24s %b\n" "Net Retained:" "${GREEN}${net_retained_mb}MB (${net_retained}KB)${NC}"
+    fi
+    echo "───────────────────────────────────────────────────────────────────────────────"
     echo ""
     echo "PER-TEST MEMORY ANALYSIS:"
     echo "───────────────────────────────────────────────────────────────────────────────"

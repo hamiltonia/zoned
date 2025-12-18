@@ -247,3 +247,26 @@ is_multi_monitor() {
     count=$(get_monitor_count)
     [ "$count" -gt 1 ]
 }
+
+# =============================================================================
+# Garbage Collection
+# =============================================================================
+
+# Force GNOME Shell garbage collection using Shell.Eval
+# This triggers GJS's gc() function to free unreachable objects
+# Returns: 0 on success, 1 on failure
+force_gc() {
+    local result
+    result=$(gdbus call --session \
+        --dest org.gnome.Shell \
+        --object-path /org/gnome/Shell \
+        --method org.gnome.Shell.Eval 'gc()' 2>/dev/null)
+    
+    if [ $? -eq 0 ]; then
+        # Give GC time to complete
+        sleep 1
+        return 0
+    else
+        return 1
+    fi
+}
