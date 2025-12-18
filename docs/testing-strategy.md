@@ -6,7 +6,7 @@ This document explains the **why** behind Zoned's testing infrastructure. For op
 
 GNOME Shell extensions run in the same process as the shell itself. A memory leak in an extension becomes a memory leak in your entire desktop session. Users notice when their system slows down after a few days of uptime.
 
-The primary goal is **leak detection** — finding resources that aren't properly cleaned up during extension lifecycle events (enable/disable) or UI operations (opening/closing dialogs).
+The primary goal is **leak detection** - finding resources that aren't properly cleaned up during extension lifecycle events (enable/disable) or UI operations (opening/closing dialogs).
 
 ### The Core Problem
 
@@ -36,7 +36,7 @@ Tests run outside GNOME Shell but need to query internal extension state. D-Bus 
 - Structured queries for resource counts and state
 - Action triggering (switch layout, cycle zone, etc.)
 
-The interface is only exposed when `debug-expose-dbus` is enabled — production users never see it.
+The interface is only exposed when `debug-expose-dbus` is enabled - production users never see it.
 
 ### Why ResourceTracker?
 
@@ -70,13 +70,13 @@ Runs all 9 test suites with substantial iterations. Takes ~5-10 minutes dependin
 
 **Purpose:** Fast sanity check during development.
 
-Reduces iterations across all tests. Takes ~1-2 minutes. Use this for rapid iteration when you're actively debugging — it won't catch subtle leaks but will catch obvious regressions.
+Reduces iterations across all tests. Takes ~1-2 minutes. Use this for rapid iteration when you're actively debugging - it won't catch subtle leaks but will catch obvious regressions.
 
 ### Long-Haul Mode (`--long-haul DURATION`)
 
 **Purpose:** Extended soak testing to find slow leaks.
 
-Runs all 9 tests in a continuous cycle for hours. Each cycle measures per-test memory delta to identify **consistent leakers** — tests where memory always grows, never shrinks (GC fluctuation vs. real leaks).
+Runs all 9 tests in a continuous cycle for hours. Each cycle measures per-test memory delta to identify **consistent leakers** - tests where memory always grows, never shrinks (GC fluctuation vs. real leaks).
 
 Key features:
 - **Per-test tracking:** Identifies which specific test consistently leaks
@@ -128,6 +128,6 @@ Memory is the current focus. Performance (frame timing, input latency) is a futu
 
 ## See Also
 
-- [scripts/vm-test/README.md](../scripts/vm-test/README.md) — Operational guide for running tests
-- [vm-setup-guide.md](vm-setup-guide.md) — VM development environment setup
-- [DEVELOPMENT.md](../DEVELOPMENT.md) — Development workflow
+- [scripts/vm-test/README.md](../scripts/vm-test/README.md) - Operational guide for running tests
+- [vm-setup-guide.md](vm-setup-guide.md) - VM development environment setup
+- [DEVELOPMENT.md](../DEVELOPMENT.md) - Development workflow
