@@ -327,7 +327,10 @@ export class ThemeManager {
      * Clean up resources
      */
     destroy() {
-        // Settings objects are managed by extension, no cleanup needed
+        // Clear our reference to interface settings
+        // (GSettings objects are managed by GLib, but we should release our reference)
+        this._interfaceSettings = null;
+        this._settings = null;
         logger.debug('ThemeManager destroyed');
     }
 }

@@ -453,6 +453,13 @@ export class LayoutPreviewBackground {
      */
     destroy() {
         this.hide();
+
+        // Clean up ThemeManager
+        if (this._themeManager) {
+            this._themeManager.destroy();
+            this._themeManager = null;
+        }
+
         logger.debug('LayoutPreviewBackground destroyed');
     }
 }

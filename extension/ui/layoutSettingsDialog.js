@@ -228,6 +228,13 @@ export class LayoutSettingsDialog {
         }
 
         this._visible = false;
+
+        // Clean up ThemeManager
+        if (this._themeManager) {
+            this._themeManager.destroy();
+            this._themeManager = null;
+        }
+
         logger.debug('LayoutSettingsDialog closed');
     }
 

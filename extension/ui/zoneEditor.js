@@ -1820,6 +1820,13 @@ export class ZoneEditor {
      */
     destroy() {
         this.hide();
+
+        // Clean up ThemeManager
+        if (this._themeManager) {
+            this._themeManager.destroy();
+            this._themeManager = null;
+        }
+
         logger.debug('ZoneEditor destroyed');
     }
 }

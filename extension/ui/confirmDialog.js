@@ -197,4 +197,15 @@ export const ConfirmDialog = GObject.registerClass(
                 }
             }
         }
+
+        /**
+         * Override destroy to clean up ThemeManager
+         */
+        destroy() {
+            if (this._themeManager) {
+                this._themeManager.destroy();
+                this._themeManager = null;
+            }
+            super.destroy();
+        }
     });

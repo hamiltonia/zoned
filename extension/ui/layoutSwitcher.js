@@ -1614,5 +1614,11 @@ export class LayoutSwitcher {
      */
     destroy() {
         this.hide();
+
+        // Clean up ThemeManager
+        if (this._themeManager) {
+            this._themeManager.destroy();
+            this._themeManager = null;
+        }
     }
 }
