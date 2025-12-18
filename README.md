@@ -2,10 +2,6 @@
 
 <div align="center">
 
-# Zoned
-
-**No limits. Just zones.**
-
 Custom window zones for GNOME
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
