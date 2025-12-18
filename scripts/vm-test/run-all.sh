@@ -474,6 +474,7 @@ run_long_haul() {
         
         local csv_row="$cycle,$cycle_start"
         local cycle_failures=0
+        local -a failed_test_names=()
         
         # Run all 9 tests and collect deltas
         for i in {0..8}; do
@@ -488,6 +489,7 @@ run_long_haul() {
                 ((++cycle_failures))
                 ((++total_test_failures))
                 LONG_HAUL_FAILURES=$total_test_failures
+                failed_test_names+=("${TEST_NAMES[$i]}")
             fi
         done
         
@@ -495,10 +497,19 @@ run_long_haul() {
         echo "$csv_row" >> "$LONG_HAUL_TMP_FILE"
         cp "$LONG_HAUL_TMP_FILE" "$LONG_HAUL_CSV_FILE" 2>/dev/null || true
         
-        # Brief status after each cycle
+        # Brief status after each cycle - include failed test names if any
         local cycle_duration=$(($(date +%s) - cycle_start))
-        printf "\r[Cycle %d] Completed in %ds | Failures: %d                            \n" \
-            "$cycle" "$cycle_duration" "$cycle_failures"
+        local failure_info=""
+        if [ "$cycle_failures" -gt 0 ]; then
+            # Join failed test names with comma, truncate if too long
+            local failed_names_str=$(IFS=', '; echo "${failed_test_names[*]}")
+            if [ ${#failed_names_str} -gt 40 ]; then
+                failed_names_str="${failed_names_str:0:37}..."
+            fi
+            failure_info=" (${failed_names_str})"
+        fi
+        printf "\r[Cycle %d] Completed in %ds | Failures: %d%s\n" \
+            "$cycle" "$cycle_duration" "$cycle_failures" "$failure_info"
         
         # Safety check - bail if memory limits exceeded
         if ! check_long_haul_safety; then
@@ -674,56 +685,6 @@ print_long_haul_results() {
     echo "Per-cycle raw data saved to:"
     echo "  Host (results/): $LONG_HAUL_CSV_FILE"
     echo "  VM (backup):     $LONG_HAUL_TMP_FILE"
-    echo ""
-    
-    # ==========================================================================
-    # Extension Memory Footprint Measurement
-    # ==========================================================================
-    # Measures the actual memory cost of installing Zoned by comparing
-    # gnome-shell memory with and without the extension enabled.
-    # ==========================================================================
-    
-    echo "EXTENSION MEMORY FOOTPRINT:"
-    echo "───────────────────────────────────────────────────────────────────────────────"
-    echo "  Measuring extension installation cost..."
-    
-    # Step 1: Disable extension and measure baseline
-    gnome-extensions disable zoned@hamiltonia.me 2>/dev/null || true
-    sleep 2
-    force_gc
-    sleep 2
-    local mem_without_ext=$(get_shell_memory_kb)
-    local mem_without_ext_mb=$((mem_without_ext / 1024))
-    
-    # Step 2: Re-enable extension and measure
-    gnome-extensions enable zoned@hamiltonia.me 2>/dev/null || true
-    sleep 2
-    force_gc
-    sleep 2
-    local mem_with_ext=$(get_shell_memory_kb)
-    local mem_with_ext_mb=$((mem_with_ext / 1024))
-    
-    # Calculate extension cost
-    local ext_cost=$((mem_with_ext - mem_without_ext))
-    local ext_cost_mb=$((ext_cost / 1024))
-    
-    printf "  %-32s %6dMB (%dKB)\n" "GNOME Shell without Zoned:" "$mem_without_ext_mb" "$mem_without_ext"
-    printf "  %-32s %6dMB (%dKB)\n" "GNOME Shell with Zoned:" "$mem_with_ext_mb" "$mem_with_ext"
-    echo "───────────────────────────────────────────────────────────────────────────────"
-    
-    if [ "$ext_cost" -gt 20480 ]; then  # > 20MB is concerning
-        printf "  %-32s %b\n" "Extension Installation Cost:" "${YELLOW}${ext_cost_mb}MB (${ext_cost}KB)${NC}"
-    elif [ "$ext_cost" -gt 0 ]; then
-        printf "  %-32s %dMB (%dKB)\n" "Extension Installation Cost:" "$ext_cost_mb" "$ext_cost"
-    else
-        printf "  %-32s %b\n" "Extension Installation Cost:" "${GREEN}${ext_cost_mb}MB (${ext_cost}KB)${NC}"
-    fi
-    echo "───────────────────────────────────────────────────────────────────────────────"
-    echo ""
-    echo -e "  ${CYAN}NOTE: GNOME Shell typically uses 300-500MB on its own.${NC}"
-    echo -e "  ${CYAN}The 'Before/After Tests' values above show TOTAL gnome-shell memory,${NC}"
-    echo -e "  ${CYAN}not just the extension. The 'Extension Installation Cost' is Zoned's${NC}"
-    echo -e "  ${CYAN}actual memory overhead.${NC}"
     echo ""
     
     # Set exit code based on detected issues and explain it

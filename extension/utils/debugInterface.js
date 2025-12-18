@@ -21,6 +21,7 @@ import {
     getAggregatedReport,
     resetAllTracking,
 } from './resourceTracker.js';
+import {ZoneEditor} from '../ui/zoneEditor.js';
 
 const logger = createLogger('DebugInterface');
 
@@ -63,6 +64,9 @@ const DBUS_INTERFACE_XML = `
 </node>
 `;
 
+// Track debug zone editor instance for cleanup
+let _debugZoneEditor = null;
+
 // Action handlers map for TriggerAction
 const ACTION_HANDLERS = {
     'cycle-zone': handleCycleZone,
@@ -72,6 +76,8 @@ const ACTION_HANDLERS = {
     'hide-layout-switcher': handleHideLayoutSwitcher,
     'show-zone-overlay': handleShowZoneOverlay,
     'hide-zone-overlay': handleHideZoneOverlay,
+    'show-zone-editor': handleShowZoneEditor,
+    'hide-zone-editor': handleHideZoneEditor,
     'get-layout-ids': handleGetLayoutIds,
     'get-monitor-count': handleGetMonitorCount,
     'move-focused-to-zone': handleMoveFocusedToZone,
@@ -141,6 +147,53 @@ function handleShowZoneOverlay(extension) {
 
 function handleHideZoneOverlay(extension) {
     extension._zoneOverlay?._hide();
+    return [true, ''];
+}
+
+function handleShowZoneEditor(extension) {
+    // Clean up any existing debug editor
+    if (_debugZoneEditor) {
+        try {
+            _debugZoneEditor.destroy();
+        } catch {
+            // May already be destroyed
+        }
+        _debugZoneEditor = null;
+    }
+
+    const layout = extension._layoutManager?.getCurrentLayout();
+    if (!layout) {
+        return [false, 'No current layout'];
+    }
+
+    // Create a zone editor instance for the current layout
+    // Use no-op callbacks since this is just for memory testing
+    _debugZoneEditor = new ZoneEditor(
+        layout,
+        extension._layoutManager,
+        extension._settings,
+        () => {
+            // onSave - no-op for debug
+            _debugZoneEditor = null;
+        },
+        () => {
+            // onCancel - no-op for debug
+            _debugZoneEditor = null;
+        },
+    );
+    _debugZoneEditor.show();
+    return [true, ''];
+}
+
+function handleHideZoneEditor(_extension) {
+    if (_debugZoneEditor) {
+        try {
+            _debugZoneEditor.destroy();
+        } catch {
+            // May already be destroyed
+        }
+        _debugZoneEditor = null;
+    }
     return [true, ''];
 }
 
