@@ -676,6 +676,56 @@ print_long_haul_results() {
     echo "  VM (backup):     $LONG_HAUL_TMP_FILE"
     echo ""
     
+    # ==========================================================================
+    # Extension Memory Footprint Measurement
+    # ==========================================================================
+    # Measures the actual memory cost of installing Zoned by comparing
+    # gnome-shell memory with and without the extension enabled.
+    # ==========================================================================
+    
+    echo "EXTENSION MEMORY FOOTPRINT:"
+    echo "───────────────────────────────────────────────────────────────────────────────"
+    echo "  Measuring extension installation cost..."
+    
+    # Step 1: Disable extension and measure baseline
+    gnome-extensions disable zoned@hamiltonia.me 2>/dev/null || true
+    sleep 2
+    force_gc
+    sleep 2
+    local mem_without_ext=$(get_shell_memory_kb)
+    local mem_without_ext_mb=$((mem_without_ext / 1024))
+    
+    # Step 2: Re-enable extension and measure
+    gnome-extensions enable zoned@hamiltonia.me 2>/dev/null || true
+    sleep 2
+    force_gc
+    sleep 2
+    local mem_with_ext=$(get_shell_memory_kb)
+    local mem_with_ext_mb=$((mem_with_ext / 1024))
+    
+    # Calculate extension cost
+    local ext_cost=$((mem_with_ext - mem_without_ext))
+    local ext_cost_mb=$((ext_cost / 1024))
+    
+    printf "  %-32s %6dMB (%dKB)\n" "GNOME Shell without Zoned:" "$mem_without_ext_mb" "$mem_without_ext"
+    printf "  %-32s %6dMB (%dKB)\n" "GNOME Shell with Zoned:" "$mem_with_ext_mb" "$mem_with_ext"
+    echo "───────────────────────────────────────────────────────────────────────────────"
+    
+    if [ "$ext_cost" -gt 20480 ]; then  # > 20MB is concerning
+        printf "  %-32s %b\n" "Extension Installation Cost:" "${YELLOW}${ext_cost_mb}MB (${ext_cost}KB)${NC}"
+    elif [ "$ext_cost" -gt 0 ]; then
+        printf "  %-32s %dMB (%dKB)\n" "Extension Installation Cost:" "$ext_cost_mb" "$ext_cost"
+    else
+        printf "  %-32s %b\n" "Extension Installation Cost:" "${GREEN}${ext_cost_mb}MB (${ext_cost}KB)${NC}"
+    fi
+    echo "───────────────────────────────────────────────────────────────────────────────"
+    echo ""
+    echo -e "  ${CYAN}NOTE: GNOME Shell typically uses 300-500MB on its own.${NC}"
+    echo -e "  ${CYAN}The 'Before/After Tests' values above show TOTAL gnome-shell memory,${NC}"
+    echo -e "  ${CYAN}not just the extension. The 'Extension Installation Cost' is Zoned's${NC}"
+    echo -e "  ${CYAN}actual memory overhead.${NC}"
+    echo ""
+    
     # Set exit code based on detected issues and explain it
     if [ "$detected_leaks" -gt 0 ]; then
         echo -e "${YELLOW}⚠ Exiting with code 1: Memory leaks detected (test ran successfully)${NC}"
@@ -687,54 +737,6 @@ print_long_haul_results() {
         return 0
     fi
 }
-
-echo "========================================"
-echo "  Zoned Stability Test Suite"
-echo "========================================"
-echo ""
-if [ "$LONG_HAUL_MODE" = true ]; then
-    echo "  Mode: Long Haul ($(format_duration $LONG_HAUL_DURATION_SECS))"
-elif [ "$QUICK_MODE" = true ]; then
-    echo "  Mode: Quick"
-else
-    echo "  Mode: Full"
-fi
-echo "  Date: $(date)"
-echo ""
-
-# Check prerequisites
-check_prerequisites
-
-# Initialize results file (clear any previous results)
-> "$TEST_RESULTS_FILE"
-
-# Reload extension to ensure fresh code is loaded
-echo ""
-echo "Reloading extension for clean state..."
-gnome-extensions disable zoned@hamiltonia.me 2>/dev/null || true
-sleep 1
-gnome-extensions enable zoned@hamiltonia.me 2>/dev/null || true
-sleep 2
-echo "Extension reloaded"
-
-# Enable debug features (after reload so dynamic listener picks them up)
-echo ""
-echo "Enabling debug features..."
-gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true 2>/dev/null || true
-gsettings set org.gnome.shell.extensions.zoned debug-track-resources true 2>/dev/null || true
-
-# Wait for D-Bus interface with retries
-echo "Waiting for debug interface to initialize..."
-if ! wait_for_dbus 20; then
-    echo -e "${YELLOW}Warning: D-Bus initialization timed out${NC}"
-fi
-
-# Check if D-Bus interface is available
-if dbus_interface_available; then
-    echo -e "${GREEN}D-Bus debug interface available${NC}"
-else
-    echo -e "${YELLOW}Warning: D-Bus debug interface not available (continuing without D-Bus checks)${NC}"
-fi
 
 # ============================================================================
 # LONG HAUL MODE - runs a different flow
