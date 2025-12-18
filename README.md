@@ -2,9 +2,7 @@
 
 <div align="center">
 
-# Zoned
-
-**FancyZones-style window management for GNOME Shell**
+Custom window zones for GNOME
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![GNOME Shell](https://img.shields.io/badge/GNOME_Shell-46%2B-4A86CF.svg)](https://extensions.gnome.org/)
@@ -15,21 +13,28 @@
 
 ## What is Zoned?
 
-Inspired by [Windows PowerToys FancyZones](https://learn.microsoft.com/en-us/windows/powertoys/fancyzones), Zoned brings layout-based window management to GNOME. A must-have for ultrawide and super-ultrawide monitors where a simple left/right split isn't enough.
+GNOME gives you one layout: 50/50 left/right. On an ultrawide, that's two unusably wide windows. Zoned lets you define any layout you want.
 
-**A helpful in-between:** Zoned sits between full tiling window managers and free-floating windows. Snap windows into predefined zones with keyboard shortcuts, or move them around freely — Zoned won't stop you.
+**The in-between you've been missing**: Zoned sits between full tiling window managers and free-floating chaos. Define custom zones, snap windows with keyboard shortcuts, or ignore it entirely-Zoned won't fight you.
 
-### About This Project
+### Features
 
-This is a hobby project fulfilling a personal need for better window management on GNOME with a super-ultrawide monitor (5120×1440). Built entirely using agentic AI as a learning opportunity, exploring best practices for code hygiene and development workflow.
+- **Custom zone profiles** - Define layouts that match how you actually work
+- **Visual zone editor** - Create and edit zones without touching config files
+- **Keyboard-driven snapping** - Move windows between zones with shortcuts
+- **Multi-monitor support** - Different layouts for different displays
+- **Workspace-aware** - Integrates with GNOME's workspace system
+- **X11 + Wayland** - Works on both display protocols
+- **State persistence** - Remembers your layout and zones across sessions
+- **Auto-fix conflicts** - Detects and resolves keyboard shortcut conflicts with GNOME
 
-## Features
+### Who it's for
 
-- 🎯 **Layout-Based Window Management** — Built-in templates plus a visual editor for custom layouts
-- ⌨️ **Keyboard-First** — Snap windows to zones with shortcuts; layout picker menu also available
-- 💾 **State Persistence** — Remembers your layout and zone across sessions
-- 🖥️ **Multi-Monitor & Multi-Workspace** — Use different layouts per monitor/workspace, or one layout for all
-- 🔧 **Auto-Fix Conflicts** — Detects and resolves keyboard shortcut conflicts with GNOME
+Everyone. Zoned works on any monitor and resolution.
+
+That said—if you've got an ultrawide and wondered why Linux makes you choose between 50/50 splits or a full tiling WM, this is for you.
+
+---
 
 ## Quick Install
 
@@ -43,6 +48,8 @@ Then reload GNOME Shell:
 - **Wayland:** Log out → Log back in
 - **X11:** `Alt+F2` → type `r` → Enter
 
+---
+
 ## Basic Workflow
 
 1. **Choose a layout:** Press `Super+grave` to open the Layout Switcher
@@ -50,7 +57,9 @@ Then reload GNOME Shell:
 3. **Snap windows:** Focus any window and press `Super+Right` to snap it to the next zone
 4. **Repeat:** Focus another window, press `Super+Right` again to fill the layout
 
-Your layout choice persists — just snap windows as you open them.
+Your layout choice persists—just snap windows as you open them.
+
+---
 
 ## Keyboard Shortcuts
 
@@ -64,9 +73,11 @@ Your layout choice persists — just snap windows as you open them.
 
 > **Note:** `Super` is the Windows key (⊞)
 
+---
+
 ## Built-in Layout Templates
 
-Five essential templates for common workflows:
+Five templates for common workflows:
 
 | Layout | Description |
 |--------|-------------|
@@ -76,15 +87,28 @@ Five essential templates for common workflows:
 | Quarters | 2×2 grid |
 | Triple Stack | Three columns with stacked right panel |
 
-Create custom layouts using the Zone Editor for specialized needs.
-
 ### Custom Layouts
 
-Create your own layouts using the **Layout Switcher** and **Zone Editor**:
+Create your own using the **Layout Switcher** and **Zone Editor**:
 
 1. Press `Super+grave` to open the Layout Switcher
 2. Click "New Layout" to create a custom layout
 3. Use the visual zone editor to define your zones
+
+---
+
+## Troubleshooting
+
+**Extension not loading?**
+```bash
+gnome-extensions list --enabled | grep zoned  # Check if enabled
+make logs                                      # View errors
+gsettings reset-recursively org.gnome.shell.extensions.zoned  # Reset
+```
+
+**Keyboard conflicts?** Look for the orange indicator in your panel → Click → "Auto-Fix Conflicts"
+
+---
 
 ## Documentation
 
@@ -101,20 +125,19 @@ Create your own layouts using the **Layout Switcher** and **Zone Editor**:
 | [ROADMAP.md](ROADMAP.md) | Planned features and project direction |
 | [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
 
-## Troubleshooting
+---
 
-**Extension not loading?**
-```bash
-gnome-extensions list --enabled | grep zoned  # Check if enabled
-make logs                                      # View errors
-gsettings reset-recursively org.gnome.shell.extensions.zoned  # Reset
-```
+## About This Project
 
-**Keyboard conflicts?** Look for the orange indicator in your panel → Click → "Auto-Fix Conflicts"
+A hobby project born from a personal need: better window management on a 5120×1440 super-ultrawide. Built entirely using agentic AI tools as a learning exercise in AI-assisted development workflows.
+
+Not commercial. GPL-3.0 licensed. Contributions welcome.
+
+---
 
 ## Contributing
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 **Ways to help:**
 - Testing on different GNOME versions
@@ -122,15 +145,12 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - Documentation improvements
 - New layout designs
 
-## License
-
-[GNU General Public License v3.0](LICENSE)
+---
 
 ## Acknowledgments
 
-- **Windows PowerToys FancyZones** — Original inspiration for zone-based window management
-- **Hammerspoon** — Inspiration for solving a similar problem on macOS
-- **GNOME Shell** — Excellent extensibility platform
+- **Windows PowerToys FancyZones** - Original inspiration for zone-based window management
+- **GNOME Shell** - Excellent extensibility platform
 
 **Coming soon:** Zoned for macOS
 
@@ -140,6 +160,6 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 🐛 [Report bugs](https://github.com/hamiltonia/zoned/issues) · 💬 [Discussions](https://github.com/hamiltonia/zoned/discussions)
 
-*Not affiliated with Microsoft PowerToys, GNOME, or Hammerspoon*
+*Inspired by Microsoft PowerToys FancyZones. Not affiliated with Microsoft, GNOME, or Hammerspoon.*
 
 </div>

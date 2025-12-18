@@ -1,213 +1,206 @@
 #!/bin/bash
 #
-# vm-setup - One-time VM configuration for Zoned development
+# vm-setup - Full VM setup and configuration script
+# Created by Cline (based on vm-install)
 #
-# Configures the VM for extension development:
-# - Detects guest distro (Fedora/Ubuntu/Arch)
-# - Verifies shared folder is mounted
-# - Creates symlink to extensions directory
-# - Enables the extension
-# - Validates setup
+# This script handles the complete VM setup workflow:
+# - Auto-detects running VMs (no config file needed)
+# - Sets up SSH access if not configured
+# - Installs SPICE packages if missing
+# - Ensures shared folder is mounted
+# - Creates extension symlink
+# - Writes cache for fast vm-dev iterations
+#
+# Usage: ./vm-setup or 'make vm-setup'
 #
 
 set -e
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
-
-# Load distro detection library
+# Script location
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/lib/distro-detect.sh" ]; then
-    source "$SCRIPT_DIR/lib/distro-detect.sh"
-fi
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-CONFIG_FILE="$HOME/.config/zoned-dev/config"
+# Source the shared VM detection library
+source "$SCRIPT_DIR/lib/vm-detect.sh"
 
-# Load configuration
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo -e "${RED}✗ Configuration file not found: $CONFIG_FILE${NC}"
-    echo
-    echo "Run 'make vm-init' first to create the configuration."
-    exit 1
-fi
+# Override cache file location with proper path
+VM_CACHE_FILE="$PROJECT_DIR/.vm-cache"
 
-source "$CONFIG_FILE"
+# Extension details
+EXTENSION_UUID="zoned@hamiltonia.me"
 
-echo -e "${BLUE}════════════════════════════════════════════════════════════${NC}"
-echo -e "${BLUE}   Zoned VM Setup${NC}"
-echo -e "${BLUE}════════════════════════════════════════════════════════════${NC}"
-echo
-echo "VM: $VM_USER@$VM_IP"
-echo "Extension: $EXTENSION_UUID"
-echo
+# ============================================
+#  MAIN WORKFLOW
+# ============================================
 
-# Test SSH connection
-echo -e "${BLUE}[1/6]${NC} Testing SSH connection..."
-if ! ssh -o ConnectTimeout=5 "$VM_USER@$VM_IP" "exit" 2>/dev/null; then
-    echo -e "${RED}✗ Cannot connect to VM${NC}"
-    echo
-    echo "Make sure:"
-    echo "  1. VM is running in GNOME Boxes"
-    echo "  2. SSH is installed and running in VM"
-    echo "  3. SSH keys are set up: ssh-copy-id $VM_USER@$VM_IP"
-    exit 1
-fi
-echo -e "${GREEN}✓ SSH connection successful${NC}"
-
-# Detect guest OS
-echo -e "${BLUE}[2/6]${NC} Detecting guest OS..."
-if type detect_guest_distro &>/dev/null; then
-    GUEST_DISTRO=$(detect_guest_distro "$VM_USER@$VM_IP")
-else
-    # Fallback detection if library not available
-    GUEST_DISTRO=$(ssh "$VM_USER@$VM_IP" "if [ -f /etc/os-release ]; then . /etc/os-release; echo \$ID; else echo unknown; fi" 2>/dev/null)
-fi
-
-case "$GUEST_DISTRO" in
-    fedora)
-        echo -e "${GREEN}✓ Detected:${NC} Fedora"
-        ;;
-    ubuntu)
-        echo -e "${GREEN}✓ Detected:${NC} Ubuntu"
-        ;;
-    arch)
-        echo -e "${GREEN}✓ Detected:${NC} Arch Linux"
-        ;;
-    debian)
-        echo -e "${GREEN}✓ Detected:${NC} Debian"
-        ;;
-    *)
-        echo -e "${YELLOW}⚠ Unknown guest distro: $GUEST_DISTRO${NC}"
-        GUEST_DISTRO="unknown"
-        ;;
-esac
-
-# Check shared folder - handle multiple hypervisor types
-echo -e "${BLUE}[3/6]${NC} Detecting shared folder mount point..."
-
-# Try Parallels mount first (macOS/Parallels Desktop)
-if ssh "$VM_USER@$VM_IP" "test -d /media/psf/zoned/extension" 2>/dev/null; then
-    ACTUAL_MOUNT="/media/psf/zoned"
-    echo -e "${GREEN}✓ Found Parallels shared folder at: $ACTUAL_MOUNT${NC}"
-# Then check if the old direct mount exists (legacy GNOME Boxes)
-elif ssh "$VM_USER@$VM_IP" "test -d $VM_SPICE_MOUNT" 2>/dev/null; then
-    ACTUAL_MOUNT="$VM_SPICE_MOUNT"
-    echo -e "${GREEN}✓ Found shared folder at: $ACTUAL_MOUNT${NC}"
-else
-    # Look for GVFS WebDAV mount (GNOME Boxes - supports both dav: and dav+sd: protocols)
-    echo "Searching for GVFS mount..."
-    GVFS_MOUNT=$(ssh "$VM_USER@$VM_IP" "find /run/user/1000/gvfs -maxdepth 1 -name 'dav*:*' -type d 2>/dev/null | head -n1" || echo "")
+main() {
+    echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}   Zoned VM Setup${NC}"
+    echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
+    echo ""
     
-    if [ -z "$GVFS_MOUNT" ]; then
-        echo -e "${RED}✗ Shared folder not mounted in VM${NC}"
-        echo
-        echo "To fix this:"
-        echo
-        echo "${BLUE}For Parallels Desktop (macOS):${NC}"
-        echo "  1. Parallels Desktop → VM Configuration → Options → Sharing"
-        echo "  2. Enable 'Share Mac folders with Linux'"
-        echo "  3. Add custom folder: $HOST_PROJECT_DIR → Name: zoned"
-        echo "  4. In VM, verify: ls /media/psf/zoned"
-        echo
-        echo "${BLUE}For GNOME Boxes (Linux):${NC}"
-        echo "  1. In VM, open file manager (Nautilus)"
-        echo "  2. Navigate to: Other Locations → Networks"
-        echo "  3. Click on 'Spice client folder' to mount it"
-        echo "  4. Then run this script again"
-        echo
-        echo "If 'Spice client folder' doesn't appear:"
-        echo "  • In GNOME Boxes: Right-click VM → Properties → Devices & Shares"
-        echo "  • Add shared folder:"
-        echo "    - Local Folder: $HOST_PROJECT_DIR"
-        echo "    - Name: zoned"
-        echo "  • In VM, restart spice service: systemctl --user restart spice-webdavd"
+    # Step 1: Detect running VM
+    vm_print_step "Detecting running VMs..."
+    if ! vm_detect_target; then
         exit 1
     fi
+    echo ""
     
-    # Check if the mount has a subdirectory matching the share name
-    # (GNOME Boxes may mount the parent folder with subdirectory, or directly)
-    if ssh "$VM_USER@$VM_IP" "test -d $GVFS_MOUNT/zoned" 2>/dev/null; then
-        ACTUAL_MOUNT="$GVFS_MOUNT/zoned"
-        echo -e "${GREEN}✓ Found GVFS mount at: $ACTUAL_MOUNT${NC}"
-    else
-        ACTUAL_MOUNT="$GVFS_MOUNT"
-        echo -e "${GREEN}✓ Found GVFS mount at: $ACTUAL_MOUNT${NC}"
+    # Step 2: Ensure SSH access
+    if ! vm_ensure_ssh; then
+        exit 1
     fi
-fi
+    echo ""
+    
+    # Step 3: Check/install SPICE packages (for shared folders)
+    local spice_result
+    vm_ensure_spice
+    spice_result=$?
+    
+    if [[ $spice_result -eq 2 ]]; then
+        # Reboot required
+        exit 0
+    elif [[ $spice_result -eq 1 ]]; then
+        vm_print_warning "Continuing without SPICE packages (shared folders may not work)"
+    fi
+    echo ""
+    
+    # Step 4: Check shared folder mount
+    if ! vm_detect_mount; then
+        exit 1
+    fi
+    echo ""
+    
+    # Step 5: Check dependencies
+    if ! vm_check_dependencies; then
+        echo ""
+        read -p "Install missing dependencies? [Y/n]: " confirm
+        if [[ "${confirm,,}" != "n" ]]; then
+            if ! vm_install_dependencies; then
+                vm_print_error "Failed to install dependencies"
+                exit 1
+            fi
+        else
+            vm_print_warning "Continuing without all dependencies"
+        fi
+    fi
+    echo ""
+    
+    # Step 6: Verify extension exists in shared folder
+    vm_print_step "Verifying extension in shared folder..."
+    if ! ssh "$VM_DOMAIN" "test -f $VM_MOUNT_PATH/extension/metadata.json" 2>/dev/null; then
+        vm_print_error "Extension not found in shared folder"
+        echo ""
+        echo "Expected: $VM_MOUNT_PATH/extension/metadata.json"
+        echo ""
+        echo "Make sure:"
+        echo "  1. The shared folder points to the zoned project directory"
+        echo "  2. The folder is properly mounted in the VM"
+        exit 1
+    fi
+    vm_print_success "Extension found"
+    echo ""
+    
+    # Step 7: Create symlink if not exists
+    vm_print_step "Setting up extension symlink..."
+    local ext_dir="\$HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
+    
+    # Check if symlink already exists and points to correct location
+    local current_link
+    current_link=$(ssh "$VM_DOMAIN" "readlink $ext_dir 2>/dev/null" || echo "")
+    
+    if [[ "$current_link" == "$VM_MOUNT_PATH/extension" ]]; then
+        vm_print_success "Symlink already configured"
+    else
+        # Remove existing directory/symlink if present
+        ssh "$VM_DOMAIN" "rm -rf $ext_dir 2>/dev/null" || true
+        
+        # Create parent directory and symlink
+        ssh "$VM_DOMAIN" "mkdir -p \$(dirname $ext_dir) && ln -sf $VM_MOUNT_PATH/extension $ext_dir"
+        vm_print_success "Symlink created: $ext_dir → $VM_MOUNT_PATH/extension"
+    fi
+    echo ""
+    
+    # Step 8: Compile schema
+    vm_print_step "Compiling GSettings schema..."
+    if ssh "$VM_DOMAIN" "test -d $ext_dir/schemas" 2>/dev/null; then
+        ssh "$VM_DOMAIN" "glib-compile-schemas $ext_dir/schemas/"
+        vm_print_success "Schema compiled"
+    else
+        vm_print_warning "No schemas directory found"
+    fi
+    echo ""
+    
+    # Step 9: Enable extension if not enabled
+    vm_print_step "Checking extension status..."
+    local ext_state
+    ext_state=$(ssh "$VM_DOMAIN" "gnome-extensions info $EXTENSION_UUID 2>/dev/null | grep 'State:'" 2>/dev/null || echo "State: UNKNOWN")
+    
+    if echo "$ext_state" | grep -qE 'State:\s*(ACTIVE|INACTIVE)'; then
+        vm_print_success "Extension is enabled"
+    else
+        vm_print_info "Enabling extension..."
+        ssh "$VM_DOMAIN" "gnome-extensions enable $EXTENSION_UUID" 2>/dev/null || true
+        vm_print_success "Extension enabled"
+    fi
+    echo ""
+    
+    # Step 10: Write cache for fast vm-dev
+    vm_print_step "Saving configuration..."
+    vm_write_cache "$VM_CACHE_FILE"
+    echo ""
+    
+    # Step 11: Reload GNOME Shell (X11 only)
+    vm_print_step "Checking session type..."
+    
+    # Detect session type (must check graphical session, not SSH session)
+    local session_type
+    session_type=$(ssh "$VM_DOMAIN" "
+        for sid in \$(loginctl --no-legend | awk '{print \$1}'); do
+            type=\$(loginctl show-session \$sid -p Type --value 2>/dev/null)
+            if [ \"\$type\" = 'x11' ] || [ \"\$type\" = 'wayland' ]; then
+                echo \$type
+                break
+            fi
+        done
+    " 2>/dev/null || echo "")
+    [[ -z "$session_type" ]] && session_type="unknown"
+    
+    echo ""
+    if [[ "$session_type" == "x11" ]]; then
+        vm_print_info "Session type: X11"
+        vm_print_step "Reloading GNOME Shell..."
+        
+        if ssh "$VM_DOMAIN" "DISPLAY=:0 gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval 'Meta.restart(\"Restarting…\")'" &>/dev/null; then
+            vm_print_success "GNOME Shell reloaded"
+        else
+            vm_print_warning "Could not reload automatically"
+            echo "  In VM: Press Alt+F2, type 'r', press Enter"
+        fi
+    elif [[ "$session_type" == "wayland" ]]; then
+        vm_print_info "Session type: Wayland"
+        vm_print_warning "Wayland cannot hot-reload GNOME Shell"
+        echo ""
+        echo "  To see changes: Log out and log back in"
+        echo ""
+        echo "  Tip: For faster development, switch to X11:"
+        echo "    Log out → Click gear icon at login → Select 'GNOME on Xorg'"
+    else
+        vm_print_info "Session type: Unknown"
+        echo "  To reload: Alt+F2 → 'r' (X11) or log out/in (Wayland)"
+    fi
+    
+    echo ""
+    echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+    echo -e "${GREEN}   ✓ VM setup complete!${NC}"
+    echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "  VM: ${CYAN}$VM_DOMAIN${NC} ($VM_IP)"
+    echo ""
+    echo "  Next steps:"
+    echo "    make vm-dev     - Fast deploy (use for iteration)"
+    echo "    make vm-logs    - Watch extension logs"
+    echo ""
+}
 
-# Check if extension directory exists in shared folder
-echo -e "${BLUE}[4/6]${NC} Checking extension files..."
-if ! ssh "$VM_USER@$VM_IP" "test -f $ACTUAL_MOUNT/extension/metadata.json" 2>/dev/null; then
-    echo -e "${YELLOW}⚠ Extension files not found in shared folder${NC}"
-    echo
-    echo "Expected path in VM: $ACTUAL_MOUNT/extension/"
-    echo
-    echo "Make sure the shared folder is configured correctly."
-    echo "The 'extension' directory should be visible in the shared folder."
-    exit 1
-fi
-echo -e "${GREEN}✓ Extension files found${NC}"
-
-# Create extensions directory
-echo -e "${BLUE}[5/6]${NC} Creating symlink to extensions directory..."
-ssh "$VM_USER@$VM_IP" "mkdir -p ~/.local/share/gnome-shell/extensions"
-
-# Create symlink (using -f to overwrite if exists)
-ssh "$VM_USER@$VM_IP" "ln -sfn '$ACTUAL_MOUNT/extension' ~/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
-
-# Verify symlink
-if ssh "$VM_USER@$VM_IP" "test -L ~/.local/share/gnome-shell/extensions/$EXTENSION_UUID" 2>/dev/null; then
-    echo -e "${GREEN}✓ Symlink created successfully${NC}"
-else
-    echo -e "${RED}✗ Failed to create symlink${NC}"
-    exit 1
-fi
-
-# Enable extension
-echo -e "${BLUE}[6/6]${NC} Enabling extension..."
-ssh "$VM_USER@$VM_IP" "gnome-extensions enable $EXTENSION_UUID 2>/dev/null" || true
-echo -e "${GREEN}✓ Extension enabled${NC}"
-
-# Check if schema needs compilation
-echo
-echo -e "${BLUE}Checking GSettings schema...${NC}"
-if ssh "$VM_USER@$VM_IP" "test -d ~/.local/share/gnome-shell/extensions/$EXTENSION_UUID/schemas" 2>/dev/null; then
-    echo "Compiling schema..."
-    ssh "$VM_USER@$VM_IP" "glib-compile-schemas ~/.local/share/gnome-shell/extensions/$EXTENSION_UUID/schemas/"
-    echo -e "${GREEN}✓ Schema compiled${NC}"
-else
-    echo -e "${YELLOW}⚠ No schemas directory found (this may be OK)${NC}"
-fi
-
-echo
-echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}✓ VM Setup Complete!${NC}"
-echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
-echo
-echo -e "${CYAN}VM Configuration:${NC}"
-echo "  • Guest OS: $GUEST_DISTRO"
-echo "  • SSH: $VM_USER@$VM_IP"
-echo "  • Extension: $EXTENSION_UUID"
-echo
-echo -e "${BLUE}Next steps:${NC}"
-echo
-echo "1. Reload GNOME Shell in VM:"
-ssh "$VM_USER@$VM_IP" 'echo $XDG_SESSION_TYPE' | grep -q "x11" && \
-    echo "   - Press Alt+F2 in VM" && \
-    echo "   - Type: r" && \
-    echo "   - Press Enter" || \
-    echo "   - Log out and log back in (Wayland limitation)"
-echo
-echo "2. Watch logs from host:"
-echo "   make vm-logs"
-echo
-echo "3. Start developing:"
-echo "   - Edit files in: $HOST_PROJECT_DIR"
-echo "   - Changes are instantly visible in VM"
-echo "   - After saving, reload GNOME Shell (see step 1)"
-echo
+main "$@"

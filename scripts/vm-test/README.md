@@ -60,15 +60,15 @@ Extended soak testing that cycles through all 9 tests repeatedly for the specifi
 - Graceful abort with Ctrl+C (prints results gathered so far)
 
 **Output interpretation:**
-- `OK` — Memory oscillates around zero (healthy)
-- `WARN` — High average growth but some negative deltas (investigate)
-- `LEAK` — Always positive delta, never shrinks (likely a real leak)
+- `OK` - Memory oscillates around zero (healthy)
+- `WARN` - High average growth but some negative deltas (investigate)
+- `LEAK` - Always positive delta, never shrinks (likely a real leak)
 
 **Exit codes:**
-- `0` — No leaks detected
-- `1` — Leaks detected (test ran successfully, found issues)
-- `2` — Safety bailout (memory exceeded limits)
-- `130` — Interrupted by Ctrl+C
+- `0` - No leaks detected
+- `1` - Leaks detected (test ran successfully, found issues)
+- `2` - Safety bailout (memory exceeded limits)
+- `130` - Interrupted by Ctrl+C
 
 ## Test Suites
 
@@ -220,6 +220,6 @@ scripts/vm-test/
 
 ## See Also
 
-- [testing-strategy.md](../../docs/testing-strategy.md) — Why and how these tests work
-- [vm-setup-guide.md](../../docs/vm-setup-guide.md) — VM development setup
-- [DEVELOPMENT.md](../../DEVELOPMENT.md) — Development workflow
+- [testing-strategy.md](../../docs/testing-strategy.md) - Why and how these tests work
+- [vm-setup-guide.md](../../docs/vm-setup-guide.md) - VM development setup
+- [DEVELOPMENT.md](../../DEVELOPMENT.md) - Development workflow

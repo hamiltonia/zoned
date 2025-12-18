@@ -1,0 +1,100 @@
+#!/bin/bash
+#
+# vm-dev - Fast VM deployment script
+# Created by Cline
+#
+# This script provides fast iterative development:
+# - Uses cached VM state from previous vm-setup
+# - Compiles schema + reloads GNOME Shell
+# - Fails fast if setup is needed
+#
+# Usage: ./vm-dev or 'make vm-dev'
+#
+
+set -e
+
+# Script location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Source the shared VM detection library
+source "$SCRIPT_DIR/lib/vm-detect.sh"
+
+# Override cache file location with proper path
+VM_CACHE_FILE="$PROJECT_DIR/.vm-cache"
+
+# Extension details
+EXTENSION_UUID="zoned@hamiltonia.me"
+
+# ============================================
+#  MAIN WORKFLOW
+# ============================================
+
+main() {
+    echo -e "${CYAN}▶ VM Deploy${NC}"
+    echo ""
+    
+    # Step 1: Load cache
+    if ! vm_read_cache "$VM_CACHE_FILE"; then
+        vm_print_error "No VM cache found"
+        echo ""
+        echo "Run 'make vm-setup' first to configure your VM."
+        exit 1
+    fi
+    
+    vm_print_info "Using cached VM: ${CYAN}$VM_DOMAIN${NC}"
+    
+    # Step 2: Verify cache is still valid (VM running, SSH works)
+    if ! vm_cache_is_valid; then
+        vm_print_error "VM cache is stale"
+        echo ""
+        echo "The cached VM is not available. Run 'make vm-setup' to reconfigure."
+        exit 1
+    fi
+    
+    # Step 3: Compile schema
+    vm_print_step "Compiling GSettings schema..."
+    local ext_dir="\$HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
+    
+    if ssh "$VM_DOMAIN" "test -d $ext_dir/schemas" 2>/dev/null; then
+        ssh "$VM_DOMAIN" "glib-compile-schemas $ext_dir/schemas/"
+        vm_print_success "Schema compiled"
+    else
+        vm_print_warning "No schemas directory - extension may not be linked"
+        echo "Try running 'make vm-setup' to fix the symlink."
+    fi
+    
+    # Step 4: Reload GNOME Shell
+    vm_print_step "Reloading GNOME Shell..."
+    
+    # Detect session type
+    local session_type
+    session_type=$(ssh "$VM_DOMAIN" "
+        for sid in \$(loginctl --no-legend | awk '{print \$1}'); do
+            type=\$(loginctl show-session \$sid -p Type --value 2>/dev/null)
+            if [ \"\$type\" = 'x11' ] || [ \"\$type\" = 'wayland' ]; then
+                echo \$type
+                break
+            fi
+        done
+    " 2>/dev/null || echo "")
+    [[ -z "$session_type" ]] && session_type="unknown"
+    
+    if [[ "$session_type" == "x11" ]]; then
+        if ssh "$VM_DOMAIN" "DISPLAY=:0 gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval 'Meta.restart(\"Restarting…\")'" &>/dev/null; then
+            vm_print_success "GNOME Shell reloaded"
+        else
+            vm_print_warning "Could not reload automatically"
+            echo "  In VM: Press Alt+F2, type 'r', press Enter"
+        fi
+    elif [[ "$session_type" == "wayland" ]]; then
+        vm_print_warning "Wayland: Log out and back in to see changes"
+    else
+        vm_print_info "Session type unknown - reload manually"
+    fi
+    
+    echo ""
+    vm_print_success "Deploy complete"
+}
+
+main "$@"

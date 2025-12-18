@@ -509,46 +509,37 @@ sudo systemctl enable --now sshd
 
 ## Part 8: Initialize Zoned VM Development (5 minutes)
 
-**On Host**, run the Zoned VM initialization scripts:
+**On Host**, run the unified VM development command:
 
 - [ ] Navigate to Zoned project:
   ```bash
   cd ~/GitHub/zoned
   ```
 
-- [ ] Initialize VM configuration:
+- [ ] Run the unified VM development command:
   ```bash
-  make vm-init
+  make vm-dev
   ```
   
-  - Enter VM SSH host alias: `fedora-vm`
-  - Enter VM username: (your VM username)
-  - Enter VM IP: `192.168.122.XXX` (from Part 6)
-
-- [ ] Configure VM environment (creates symlinks, enables extension):
-  ```bash
-  make vm-setup
-  ```
+  The new smart workflow **auto-detects your running VM** and handles everything:
   
-  - This will:
-    - ✓ Test SSH connection
-    - ✓ Verify shared folder is mounted
-    - ✓ Create symlink to extension
-    - ✓ Enable extension
-    - ✓ Compile GSettings schema
+  - ✓ **Auto-detects** which VM is running (no manual config needed!)
+  - ✓ **Sets up SSH** automatically (creates config entry, copies keys)
+  - ✓ **Installs SPICE packages** if missing (for shared folders)
+  - ✓ **Creates symlink** to extension directory
+  - ✓ **Compiles GSettings schema**
+  - ✓ **Enables extension**
+  - ✓ **Reloads GNOME Shell** (X11) or shows Wayland instructions
 
-- [ ] In VM, reload GNOME Shell to load the extension:
-  - Press `Alt+F2`
-  - Type: `r`
-  - Press `Enter`
-  - Wait 2-3 seconds for reload
+  **If multiple VMs are running**, you'll be prompted to select one.
 
 - [ ] Verify extension is running in VM:
   ```bash
-  # On host, check extension status via SSH:
-  ssh fedora-vm "gnome-extensions info zoned@hamiltonia.me"
-  # Should show: State: ENABLED
+  # On host, watch logs:
+  make vm-logs
   ```
+
+> **Note:** The old `make vm-init` and `make vm-setup` commands are deprecated and no longer needed. The new `make vm-dev` handles everything automatically.
 
 ---
 
@@ -762,24 +753,26 @@ tail -f ~/GitHub/zoned/zoned-extension.log
 2. **Run `make vm-network-setup`** (configures host networking)
 3. Download OS ISO (Fedora 42, Ubuntu 24.04, or Arch)
 4. Create and install VM
-5. Install SPICE tools in VM
-6. Configure shared folder
-7. Set up SSH
-8. Run `make vm-init` and `make vm-setup`
+5. Configure shared folder in GNOME Boxes
+6. Mount shared folder in VM (Nautilus → Other Locations → Spice client folder)
+7. Run `make vm-dev` (auto-detects VM, sets up SSH, installs extension!)
 
 **Daily workflow:**
-1. Edit code on host: `code ~/GitHub/zoned`
-2. Watch logs from host: `make vm-logs`
-3. Reload in VM: `Alt+F2 → r`
-4. Repeat (2-3 second cycle!)
+1. Start your VM in GNOME Boxes
+2. Edit code on host: `code ~/GitHub/zoned`
+3. Run `make vm-dev` (auto-detects running VM, deploys, reloads)
+4. Watch logs from host: `make vm-logs`
+5. Repeat (2-3 second cycle!)
 
 **Commands:**
+- `make vm-dev` - **Full workflow** (auto-detect VM, setup SSH, install, reload)
+- `make vm-logs` - Watch extension logs from VM
+- `make vm-restart-spice` - Fix SPICE display connection issues
 - `make vm-network-setup` - Configure host networking (run once)
-- `make vm-init` - First-time VM configuration
-- `make vm-setup` - Configure VM environment
-- `make vm-install` - Update extension in VM
-- `make vm-logs` - Watch extension logs
-- `make vm-dev` - Quick install + reload
+
+**Deprecated commands** (no longer needed, handled by vm-dev):
+- `make vm-init` - ~~First-time VM configuration~~
+- `make vm-setup` - ~~Configure VM environment~~
 
 **Next Steps:**
 - See [DEVELOPMENT.md](../DEVELOPMENT.md) for general development workflow

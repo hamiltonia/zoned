@@ -85,6 +85,14 @@ export class LayoutManager {
     }
 
     /**
+     * Get the extension path
+     * @returns {string} The extension directory path
+     */
+    getExtensionPath() {
+        return this._extensionPath;
+    }
+
+    /**
      * Load all layouts (default + user custom)
      * @returns {boolean} True if layouts loaded successfully
      */
