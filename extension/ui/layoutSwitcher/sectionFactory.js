@@ -11,6 +11,7 @@
  */
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import St from 'gi://St';
 import {createLogger} from '../../utils/debug.js';
 import {createTemplateCard, createCustomLayoutCard} from './cardFactory.js';
@@ -157,35 +158,92 @@ export function createCustomLayoutsSection(ctx) {
     ctx._customLayoutsScrollView = null;
 
     if (customLayouts.length === 0) {
-        // Empty state (styled within the section card)
+        // Wrapper to center the empty state both horizontally and vertically
+        const emptyStateWrapper = new St.Widget({
+            x_expand: true,
+            y_expand: true,
+            layout_manager: new Clutter.BinLayout(),
+        });
+
+        // Empty state with horizontal layout - icon on left, text on right
         const emptyState = new St.BoxLayout({
-            vertical: true,
-            style: 'spacing: 12px; padding: 32px; ' +
+            vertical: false,  // Horizontal layout
+            style: 'spacing: 28px; padding: 24px 36px; ' +
                    `background-color: ${colors.inputBg}; ` +
                    'border-radius: 12px; ' +
                    `border: 2px dashed ${colors.divider};`,
             x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: false,
+            y_expand: false,
         });
 
-        const icon = new St.Label({
-            text: '📐',
-            style: 'font-size: 48pt;',
-        });
-        emptyState.add_child(icon);
+        // Zoned branded icon on the left (monochromatic, adapts to theme)
+        try {
+            const extensionPath = ctx._layoutManager.getExtensionPath();
+            const iconPath = `${extensionPath}/icons/zoned-symbolic.svg`;
+            const iconFile = Gio.File.new_for_path(iconPath);
 
-        const text = new St.Label({
-            text: 'No custom layouts yet',
-            style: `font-size: 14pt; color: ${colors.textSecondary};`,
-        });
-        emptyState.add_child(text);
+            if (iconFile.query_exists(null)) {
+                const icon = new St.Icon({
+                    gicon: Gio.icon_new_for_string(iconPath),
+                    icon_size: 72,
+                    style: `color: ${colors.textMuted}; opacity: 0.5;`,
+                    y_align: Clutter.ActorAlign.CENTER,
+                });
+                emptyState.add_child(icon);
+            }
+        } catch (e) {
+            logger.debug(`Could not load zoned icon for empty state: ${e}`);
+        }
 
+        // Text content on the right
+        const textContent = new St.BoxLayout({
+            vertical: true,
+            style: 'spacing: 6px;',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        // Title - uses section title size for consistency
+        const title = new St.Label({
+            text: 'Get Started with Custom Layouts',
+            style: `font-size: ${ctx._SECTION_TITLE_SIZE}; font-weight: 600; color: ${colors.textPrimary};`,
+        });
+        textContent.add_child(title);
+
+        // Benefits list
+        const benefitsBox = new St.BoxLayout({
+            vertical: true,
+            style: 'spacing: 4px; margin-top: 6px;',
+        });
+
+        const benefits = [
+            '• Save time with layouts tailored to your workflow',
+            '• Duplicate templates to quickly customize',
+            '• Assign keyboard shortcuts (1-9) for instant switching',
+        ];
+
+        benefits.forEach(benefit => {
+            const label = new St.Label({
+                text: benefit,
+                style: `font-size: ${ctx._CARD_LABEL_SIZE}; color: ${colors.textSecondary};`,
+            });
+            benefitsBox.add_child(label);
+        });
+
+        textContent.add_child(benefitsBox);
+
+        // Instructions hint - slightly smaller than card labels
+        const hintFontSize = Math.max(9, Math.floor(ctx._cardHeight * 0.07));
         const hint = new St.Label({
-            text: 'Create or duplicate a layout to get started',
-            style: `font-size: 11pt; color: ${colors.textMuted};`,
+            text: 'Click "Create new layout" below, or open any template\nand select "Duplicate" to get started.',
+            style: `font-size: ${hintFontSize}px; color: ${colors.textMuted}; margin-top: 8px;`,
         });
-        emptyState.add_child(hint);
+        textContent.add_child(hint);
 
-        section.add_child(emptyState);
+        emptyState.add_child(textContent);
+        emptyStateWrapper.add_child(emptyState);
+        section.add_child(emptyStateWrapper);
     } else {
         // Internal scrollable area for custom layouts (only this scrolls)
         const scrollView = new St.ScrollView({
