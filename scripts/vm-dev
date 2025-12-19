@@ -42,7 +42,12 @@ main() {
         exit 1
     fi
     
-    vm_print_info "Using cached VM: ${CYAN}$VM_DOMAIN${NC}"
+    # Report VM and share type
+    if [[ "$VM_SHARE_TYPE" == "virtiofs" ]]; then
+        vm_print_info "Using cached VM: ${CYAN}$VM_DOMAIN${NC} ${GREEN}(virtiofs)${NC}"
+    else
+        vm_print_info "Using cached VM: ${CYAN}$VM_DOMAIN${NC} ${YELLOW}(SPICE WebDAV)${NC}"
+    fi
     
     # Step 2: Verify cache is still valid (VM running, SSH works)
     if ! vm_cache_is_valid; then

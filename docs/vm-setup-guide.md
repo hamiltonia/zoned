@@ -22,7 +22,9 @@ Complete step-by-step guide to set up VM-based development for Zoned GNOME Shell
 7. [Set Up SSH Access](#part-7-set-up-ssh-access-5-minutes)
 8. [Initialize Zoned VM Development](#part-8-initialize-zoned-vm-development-5-minutes)
 9. [Daily Development Workflow](#daily-development-workflow)
-10. [Troubleshooting](#troubleshooting)
+10. [Headless VM Mode (Longhaul Testing)](#headless-vm-mode-longhaul-testing)
+11. [File Sharing Options (SPICE vs virtiofs)](#file-sharing-options-spice-vs-virtiofs)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -597,6 +599,203 @@ make vm-logs
 
 ---
 
+## Headless VM Mode (Longhaul Testing)
+
+For extended testing (memory leak detection, stability testing), running the VM without a display client saves ~500MB memory and allows tests to run unattended.
+
+### Why Headless?
+
+- **Memory savings**: SPICE display client uses ~500MB for framebuffer
+- **Longhaul tests**: Run tests overnight without keeping display open
+- **Unattended operation**: VM runs in background, attach display only when needed
+
+### Headless Commands
+
+```bash
+# Start VM in headless mode (no display client)
+make vm-headless
+
+# Check VM status
+make vm-status
+
+# Attach display when needed (uses virt-viewer)
+make vm-display
+
+# Close display (VM keeps running)
+make vm-display-close
+
+# Stop VM gracefully
+make vm-stop
+
+# Force stop (if VM is unresponsive)
+make vm-stop-force
+```
+
+### Typical Longhaul Test Workflow
+
+```bash
+# 1. Start VM headless
+make vm-headless
+
+# 2. Wait for VM to boot (~30 seconds)
+sleep 30
+
+# 3. Deploy extension via SSH
+make vm-dev
+
+# 4. Start your test scenario (via SSH or GUI)
+make vm-display    # Attach to set up test
+# ... configure test ...
+make vm-display-close  # Detach display
+
+# 5. Let it run (hours/overnight)
+# Monitor via SSH if needed:
+ssh fedora-vm "journalctl -f /usr/bin/gnome-shell | grep -i zoned"
+
+# 6. Check results
+make vm-display    # Re-attach to inspect
+make vm-logs       # View logs
+
+# 7. Stop when done
+make vm-stop
+```
+
+### Requirements
+
+- **Host**: `virt-viewer` package (installed by running `setup-system.sh` with virtualization tools)
+- **VM**: Must be managed by libvirt (GNOME Boxes VMs work)
+
+### Installing virt-viewer
+
+If you don't have `virt-viewer`:
+
+```bash
+# Fedora
+sudo dnf install virt-viewer
+
+# Ubuntu/Debian
+sudo apt install virt-viewer
+
+# Arch
+sudo pacman -S virt-viewer
+```
+
+---
+
+## File Sharing Options (SPICE vs virtiofs)
+
+The VM scripts support two file sharing methods. The scripts auto-detect which is available.
+
+### Comparison
+
+| Feature | SPICE WebDAV | virtiofs |
+|---------|--------------|----------|
+| **Speed** | Slower (WebDAV over gvfs) | Near-native (kernel-level) |
+| **Setup** | Easy (GNOME Boxes UI) | Manual (edit VM XML) |
+| **Display dependency** | Requires SPICE connection | Works headless |
+| **Memory overhead** | Higher (gvfs daemon) | Lower |
+| **Best for** | Quick setup, casual use | Longhaul testing, performance |
+
+### Current Setup (SPICE WebDAV)
+
+This is what the guide above configures. Status is shown when running `make vm-dev`:
+
+```
+📁 File share: SPICE   # Yellow = SPICE WebDAV
+```
+
+### Upgrading to virtiofs (Advanced)
+
+For better performance and headless-friendly file sharing:
+
+#### Step 1: Check virtiofsd is available
+
+```bash
+# On host:
+which virtiofsd
+# Should return path like /usr/libexec/virtiofsd
+```
+
+If not installed:
+```bash
+# Fedora
+sudo dnf install virtiofsd
+
+# Ubuntu/Debian
+sudo apt install virtiofsd
+
+# Arch
+sudo pacman -S virtiofsd
+```
+
+#### Step 2: Get your VM name
+
+```bash
+virsh -c qemu:///session list --all
+# Note the VM name, e.g., "fedora42"
+```
+
+#### Step 3: Add virtiofs to VM XML
+
+```bash
+# Edit VM configuration
+virsh -c qemu:///session edit fedora42
+```
+
+Add inside `<devices>`:
+
+```xml
+<filesystem type='mount' accessmode='passthrough'>
+  <driver type='virtiofs'/>
+  <source dir='/home/yourusername/GitHub/zoned'/>
+  <target dir='zoned-share'/>
+</filesystem>
+```
+
+Add memory backing (required for virtiofs):
+
+```xml
+<memoryBacking>
+  <source type='memfd'/>
+  <access mode='shared'/>
+</memoryBacking>
+```
+
+Save and exit (`:wq` in vi).
+
+#### Step 4: Mount in VM
+
+After starting VM:
+
+```bash
+# In VM:
+sudo mkdir -p /mnt/zoned
+sudo mount -t virtiofs zoned-share /mnt/zoned
+
+# Make permanent (add to /etc/fstab):
+echo "zoned-share /mnt/zoned virtiofs defaults 0 0" | sudo tee -a /etc/fstab
+```
+
+#### Step 5: Verify
+
+```bash
+# On host, run vm-dev - should show:
+make vm-dev
+# 📁 File share: virtiofs   # Green = virtiofs detected
+```
+
+### Scripts Auto-Detection
+
+The VM scripts automatically detect which file sharing method is available:
+
+1. **virtiofs first**: Checks for `/mnt/zoned/extension` or similar virtiofs mounts
+2. **SPICE fallback**: Falls back to gvfs SPICE WebDAV mount
+3. **Reports status**: Shows which method is being used
+
+You don't need to change any scripts - they adapt automatically.
+
+---
+
 ## Troubleshooting
 
 ### Shared Folder Not Appearing
@@ -769,6 +968,13 @@ tail -f ~/GitHub/zoned/zoned-extension.log
 - `make vm-logs` - Watch extension logs from VM
 - `make vm-restart-spice` - Fix SPICE display connection issues
 - `make vm-network-setup` - Configure host networking (run once)
+
+**Headless Mode (longhaul testing):**
+- `make vm-headless` - Start VM without display client
+- `make vm-status` - Check if VM is running
+- `make vm-display` - Attach display (virt-viewer)
+- `make vm-display-close` - Close display, VM keeps running
+- `make vm-stop` - Stop VM gracefully
 
 **Deprecated commands** (no longer needed, handled by vm-dev):
 - `make vm-init` - ~~First-time VM configuration~~
