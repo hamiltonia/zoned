@@ -69,6 +69,7 @@ help:
 	@printf "  make vm-quick-test     - Quick verification (~3-5 min, low iterations)\n"
 	@printf "  make vm-long-haul DURATION=8h - Soak test: cycles through all tests repeatedly\n"
 	@printf "                           tracking per-test memory to identify leaks\n"
+	@printf "  make vm-analyze-tests  - Analyze latest test results and generate HTML report\n"
 	@printf "  make vm-test-single TEST=<name> - Run single test (e.g., window-movement)\n"
 	@printf "  make vm-stop-test      - Kill any running test processes in VM\n"
 	@printf "  make vm-enable-debug   - Enable debug features in VM\n"
@@ -331,7 +332,7 @@ vm-stability-test:
 		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
 		exit 1; \
 	fi
-	@. $(VM_CACHE) && ssh $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/run-all.sh"
+	@. ./$(VM_CACHE) && ssh $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/run-all.sh"
 
 vm-quick-test:
 	@printf "$(COLOR_INFO)Running quick stability tests in VM...$(COLOR_RESET)\n"
@@ -339,7 +340,7 @@ vm-quick-test:
 		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
 		exit 1; \
 	fi
-	@. $(VM_CACHE) && ssh $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/run-all.sh --quick"
+	@. ./$(VM_CACHE) && ssh $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/run-all.sh --quick"
 
 # Default long haul duration (DURATION is alias for convenience)
 LONG_HAUL_DURATION ?= 8h
@@ -354,7 +355,7 @@ vm-long-haul:
 		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
 		exit 1; \
 	fi
-	@. $(VM_CACHE) && ssh $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/run-all.sh --long-haul $(LONG_HAUL_DURATION)"
+	@. ./$(VM_CACHE) && ssh $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/run-all.sh --long-haul $(LONG_HAUL_DURATION)"
 
 vm-test-single:
 	@if [ -z "$(TEST)" ]; then \
@@ -369,7 +370,7 @@ vm-test-single:
 		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
 		exit 1; \
 	fi
-	@. $(VM_CACHE) && ssh $${VM_DOMAIN} "\
+	@. ./$(VM_CACHE) && ssh $${VM_DOMAIN} "\
 		cd $${VM_MOUNT_PATH} && \
 		export DISPLAY=:0 && \
 		export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus && \
@@ -394,7 +395,7 @@ vm-enable-debug:
 		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
 		exit 1; \
 	fi
-	@. $(VM_CACHE) && ssh $${VM_DOMAIN} "gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true && \
+	@. ./$(VM_CACHE) && ssh $${VM_DOMAIN} "gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true && \
 	    gsettings set org.gnome.shell.extensions.zoned debug-track-resources true"
 	@printf "$(COLOR_SUCCESS)✓ Debug features enabled in VM$(COLOR_RESET)\n"
 
@@ -404,7 +405,7 @@ vm-disable-debug:
 		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
 		exit 1; \
 	fi
-	@. $(VM_CACHE) && ssh $${VM_DOMAIN} "gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus false && \
+	@. ./$(VM_CACHE) && ssh $${VM_DOMAIN} "gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus false && \
 	    gsettings set org.gnome.shell.extensions.zoned debug-track-resources false"
 	@printf "$(COLOR_SUCCESS)✓ Debug features disabled in VM$(COLOR_RESET)\n"
 
@@ -414,7 +415,7 @@ vm-stop-test:
 		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
 		exit 1; \
 	fi
-	@. $(VM_CACHE) && ssh $${VM_DOMAIN} "\
+	@. ./$(VM_CACHE) && ssh $${VM_DOMAIN} "\
 		echo 'Looking for test processes...'; \
 		PIDS=\"\$$(pgrep -f 'run-all.sh|test-.*\.sh' 2>/dev/null || true)\"; \
 		if [ -n \"\$$PIDS\" ]; then \
@@ -435,3 +436,40 @@ vm-stop-test:
 		gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus false 2>/dev/null || true; \
 		gsettings set org.gnome.shell.extensions.zoned debug-track-resources false 2>/dev/null || true"
 	@printf "$(COLOR_SUCCESS)✓ Test cleanup complete$(COLOR_RESET)\n"
+
+vm-analyze-tests:
+	@printf "$(COLOR_INFO)Analyzing latest test results...$(COLOR_RESET)\n"
+	@LATEST_MEMORY=$$(ls -t results/memory-*.csv 2>/dev/null | head -1); \
+	LATEST_LONGHAUL=$$(ls -t results/longhaul-*.csv 2>/dev/null | head -1); \
+	if [ -z "$$LATEST_MEMORY" ]; then \
+		printf "$(COLOR_ERROR)No memory test results found in results/$(COLOR_RESET)\n"; \
+		printf "$(COLOR_INFO)Run a test first: make vm-long-haul DURATION=3m$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi; \
+	printf "$(COLOR_INFO)Analyzing test data:$(COLOR_RESET)\n"; \
+	printf "  Memory:   $$LATEST_MEMORY\n"; \
+	if [ -n "$$LATEST_LONGHAUL" ]; then \
+		printf "  Longhaul: $$LATEST_LONGHAUL\n"; \
+	fi; \
+	echo ""; \
+	printf "$(COLOR_INFO)Checking Python dependencies...$(COLOR_RESET)\n"; \
+	if ! python3 -c "import plotly, pandas" 2>/dev/null; then \
+		printf "$(COLOR_WARN)Installing required Python packages...$(COLOR_RESET)\n"; \
+		pip3 install --user plotly pandas || { \
+			printf "$(COLOR_ERROR)Failed to install dependencies$(COLOR_RESET)\n"; \
+			printf "$(COLOR_INFO)Install manually: pip3 install plotly pandas$(COLOR_RESET)\n"; \
+			exit 1; \
+		}; \
+	fi; \
+	printf "$(COLOR_INFO)Generating analysis report...$(COLOR_RESET)\n"; \
+	REPORT=$$(python3 scripts/analyze-memory.py "$$LATEST_MEMORY" 2>&1 | grep "Open in browser" | awk '{print $$NF}'); \
+	if [ -n "$$REPORT" ]; then \
+		printf "$(COLOR_SUCCESS)✓ Analysis complete!$(COLOR_RESET)\n"; \
+		printf "$(COLOR_INFO)Opening report in browser...$(COLOR_RESET)\n"; \
+		xdg-open "$$REPORT" 2>/dev/null || open "$$REPORT" 2>/dev/null || { \
+			printf "$(COLOR_INFO)Report: $$REPORT$(COLOR_RESET)\n"; \
+		}; \
+	else \
+		printf "$(COLOR_ERROR)Analysis failed$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi

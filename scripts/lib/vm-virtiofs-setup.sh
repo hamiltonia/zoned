@@ -93,6 +93,15 @@ vm_virtiofs_setup() {
     if [[ "$setup_output" == *"MOUNT_SUCCESS"* ]]; then
         vm_print_success "virtiofs share mounted at $mount_point"
         
+        # Make results directory world-writable so VM can write test output
+        # This avoids changing ownership which would affect host files
+        vm_print_step "Setting results directory permissions..."
+        if ssh "$domain" "sudo chmod 777 $mount_point/results 2>/dev/null || sudo mkdir -p $mount_point/results && sudo chmod 777 $mount_point/results" 2>/dev/null; then
+            vm_print_success "Results directory writable"
+        else
+            vm_print_warning "Could not set results directory permissions"
+        fi
+        
         # Add fstab entry for persistence (non-fatal if it fails)
         vm_virtiofs_add_fstab "$domain" "$virtiofs_tag" "$mount_point" || true
         
@@ -239,6 +248,14 @@ vm_virtiofs_restart_and_mount() {
     
     if ssh "$domain" "sudo mount -t virtiofs $virtiofs_tag $mount_point" 2>/dev/null; then
         vm_print_success "virtiofs share mounted at $mount_point"
+        
+        # Make results directory world-writable
+        vm_print_step "Setting results directory permissions..."
+        if ssh "$domain" "sudo chmod 777 $mount_point/results 2>/dev/null || sudo mkdir -p $mount_point/results && sudo chmod 777 $mount_point/results" 2>/dev/null; then
+            vm_print_success "Results directory writable"
+        else
+            vm_print_warning "Could not set results directory permissions"
+        fi
         
         # Add fstab entry
         vm_virtiofs_add_fstab "$domain" "$virtiofs_tag" "$mount_point"

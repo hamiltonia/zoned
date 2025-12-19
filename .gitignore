@@ -67,3 +67,5 @@ results/
 
 # User-specific configs (not committed)
 layouts-local.json
+.Trash-*
+memory-analysis-*.html
