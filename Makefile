@@ -67,7 +67,8 @@ help:
 	@printf "$(COLOR_SUCCESS)Stability Testing:$(COLOR_RESET)\n"
 	@printf "  make vm-stability-test - Full test suite (~15-30 min, high iterations)\n"
 	@printf "  make vm-quick-test     - Quick verification (~3-5 min, low iterations)\n"
-	@printf "  make vm-long-haul DURATION=8h - Soak test: cycles through all tests repeatedly\n"
+	@printf "  make vm-longhaul       - Interactive menu for focused long tests\n"
+	@printf "  make vm-longhaul-all DURATION=8h - Soak test: cycles through all tests repeatedly\n"
 	@printf "                           tracking per-test memory to identify leaks\n"
 	@printf "  make vm-analyze-tests  - Analyze latest test results and generate HTML report\n"
 	@printf "  make vm-test-single TEST=<name> - Run single test (e.g., window-movement)\n"
@@ -342,13 +343,21 @@ vm-quick-test:
 	fi
 	@. ./$(VM_CACHE) && ssh $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/run-all.sh --quick"
 
+vm-longhaul:
+	@printf "$(COLOR_INFO)Starting interactive long-running test...$(COLOR_RESET)\n"
+	@if [ ! -f $(VM_CACHE) ]; then \
+		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi
+	@. ./$(VM_CACHE) && ssh -t $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/longhaul-interactive.sh"
+
 # Default long haul duration (DURATION is alias for convenience)
 LONG_HAUL_DURATION ?= 8h
 ifdef DURATION
     LONG_HAUL_DURATION := $(DURATION)
 endif
 
-vm-long-haul:
+vm-longhaul-all:
 	@printf "$(COLOR_INFO)Running long haul stability test in VM ($(LONG_HAUL_DURATION))...$(COLOR_RESET)\n"
 	@printf "$(COLOR_WARN)This will run for $(LONG_HAUL_DURATION) - use Ctrl+C to stop early$(COLOR_RESET)\n"
 	@if [ ! -f $(VM_CACHE) ]; then \

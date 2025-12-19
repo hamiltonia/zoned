@@ -89,8 +89,8 @@ export class LayoutSwitcher {
         this._currentDialogWidth = null;
         this._currentDialogHeight = null;
 
-        // Signal tracking for cleanup
-        this._signalIds = [];
+        // Signal tracking for cleanup - store {object, id} pairs for proper disconnection
+        this._signals = [];
         this._timeoutIds = [];
 
         // Bind methods to avoid closure leaks
@@ -195,12 +195,97 @@ export class LayoutSwitcher {
         this._cleanupResize();
         this._disconnectKeyEvents();
         this._disconnectCardSignals();
+        this._disconnectTrackedSignals();
+        this._removeTrackedTimeouts();
         this._resetState();
         this._releaseModal();
         this._cleanupDialogElements();
 
         Main.uiGroup.remove_child(dialog);
         dialog.destroy();
+
+        this._nullifyAllProperties();
+    }
+
+    /**
+     * Disconnect all tracked signals
+     * @private
+     */
+    _disconnectTrackedSignals() {
+        if (!this._signals || this._signals.length === 0) {
+            return;
+        }
+
+        logger.info(`[Zoned:Cleanup] Disconnecting ${this._signals.length} tracked signals`);
+        this._signals.forEach(({object, id}) => {
+            if (object && id) {
+                try {
+                    object.disconnect(id);
+                } catch (e) {
+                    logger.error(`[Zoned:Cleanup] Error disconnecting signal: ${e.message}`);
+                }
+            }
+        });
+        this._signals = [];
+    }
+
+    /**
+     * Remove all tracked timeouts
+     * @private
+     */
+    _removeTrackedTimeouts() {
+        if (!this._timeoutIds || this._timeoutIds.length === 0) {
+            return;
+        }
+
+        logger.info(`[Zoned:Cleanup] Removing ${this._timeoutIds.length} timeouts`);
+        this._timeoutIds.forEach(id => {
+            try {
+                GLib.Source.remove(id);
+            } catch (e) {
+                logger.error(`[Zoned:Cleanup] Error removing timeout: ${e.message}`);
+            }
+        });
+        this._timeoutIds = [];
+    }
+
+    /**
+     * Nullify all properties to break reference cycles
+     * Only nullifies properties created in show(), preserves constructor properties
+     * TODO: After leak testing is complete, this logging can be commented out for production.
+     * The nullification itself should remain to ensure clean teardown.
+     * @private
+     */
+    _nullifyAllProperties() {
+        // Properties from constructor that must be preserved for reuse
+        const constructorProps = new Set([
+            '_layoutManager',
+            '_zoneOverlay',
+            '_settings',
+            '_templateManager',
+            '_themeManager',
+            '_signals',
+            '_timeoutIds',
+            '_DEBUG_COLORS',
+            '_MIN_DIALOG_WIDTH',
+            '_MIN_DIALOG_HEIGHT',
+        ]);
+
+        logger.info('[Zoned:Cleanup] Nullifying show() properties...');
+        for (const key of Object.keys(this)) {
+            if (key.startsWith('_') &&
+                !key.startsWith('_bound') &&
+                !constructorProps.has(key)) {
+                // Null properties created in show()
+                const value = this[key];
+                const type = typeof value;
+                const hasDestroy = value?.destroy !== undefined;
+
+                logger.info(`[Zoned:Cleanup]   Nulling ${key}: ${type}${hasDestroy ? ' (has destroy)' : ''}`);
+                this[key] = null;
+            }
+        }
+        logger.info('[Zoned:Cleanup] Nullification complete');
     }
 
     /**
@@ -506,9 +591,8 @@ export class LayoutSwitcher {
 
         // Click on background (outside container) dismisses the dialog
         // Use bound method to avoid closure leak
-        this._signalIds.push(
-            this._dialog.connect('button-press-event', this._boundHandleBackgroundClick),
-        );
+        const dialogSignalId = this._dialog.connect('button-press-event', this._boundHandleBackgroundClick);
+        this._signals.push({object: this._dialog, id: dialogSignalId});
 
         // Main container with padding on all sides
         const container = new St.BoxLayout({
@@ -524,9 +608,8 @@ export class LayoutSwitcher {
                    `height: ${dialogHeight}px;`,
         });
 
-        this._signalIds.push(
-            container.connect('button-press-event', this._boundHandleContainerClick),
-        );
+        const containerSignalId = container.connect('button-press-event', this._boundHandleContainerClick);
+        this._signals.push({object: container, id: containerSignalId});
 
         // Create sections using modules
         const topBar = createTopBar(this);
@@ -591,9 +674,7 @@ export class LayoutSwitcher {
             Main.uiGroup.add_child(this._debugOverlay);
         }
 
-        this._dialog.grab_key_focus();
-
-        // Push modal to grab all input and prevent events from reaching windows behind
+        // Push modal BEFORE grabbing focus to ensure proper event routing
         try {
             this._modalGrabbed = Main.pushModal(this._dialog, {
                 actionMode: imports.gi.Shell.ActionMode.NORMAL,
@@ -606,6 +687,9 @@ export class LayoutSwitcher {
             logger.error(`Error acquiring modal: ${e.message}`);
             this._modalGrabbed = null;
         }
+
+        // Grab focus AFTER modal push to ensure keyboard events route correctly
+        this._dialog.grab_key_focus();
 
         // Scroll to active custom layout card if it's off-screen
         this._scrollToActiveCard();
@@ -959,9 +1043,8 @@ export class LayoutSwitcher {
             reactive: true,
             track_hover: true,
         });
-        this._signalIds.push(
-            cancelBtn.connect('clicked', this._boundHandleDeleteCancelClick),
-        );
+        const cancelBtnSignalId = cancelBtn.connect('clicked', this._boundHandleDeleteCancelClick);
+        this._signals.push({object: cancelBtn, id: cancelBtnSignalId});
         buttonBox.add_child(cancelBtn);
 
         // Delete button (destructive red)
@@ -975,9 +1058,8 @@ export class LayoutSwitcher {
             reactive: true,
             track_hover: true,
         });
-        this._signalIds.push(
-            deleteBtn.connect('clicked', this._boundHandleDeleteConfirmClick),
-        );
+        const deleteBtnSignalId = deleteBtn.connect('clicked', this._boundHandleDeleteConfirmClick);
+        this._signals.push({object: deleteBtn, id: deleteBtnSignalId});
         buttonBox.add_child(deleteBtn);
 
         confirmBox.add_child(buttonBox);
@@ -1003,9 +1085,18 @@ export class LayoutSwitcher {
         wrapper.get_child().add_child(confirmBox);
 
         // Click on backdrop to cancel - use bound method
-        this._signalIds.push(
-            wrapper.connect('button-press-event', this._boundHandleDeleteWrapperClick),
-        );
+        const wrapperSignalId = wrapper.connect('button-press-event', this._boundHandleDeleteWrapperClick);
+        this._signals.push({object: wrapper, id: wrapperSignalId});
+
+        // Handle Escape key to dismiss confirmation
+        const wrapperKeySignalId = wrapper.connect('key-press-event', (actor, event) => {
+            if (event.get_key_symbol() === Clutter.KEY_Escape) {
+                this._hideDeleteConfirmation();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+        this._signals.push({object: wrapper, id: wrapperKeySignalId});
 
         // Add overlay on top of the dialog container
         this._confirmOverlay = wrapper;
@@ -1226,11 +1317,12 @@ export class LayoutSwitcher {
 
     /**
      * Handle key press events for keyboard navigation and debug shortcuts
+     * @param {Clutter.Actor} actor - The actor that received the event
      * @param {Clutter.Event} event - The key press event
      * @returns {Clutter.EVENT_STOP|Clutter.EVENT_PROPAGATE}
      * @private
      */
-    _handleKeyPress(event) {
+    _handleKeyPress(actor, event) {
         const symbol = event.get_key_symbol();
         const modifiers = event.get_state();
         const ctrlPressed = (modifiers & Clutter.ModifierType.CONTROL_MASK) !== 0;
