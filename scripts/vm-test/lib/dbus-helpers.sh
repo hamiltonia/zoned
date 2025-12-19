@@ -277,6 +277,52 @@ dbus_hide_zone_editor() {
 }
 
 # =============================================================================
+# GJS Memory Introspection
+# =============================================================================
+
+# Get GJS/GNOME Shell memory stats via D-Bus
+# Returns: "rss_kb vm_kb shared_kb data_kb" or empty on failure
+dbus_get_gjs_memory() {
+    local raw
+    raw=$(dbus_call "GetGJSMemory" 2>/dev/null)
+    
+    if [ -z "$raw" ]; then
+        echo ""
+        return 1
+    fi
+    
+    local rss_kb vm_kb shared_kb data_kb
+    rss_kb=$(extract_variant "rssKb" "$raw" 2>/dev/null || echo "0")
+    vm_kb=$(extract_variant "vmSizeKb" "$raw" 2>/dev/null || echo "0")
+    shared_kb=$(extract_variant "sharedKb" "$raw" 2>/dev/null || echo "0")
+    data_kb=$(extract_variant "dataKb" "$raw" 2>/dev/null || echo "0")
+    
+    echo "${rss_kb:-0} ${vm_kb:-0} ${shared_kb:-0} ${data_kb:-0}"
+}
+
+# Get detailed memory info as key=value pairs
+get_memory_details() {
+    local raw
+    raw=$(dbus_call "GetGJSMemory" 2>/dev/null)
+    
+    if [ -z "$raw" ]; then
+        echo "error=failed_to_get_memory"
+        return 1
+    fi
+    
+    local rss_kb vm_kb shared_kb data_kb
+    rss_kb=$(extract_variant "rssKb" "$raw" 2>/dev/null || echo "0")
+    vm_kb=$(extract_variant "vmSizeKb" "$raw" 2>/dev/null || echo "0")
+    shared_kb=$(extract_variant "sharedKb" "$raw" 2>/dev/null || echo "0")
+    data_kb=$(extract_variant "dataKb" "$raw" 2>/dev/null || echo "0")
+    
+    echo "rss_kb=${rss_kb:-0}"
+    echo "vm_kb=${vm_kb:-0}"
+    echo "shared_kb=${shared_kb:-0}"
+    echo "data_kb=${data_kb:-0}"
+}
+
+# =============================================================================
 # Garbage Collection
 # =============================================================================
 

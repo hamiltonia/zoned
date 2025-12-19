@@ -27,6 +27,16 @@ let _debugEnabled = false;
 let _settingsChangedId = null;
 
 /**
+ * Handler for debug-logging setting changes
+ * Separated to avoid arrow function closure leak
+ * @private
+ */
+function _onDebugLoggingChanged() {
+    _debugEnabled = _settings.get_boolean('debug-logging');
+    console.log(`[Zoned] Debug logging ${_debugEnabled ? 'enabled' : 'disabled'}`);
+}
+
+/**
  * Initialize debug settings from GSettings
  * Called once when extension loads, but Logger also handles lazy init
  */
@@ -48,14 +58,12 @@ export function initDebugSettings(settings = null) {
     // Read initial value
     _debugEnabled = _settings.get_boolean('debug-logging');
 
-    // Watch for changes
+    // Watch for changes - use named function to avoid closure leak
     if (_settingsChangedId) {
         _settings.disconnect(_settingsChangedId);
+        _settingsChangedId = null;
     }
-    _settingsChangedId = _settings.connect('changed::debug-logging', () => {
-        _debugEnabled = _settings.get_boolean('debug-logging');
-        console.log(`[Zoned] Debug logging ${_debugEnabled ? 'enabled' : 'disabled'}`);
-    });
+    _settingsChangedId = _settings.connect('changed::debug-logging', _onDebugLoggingChanged);
 }
 
 /**

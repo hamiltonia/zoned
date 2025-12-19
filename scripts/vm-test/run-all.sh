@@ -24,6 +24,11 @@ source "$SCRIPT_DIR/lib/setup.sh"
 export TEST_RESULTS_FILE="/tmp/zoned-test-results.txt"
 SUITE_START_TIME=$(date +%s)
 
+# Memory monitor configuration
+MEMORY_MONITOR_PID=""
+MEMORY_MONITOR_OUTPUT=""
+TEST_MARKER_FILE="/tmp/zoned-test-marker"
+
 # Suite-level memory thresholds (in KB)
 SUITE_MEM_WARN_THRESHOLD_KB=${SUITE_MEM_WARN_THRESHOLD_KB:-30720}   # 30 MB
 SUITE_MEM_FAIL_THRESHOLD_KB=${SUITE_MEM_FAIL_THRESHOLD_KB:-51200}   # 50 MB
@@ -130,6 +135,75 @@ else
     WINDOW_MOVEMENT_PASSES=2
     WINDOW_MOVEMENT_LAYOUTS=0  # 0 = all layouts
 fi
+
+# =============================================================================
+# Memory Monitor Functions
+# =============================================================================
+
+# Start background memory monitor
+start_memory_monitor() {
+    local timestamp=$(date +%Y-%m-%d-%H%M%S)
+    MEMORY_MONITOR_OUTPUT="$SCRIPT_DIR/../../results/memory-${timestamp}.csv"
+    local monitor_log="/tmp/memory-monitor-startup.log"
+    
+    echo "Starting memory monitor..."
+    
+    # Run monitor in background, capture initial output for debugging
+    "$SCRIPT_DIR/memory-monitor.sh" \
+        --interval 5 \
+        --output "$MEMORY_MONITOR_OUTPUT" \
+        --marker "$TEST_MARKER_FILE" \
+        >"$monitor_log" 2>&1 &
+    
+    MEMORY_MONITOR_PID=$!
+    
+    # Give it time to initialize (script does D-Bus check at start)
+    sleep 2
+    
+    if kill -0 "$MEMORY_MONITOR_PID" 2>/dev/null; then
+        echo "Memory monitor started (PID: $MEMORY_MONITOR_PID)"
+        echo "Output: $MEMORY_MONITOR_OUTPUT"
+        # Redirect output to /dev/null now that it's running
+        exec 3>/dev/null
+    else
+        echo -e "${YELLOW}Warning: Memory monitor failed to start${NC}"
+        if [ -f "$monitor_log" ]; then
+            echo "Monitor startup log:"
+            head -20 "$monitor_log"
+        fi
+        MEMORY_MONITOR_PID=""
+    fi
+}
+
+# Stop background memory monitor
+stop_memory_monitor() {
+    if [ -n "$MEMORY_MONITOR_PID" ]; then
+        echo "Stopping memory monitor..."
+        kill "$MEMORY_MONITOR_PID" 2>/dev/null || true
+        wait "$MEMORY_MONITOR_PID" 2>/dev/null || true
+        MEMORY_MONITOR_PID=""
+        
+        if [ -n "$MEMORY_MONITOR_OUTPUT" ] && [ -f "$MEMORY_MONITOR_OUTPUT" ]; then
+            local lines=$(wc -l < "$MEMORY_MONITOR_OUTPUT" 2>/dev/null || echo "0")
+            echo "Memory monitor stopped. Samples: $((lines - 1))"  # Subtract header
+            echo "Data saved to: $MEMORY_MONITOR_OUTPUT"
+        fi
+    fi
+    
+    # Clean up marker file
+    rm -f "$TEST_MARKER_FILE" 2>/dev/null || true
+}
+
+# Set current test name in marker file (for memory monitor correlation)
+set_test_marker() {
+    local test_name="$1"
+    echo "$test_name" > "$TEST_MARKER_FILE"
+}
+
+# Clear test marker
+clear_test_marker() {
+    echo "idle" > "$TEST_MARKER_FILE"
+}
 
 # Long haul CSV file for raw data export
 # We write to /tmp/ (append works locally) and sync to results/ (full copy works on WebDAV)
@@ -478,6 +552,8 @@ run_long_haul() {
         
         # Run all 9 tests and collect deltas
         for i in {0..8}; do
+            # Set test marker for memory monitor correlation
+            set_test_marker "${TEST_NAMES[$i]}"
             local result=$(run_test_and_get_delta $i)
             local delta=$(echo "$result" | cut -d: -f1)
             local exit_code=$(echo "$result" | cut -d: -f2)
@@ -703,8 +779,14 @@ print_long_haul_results() {
 # LONG HAUL MODE - runs a different flow
 # ============================================================================
 if [ "$LONG_HAUL_MODE" = true ]; then
+    # Start memory monitor in background
+    start_memory_monitor
+    
     run_long_haul
     long_haul_result=$?
+    
+    # Stop memory monitor
+    stop_memory_monitor
     
     # Disable debug features
     echo ""
@@ -719,6 +801,9 @@ fi
 # NORMAL MODE (Quick or Full) - sequential test execution
 # ============================================================================
 
+# Start memory monitor in background
+start_memory_monitor
+
 # Track failed tests
 FAILED_TESTS=0
 
@@ -728,6 +813,7 @@ echo "========================================"
 echo "  Test 1: Enable/Disable Cycle"
 echo "========================================"
 export TEST_NAME="Enable/Disable"
+set_test_marker "Enable/Disable"
 "$SCRIPT_DIR/test-enable-disable.sh" "$ENABLE_DISABLE_CYCLES" 500 || ((++FAILED_TESTS))
 
 echo ""
@@ -735,6 +821,7 @@ echo "========================================"
 echo "  Test 2: UI Stress Test"
 echo "========================================"
 export TEST_NAME="UI Stress"
+set_test_marker "UI Stress"
 "$SCRIPT_DIR/test-ui-stress.sh" "$UI_STRESS_ITERATIONS" || ((++FAILED_TESTS))
 
 echo ""
@@ -742,6 +829,7 @@ echo "========================================"
 echo "  Test 3: Zone Cycling"
 echo "========================================"
 export TEST_NAME="Zone Cycling"
+set_test_marker "Zone Cycling"
 "$SCRIPT_DIR/test-zone-cycling.sh" "$ZONE_CYCLING_ITERATIONS" || ((++FAILED_TESTS))
 
 echo ""
@@ -749,6 +837,7 @@ echo "========================================"
 echo "  Test 4: Layout Switching"
 echo "========================================"
 export TEST_NAME="Layout Switching"
+set_test_marker "Layout Switching"
 "$SCRIPT_DIR/test-layout-switching.sh" "$LAYOUT_SWITCH_CYCLES" || ((++FAILED_TESTS))
 
 echo ""
@@ -756,6 +845,7 @@ echo "========================================"
 echo "  Test 5: Combined Stress"
 echo "========================================"
 export TEST_NAME="Combined Stress"
+set_test_marker "Combined Stress"
 "$SCRIPT_DIR/test-combined-stress.sh" "$COMBINED_STRESS_ITERATIONS" || ((++FAILED_TESTS))
 
 echo ""
@@ -763,6 +853,7 @@ echo "========================================"
 echo "  Test 6: Multi-Monitor"
 echo "========================================"
 export TEST_NAME="Multi-Monitor"
+set_test_marker "Multi-Monitor"
 "$SCRIPT_DIR/test-multi-monitor.sh" "$MULTI_MONITOR_ITERATIONS" || ((++FAILED_TESTS))
 
 echo ""
@@ -770,6 +861,7 @@ echo "========================================"
 echo "  Test 7: Window Movement"
 echo "========================================"
 export TEST_NAME="Window Movement"
+set_test_marker "Window Movement"
 "$SCRIPT_DIR/test-window-movement.sh" "$WINDOW_MOVEMENT_PASSES" "$WINDOW_MOVEMENT_LAYOUTS" || ((++FAILED_TESTS))
 
 echo ""
@@ -777,6 +869,7 @@ echo "========================================"
 echo "  Test 8: Edge Cases"
 echo "========================================"
 export TEST_NAME="Edge Cases"
+set_test_marker "Edge Cases"
 "$SCRIPT_DIR/test-edge-cases.sh" || ((++FAILED_TESTS))
 
 echo ""
@@ -784,7 +877,14 @@ echo "========================================"
 echo "  Test 9: Workspace Tests"
 echo "========================================"
 export TEST_NAME="Workspace"
+set_test_marker "Workspace"
 "$SCRIPT_DIR/test-workspace.sh" || ((++FAILED_TESTS))
+
+# Clear test marker
+clear_test_marker
+
+# Stop memory monitor
+stop_memory_monitor
 
 # Disable debug features
 echo ""

@@ -56,6 +56,10 @@ const DBUS_INTERFACE_XML = `
       <arg direction="out" type="s" name="response"/>
     </method>
     
+    <method name="GetGJSMemory">
+      <arg direction="out" type="a{sv}" name="memory"/>
+    </method>
+    
     <signal name="ActionCompleted">
       <arg type="s" name="action"/>
       <arg type="b" name="success"/>
@@ -338,6 +342,26 @@ export class DebugInterface {
         this._dbusExportId = null;
         this._enabled = false;
         this._settingsChangedId = null;
+
+        // Bind methods to avoid closure leaks
+        this._boundOnDebugExposeChanged = this._onDebugExposeChanged.bind(this);
+    }
+
+    /**
+     * Handler for debug-expose-dbus setting changes
+     * @private
+     */
+    _onDebugExposeChanged() {
+        const settings = this._extension._settings;
+        if (!settings) return;
+
+        const newValue = settings.get_boolean('debug-expose-dbus');
+        if (newValue && !this._enabled) {
+            this._enable();
+        } else if (!newValue && this._enabled) {
+            this._disable();
+        }
+        this._enabled = newValue;
     }
 
     /**
@@ -353,16 +377,8 @@ export class DebugInterface {
         // Check if D-Bus interface should be exposed
         this._enabled = settings.get_boolean('debug-expose-dbus');
 
-        // Watch for setting changes
-        this._settingsChangedId = settings.connect('changed::debug-expose-dbus', () => {
-            const newValue = settings.get_boolean('debug-expose-dbus');
-            if (newValue && !this._enabled) {
-                this._enable();
-            } else if (!newValue && this._enabled) {
-                this._disable();
-            }
-            this._enabled = newValue;
-        });
+        // Watch for setting changes - use bound method to avoid closure leak
+        this._settingsChangedId = settings.connect('changed::debug-expose-dbus', this._boundOnDebugExposeChanged);
 
         if (this._enabled) {
             this._enable();
@@ -596,6 +612,67 @@ export class DebugInterface {
     Ping() {
         logger.debug('D-Bus Ping called');
         return 'pong';
+    }
+
+    /**
+     * D-Bus Method: GetGJSMemory
+     * Returns GJS memory statistics for leak detection
+     * @returns {Object} Memory stats as variant dictionary
+     */
+    GetGJSMemory() {
+        logger.debug('D-Bus GetGJSMemory called');
+
+        try {
+            // Try to read /proc/self/statm for detailed process memory
+            // This gives us: size resident shared text lib data dt (in pages)
+            let procMemory = null;
+            try {
+                const [ok, contents] = GLib.file_get_contents('/proc/self/statm');
+                if (ok) {
+                    const decoder = new TextDecoder();
+                    const parts = decoder.decode(contents).trim().split(/\s+/);
+                    // Page size is almost always 4096 bytes on modern systems
+                    const pageSize = 4096;
+                    procMemory = {
+                        // Virtual memory size
+                        vmSizeKb: Math.round((parseInt(parts[0], 10) * pageSize) / 1024),
+                        // Resident set size (physical memory)
+                        rssKb: Math.round((parseInt(parts[1], 10) * pageSize) / 1024),
+                        // Shared memory
+                        sharedKb: Math.round((parseInt(parts[2], 10) * pageSize) / 1024),
+                        // Data + stack
+                        dataKb: Math.round((parseInt(parts[5], 10) * pageSize) / 1024),
+                    };
+                }
+            } catch {
+                // /proc not available (non-Linux)
+            }
+
+            // Build response with available metrics
+            const response = {
+                // Timestamp for correlation
+                timestamp: GLib.Variant.new_int64(GLib.get_real_time()),
+            };
+
+            if (procMemory) {
+                response.vmSizeKb = GLib.Variant.new_int32(procMemory.vmSizeKb);
+                response.rssKb = GLib.Variant.new_int32(procMemory.rssKb);
+                response.sharedKb = GLib.Variant.new_int32(procMemory.sharedKb);
+                response.dataKb = GLib.Variant.new_int32(procMemory.dataKb);
+            }
+
+            // GLib memory stats (allocations through GLib)
+            // GLib.mem_profile() exists but just prints to stderr
+            // We can check if malloc trimming helps
+            response.pageSize = GLib.Variant.new_int32(4096);
+
+            return response;
+        } catch (e) {
+            logger.error('GetGJSMemory error:', e.message);
+            return {
+                error: GLib.Variant.new_string(e.message),
+            };
+        }
     }
 
     /**

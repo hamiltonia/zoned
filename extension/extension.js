@@ -287,6 +287,7 @@ export default class ZonedExtension extends Extension {
             ['_keybindingManager', 'KeybindingManager'],
             ['_panelIndicator', 'PanelIndicator'],
             ['_layoutSwitcher', 'LayoutSwitcher'],
+            ['_templateManager', 'TemplateManager'],
             ['_notificationService', 'NotificationService'],
             ['_zoneOverlay', 'ZoneOverlay'],
             ['_notificationManager', 'NotificationManager'],
@@ -303,9 +304,6 @@ export default class ZonedExtension extends Extension {
                 logger.debug(`${name} destroyed`);
             }
         }
-
-        // TemplateManager has no destroy method (no cleanup needed)
-        this._templateManager = null;
     }
 
     /**

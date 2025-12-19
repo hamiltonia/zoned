@@ -95,6 +95,13 @@ export class ZoneEditor {
         // When false, uses single accent color; when true, uses 4-color map diagnostic
         this.USE_MAP_COLORS = false;
 
+        // Bind methods to avoid closure leaks
+        this._boundHandleOverlayMotion = this._handleOverlayMotion.bind(this);
+        this._boundHandleOverlayButtonRelease = this._handleOverlayButtonRelease.bind(this);
+        this._boundHandleKeyPress = this._handleKeyPress.bind(this);
+        this._boundOnSave = this._onSave.bind(this);
+        this._boundOnCancel = this._onCancel.bind(this);
+
         logger.debug('ZoneEditor created (edge-based)');
         logger.debug(`Initial state: ${this._edgeLayout.regions.length} regions, ${this._edgeLayout.edges.length} edges`);
         this._logLayoutState('CONSTRUCTOR');
@@ -200,28 +207,46 @@ export class ZoneEditor {
     }
 
     /**
+     * Handle overlay motion event
+     * @param {Clutter.Actor} _actor - The overlay actor
+     * @param {Clutter.Event} event - The motion event
+     * @returns {number} EVENT_STOP or EVENT_PROPAGATE
+     * @private
+     */
+    _handleOverlayMotion(_actor, event) {
+        if (this._draggingEdge) {
+            this._onEdgeDragMotion(event);
+            return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    /**
+     * Handle overlay button release event
+     * @param {Clutter.Actor} _actor - The overlay actor
+     * @param {Clutter.Event} _event - The button release event
+     * @returns {number} EVENT_STOP or EVENT_PROPAGATE
+     * @private
+     */
+    _handleOverlayButtonRelease(_actor, _event) {
+        if (this._draggingEdge) {
+            logger.info('[DRAG] Button release - ending drag');
+            this._onEdgeDragEnd();
+            return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    /**
      * Setup global drag event handlers
      * @private
      */
     _setupDragHandlers() {
-        // Global motion handler - tracks mouse movement during drag
-        this._overlay.connect('motion-event', (_actor, event) => {
-            if (this._draggingEdge) {
-                this._onEdgeDragMotion(event);
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
+        // Global motion handler - tracks mouse movement during drag - use bound method
+        this._overlay.connect('motion-event', this._boundHandleOverlayMotion);
 
-        // Global button-release handler - ends drag
-        this._overlay.connect('button-release-event', (_actor, _event) => {
-            if (this._draggingEdge) {
-                logger.info('[DRAG] Button release - ending drag');
-                this._onEdgeDragEnd();
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
+        // Global button-release handler - ends drag - use bound method
+        this._overlay.connect('button-release-event', this._boundHandleOverlayButtonRelease);
 
         logger.debug('Global drag handlers installed on overlay');
     }
@@ -1658,14 +1683,16 @@ export class ZoneEditor {
             style_class: 'button',
             style: `padding: 8px 24px; background-color: ${colors.accentHex}; color: white; border-radius: 4px; font-weight: bold;`,
         });
-        saveButton.connect('clicked', () => this._onSave());
+        saveButton.connect('clicked', this._boundOnSave);
 
-        // Hover effect for Save button
+        // Hover effect for Save button - NOTE: hover effects are transient UI, low memory impact
         saveButton.connect('enter-event', () => {
             saveButton.style = `padding: 8px 24px; background-color: ${colors.accentHexHover}; color: white; border-radius: 4px; font-weight: bold;`;
+            return Clutter.EVENT_PROPAGATE;
         });
         saveButton.connect('leave-event', () => {
             saveButton.style = `padding: 8px 24px; background-color: ${colors.accentHex}; color: white; border-radius: 4px; font-weight: bold;`;
+            return Clutter.EVENT_PROPAGATE;
         });
 
         this._toolbar.add_child(saveButton);
@@ -1676,14 +1703,16 @@ export class ZoneEditor {
             style_class: 'button',
             style: `padding: 8px 24px; background-color: ${colors.buttonBg}; color: ${colors.buttonText}; border-radius: 4px;`,
         });
-        cancelButton.connect('clicked', () => this._onCancel());
+        cancelButton.connect('clicked', this._boundOnCancel);
 
-        // Hover effect for Cancel button
+        // Hover effect for Cancel button - NOTE: hover effects are transient UI, low memory impact
         cancelButton.connect('enter-event', () => {
             cancelButton.style = `padding: 8px 24px; background-color: ${colors.buttonBgHover}; color: ${colors.buttonText}; border-radius: 4px;`;
+            return Clutter.EVENT_PROPAGATE;
         });
         cancelButton.connect('leave-event', () => {
             cancelButton.style = `padding: 8px 24px; background-color: ${colors.buttonBg}; color: ${colors.buttonText}; border-radius: 4px;`;
+            return Clutter.EVENT_PROPAGATE;
         });
 
         this._toolbar.add_child(cancelButton);
@@ -1692,27 +1721,37 @@ export class ZoneEditor {
     }
 
     /**
+     * Handle key press events
+     * @param {Clutter.Actor} _actor - The overlay actor
+     * @param {Clutter.Event} event - The key press event
+     * @returns {number} EVENT_STOP or EVENT_PROPAGATE
+     * @private
+     */
+    _handleKeyPress(_actor, event) {
+        const keySymbol = event.get_key_symbol();
+
+        switch (keySymbol) {
+            case Clutter.KEY_Escape:
+                this._onCancel();
+                return Clutter.EVENT_STOP;
+
+            case Clutter.KEY_Return:
+            case Clutter.KEY_KP_Enter:
+                this._onSave();
+                return Clutter.EVENT_STOP;
+
+            default:
+                return Clutter.EVENT_PROPAGATE;
+        }
+    }
+
+    /**
      * Setup keyboard event handlers
      * @private
      */
     _setupKeyboardHandlers() {
-        this._overlay.connect('key-press-event', (_actor, event) => {
-            const keySymbol = event.get_key_symbol();
-
-            switch (keySymbol) {
-                case Clutter.KEY_Escape:
-                    this._onCancel();
-                    return Clutter.EVENT_STOP;
-
-                case Clutter.KEY_Return:
-                case Clutter.KEY_KP_Enter:
-                    this._onSave();
-                    return Clutter.EVENT_STOP;
-
-                default:
-                    return Clutter.EVENT_PROPAGATE;
-            }
-        });
+        // Use bound method to avoid closure leak
+        this._overlay.connect('key-press-event', this._boundHandleKeyPress);
     }
 
     /**
