@@ -100,6 +100,7 @@ export class LayoutSwitcher {
         this._boundHandleDeleteCancelClick = this._hideDeleteConfirmation.bind(this);
         this._boundHandleDeleteConfirmClick = this._onDeleteConfirmClick.bind(this);
         this._boundHandleDeleteWrapperClick = this._handleDeleteWrapperClick.bind(this);
+        this._boundHideDialog = this.hide.bind(this);
     }
 
     /**
@@ -168,10 +169,7 @@ export class LayoutSwitcher {
 
         // Create preview background BEFORE the dialog (so it's behind)
         const currentLayout = this._getCurrentLayout();
-        this._previewBackground = new LayoutPreviewBackground(this._settings, () => {
-            // Background click callback - dismiss the dialog
-            this.hide();
-        });
+        this._previewBackground = new LayoutPreviewBackground(this._settings, this._boundHideDialog);
         // Set layout manager reference for per-space layout lookups
         this._previewBackground.setLayoutManager(this._layoutManager);
         // Show preview on the current monitor (where dialog was invoked)

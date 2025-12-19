@@ -231,6 +231,9 @@ vm-logs:
 	@./scripts/vm-logs
 
 vm-dev: lint
+	@printf "$(COLOR_INFO)▶ Compiling schema locally...$(COLOR_RESET)\n"
+	@glib-compile-schemas extension/schemas/
+	@printf "$(COLOR_SUCCESS)✓ Schema compiled$(COLOR_RESET)\n"
 	@./scripts/vm-dev
 
 vm-restart-spice:

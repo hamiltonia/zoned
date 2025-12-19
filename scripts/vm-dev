@@ -57,16 +57,14 @@ main() {
         exit 1
     fi
     
-    # Step 3: Compile schema
-    vm_print_step "Compiling GSettings schema..."
+    # Step 3: Schema is compiled on host (via Makefile), so just verify it synced
+    vm_print_step "Verifying schema sync..."
     local ext_dir="\$HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
     
-    if ssh "$VM_DOMAIN" "test -d $ext_dir/schemas" 2>/dev/null; then
-        ssh "$VM_DOMAIN" "glib-compile-schemas $ext_dir/schemas/"
-        vm_print_success "Schema compiled"
+    if ssh "$VM_DOMAIN" "test -f $ext_dir/schemas/gschemas.compiled" 2>/dev/null; then
+        vm_print_success "Schema synced (pre-compiled on host)"
     else
-        vm_print_warning "No schemas directory - extension may not be linked"
-        echo "Try running 'make vm-setup' to fix the symlink."
+        vm_print_warning "Schema not found - may need to run 'make vm-setup'"
     fi
     
     # Step 4: Reload GNOME Shell

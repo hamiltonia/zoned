@@ -259,43 +259,6 @@ add_virtiofs_config() {
     
     success "VM configuration updated"
     echo ""
-    
-    # Fix permissions for virtiofs passthrough mode
-    fix_virtiofs_permissions
-}
-
-# Fix file permissions for virtiofs passthrough mode
-# virtiofs with passthrough preserves host UIDs/GIDs, which causes permission issues
-# Make all files readable by all users (a+rX) to ensure VM user can access them
-fix_virtiofs_permissions() {
-    info "Fixing file permissions for virtiofs access..."
-    echo ""
-    echo "virtiofs uses passthrough mode which preserves host UIDs/GIDs."
-    echo "Making shared files readable by all users to avoid permission issues."
-    echo ""
-    
-    # Use find with chmod to make everything readable
-    # -type d: directories get +rX (read + execute for traversal)
-    # -type f: files get +r (read only)
-    info "Setting permissions on: $SHARE_PATH"
-    
-    if chmod -R a+rX "$SHARE_PATH" 2>/dev/null; then
-        success "Permissions updated successfully"
-    else
-        warn "Could not update some permissions (may need sudo)"
-        prompt "Run with sudo to fix remaining permissions? [Y/n]: "
-        read -r response
-        
-        if [[ "$response" != "n" && "$response" != "N" ]]; then
-            sudo chmod -R a+rX "$SHARE_PATH"
-            success "Permissions updated with sudo"
-        else
-            warn "Some files may not be accessible in VM"
-            echo "  You can fix this manually later with:"
-            echo "    chmod -R a+rX $SHARE_PATH"
-        fi
-    fi
-    echo ""
 }
 
 # Offer to start VM
