@@ -1730,6 +1730,22 @@ export default class ZonedPreferences extends ExtensionPreferences {
         settings.bind('debug-layout-overlay', debugOverlayRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         developerGroup.add(debugOverlayRow);
 
+        // Debug Expose D-Bus toggle
+        const debugDbusRow = new Adw.SwitchRow({
+            title: 'Expose D-Bus Debug Interface',
+            subtitle: 'Enable D-Bus interface for automated testing (requires extension reload)',
+        });
+        settings.bind('debug-expose-dbus', debugDbusRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        developerGroup.add(debugDbusRow);
+
+        // Debug Track Resources toggle
+        const debugResourcesRow = new Adw.SwitchRow({
+            title: 'Track Resource Leaks',
+            subtitle: 'Monitor signal connections, timers, and actors for memory leaks (slight performance overhead)',
+        });
+        settings.bind('debug-track-resources', debugResourcesRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        developerGroup.add(debugResourcesRow);
+
         // Reset All Debug Settings button
         const resetDebugBox = new Gtk.Box({
             orientation: Gtk.Orientation.HORIZONTAL,

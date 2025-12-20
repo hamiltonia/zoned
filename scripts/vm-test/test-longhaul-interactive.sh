@@ -131,7 +131,7 @@ run_layoutswitcher() {
     local next_report=$(($(date +%s) + 30))
     
     if ! dbus_interface_available; then
-        error "LayoutSwitcher test requires D-Bus interface"
+        fail "LayoutSwitcher test requires D-Bus interface"
         echo "Enable with: gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true"
         exit 1
     fi
@@ -177,7 +177,7 @@ run_zone_overlay() {
     local next_report=$(($(date +%s) + 30))
     
     if ! dbus_interface_available; then
-        error "Zone Overlay test requires D-Bus interface"
+        fail "Zone Overlay test requires D-Bus interface"
         echo "Enable with: gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true"
         exit 1
     fi
@@ -233,7 +233,7 @@ case $choice in
     2) TEST_NAME="LayoutSwitcher" ;;
     3) TEST_NAME="Zone Overlay" ;;
     *)
-        error "Invalid choice"
+        fail "Invalid choice"
         exit 1
         ;;
 esac

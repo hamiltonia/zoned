@@ -21,10 +21,11 @@ const logger = createLogger('SectionFactory');
 /**
  * Create templates section with visual depth
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.BoxLayout} The templates section widget
+ * @returns {{section: St.BoxLayout, signalIds: Array}} The section widget and signal IDs for cleanup
  */
 export function createTemplatesSection(ctx) {
     const colors = ctx._themeManager.getColors();
+    const signalIds = [];  // Track all signal connections for cleanup
 
     // Outer section card with depth - using configurable spacing
     const section = new St.BoxLayout({
@@ -51,7 +52,6 @@ export function createTemplatesSection(ctx) {
     section.add_child(header);
 
     const templates = ctx._templateManager.getBuiltinTemplates();
-    const currentLayout = ctx._getCurrentLayout();
 
     // Template cards in horizontal row - uses natural width (5 templates = 5 cards always)
     // Matches Custom Layouts rows which also use natural width
@@ -63,7 +63,7 @@ export function createTemplatesSection(ctx) {
     });
 
     templates.forEach((template) => {
-        const card = createTemplateCard(ctx, template, currentLayout);
+        const card = createTemplateCard(ctx, template);
         ctx._addDebugRect(card, 'card', `Template: ${template.name}`);
         templatesRow.add_child(card);
         ctx._allCards.push({card, layout: template, isTemplate: true});
@@ -73,17 +73,19 @@ export function createTemplatesSection(ctx) {
     ctx._addDebugRect(templatesRow, 'row', 'Templates Row');
     section.add_child(templatesRow);
 
-    return section;
+    // Templates section has no signal handlers, so return empty array
+    return {section, signalIds};
 }
 
 /**
  * Create custom layouts section with visual depth and internal scrolling
  * This section expands to fill available space and scrolls internally
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.BoxLayout} The custom layouts section widget
+ * @returns {{section: St.BoxLayout, signalIds: Array}} The section widget and signal IDs for cleanup
  */
 export function createCustomLayoutsSection(ctx) {
     const colors = ctx._themeManager.getColors();
+    const signalIds = [];  // Track all signal connections for cleanup
 
     // Outer section card with depth - expands to fill remaining space
     // Uses symmetric padding for consistent alignment with Templates
@@ -106,7 +108,8 @@ export function createCustomLayoutsSection(ctx) {
 
     // Handle scroll events on the entire section (not just scrollView)
     // This catches scrolls over header and empty areas too
-    section.connect('scroll-event', (actor, event) => {
+    // PHASE 3 FIX: Track signal ID for cleanup
+    const sectionScrollId = section.connect('scroll-event', (actor, event) => {
         if (!sectionScrollView) return Clutter.EVENT_PROPAGATE;
 
         const direction = event.get_scroll_direction();
@@ -137,6 +140,7 @@ export function createCustomLayoutsSection(ctx) {
 
         return Clutter.EVENT_STOP;
     });
+    signalIds.push({object: section, id: sectionScrollId});
 
     // Section header (fixed, does not scroll) - uses configurable font size
     const header = new St.Label({
@@ -152,7 +156,6 @@ export function createCustomLayoutsSection(ctx) {
 
     // Custom layout cards
     const customLayouts = ctx._getCustomLayouts();
-    const currentLayout = ctx._getCurrentLayout();
 
     // Reset scrollView reference
     ctx._customLayoutsScrollView = null;
@@ -260,7 +263,8 @@ export function createCustomLayoutsSection(ctx) {
 
         // Handle scroll events manually using captured-event
         // This ensures mouse wheel works even when hovering over St.Button cards
-        scrollView.connect('captured-event', (actor, event) => {
+        // PHASE 3 FIX: Track signal ID for cleanup
+        const scrollViewCapturedId = scrollView.connect('captured-event', (actor, event) => {
             if (event.type() === Clutter.EventType.SCROLL) {
                 const direction = event.get_scroll_direction();
 
@@ -293,15 +297,16 @@ export function createCustomLayoutsSection(ctx) {
             }
             return Clutter.EVENT_PROPAGATE;
         });
+        signalIds.push({object: scrollView, id: scrollViewCapturedId});
 
         // Grid of custom layouts
-        const grid = createCustomLayoutGrid(ctx, customLayouts, currentLayout);
+        const grid = createCustomLayoutGrid(ctx, customLayouts);
 
         scrollView.add_child(grid);
         section.add_child(scrollView);
     }
 
-    return section;
+    return {section, signalIds};
 }
 
 /**
@@ -309,10 +314,9 @@ export function createCustomLayoutsSection(ctx) {
  * All rows have explicit width set to ensure uniform alignment when centered
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {Array} layouts - Array of custom layout definitions
- * @param {Object} currentLayout - Currently active layout
  * @returns {St.BoxLayout} The grid container widget
  */
-export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
+export function createCustomLayoutGrid(ctx, layouts) {
     const COLUMNS = ctx._customColumns;  // Always 5 columns
 
     // Calculate fixed row width: 5 cards + 4 gaps
@@ -348,7 +352,7 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
             container.add_child(currentRow);
         }
 
-        const card = createCustomLayoutCard(ctx, layout, currentLayout);
+        const card = createCustomLayoutCard(ctx, layout);
         ctx._addDebugRect(card, 'card', `Custom: ${layout.name}`);
         currentRow.add_child(card);
         ctx._allCards.push({card, layout, isTemplate: false});
@@ -385,12 +389,13 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
  * Create "Create new layout" button
  * Scales proportionally with tier size
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.Button} The create button widget
+ * @returns {{button: St.Button, signalIds: Array}} The button widget and signal IDs for cleanup
  */
 export function createNewLayoutButton(ctx) {
     const colors = ctx._themeManager.getColors();
     const accentHex = colors.accentHex;
     const accentHexHover = colors.accentHexHover;
+    const signalIds = [];  // Track all signal connections for cleanup
 
     // Use tier-based sizing
     const buttonHeight = ctx._calculatedSpacing.createButtonHeight;
@@ -424,24 +429,28 @@ export function createNewLayoutButton(ctx) {
     });
     button.set_child(label);
 
-    button.connect('clicked', () => {
+    // PHASE 3 FIX: Track signal IDs for cleanup
+    const clickedId = button.connect('clicked', () => {
         ctx._onCreateNewLayoutClicked();
     });
+    signalIds.push({object: button, id: clickedId});
 
     // Hover effects - use same tier-based values
-    button.connect('enter-event', () => {
+    const enterId = button.connect('enter-event', () => {
         button.style = `padding: ${verticalPadding}px ${horizontalPadding}px; ` +
                       `background-color: ${accentHexHover}; ` +
                       `border-radius: ${cardRadius}px; ` +
                       `margin-top: ${buttonMargin}px;`;
     });
+    signalIds.push({object: button, id: enterId});
 
-    button.connect('leave-event', () => {
+    const leaveId = button.connect('leave-event', () => {
         button.style = `padding: ${verticalPadding}px ${horizontalPadding}px; ` +
                       `background-color: ${accentHex}; ` +
                       `border-radius: ${cardRadius}px; ` +
                       `margin-top: ${buttonMargin}px;`;
     });
+    signalIds.push({object: button, id: leaveId});
 
-    return button;
+    return {button, signalIds};
 }

@@ -23,10 +23,17 @@ const logger = createLogger('TopBar');
 /**
  * Create "Spaces" section with compact pill-style workspace selector + monitor picker
  * Redesigned for professional appearance with minimal footprint
+ *
+ * ARCHITECTURE: Minimizes widget references stored on ctx to prevent memory leaks.
+ * Only stores what's absolutely necessary for exported update functions.
+ * All other references are kept local and cleaned up via cascade destruction.
+ *
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.BoxLayout} The top bar widget
+ * @returns {{topBar: St.BoxLayout, signalIds: Array}} The top bar widget and tracked signals
  */
 export function createTopBar(ctx) {
+    // Track all signal connections for proper cleanup
+    const signalIds = [];
     const colors = ctx._themeManager.getColors();
 
     // Read global apply setting (inverted from use-per-workspace-layouts)
@@ -111,8 +118,9 @@ export function createTopBar(ctx) {
     // Store reference for updates
     ctx._workspaceScrollView = workspaceScrollView;
 
-    // Create workspace pills (buttons)
-    const workspacePills = createWorkspacePills(ctx);
+    // Create workspace pills (buttons) - returns {container, signalIds}
+    const {container: workspacePills, signalIds: workspaceSignals} = createWorkspacePills(ctx);
+    signalIds.push(...workspaceSignals);
     workspaceScrollView.add_child(workspacePills);
 
     // Wrap ScrollView in a reactive Clutter.Actor - GNOME Shell pattern
@@ -126,7 +134,7 @@ export function createTopBar(ctx) {
     scrollWrapper.add_child(workspaceScrollView);
 
     // Handle scroll events on the wrapper - this catches all scroll events in the area
-    scrollWrapper.connect('scroll-event', (actor, event) => {
+    const scrollWrapperId = scrollWrapper.connect('scroll-event', (actor, event) => {
         const direction = event.get_scroll_direction();
         // Use hadjustment directly - hscroll.adjustment doesn't work as expected
         const adjustment = workspaceScrollView.hadjustment;
@@ -165,6 +173,7 @@ export function createTopBar(ctx) {
 
         return Clutter.EVENT_PROPAGATE;
     });
+    signalIds.push({object: scrollWrapper, id: scrollWrapperId});
 
     workspaceGroup.add_child(scrollWrapper);
 
@@ -175,11 +184,17 @@ export function createTopBar(ctx) {
     const spacer = new St.Widget({x_expand: true});
     ctx._spacesSection.add_child(spacer);
 
-    // Right side: "Apply to all" checkbox
-    const checkboxGroup = createGlobalCheckbox(ctx);
+    // Right side: "Apply to all" checkbox - returns {container, signalIds}
+    const {container: checkboxGroup, signalIds: checkboxSignals} = createGlobalCheckbox(ctx);
+    signalIds.push(...checkboxSignals);
     ctx._spacesSection.add_child(checkboxGroup);
 
-    return ctx._spacesSection;
+    // Collect monitor pill button signals (stored in ctx._monitorPillBtnSignals by createMonitorPill)
+    if (ctx._monitorPillBtnSignals) {
+        signalIds.push(...ctx._monitorPillBtnSignals);
+    }
+
+    return {topBar: ctx._spacesSection, signalIds};
 }
 
 /**
@@ -305,8 +320,8 @@ export function createMonitorPill(ctx) {
 
     ctx._monitorPillBtn.set_child(btnContent);
 
-    // Hover effect
-    ctx._monitorPillBtn.connect('enter-event', () => {
+    // Hover effect - track signals for proper cleanup
+    const monitorPillBtnEnterId = ctx._monitorPillBtn.connect('enter-event', () => {
         const c = ctx._themeManager.getColors();
         ctx._monitorPillBtn.style = 'padding: 6px 14px; ' +
                'border-radius: 16px; ' +
@@ -314,7 +329,7 @@ export function createMonitorPill(ctx) {
                `border: 1px solid ${c.accentHex};`;
     });
 
-    ctx._monitorPillBtn.connect('leave-event', () => {
+    const monitorPillBtnLeaveId = ctx._monitorPillBtn.connect('leave-event', () => {
         const c = ctx._themeManager.getColors();
         ctx._monitorPillBtn.style = 'padding: 6px 14px; ' +
                'border-radius: 16px; ' +
@@ -322,9 +337,16 @@ export function createMonitorPill(ctx) {
                `border: 1px solid ${c.borderLight};`;
     });
 
-    ctx._monitorPillBtn.connect('clicked', () => {
+    const monitorPillBtnClickedId = ctx._monitorPillBtn.connect('clicked', () => {
         toggleMonitorDropdown(ctx);
     });
+
+    // Store monitor pill button signals for cleanup
+    ctx._monitorPillBtnSignals = [
+        {object: ctx._monitorPillBtn, id: monitorPillBtnEnterId},
+        {object: ctx._monitorPillBtn, id: monitorPillBtnLeaveId},
+        {object: ctx._monitorPillBtn, id: monitorPillBtnClickedId},
+    ];
 
     // Add button to dropdown wrapper
     dropdownWrapper.add_child(ctx._monitorPillBtn);
@@ -340,9 +362,10 @@ export function createMonitorPill(ctx) {
  * Create workspace thumbnails with 16:9 zone previews
  * Shows the currently applied layout for each workspace
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.BoxLayout} The workspace thumbnails container
+ * @returns {{container: St.BoxLayout, signalIds: Array}} The workspace thumbnails container and tracked signals
  */
 export function createWorkspaceThumbnails(ctx) {
+    const workspaceSignalIds = [];
     const tier = ctx._currentTier;
     const thumbW = tier.workspaceThumb.w;
     const thumbH = tier.workspaceThumb.h;
@@ -451,22 +474,25 @@ export function createWorkspaceThumbnails(ctx) {
         thumb._isDisabled = isDisabled;
 
         if (!isDisabled) {
-            // Hover effects (only when not disabled)
-            thumb.connect('enter-event', () => {
+            // Hover effects (only when not disabled) - track signals for cleanup
+            const thumbEnterId = thumb.connect('enter-event', () => {
                 if (i !== ctx._currentWorkspace) {
                     thumb.style = getWorkspaceThumbnailStyle(ctx, false, false, thumbW, thumbH, thumbRadius, true);
                 }
             });
+            workspaceSignalIds.push({object: thumb, id: thumbEnterId});
 
-            thumb.connect('leave-event', () => {
+            const thumbLeaveId = thumb.connect('leave-event', () => {
                 if (i !== ctx._currentWorkspace) {
                     thumb.style = getWorkspaceThumbnailStyle(ctx, false, false, thumbW, thumbH, thumbRadius, false);
                 }
             });
+            workspaceSignalIds.push({object: thumb, id: thumbLeaveId});
 
-            thumb.connect('clicked', () => {
+            const thumbClickedId = thumb.connect('clicked', () => {
                 onWorkspaceThumbnailClicked(ctx, i);
             });
+            workspaceSignalIds.push({object: thumb, id: thumbClickedId});
         }
 
         ctx._workspaceButtons.push(thumb);
@@ -476,7 +502,7 @@ export function createWorkspaceThumbnails(ctx) {
     // Store container reference for updating disabled state
     ctx._workspaceThumbnailsContainer = container;
 
-    return container;
+    return {container, signalIds: workspaceSignalIds};
 }
 
 /**
@@ -620,9 +646,10 @@ export const onWorkspacePillClicked = onWorkspaceThumbnailClicked;
 /**
  * Create "Apply to all" checkbox group
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.BoxLayout} The checkbox container
+ * @returns {{container: St.BoxLayout, signalIds: Array}} The checkbox container and tracked signals
  */
 export function createGlobalCheckbox(ctx) {
+    const checkboxSignalIds = [];
     const colors = ctx._themeManager.getColors();
 
     const container = new St.BoxLayout({
@@ -692,20 +719,22 @@ export function createGlobalCheckbox(ctx) {
         updateWorkspaceThumbnailsDisabledState(ctx);
     };
 
-    label.connect('button-press-event', () => {
+    const labelPressId = label.connect('button-press-event', () => {
         toggleCheckbox();
         return Clutter.EVENT_STOP;
     });
+    checkboxSignalIds.push({object: label, id: labelPressId});
 
-    ctx._applyGloballyCheckbox.connect('clicked', () => {
+    const checkboxClickedId = ctx._applyGloballyCheckbox.connect('clicked', () => {
         toggleCheckbox();
         return Clutter.EVENT_STOP;
     });
+    checkboxSignalIds.push({object: ctx._applyGloballyCheckbox, id: checkboxClickedId});
 
     container.add_child(label);
     container.add_child(ctx._applyGloballyCheckbox);
 
-    return container;
+    return {container, signalIds: checkboxSignalIds};
 }
 
 /**
@@ -896,6 +925,71 @@ export function createMonitorDropdownMenu(ctx) {
     });
 
     return menu;
+}
+
+/**
+ * Destroy all topBar widgets to prevent memory leaks
+ * Call this during dialog cleanup
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ */
+export function destroyTopBarWidgets(ctx) {
+    logger.info('[TopBar:Cleanup] Destroying topBar widgets...');
+
+    // Destroy workspace buttons array
+    if (ctx._workspaceButtons && ctx._workspaceButtons.length > 0) {
+        logger.info(`[TopBar:Cleanup] Destroying ${ctx._workspaceButtons.length} workspace buttons`);
+        ctx._workspaceButtons.forEach((btn, idx) => {
+            if (btn) {
+                try {
+                    btn.destroy();
+                    logger.info(`[TopBar:Cleanup]   ✓ Workspace button ${idx} destroyed`);
+                } catch (e) {
+                    logger.error(`[TopBar:Cleanup]   ✗ Error destroying workspace button ${idx}: ${e.message}`);
+                }
+            }
+        });
+        ctx._workspaceButtons = [];
+    }
+
+    // Destroy monitor pill button signals array
+    if (ctx._monitorPillBtnSignals) {
+        ctx._monitorPillBtnSignals = null;
+    }
+
+    // Destroy individual widgets (done in reverse order of creation)
+    const widgetsToDestroy = [
+        {name: '_applyGloballyCheckbox', ref: ctx._applyGloballyCheckbox},
+        {name: '_workspaceThumbnailsContainer', ref: ctx._workspaceThumbnailsContainer},
+        {name: '_workspaceScrollView', ref: ctx._workspaceScrollView},
+        {name: '_monitorPillContainer', ref: ctx._monitorPillContainer},
+        {name: '_monitorPillLabel', ref: ctx._monitorPillLabel},
+        {name: '_monitorPillBtn', ref: ctx._monitorPillBtn},
+        {name: '_monitorDropdownContainer', ref: ctx._monitorDropdownContainer},
+        {name: '_spacesSection', ref: ctx._spacesSection},
+    ];
+
+    widgetsToDestroy.forEach(({name, ref}) => {
+        if (ref) {
+            try {
+                ref.destroy();
+                logger.info(`[TopBar:Cleanup]   ✓ ${name} destroyed`);
+            } catch (e) {
+                logger.error(`[TopBar:Cleanup]   ✗ Error destroying ${name}: ${e.message}`);
+            }
+        }
+    });
+
+    // Null all references
+    ctx._applyGloballyCheckbox = null;
+    ctx._workspaceThumbnailsContainer = null;
+    ctx._workspaceScrollView = null;
+    ctx._monitorPillContainer = null;
+    ctx._monitorPillLabel = null;
+    ctx._monitorPillBtn = null;
+    ctx._monitorDropdownContainer = null;
+    ctx._spacesSection = null;
+
+    logger.info('[TopBar:Cleanup] TopBar widgets destroyed and nulled');
 }
 
 /**

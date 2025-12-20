@@ -176,11 +176,11 @@ export function createFloatingEditButton(ctx, isTemplate, layout) {
  * Keybinding badge in lower-right corner if layout has a shortcut assigned
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {Object} template - Template definition (may have .shortcut property)
- * @param {Object} currentLayout - Currently active layout
  * @returns {St.Button} The created card widget
  */
-export function createTemplateCard(ctx, template, currentLayout) {
+export function createTemplateCard(ctx, template) {
     const colors = ctx._themeManager.getColors();
+    const currentLayout = ctx._getCurrentLayout();
     const isActive = ctx._isLayoutActive(template, currentLayout);
     const accentHex = colors.accentHex;
     const accentRGBA = colors.accentRGBA(0.3);
@@ -239,11 +239,10 @@ export function createTemplateCard(ctx, template, currentLayout) {
         y_expand: true,
     });
 
-    // TESTING: Disable Cairo zone preview to isolate card signal fix
     // Zone preview canvas
-    // const preview = createZonePreview(ctx, template.zones);
-    // preview.set_size(previewWidth, previewHeight);
-    // previewContainer.set_child(preview);
+    const preview = createZonePreview(ctx, template.zones);
+    preview.set_size(previewWidth, previewHeight);
+    previewContainer.set_child(preview);
 
     container.add_child(previewContainer);
     cardWrapper.add_child(container);
@@ -271,26 +270,42 @@ export function createTemplateCard(ctx, template, currentLayout) {
 
     card.set_child(cardWrapper);
 
-    // CRITICAL FIX: Store layout reference on card to avoid closure leaks
-    // Arrow functions create closures that hold references even after signal disconnect
-    card._layoutRef = template;
-    card._isTemplate = true;
-
-    // Track signal IDs for cleanup - store as {object, id} pairs
-    card._signalIds = [];
-
-    // Click card to apply layout - use bound method, no closure!
-    const clickedId = card.connect('clicked', ctx._boundHandleCardClick);
-    card._signalIds.push({object: card, id: clickedId});
+    // Click card to apply layout
+    card.connect('clicked', () => {
+        ctx._onTemplateClicked(template);
+        return Clutter.EVENT_STOP;
+    });
 
     card._isActive = isActive;
 
-    // Hover effects for card border only - use bound methods
-    const enterId = card.connect('enter-event', ctx._boundHandleCardEnter);
-    card._signalIds.push({object: card, id: enterId});
+    // Hover effects for card border only
+    card.connect('enter-event', () => {
+        if (!isActive) {
+            const c = ctx._themeManager.getColors();
+            card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
+                        `width: ${ctx._cardWidth}px; height: ${ctx._cardHeight}px; ` +
+                        'overflow: hidden; ' +
+                        `background-color: ${c.accentRGBA(0.35)}; border: 2px solid ${c.accentHex}; ` +
+                        'box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);';
+        }
+        // Update preview background to show this template's layout
+        if (ctx._onCardHover) {
+            ctx._onCardHover(template);
+        }
+    });
 
-    const leaveId = card.connect('leave-event', ctx._boundHandleCardLeave);
-    card._signalIds.push({object: card, id: leaveId});
+    card.connect('leave-event', () => {
+        if (!isActive) {
+            card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
+                        `width: ${ctx._cardWidth}px; height: ${ctx._cardHeight}px; ` +
+                        'overflow: hidden; ' +
+                        `background-color: ${cardBg}; border: 2px solid transparent;`;
+        }
+        // Revert preview background
+        if (ctx._onCardHoverEnd) {
+            ctx._onCardHoverEnd();
+        }
+    });
 
     return card;
 }
@@ -301,11 +316,11 @@ export function createTemplateCard(ctx, template, currentLayout) {
  * Keybinding badge in lower-right corner if layout has a shortcut assigned
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {Object} layout - Layout definition (may have .shortcut property)
- * @param {Object} currentLayout - Currently active layout
  * @returns {St.Button} The created card widget
  */
-export function createCustomLayoutCard(ctx, layout, currentLayout) {
+export function createCustomLayoutCard(ctx, layout) {
     const colors = ctx._themeManager.getColors();
+    const currentLayout = ctx._getCurrentLayout();
     const isActive = ctx._isLayoutActive(layout, currentLayout);
     const accentHex = colors.accentHex;
     const accentRGBA = colors.accentRGBA(0.3);
@@ -363,11 +378,10 @@ export function createCustomLayoutCard(ctx, layout, currentLayout) {
         y_expand: true,
     });
 
-    // TESTING: Disable Cairo zone preview to isolate card signal fix
     // Zone preview canvas
-    // const preview = createZonePreview(ctx, layout.zones);
-    // preview.set_size(previewWidth, previewHeight);
-    // previewContainer.set_child(preview);
+    const preview = createZonePreview(ctx, layout.zones);
+    preview.set_size(previewWidth, previewHeight);
+    previewContainer.set_child(preview);
 
     container.add_child(previewContainer);
     cardWrapper.add_child(container);
@@ -395,29 +409,46 @@ export function createCustomLayoutCard(ctx, layout, currentLayout) {
 
     card.set_child(cardWrapper);
 
-    // CRITICAL FIX: Store layout reference on card to avoid closure leaks
-    card._layoutRef = layout;
-    card._isTemplate = false;
+    // Click to apply layout
+    card.connect('clicked', () => {
+        ctx._onLayoutClicked(layout);
+    });
 
-    // Track signal IDs for cleanup - store as {object, id} pairs
-    card._signalIds = [];
-
-    // Click to apply layout - use bound method, no closure!
-    const clickedId = card.connect('clicked', ctx._boundHandleCardClick);
-    card._signalIds.push({object: card, id: clickedId});
-
-    // Propagate scroll events to parent ScrollView - use bound method
-    const scrollId = card.connect('scroll-event', ctx._boundHandleCardScroll);
-    card._signalIds.push({object: card, id: scrollId});
+    // Propagate scroll events to parent ScrollView
+    card.connect('scroll-event', () => {
+        return Clutter.EVENT_PROPAGATE;
+    });
 
     card._isActive = isActive;
 
-    // Hover effects for card border only - use bound methods
-    const enterId = card.connect('enter-event', ctx._boundHandleCardEnter);
-    card._signalIds.push({object: card, id: enterId});
+    // Hover effects for card border only
+    card.connect('enter-event', () => {
+        if (!isActive) {
+            const c = ctx._themeManager.getColors();
+            card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
+                        `width: ${ctx._cardWidth}px; height: ${ctx._cardHeight}px; ` +
+                        'overflow: hidden; ' +
+                        `background-color: ${c.accentRGBA(0.35)}; border: 2px solid ${c.accentHex}; ` +
+                        'box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);';
+        }
+        // Update preview background to show this layout
+        if (ctx._onCardHover) {
+            ctx._onCardHover(layout);
+        }
+    });
 
-    const leaveId = card.connect('leave-event', ctx._boundHandleCardLeave);
-    card._signalIds.push({object: card, id: leaveId});
+    card.connect('leave-event', () => {
+        if (!isActive) {
+            card.style = `padding: 0; border-radius: ${cardRadius}px; ` +
+                        `width: ${ctx._cardWidth}px; height: ${ctx._cardHeight}px; ` +
+                        'overflow: hidden; ' +
+                        `background-color: ${cardBg}; border: 2px solid transparent;`;
+        }
+        // Revert preview background
+        if (ctx._onCardHoverEnd) {
+            ctx._onCardHoverEnd();
+        }
+    });
 
     return card;
 }

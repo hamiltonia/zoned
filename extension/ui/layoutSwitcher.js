@@ -101,7 +101,7 @@ export class LayoutSwitcher {
         this._boundHandleDeleteConfirmClick = this._onDeleteConfirmClick.bind(this);
         this._boundHandleDeleteWrapperClick = this._handleDeleteWrapperClick.bind(this);
         this._boundHideDialog = this.hide.bind(this);
-        
+
         // Bind card event handlers (CRITICAL: no closures, no layout object captures!)
         this._boundHandleCardClick = this._handleCardClick.bind(this);
         this._boundHandleCardEnter = this._handleCardEnter.bind(this);
@@ -173,14 +173,13 @@ export class LayoutSwitcher {
 
         logger.info(`Layout editor shown (workspace mode: ${this._workspaceMode}, monitor: ${this._selectedMonitorIndex})`);
 
-        // TESTING: Disable LayoutPreviewBackground to isolate card signal fix
         // Create preview background BEFORE the dialog (so it's behind)
-        // const currentLayout = this._getCurrentLayout();
-        // this._previewBackground = new LayoutPreviewBackground(this._settings, this._boundHideDialog);
-        // // Set layout manager reference for per-space layout lookups
-        // this._previewBackground.setLayoutManager(this._layoutManager);
-        // // Show preview on the current monitor (where dialog was invoked)
-        // this._previewBackground.show(currentLayout, this._selectedMonitorIndex);
+        const currentLayout = this._getCurrentLayout();
+        this._previewBackground = new LayoutPreviewBackground(this._settings, this._boundHideDialog);
+        // Set layout manager reference for per-space layout lookups
+        this._previewBackground.setLayoutManager(this._layoutManager);
+        // Show preview on the current monitor (where dialog was invoked)
+        this._previewBackground.show(currentLayout, this._selectedMonitorIndex);
 
         this._createDialog();
         this._connectKeyEvents();
@@ -204,6 +203,7 @@ export class LayoutSwitcher {
         this._disconnectCardSignals();
         this._disconnectTrackedSignals();
         this._removeTrackedTimeouts();
+
         this._resetState();
         this._releaseModal();
         this._cleanupDialogElements();
@@ -316,8 +316,10 @@ export class LayoutSwitcher {
      * @private
      */
     _resetState() {
+        // Let cascade destruction handle topBar widgets naturally
+        // Manual nullification interferes with GJS garbage collection
+
         this._dialog = null;
-        this._workspaceButtons = [];
         this._allCards = [];
         this._selectedCardIndex = -1;
         this._hoveredLayout = null;
@@ -618,24 +620,29 @@ export class LayoutSwitcher {
         const containerSignalId = container.connect('button-press-event', this._boundHandleContainerClick);
         this._signals.push({object: container, id: containerSignalId});
 
-        // Create sections using modules
-        const topBar = createTopBar(this);
+        // Create topBar with signal tracking
+        const {topBar, signalIds: topBarSignals} = createTopBar(this);
+        this._signals.push(...topBarSignals);
         this._addDebugRect(topBar, 'section', 'Top Bar');
         container.add_child(topBar);
 
-        const templatesSection = createTemplatesSection(this);
+        // Create sections with signal tracking
+        const {section: templatesSection, signalIds: templatesSectionSignals} = createTemplatesSection(this);
         templatesSection.style += ` margin-top: ${this._SECTION_GAP}px;`;
         this._addDebugRect(templatesSection, 'section', 'Templates Section');
         container.add_child(templatesSection);
+        this._signals.push(...templatesSectionSignals);
 
-        const customSection = createCustomLayoutsSection(this);
+        const {section: customSection, signalIds: customSectionSignals} = createCustomLayoutsSection(this);
         customSection.style += ` margin-top: ${this._SECTION_GAP}px;`;
         this._addDebugRect(customSection, 'section', 'Custom Layouts Section');
         container.add_child(customSection);
+        this._signals.push(...customSectionSignals);
 
-        const createButton = createNewLayoutButton(this);
+        const {button: createButton, signalIds: createButtonSignals} = createNewLayoutButton(this);
         this._addDebugRect(createButton, 'section', 'Create Button');
         container.add_child(createButton);
+        this._signals.push(...createButtonSignals);
 
         // Add debug overlay if enabled (positioned outside dialog for clean screenshots)
         const showDebugOverlay = this._settings.get_boolean('debug-layout-overlay');
@@ -1656,17 +1663,17 @@ export class LayoutSwitcher {
             return;
         }
 
-        logger.info(`[Zoned:Cleanup] ===== CARD SIGNAL CLEANUP START =====`);
+        logger.info('[Zoned:Cleanup] ===== CARD SIGNAL CLEANUP START =====');
         logger.info(`[Zoned:Cleanup] Total cards to process: ${this._allCards.length}`);
 
         this._allCards.forEach((cardObj, idx) => {
             const card = cardObj.card;
             const layout = cardObj.layout;
-            
+
             logger.info(`[Zoned:Cleanup] Card ${idx}: layout="${layout?.name || 'unknown'}"`);
             logger.info(`[Zoned:Cleanup]   Card has _signalIds? ${card._signalIds !== undefined}`);
             logger.info(`[Zoned:Cleanup]   Card signal count: ${card._signalIds?.length || 0}`);
-            
+
             // Disconnect card's tracked signals
             if (card._signalIds && card._signalIds.length > 0) {
                 logger.info(`[Zoned:Cleanup]   Disconnecting ${card._signalIds.length} card signals...`);
@@ -1691,7 +1698,7 @@ export class LayoutSwitcher {
             if (wrapper) {
                 const children = wrapper.get_children();
                 logger.info(`[Zoned:Cleanup]   Wrapper has ${children.length} children`);
-                
+
                 children.forEach((child, childIdx) => {
                     if (child._signalIds && child._signalIds.length > 0) {
                         logger.info(`[Zoned:Cleanup]   Child ${childIdx}: ${child._signalIds.length} signals`);
@@ -1709,17 +1716,30 @@ export class LayoutSwitcher {
                     }
                 });
             }
-            
+
             // NULL the layout reference explicitly
-            logger.info(`[Zoned:Cleanup]   Nullifying layout reference...`);
+            logger.info('[Zoned:Cleanup]   Nullifying layout reference...');
             cardObj.layout = null;
+
+            // CRITICAL: Explicitly destroy the card widget
+            // Don't rely on cascade destruction - break the widget hierarchy explicitly
+            logger.info('[Zoned:Cleanup]   Destroying card widget...');
+            if (card) {
+                try {
+                    card.destroy();
+                    logger.info('[Zoned:Cleanup]     ✓ Card destroyed');
+                } catch (e) {
+                    logger.error(`[Zoned:Cleanup]     ✗ Error destroying card: ${e.message}`);
+                }
+                cardObj.card = null;
+            }
         });
 
         // Clear the array - this releases our references to the card objects
         // and their associated layout data, allowing them to be GC'd
         logger.info(`[Zoned:Cleanup] Clearing _allCards array (${this._allCards.length} items)`);
         this._allCards.length = 0;
-        logger.info(`[Zoned:Cleanup] ===== CARD SIGNAL CLEANUP END =====`);
+        logger.info('[Zoned:Cleanup] ===== CARD SIGNAL CLEANUP END =====');
     }
 
     /**
@@ -1874,13 +1894,13 @@ export class LayoutSwitcher {
     _handleCardClick(card) {
         const layout = card._layoutRef;
         const isTemplate = card._isTemplate;
-        
+
         if (isTemplate) {
             this._onTemplateClicked(layout);
         } else {
             this._onLayoutClicked(layout);
         }
-        
+
         return Clutter.EVENT_STOP;
     }
 
@@ -1892,7 +1912,7 @@ export class LayoutSwitcher {
      */
     _handleCardEnter(card) {
         const isActive = card._isActive;
-        
+
         if (!isActive) {
             const colors = this._themeManager.getColors();
             const cardRadius = this._cardRadius;
@@ -1902,12 +1922,12 @@ export class LayoutSwitcher {
                         `background-color: ${colors.accentRGBA(0.35)}; border: 2px solid ${colors.accentHex}; ` +
                         'box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);';
         }
-        
+
         // Update preview background
         if (this._onCardHover) {
             this._onCardHover(card._layoutRef);
         }
-        
+
         return Clutter.EVENT_PROPAGATE;
     }
 
@@ -1919,7 +1939,7 @@ export class LayoutSwitcher {
      */
     _handleCardLeave(card) {
         const isActive = card._isActive;
-        
+
         if (!isActive) {
             const colors = this._themeManager.getColors();
             const cardRadius = this._cardRadius;
@@ -1928,12 +1948,12 @@ export class LayoutSwitcher {
                         'overflow: hidden; ' +
                         `background-color: ${colors.cardBg}; border: 2px solid transparent;`;
         }
-        
+
         // Revert preview background
         if (this._onCardHoverEnd) {
             this._onCardHoverEnd();
         }
-        
+
         return Clutter.EVENT_PROPAGATE;
     }
 
