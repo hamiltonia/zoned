@@ -349,7 +349,7 @@ vm-longhaul:
 		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
 		exit 1; \
 	fi
-	@. ./$(VM_CACHE) && ssh -t $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/longhaul-interactive.sh"
+	@. ./$(VM_CACHE) && ssh -t $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/test-longhaul-interactive.sh"
 
 # Default long haul duration (DURATION is alias for convenience)
 LONG_HAUL_DURATION ?= 8h
