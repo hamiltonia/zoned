@@ -523,8 +523,6 @@ export class DebugInterface {
      * Returns aggregated resource tracking report
      */
     GetResourceReport() {
-        logger.debug('D-Bus GetResourceReport called');
-
         try {
             const report = getAggregatedReport();
 
@@ -610,7 +608,6 @@ export class DebugInterface {
      * Simple health check
      */
     Ping() {
-        logger.debug('D-Bus Ping called');
         return 'pong';
     }
 
@@ -620,8 +617,6 @@ export class DebugInterface {
      * @returns {Object} Memory stats as variant dictionary
      */
     GetGJSMemory() {
-        logger.debug('D-Bus GetGJSMemory called');
-
         try {
             // Try to read /proc/self/statm for detailed process memory
             // This gives us: size resident shared text lib data dt (in pages)
