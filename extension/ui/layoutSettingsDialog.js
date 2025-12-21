@@ -37,6 +37,7 @@ import St from 'gi://St';
 import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from '../utils/debug.js';
+import {SignalTracker} from '../utils/signalTracker.js';
 import {ThemeManager} from '../utils/theme.js';
 import {ZoneEditor} from './zoneEditor.js';
 import {TemplateManager} from '../templateManager.js';
@@ -98,7 +99,7 @@ export class LayoutSettingsDialog {
         this._closing = false;  // Re-entrance guard
 
         // Signal tracking for cleanup
-        this._signalIds = [];
+        this._signalTracker = new SignalTracker('LayoutSettingsDialog');
 
         // Bind methods to avoid closure leaks
         this._boundHandleContainerClick = this._handleContainerClick.bind(this);
@@ -138,8 +139,8 @@ export class LayoutSettingsDialog {
         });
 
         // Click on container (outside dialog) dismisses - use bound method
-        this._signalIds.push(
-            this._container.connect('button-press-event', this._boundHandleContainerClick),
+        this._signalTracker.connect(
+            this._container, 'button-press-event', this._boundHandleContainerClick,
         );
 
         // Build the dialog card
@@ -211,14 +212,7 @@ export class LayoutSettingsDialog {
         }
 
         // Disconnect all tracked signals
-        // Note: These signals are already being disconnected implicitly when widgets
-        // are destroyed, but explicit disconnection is better practice
-        this._signalIds.forEach(id => {
-            // Signal IDs in _signalIds are already connected to specific objects
-            // that will be destroyed with the container, so we don't need to
-            // manually disconnect them here - the container destruction handles it
-        });
-        this._signalIds = [];
+        this._signalTracker.disconnectAll();
 
         // Release bound function references
         this._boundHandleContainerClick = null;
@@ -336,8 +330,8 @@ export class LayoutSettingsDialog {
         });
 
         if (!this._isTemplate) {
-            this._signalIds.push(
-                this._nameEntry.clutter_text.connect('text-changed', this._boundUpdateSaveButton),
+            this._signalTracker.connect(
+                this._nameEntry.clutter_text, 'text-changed', this._boundUpdateSaveButton,
             );
         }
         nameRow.add_child(this._nameEntry);
@@ -362,8 +356,8 @@ export class LayoutSettingsDialog {
 
         // Only allow interaction for custom layouts (not templates)
         if (!this._isTemplate) {
-            this._signalIds.push(
-                this._paddingCheckbox.connect('clicked', this._boundTogglePaddingCheckbox),
+            this._signalTracker.connect(
+                this._paddingCheckbox, 'clicked', this._boundTogglePaddingCheckbox,
             );
         } else {
             // Disable checkbox for templates (no save button to persist changes)
@@ -475,8 +469,8 @@ export class LayoutSettingsDialog {
                    'padding: 24px; min-width: 420px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);',
         });
 
-        this._signalIds.push(
-            this._dialogCard.connect('button-press-event', this._boundHandleDialogCardClick),
+        this._signalTracker.connect(
+            this._dialogCard, 'button-press-event', this._boundHandleDialogCardClick,
         );
 
         // Header
@@ -1531,8 +1525,8 @@ export class LayoutSettingsDialog {
             reactive: true,
             track_hover: true,
         });
-        this._signalIds.push(
-            cancelBtn.connect('clicked', this._boundHandleDeleteCancelClick),
+        this._signalTracker.connect(
+            cancelBtn, 'clicked', this._boundHandleDeleteCancelClick,
         );
         buttonBox.add_child(cancelBtn);
 
@@ -1547,8 +1541,8 @@ export class LayoutSettingsDialog {
             reactive: true,
             track_hover: true,
         });
-        this._signalIds.push(
-            deleteBtn.connect('clicked', this._boundHandleDeleteConfirmClick),
+        this._signalTracker.connect(
+            deleteBtn, 'clicked', this._boundHandleDeleteConfirmClick,
         );
         buttonBox.add_child(deleteBtn);
 
@@ -1565,8 +1559,8 @@ export class LayoutSettingsDialog {
         });
 
         // Click on backdrop (outside confirm box) to cancel - use bound method
-        this._signalIds.push(
-            wrapper.connect('button-press-event', this._boundHandleDeleteWrapperClick),
+        this._signalTracker.connect(
+            wrapper, 'button-press-event', this._boundHandleDeleteWrapperClick,
         );
 
         // Add confirmBox to wrapper

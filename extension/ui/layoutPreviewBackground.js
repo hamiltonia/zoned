@@ -22,6 +22,7 @@ import Clutter from 'gi://Clutter';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from '../utils/debug.js';
 import {ThemeManager} from '../utils/theme.js';
+import {SignalTracker} from '../utils/signalTracker.js';
 
 const logger = createLogger('LayoutPreviewBackground');
 
@@ -53,10 +54,16 @@ export class LayoutPreviewBackground {
         this._themeManager = new ThemeManager(settings);
         this._onBackgroundClick = onBackgroundClick;
 
+        // Initialize signal tracker for proper cleanup
+        this._signalTracker = new SignalTracker('LayoutPreviewBackground');
+
         // Multi-monitor support: overlay and zones per monitor
         this._monitorOverlays = [];  // Array of {overlay, zoneActors, currentLayout, monitorIndex}
         this._selectedMonitorIndex = 0;
         this._visible = false;
+
+        // Guard flag to prevent re-entrance during destroy
+        this._isDestroying = false;
 
         // Optional references for per-space support
         this._layoutManager = null;
@@ -110,8 +117,7 @@ export class LayoutPreviewBackground {
 
             // Click on any overlay to dismiss (Wave 3: bound method)
             const boundButtonPress = handleOverlayButtonPress.bind(null, this._onBackgroundClick);
-            overlay.connect('button-press-event', boundButtonPress);
-            overlay._boundButtonPress = boundButtonPress;  // Store for potential cleanup
+            this._signalTracker.connect(overlay, 'button-press-event', boundButtonPress);
 
             // Add to uiGroup
             Main.uiGroup.add_child(overlay);
@@ -144,6 +150,11 @@ export class LayoutPreviewBackground {
     hide() {
         if (!this._visible) {
             return;
+        }
+
+        // CRITICAL: Disconnect signals FIRST to prevent callbacks during cleanup
+        if (this._signalTracker) {
+            this._signalTracker.disconnectAll();
         }
 
         // Clean up all monitor overlays
@@ -463,14 +474,32 @@ export class LayoutPreviewBackground {
      * Clean up resources
      */
     destroy() {
-        this.hide();
-
-        // Clean up ThemeManager
-        if (this._themeManager) {
-            this._themeManager.destroy();
-            this._themeManager = null;
+        // Guard against re-entrance during cleanup
+        if (this._isDestroying) {
+            return;
         }
 
-        global.zonedDebug?.trackInstance('LayoutPreviewBackground', -1);
+        this._isDestroying = true;
+
+        try {
+            this.hide();
+
+            // Disconnect all signals
+            if (this._signalTracker) {
+                this._signalTracker.disconnectAll();
+                this._signalTracker = null;
+            }
+
+            // Clean up ThemeManager
+            if (this._themeManager) {
+                this._themeManager.destroy();
+                this._themeManager = null;
+            }
+
+            global.zonedDebug?.trackInstance('LayoutPreviewBackground', -1);
+        } finally {
+            // Always reset the flag, even if an error occurred
+            this._isDestroying = false;
+        }
     }
 }

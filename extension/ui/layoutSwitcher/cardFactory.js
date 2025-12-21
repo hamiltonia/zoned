@@ -253,23 +253,17 @@ export function createFloatingEditButton(ctx, isTemplate, layout) {
     });
     button.set_child(icon);
 
-    // Track signal IDs for cleanup
-    button._signalIds = [];
-
     // Hover effects - use bound methods with captured parameters
     const boundEnter = handleEditButtonEnter.bind(null, button, icon, hoverStyle);
     const boundLeave = handleEditButtonLeave.bind(null, button, icon, idleStyle);
     const boundClick = handleEditButtonClick.bind(null, ctx, isTemplate, layout);
 
-    const enterId = button.connect('enter-event', boundEnter);
-    button._signalIds.push({object: button, id: enterId});
-
-    const leaveId = button.connect('leave-event', boundLeave);
-    button._signalIds.push({object: button, id: leaveId});
+    // Use parent's SignalTracker for proper cleanup
+    ctx._signalTracker.connect(button, 'enter-event', boundEnter);
+    ctx._signalTracker.connect(button, 'leave-event', boundLeave);
 
     // Click handler - use button-press-event to stop propagation to parent card
-    const pressId = button.connect('button-press-event', boundClick);
-    button._signalIds.push({object: button, id: pressId});
+    ctx._signalTracker.connect(button, 'button-press-event', boundClick);
 
     // Store bound handlers for potential cleanup
     button._boundEnter = boundEnter;
@@ -351,11 +345,10 @@ export function createTemplateCard(ctx, template, currentLayout) {
         y_expand: true,
     });
 
-    // TESTING: Disable Cairo zone preview to isolate card signal fix
     // Zone preview canvas
-    // const preview = createZonePreview(ctx, template.zones);
-    // preview.set_size(previewWidth, previewHeight);
-    // previewContainer.set_child(preview);
+    const preview = createZonePreview(ctx, template.zones);
+    preview.set_size(previewWidth, previewHeight);
+    previewContainer.set_child(preview);
 
     container.add_child(previewContainer);
     cardWrapper.add_child(container);
@@ -388,21 +381,14 @@ export function createTemplateCard(ctx, template, currentLayout) {
     card._layoutRef = template;
     card._isTemplate = true;
 
-    // Track signal IDs for cleanup - store as {object, id} pairs
-    card._signalIds = [];
-
-    // Click card to apply layout - use bound method, no closure!
-    const clickedId = card.connect('clicked', ctx._boundHandleCardClick);
-    card._signalIds.push({object: card, id: clickedId});
+    // Use parent's SignalTracker for proper cleanup - all card signals tracked centrally
+    ctx._signalTracker.connect(card, 'clicked', ctx._boundHandleCardClick);
 
     card._isActive = isActive;
 
     // Hover effects for card border only - use bound methods
-    const enterId = card.connect('enter-event', ctx._boundHandleCardEnter);
-    card._signalIds.push({object: card, id: enterId});
-
-    const leaveId = card.connect('leave-event', ctx._boundHandleCardLeave);
-    card._signalIds.push({object: card, id: leaveId});
+    ctx._signalTracker.connect(card, 'enter-event', ctx._boundHandleCardEnter);
+    ctx._signalTracker.connect(card, 'leave-event', ctx._boundHandleCardLeave);
 
     return card;
 }
@@ -475,11 +461,10 @@ export function createCustomLayoutCard(ctx, layout, currentLayout) {
         y_expand: true,
     });
 
-    // TESTING: Disable Cairo zone preview to isolate card signal fix
     // Zone preview canvas
-    // const preview = createZonePreview(ctx, layout.zones);
-    // preview.set_size(previewWidth, previewHeight);
-    // previewContainer.set_child(preview);
+    const preview = createZonePreview(ctx, layout.zones);
+    preview.set_size(previewWidth, previewHeight);
+    previewContainer.set_child(preview);
 
     container.add_child(previewContainer);
     cardWrapper.add_child(container);
@@ -511,25 +496,17 @@ export function createCustomLayoutCard(ctx, layout, currentLayout) {
     card._layoutRef = layout;
     card._isTemplate = false;
 
-    // Track signal IDs for cleanup - store as {object, id} pairs
-    card._signalIds = [];
-
-    // Click to apply layout - use bound method, no closure!
-    const clickedId = card.connect('clicked', ctx._boundHandleCardClick);
-    card._signalIds.push({object: card, id: clickedId});
+    // Use parent's SignalTracker for proper cleanup - all card signals tracked centrally
+    ctx._signalTracker.connect(card, 'clicked', ctx._boundHandleCardClick);
 
     // Propagate scroll events to parent ScrollView - use bound method
-    const scrollId = card.connect('scroll-event', ctx._boundHandleCardScroll);
-    card._signalIds.push({object: card, id: scrollId});
+    ctx._signalTracker.connect(card, 'scroll-event', ctx._boundHandleCardScroll);
 
     card._isActive = isActive;
 
     // Hover effects for card border only - use bound methods
-    const enterId = card.connect('enter-event', ctx._boundHandleCardEnter);
-    card._signalIds.push({object: card, id: enterId});
-
-    const leaveId = card.connect('leave-event', ctx._boundHandleCardLeave);
-    card._signalIds.push({object: card, id: leaveId});
+    ctx._signalTracker.connect(card, 'enter-event', ctx._boundHandleCardEnter);
+    ctx._signalTracker.connect(card, 'leave-event', ctx._boundHandleCardLeave);
 
     return card;
 }

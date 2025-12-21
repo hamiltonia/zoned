@@ -62,6 +62,9 @@ export class LayoutSwitcher {
         this._allCards = [];
         this._selectedCardIndex = -1;
 
+        // Guard flag to prevent re-entrance during cleanup
+        this._isHiding = false;
+
         // Debug mode configuration (re-read fresh each time dialog opens)
         this._debugMode = false;
         this._DEBUG_COLORS = {
@@ -87,8 +90,8 @@ export class LayoutSwitcher {
         this._currentDialogWidth = null;
         this._currentDialogHeight = null;
 
-        // Signal tracking for cleanup - store {object, id} pairs for proper disconnection
-        this._signals = [];
+        // Signal tracking for cleanup - use SignalTracker for proper memory management
+        this._signalTracker = new SignalTracker('LayoutSwitcher');
         this._timeoutIds = [];
 
         // Bind methods to avoid closure leaks
@@ -171,14 +174,13 @@ export class LayoutSwitcher {
 
         logger.info(`Layout editor shown (workspace mode: ${this._workspaceMode}, monitor: ${this._selectedMonitorIndex})`);
 
-        // TESTING: Disable LayoutPreviewBackground to isolate card signal fix
         // Create preview background BEFORE the dialog (so it's behind)
-        // const currentLayout = this._getCurrentLayout();
-        // this._previewBackground = new LayoutPreviewBackground(this._settings, this._boundHideDialog);
-        // // Set layout manager reference for per-space layout lookups
-        // this._previewBackground.setLayoutManager(this._layoutManager);
-        // // Show preview on the current monitor (where dialog was invoked)
-        // this._previewBackground.show(currentLayout, this._selectedMonitorIndex);
+        const currentLayout = this._getCurrentLayout();
+        this._previewBackground = new LayoutPreviewBackground(this._settings, this._boundHideDialog);
+        // Set layout manager reference for per-space layout lookups
+        this._previewBackground.setLayoutManager(this._layoutManager);
+        // Show preview on the current monitor (where dialog was invoked)
+        this._previewBackground.show(currentLayout, this._selectedMonitorIndex);
 
         this._createDialog();
         this._connectKeyEvents();
@@ -191,25 +193,33 @@ export class LayoutSwitcher {
      * Hide the Layout Switcher dialog
      */
     hide() {
-        if (!this._dialog) {
+        // Guard against re-entrance during cleanup
+        if (this._isHiding || !this._dialog) {
             return;
         }
 
-        const dialog = this._dialog;
+        this._isHiding = true;
 
-        this._cleanupResize();
-        this._disconnectKeyEvents();
-        this._disconnectCardSignals();
-        this._disconnectTrackedSignals();
-        this._removeTrackedTimeouts();
-        this._resetState();
-        this._releaseModal();
-        this._cleanupDialogElements();
+        try {
+            const dialog = this._dialog;
 
-        Main.uiGroup.remove_child(dialog);
-        dialog.destroy();
+            this._cleanupResize();
+            this._disconnectKeyEvents();
+            this._disconnectCardSignals();
+            this._disconnectTrackedSignals();
+            this._removeTrackedTimeouts();
+            this._resetState();
+            this._releaseModal();
+            this._cleanupDialogElements();
 
-        this._nullifyAllProperties();
+            Main.uiGroup.remove_child(dialog);
+            dialog.destroy();
+
+            this._nullifyAllProperties();
+        } finally {
+            // Always reset the flag, even if an error occurred
+            this._isHiding = false;
+        }
     }
 
     /**
@@ -217,21 +227,7 @@ export class LayoutSwitcher {
      * @private
      */
     _disconnectTrackedSignals() {
-        if (!this._signals || this._signals.length === 0) {
-            return;
-        }
-
-        logger.memdebug(`Disconnecting ${this._signals.length} tracked signals`);
-        this._signals.forEach(({object, id}) => {
-            if (object && id) {
-                try {
-                    object.disconnect(id);
-                } catch (e) {
-                    logger.error(`Error disconnecting signal: ${e.message}`);
-                }
-            }
-        });
-        this._signals = [];
+        this._signalTracker.disconnectAll();
     }
 
     /**
@@ -267,7 +263,7 @@ export class LayoutSwitcher {
             '_settings',
             '_templateManager',
             '_themeManager',
-            '_signals',
+            '_signalTracker',
             '_timeoutIds',
             '_DEBUG_COLORS',
             '_MIN_DIALOG_WIDTH',
@@ -594,8 +590,7 @@ export class LayoutSwitcher {
 
         // Click on background (outside container) dismisses the dialog
         // Use bound method to avoid closure leak
-        const dialogSignalId = this._dialog.connect('button-press-event', this._boundHandleBackgroundClick);
-        this._signals.push({object: this._dialog, id: dialogSignalId});
+        this._signalTracker.connect(this._dialog, 'button-press-event', this._boundHandleBackgroundClick);
 
         // Main container with padding on all sides
         const container = new St.BoxLayout({
@@ -611,8 +606,7 @@ export class LayoutSwitcher {
                    `height: ${dialogHeight}px;`,
         });
 
-        const containerSignalId = container.connect('button-press-event', this._boundHandleContainerClick);
-        this._signals.push({object: container, id: containerSignalId});
+        this._signalTracker.connect(container, 'button-press-event', this._boundHandleContainerClick);
 
         // Create sections using modules
         const topBar = createTopBar(this);
@@ -1046,8 +1040,7 @@ export class LayoutSwitcher {
             reactive: true,
             track_hover: true,
         });
-        const cancelBtnSignalId = cancelBtn.connect('clicked', this._boundHandleDeleteCancelClick);
-        this._signals.push({object: cancelBtn, id: cancelBtnSignalId});
+        this._signalTracker.connect(cancelBtn, 'clicked', this._boundHandleDeleteCancelClick);
         buttonBox.add_child(cancelBtn);
 
         // Delete button (destructive red)
@@ -1061,8 +1054,7 @@ export class LayoutSwitcher {
             reactive: true,
             track_hover: true,
         });
-        const deleteBtnSignalId = deleteBtn.connect('clicked', this._boundHandleDeleteConfirmClick);
-        this._signals.push({object: deleteBtn, id: deleteBtnSignalId});
+        this._signalTracker.connect(deleteBtn, 'clicked', this._boundHandleDeleteConfirmClick);
         buttonBox.add_child(deleteBtn);
 
         confirmBox.add_child(buttonBox);
@@ -1088,18 +1080,16 @@ export class LayoutSwitcher {
         wrapper.get_child().add_child(confirmBox);
 
         // Click on backdrop to cancel - use bound method
-        const wrapperSignalId = wrapper.connect('button-press-event', this._boundHandleDeleteWrapperClick);
-        this._signals.push({object: wrapper, id: wrapperSignalId});
+        this._signalTracker.connect(wrapper, 'button-press-event', this._boundHandleDeleteWrapperClick);
 
         // Handle Escape key to dismiss confirmation
-        const wrapperKeySignalId = wrapper.connect('key-press-event', (actor, event) => {
+        this._signalTracker.connect(wrapper, 'key-press-event', (actor, event) => {
             if (event.get_key_symbol() === Clutter.KEY_Escape) {
                 this._hideDeleteConfirmation();
                 return Clutter.EVENT_STOP;
             }
             return Clutter.EVENT_PROPAGATE;
         });
-        this._signals.push({object: wrapper, id: wrapperKeySignalId});
 
         // Add overlay on top of the dialog container
         this._confirmOverlay = wrapper;
@@ -1643,8 +1633,8 @@ export class LayoutSwitcher {
 
     /**
      * Disconnect all card signal connections and clear references
-     * CRITICAL for preventing memory leaks - cards have multiple signal connections
-     * that must be cleaned up before clearing the array
+     * SIMPLIFIED: Card signals are now managed by parent SignalTracker
+     * This method only needs to null layout references and clear the array
      * @private
      */
     _disconnectCardSignals() {
@@ -1652,70 +1642,18 @@ export class LayoutSwitcher {
             return;
         }
 
-        logger.memdebug('===== CARD SIGNAL CLEANUP START =====');
-        logger.memdebug(`Total cards to process: ${this._allCards.length}`);
+        logger.memdebug(`Clearing ${this._allCards.length} card references...`);
 
-        this._allCards.forEach((cardObj, idx) => {
-            const card = cardObj.card;
-            const layout = cardObj.layout;
-
-            logger.memdebug(`Card ${idx}: layout="${layout?.name || 'unknown'}"`);
-            logger.memdebug(`  Card has _signalIds? ${card._signalIds !== undefined}`);
-            logger.memdebug(`  Card signal count: ${card._signalIds?.length || 0}`);
-
-            // Disconnect card's tracked signals
-            if (card._signalIds && card._signalIds.length > 0) {
-                logger.memdebug(`  Disconnecting ${card._signalIds.length} card signals...`);
-                card._signalIds.forEach(({object, id}, signalIdx) => {
-                    if (object && id) {
-                        try {
-                            object.disconnect(id);
-                            logger.memdebug(`    ✓ Disconnected signal ${signalIdx} (ID: ${id})`);
-                        } catch (e) {
-                            logger.error(`Error disconnecting signal ${signalIdx}: ${e.message}`);
-                        }
-                    } else {
-                        logger.warn(`Signal ${signalIdx} missing object or ID`);
-                    }
-                });
-                card._signalIds = [];
-            }
-
-            // Find and disconnect edit button signals
-            // Edit button is a child of the card's wrapper
-            const wrapper = card.get_child();
-            if (wrapper) {
-                const children = wrapper.get_children();
-                logger.memdebug(`  Wrapper has ${children.length} children`);
-
-                children.forEach((child, childIdx) => {
-                    if (child._signalIds && child._signalIds.length > 0) {
-                        logger.memdebug(`  Child ${childIdx}: ${child._signalIds.length} signals`);
-                        child._signalIds.forEach(({object, id}, signalIdx) => {
-                            if (object && id) {
-                                try {
-                                    object.disconnect(id);
-                                    logger.memdebug(`    ✓ Disconnected child signal ${signalIdx} (ID: ${id})`);
-                                } catch (e) {
-                                    logger.error(`Error disconnecting child signal: ${e.message}`);
-                                }
-                            }
-                        });
-                        child._signalIds = [];
-                    }
-                });
-            }
-
-            // NULL the layout reference explicitly
-            logger.memdebug('  Nullifying layout reference...');
+        // NULL layout references to break reference cycles
+        this._allCards.forEach((cardObj) => {
             cardObj.layout = null;
         });
 
         // Clear the array - this releases our references to the card objects
         // and their associated layout data, allowing them to be GC'd
-        logger.memdebug(`Clearing _allCards array (${this._allCards.length} items)`);
+        // Note: Card signals are automatically cleaned up by parent's SignalTracker.disconnectAll()
         this._allCards.length = 0;
-        logger.memdebug('===== CARD SIGNAL CLEANUP END =====');
+        logger.memdebug('Card references cleared');
     }
 
     /**

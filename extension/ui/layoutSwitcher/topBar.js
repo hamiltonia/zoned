@@ -350,7 +350,7 @@ export function createTopBar(ctx) {
     scrollWrapper.add_child(workspaceScrollView);
 
     // Handle scroll events on the wrapper - use bound method to avoid closure leak
-    scrollWrapper.connect('scroll-event', ctx._boundHandleWorkspaceScroll);
+    ctx._signalTracker.connect(scrollWrapper, 'scroll-event', ctx._boundHandleWorkspaceScroll);
 
     workspaceGroup.add_child(scrollWrapper);
 
@@ -492,9 +492,9 @@ export function createMonitorPill(ctx) {
     ctx._monitorPillBtn.set_child(btnContent);
 
     // Hover effects and click - use bound methods to avoid closure leaks
-    ctx._monitorPillBtn.connect('enter-event', ctx._boundHandleMonitorPillEnter);
-    ctx._monitorPillBtn.connect('leave-event', ctx._boundHandleMonitorPillLeave);
-    ctx._monitorPillBtn.connect('clicked', ctx._boundHandleMonitorPillClick);
+    ctx._signalTracker.connect(ctx._monitorPillBtn, 'enter-event', ctx._boundHandleMonitorPillEnter);
+    ctx._signalTracker.connect(ctx._monitorPillBtn, 'leave-event', ctx._boundHandleMonitorPillLeave);
+    ctx._signalTracker.connect(ctx._monitorPillBtn, 'clicked', ctx._boundHandleMonitorPillClick);
 
     // Add button to dropdown wrapper
     dropdownWrapper.add_child(ctx._monitorPillBtn);
@@ -627,14 +627,9 @@ export function createWorkspaceThumbnails(ctx) {
             const boundLeave = handleWorkspaceThumbnailLeave.bind(ctx, thumb);
             const boundClick = handleWorkspaceThumbnailClick.bind(ctx, thumb);
 
-            thumb.connect('enter-event', boundEnter);
-            thumb.connect('leave-event', boundLeave);
-            thumb.connect('clicked', boundClick);
-
-            // Store bound handlers on thumb for potential cleanup
-            thumb._boundEnter = boundEnter;
-            thumb._boundLeave = boundLeave;
-            thumb._boundClick = boundClick;
+            ctx._signalTracker.connect(thumb, 'enter-event', boundEnter);
+            ctx._signalTracker.connect(thumb, 'leave-event', boundLeave);
+            ctx._signalTracker.connect(thumb, 'clicked', boundClick);
         }
 
         ctx._workspaceButtons.push(thumb);
@@ -831,37 +826,8 @@ export function createGlobalCheckbox(ctx) {
         ctx._applyGloballyCheckbox.set_child(checkmark);
     }
 
-    // Toggle handler - updates use-per-workspace-layouts (inverted)
-    const toggleCheckbox = () => {
-        ctx._applyGlobally = !ctx._applyGlobally;
-        // Write inverted value: applyGlobally=true means per-workspace=false
-        ctx._settings.set_boolean('use-per-workspace-layouts', !ctx._applyGlobally);
-
-        const c = ctx._themeManager.getColors();
-
-        ctx._applyGloballyCheckbox.style = 'width: 18px; height: 18px; ' +
-               `border: 2px solid ${ctx._applyGlobally ? c.accentHex : c.textMuted}; ` +
-               'border-radius: 3px; ' +
-               `background-color: ${ctx._applyGlobally ? c.accentHex : 'transparent'};`;
-
-        if (ctx._applyGlobally) {
-            const checkmark = new St.Label({
-                text: '✓',
-                style: `color: ${c.isDark ? '#1a202c' : 'white'}; font-size: 12px; font-weight: bold;`,
-                x_align: Clutter.ActorAlign.CENTER,
-                y_align: Clutter.ActorAlign.CENTER,
-            });
-            ctx._applyGloballyCheckbox.set_child(checkmark);
-        } else {
-            ctx._applyGloballyCheckbox.set_child(null);
-        }
-
-        // Update workspace thumbnails disabled state
-        updateWorkspaceThumbnailsDisabledState(ctx);
-    };
-
-    label.connect('button-press-event', ctx._boundHandleGlobalCheckboxLabelClick);
-    ctx._applyGloballyCheckbox.connect('clicked', ctx._boundHandleGlobalCheckboxClick);
+    ctx._signalTracker.connect(label, 'button-press-event', ctx._boundHandleGlobalCheckboxLabelClick);
+    ctx._signalTracker.connect(ctx._applyGloballyCheckbox, 'clicked', ctx._boundHandleGlobalCheckboxClick);
 
     container.add_child(label);
     container.add_child(ctx._applyGloballyCheckbox);
@@ -1038,14 +1004,9 @@ export function createMonitorDropdownMenu(ctx) {
         const boundLeave = handleMonitorMenuItemLeave.bind(ctx, item, isSelected);
         const boundClick = handleMonitorMenuItemClick.bind(ctx, index);
 
-        item.connect('enter-event', boundEnter);
-        item.connect('leave-event', boundLeave);
-        item.connect('button-press-event', boundClick);
-
-        // Store bound handlers on item for potential cleanup
-        item._boundEnter = boundEnter;
-        item._boundLeave = boundLeave;
-        item._boundClick = boundClick;
+        ctx._signalTracker.connect(item, 'enter-event', boundEnter);
+        ctx._signalTracker.connect(item, 'leave-event', boundLeave);
+        ctx._signalTracker.connect(item, 'button-press-event', boundClick);
 
         menu.add_child(item);
     });

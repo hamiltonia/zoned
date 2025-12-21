@@ -16,6 +16,7 @@ import St from 'gi://St';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import {createLogger} from '../utils/debug.js';
 import {ThemeManager} from '../utils/theme.js';
+import {SignalTracker} from '../utils/signalTracker.js';
 
 const logger = createLogger('ConfirmDialog');
 
@@ -91,6 +92,9 @@ export const ConfirmDialog = GObject.registerClass(
 
             // Create ThemeManager if settings provided
             this._themeManager = options.settings ? new ThemeManager(options.settings) : null;
+
+            // Initialize signal tracker for proper cleanup
+            this._signalTracker = new SignalTracker('ConfirmDialog');
 
             this._buildUI();
 
@@ -210,22 +214,28 @@ export const ConfirmDialog = GObject.registerClass(
                     // Also style on hover (Wave 3: bound methods)
                     const boundEnter = handleConfirmButtonEnter.bind(null, confirmButton);
                     const boundLeave = handleConfirmButtonLeave.bind(null, confirmButton);
-                    confirmButton.connect('enter-event', boundEnter);
-                    confirmButton.connect('leave-event', boundLeave);
-                    confirmButton._boundEnter = boundEnter;  // Store for potential cleanup
-                    confirmButton._boundLeave = boundLeave;  // Store for potential cleanup
+                    this._signalTracker.connect(confirmButton, 'enter-event', boundEnter);
+                    this._signalTracker.connect(confirmButton, 'leave-event', boundLeave);
                 }
             }
         }
 
         /**
-         * Override destroy to clean up ThemeManager
+         * Override destroy to clean up resources
          */
         destroy() {
+            // Disconnect all signals
+            if (this._signalTracker) {
+                this._signalTracker.disconnectAll();
+                this._signalTracker = null;
+            }
+
+            // Clean up ThemeManager
             if (this._themeManager) {
                 this._themeManager.destroy();
                 this._themeManager = null;
             }
+
             super.destroy();
         }
     });

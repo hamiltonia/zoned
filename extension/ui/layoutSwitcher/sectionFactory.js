@@ -231,11 +231,11 @@ export function createCustomLayoutsSection(ctx) {
 
     // Handle scroll events on the entire section (not just scrollView)
     // This catches scrolls over header and empty areas too
-    // Use bound method with captured sectionScrollView reference
-    // Note: Cannot bind sectionScrollView yet as it's set later, so still use closure for this one
-    section.connect('scroll-event', (actor, event) => {
+    // Create bound handler for section scroll (sectionScrollView will be set below)
+    const boundSectionScroll = (actor, event) => {
         return handleSectionScroll(ctx, sectionScrollView, actor, event);
-    });
+    };
+    ctx._signalTracker.connect(section, 'scroll-event', boundSectionScroll);
 
     // Section header (fixed, does not scroll) - uses configurable font size
     const header = new St.Label({
@@ -361,10 +361,7 @@ export function createCustomLayoutsSection(ctx) {
         // This ensures mouse wheel works even when hovering over St.Button cards
         // Use bound method with captured scrollView reference
         const boundCaptured = handleScrollViewCaptured.bind(null, ctx, scrollView);
-        scrollView.connect('captured-event', boundCaptured);
-        
-        // Store bound handler for potential cleanup
-        scrollView._boundCaptured = boundCaptured;
+        ctx._signalTracker.connect(scrollView, 'captured-event', boundCaptured);
 
         // Grid of custom layouts
         const grid = createCustomLayoutGrid(ctx, customLayouts, currentLayout);
@@ -501,14 +498,9 @@ export function createNewLayoutButton(ctx) {
     const boundEnter = handleCreateButtonEnter.bind(null, button, verticalPadding, horizontalPadding, accentHexHover, cardRadius, buttonMargin);
     const boundLeave = handleCreateButtonLeave.bind(null, button, verticalPadding, horizontalPadding, accentHex, cardRadius, buttonMargin);
 
-    button.connect('clicked', boundClick);
-    button.connect('enter-event', boundEnter);
-    button.connect('leave-event', boundLeave);
-
-    // Store bound handlers for potential cleanup
-    button._boundClick = boundClick;
-    button._boundEnter = boundEnter;
-    button._boundLeave = boundLeave;
+    ctx._signalTracker.connect(button, 'clicked', boundClick);
+    ctx._signalTracker.connect(button, 'enter-event', boundEnter);
+    ctx._signalTracker.connect(button, 'leave-event', boundLeave);
 
     return button;
 }

@@ -134,14 +134,9 @@ export function addResizeHandles(ctx, wrapper) {
         const boundLeave = handleResizeHandleLeave.bind(null, ctx, handle, handleSize);
         const boundPress = handleResizeHandlePress.bind(null, ctx, corner);
 
-        handle.connect('enter-event', boundEnter);
-        handle.connect('leave-event', boundLeave);
-        handle.connect('button-press-event', boundPress);
-
-        // Store bound handlers for potential cleanup
-        handle._boundEnter = boundEnter;
-        handle._boundLeave = boundLeave;
-        handle._boundPress = boundPress;
+        ctx._signalTracker.connect(handle, 'enter-event', boundEnter);
+        ctx._signalTracker.connect(handle, 'leave-event', boundLeave);
+        ctx._signalTracker.connect(handle, 'button-press-event', boundPress);
 
         ctx._resizeHandles[corner] = handle;
         wrapper.add_child(handle);
@@ -170,12 +165,8 @@ export function startResize(ctx, corner, event) {
     const boundMotion = handleResizeMotion.bind(null, ctx);
     const boundRelease = handleResizeRelease.bind(null, ctx);
 
-    ctx._resizeMotionId = global.stage.connect('motion-event', boundMotion);
-    ctx._resizeButtonReleaseId = global.stage.connect('button-release-event', boundRelease);
-
-    // Store bound handlers for potential cleanup
-    ctx._boundResizeMotion = boundMotion;
-    ctx._boundResizeRelease = boundRelease;
+    ctx._resizeMotionId = ctx._signalTracker.connect(global.stage, 'motion-event', boundMotion);
+    ctx._resizeButtonReleaseId = ctx._signalTracker.connect(global.stage, 'button-release-event', boundRelease);
 }
 
 /**
@@ -245,11 +236,11 @@ export function endResize(ctx) {
 
     // Disconnect motion events
     if (ctx._resizeMotionId) {
-        global.stage.disconnect(ctx._resizeMotionId);
+        ctx._signalTracker.disconnect(ctx._resizeMotionId);
         ctx._resizeMotionId = null;
     }
     if (ctx._resizeButtonReleaseId) {
-        global.stage.disconnect(ctx._resizeButtonReleaseId);
+        ctx._signalTracker.disconnect(ctx._resizeButtonReleaseId);
         ctx._resizeButtonReleaseId = null;
     }
 

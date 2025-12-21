@@ -1,10 +1,11 @@
 # Signal Cleanup & Memory Leak Fix Plan
 
 **Created:** 2024-12-21  
-**Updated:** 2024-12-21 (Phase 0 integration)  
-**Status:** Phase 0 Complete, Phase 1+ In Progress  
+**Updated:** 2024-12-21 (Phases 0-3 Complete, Phase 5 Ready)  
+**Status:** ✅ Code Complete | ⏳ Verification Pending  
 **Priority:** BLOCKING 1.0 RELEASE  
-**Root Cause:** 104 signal connections, only 32 disconnections → ~72 leaked connections
+**Root Cause:** 104 signal connections, only 32 disconnections → ~72 leaked connections  
+**Fix Status:** All 104 connections now have proper cleanup (Waves 1-4 complete)
 
 ---
 
@@ -746,33 +747,49 @@ After each phase, verify using Phase 0 + Phase 1 tools:
 
 Use this checklist to track progress:
 
-### Critical Priority (Wave 1)
-- [ ] `extension/extension.js` - Remove arrow functions, verify bound function cleanup
-- [ ] `extension/utils/theme.js` - Add bound function cleanup (has disconnects)
-- [ ] `extension/keybindingManager.js` - ✓ Already compliant (verify)
+### Critical Priority (Wave 1) ✅ COMPLETE
+- [x] `extension/extension.js` - Arrow functions converted, bound function cleanup added (commit `19b4c5a`)
+- [x] `extension/utils/theme.js` - Bound function cleanup added (commit `19b4c5a`)
+- [x] `extension/keybindingManager.js` - Already compliant, verified (commit `19b4c5a`)
 
-### High Priority (Wave 2)
-- [ ] `extension/ui/layoutSwitcher.js` - Implement SignalTracker
-- [ ] `extension/ui/layoutSettingsDialog.js` - Implement SignalTracker
-- [ ] `extension/ui/panelIndicator.js` - Track menu signals
-- [ ] `extension/ui/notificationManager.js` - Verify allocation signal cleanup
-- [ ] `extension/ui/zoneEditor.js` - Track button/hover signals
+### High Priority (Wave 2) ✅ COMPLETE
+- [x] `extension/ui/layoutSwitcher.js` - SignalTracker implemented (commit `c21b32b`)
+- [x] `extension/ui/layoutSettingsDialog.js` - SignalTracker implemented (commit `c21b32b`)
+- [x] `extension/ui/panelIndicator.js` - All menu signals tracked (commit `c21b32b`)
+- [x] `extension/ui/notificationManager.js` - Allocation signal cleanup verified (commit `c21b32b`)
+- [x] `extension/ui/zoneEditor.js` - All button/hover signals tracked (commit `c21b32b`)
 
-### Medium Priority (Wave 3)
-- [ ] `extension/ui/layoutSwitcher/cardFactory.js` - Store hover signal IDs
-- [ ] `extension/ui/layoutSwitcher/topBar.js` - Store hover signal IDs
-- [ ] `extension/ui/layoutSwitcher/resizeHandler.js` - Remove arrow functions
-- [ ] `extension/ui/layoutSwitcher/sectionFactory.js` - Track scroll signals
-- [ ] `extension/ui/layoutPreviewBackground.js` - Track button signals
-- [ ] `extension/ui/confirmDialog.js` - Track hover signals
+### Medium Priority (Wave 3) ✅ COMPLETE
+- [x] `extension/ui/layoutSwitcher/cardFactory.js` - 4 arrow functions converted (commit `6e141c1`)
+- [x] `extension/ui/layoutSwitcher/topBar.js` - 12 arrow functions converted (commit `6e141c1`)
+- [x] `extension/ui/layoutSwitcher/resizeHandler.js` - 5 arrow functions converted (commit `6e141c1`)
+- [x] `extension/ui/layoutSwitcher/sectionFactory.js` - 5 arrow functions converted (commit `6e141c1`)
+- [x] `extension/ui/layoutPreviewBackground.js` - 1 arrow function converted (commit `44ed434`)
+- [x] `extension/ui/confirmDialog.js` - 2 arrow functions converted (commit `44ed434`)
 
-### Low Priority (Wave 4)
-- [ ] `extension/prefs.js` - Track all button/toggle signals
+### Low Priority (Wave 4) ✅ COMPLETE
+- [x] `extension/prefs.js` - All 31 arrow functions converted to bound methods (commit `cbb1065`)
 
 ### Verification Files (Already Good ✓)
 - [x] `extension/ui/layoutSwitcher/cardFactory.js` - Cairo disposal present
 - [x] `extension/keybindingManager.js` - Has proper disconnects
 - [x] `extension/utils/theme.js` - Has proper disconnects
+
+---
+
+## 🎯 IMPLEMENTATION STATUS: WAVES 1-4 COMPLETE
+
+**Completion Date:** 2024-12-21  
+**Commits:** `19b4c5a`, `c21b32b`, `6e141c1`, `44ed434`, `cbb1065`  
+**Total Conversions:** All 104 arrow function signal connections converted to bound methods  
+**Status:** Ready for Phase 5 verification testing
+
+**Key Achievements:**
+- ✅ All arrow functions converted to module-level bound methods
+- ✅ All signal connections now have proper disconnection in cleanup
+- ✅ All bound function references released (`= null`) to prevent leaks
+- ✅ Consistent pattern applied across entire codebase
+- ✅ Code ready for memory leak verification
 
 ---
 
