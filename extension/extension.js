@@ -55,6 +55,12 @@ export default class ZonedExtension extends Extension {
         this._showIndicatorSignal = null;
         this._debugInterface = null;
 
+        // Bound signal handlers (for proper cleanup)
+        this._boundOnShowIndicatorChanged = null;
+        this._boundOnConflictCountChanged = null;
+        this._boundOnPreviewChanged = null;
+        this._boundOnWorkspaceSwitched = null;
+
         logger.info('Extension constructed');
     }
 
@@ -75,6 +81,7 @@ export default class ZonedExtension extends Extension {
         // Initialize global memory debug registry
         global.zonedDebug = {
             instances: new Map(),
+            signals: new Map(),  // Track active signal connections: componentName → [{id, signal, source, stack}]
 
             trackInstance(className, increment = true) {
                 if (!this.instances.has(className)) {
@@ -87,12 +94,86 @@ export default class ZonedExtension extends Extension {
                 logger.memdebug(`${className} instance count: ${newCount} (${increment ? '+' : '-'}1)`);
             },
 
+            /**
+             * Track a signal connection for leak detection
+             * @param {string} componentName - Component that owns the connection
+             * @param {number} signalId - Signal ID from connect()
+             * @param {string} signalName - Name of the signal
+             * @param {string} source - Source object type
+             */
+            trackSignal(componentName, signalId, signalName, source) {
+                if (!this.signals.has(componentName)) {
+                    this.signals.set(componentName, []);
+                }
+                this.signals.get(componentName).push({
+                    id: signalId,
+                    signal: signalName,
+                    source: source,
+                    stack: new Error().stack.split('\n')[3], // Capture creation location
+                });
+                logger.memdebug(`[${componentName}] Tracked signal ${signalName} (ID: ${signalId})`);
+            },
+
+            /**
+             * Untrack a signal when it's disconnected
+             * @param {string} componentName - Component that owns the connection
+             * @param {number} signalId - Signal ID to remove
+             */
+            untrackSignal(componentName, signalId) {
+                if (!this.signals.has(componentName)) {
+                    return;
+                }
+
+                const signals = this.signals.get(componentName);
+                const index = signals.findIndex(s => s.id === signalId);
+                if (index !== -1) {
+                    const removed = signals.splice(index, 1)[0];
+                    logger.memdebug(`[${componentName}] Untracked signal ${removed.signal} (ID: ${signalId})`);
+                }
+            },
+
+            /**
+             * Verify all signals have been disconnected (for testing/debugging)
+             * @returns {string} Report of leaked signals or success message
+             */
+            verifySignalsDisconnected() {
+                let totalLeaked = 0;
+                const report = [];
+
+                for (const [componentName, signals] of this.signals) {
+                    if (signals.length > 0) {
+                        report.push(`⚠️  ${componentName}: ${signals.length} signal(s) NOT disconnected`);
+                        for (const {id, signal, stack} of signals) {
+                            report.push(`   - Signal ID ${id} (${signal})`);
+                            report.push(`     Created at: ${stack}`);
+                        }
+                        totalLeaked += signals.length;
+                    }
+                }
+
+                if (totalLeaked === 0) {
+                    return '✅ All signals properly disconnected';
+                } else {
+                    report.unshift(`🚨 LEAKED ${totalLeaked} signal connection(s):`);
+                    return report.join('\n');
+                }
+            },
+
             getReport() {
                 const lines = ['=== Zoned Instance Counts ==='];
                 for (const [className, count] of this.instances) {
                     lines.push(`  ${className}: ${count}`);
                 }
-                lines.push('=============================');
+
+                lines.push('\n=== Active Signal Connections ===');
+                let totalSignals = 0;
+                for (const [componentName, signals] of this.signals) {
+                    lines.push(`  ${componentName}: ${signals.length} active`);
+                    totalSignals += signals.length;
+                }
+                lines.push(`  TOTAL: ${totalSignals} signals`);
+
+                lines.push('================================');
                 return lines.join('\n');
             },
         };
@@ -175,36 +256,20 @@ export default class ZonedExtension extends Extension {
         this._panelIndicator.visible = showIndicator;
 
         // Watch for show-panel-indicator changes to show/hide in real-time
-        this._showIndicatorSignal = this._settings.connect('changed::show-panel-indicator', () => {
-            const show = this._settings.get_boolean('show-panel-indicator');
-            logger.debug(`Panel indicator visibility changed to: ${show}`);
-            if (this._panelIndicator) {
-                this._panelIndicator.visible = show;
-            }
-        });
+        this._boundOnShowIndicatorChanged = this._onShowIndicatorChanged.bind(this);
+        this._showIndicatorSignal = this._settings.connect('changed::show-panel-indicator', this._boundOnShowIndicatorChanged);
 
         // Set conflict status in panel
         this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
 
-        // Watch for conflict count changes from prefs (prefs runs in separate process)
-        this._conflictCountSignal = this._settings.connect('changed::keybinding-conflict-count', () => {
-            logger.debug('Conflict count changed by prefs, re-detecting...');
-            this._conflictDetector.detectConflicts();
-            this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
-        });
+        // Watch for conflict count changes from prefs (pref runs in separate process)
+        this._boundOnConflictCountChanged = this._onConflictCountChanged.bind(this);
+        this._conflictCountSignal = this._settings.connect('changed::keybinding-conflict-count', this._boundOnConflictCountChanged);
         logger.debug('PanelIndicator initialized');
 
         // Watch for preview trigger from prefs (shows sample center notification)
-        this._previewSignal = this._settings.connect('changed::center-notification-preview', () => {
-            if (this._settings.get_boolean('center-notification-preview')) {
-                logger.debug('Preview triggered from preferences');
-                // Show preview with current settings
-                const duration = this._settings.get_int('notification-duration');
-                this._zoneOverlay.showMessage('Preview Notification', duration);
-                // Reset the flag
-                this._settings.set_boolean('center-notification-preview', false);
-            }
-        });
+        this._boundOnPreviewChanged = this._onPreviewChanged.bind(this);
+        this._previewSignal = this._settings.connect('changed::center-notification-preview', this._boundOnPreviewChanged);
         logger.debug('Preview signal handler initialized');
 
         // Initialize KeybindingManager (with notification service)
@@ -307,6 +372,13 @@ export default class ZonedExtension extends Extension {
             this._showIndicatorSignal = null;
             logger.debug('Show indicator signal disconnected');
         }
+
+        // Release bound function references to prevent memory leaks
+        this._boundOnShowIndicatorChanged = null;
+        this._boundOnConflictCountChanged = null;
+        this._boundOnPreviewChanged = null;
+        this._boundOnWorkspaceSwitched = null;
+        logger.debug('Bound signal handlers released');
     }
 
     /**
@@ -346,53 +418,97 @@ export default class ZonedExtension extends Extension {
     _setupWorkspaceHandler() {
         // Connect to workspace-switched signal
         // Signal signature: (manager, from, to, direction) where from/to are INTEGER indices
+        this._boundOnWorkspaceSwitched = this._onWorkspaceSwitched.bind(this);
         this._workspaceSwitchedSignal = global.workspace_manager.connect(
             'workspace-switched',
-            (manager, from, to, _direction) => {
-                // Only react if workspace mode is enabled
-                const workspaceMode = this._settings.get_boolean('use-per-workspace-layouts');
-                if (!workspaceMode) {
-                    return;
-                }
-
-                // 'to' is already an integer index, NOT a workspace object
-                const toIndex = to;
-
-                // Use SpatialStateManager for per-space state
-                try {
-                    const spaceKey = this._spatialStateManager.makeKey(
-                        Main.layoutManager.primaryIndex,
-                        toIndex,
-                    );
-
-                    const state = this._spatialStateManager.getState(spaceKey);
-                    const layoutId = state.layoutId;
-
-                    // Switch to the assigned layout
-                    const layout = this._layoutManager.getAllLayouts().find(l => l.id === layoutId);
-                    if (layout) {
-                        this._layoutManager.setLayout(layoutId);
-                        // Show notification with workspace number (uses notification settings)
-                        this._notificationService.notify(
-                            NotifyCategory.WORKSPACE_CHANGES,
-                            `Workspace ${toIndex + 1}: ${layout.name}`,
-                        );
-                    } else {
-                        // Layout not found - use fallback
-                        const fallbackId = 'halves';
-                        this._layoutManager.setLayout(fallbackId);
-                        logger.warn(`Layout '${layoutId}' not found, using fallback`);
-                        this._notificationService.notify(
-                            NotifyCategory.WORKSPACE_CHANGES,
-                            `Workspace ${toIndex + 1}: Halves (fallback)`,
-                        );
-                    }
-                } catch (e) {
-                    logger.error(`Error switching layout for workspace ${toIndex}: ${e}`);
-                }
-            },
+            this._boundOnWorkspaceSwitched,
         );
 
         logger.debug('Workspace switching handler setup (using SpatialStateManager)');
+    }
+
+    /**
+     * Signal handler: show-panel-indicator changed
+     * @private
+     */
+    _onShowIndicatorChanged() {
+        const show = this._settings.get_boolean('show-panel-indicator');
+        logger.debug(`Panel indicator visibility changed to: ${show}`);
+        if (this._panelIndicator) {
+            this._panelIndicator.visible = show;
+        }
+    }
+
+    /**
+     * Signal handler: keybinding-conflict-count changed
+     * @private
+     */
+    _onConflictCountChanged() {
+        logger.debug('Conflict count changed by prefs, re-detecting...');
+        this._conflictDetector.detectConflicts();
+        this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
+    }
+
+    /**
+     * Signal handler: center-notification-preview changed
+     * @private
+     */
+    _onPreviewChanged() {
+        if (this._settings.get_boolean('center-notification-preview')) {
+            logger.debug('Preview triggered from preferences');
+            // Show preview with current settings
+            const duration = this._settings.get_int('notification-duration');
+            this._zoneOverlay.showMessage('Preview Notification', duration);
+            // Reset the flag
+            this._settings.set_boolean('center-notification-preview', false);
+        }
+    }
+
+    /**
+     * Signal handler: workspace-switched
+     * @private
+     */
+    _onWorkspaceSwitched(manager, from, to, _direction) {
+        // Only react if workspace mode is enabled
+        const workspaceMode = this._settings.get_boolean('use-per-workspace-layouts');
+        if (!workspaceMode) {
+            return;
+        }
+
+        // 'to' is already an integer index, NOT a workspace object
+        const toIndex = to;
+
+        // Use SpatialStateManager for per-space state
+        try {
+            const spaceKey = this._spatialStateManager.makeKey(
+                Main.layoutManager.primaryIndex,
+                toIndex,
+            );
+
+            const state = this._spatialStateManager.getState(spaceKey);
+            const layoutId = state.layoutId;
+
+            // Switch to the assigned layout
+            const layout = this._layoutManager.getAllLayouts().find(l => l.id === layoutId);
+            if (layout) {
+                this._layoutManager.setLayout(layoutId);
+                // Show notification with workspace number (uses notification settings)
+                this._notificationService.notify(
+                    NotifyCategory.WORKSPACE_CHANGES,
+                    `Workspace ${toIndex + 1}: ${layout.name}`,
+                );
+            } else {
+                // Layout not found - use fallback
+                const fallbackId = 'halves';
+                this._layoutManager.setLayout(fallbackId);
+                logger.warn(`Layout '${layoutId}' not found, using fallback`);
+                this._notificationService.notify(
+                    NotifyCategory.WORKSPACE_CHANGES,
+                    `Workspace ${toIndex + 1}: Halves (fallback)`,
+                );
+            }
+        } catch (e) {
+            logger.error(`Error switching layout for workspace ${toIndex}: ${e}`);
+        }
     }
 }

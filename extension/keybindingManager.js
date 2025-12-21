@@ -42,6 +42,11 @@ export class KeybindingManager {
             'quick-layout-4', 'quick-layout-5', 'quick-layout-6',
             'quick-layout-7', 'quick-layout-8', 'quick-layout-9'];
         this._settingsChangedId = null;
+        this._quickLayoutSettingsChangedId = null;
+
+        // Bound signal handlers (for proper cleanup)
+        this._boundOnEnhancedWindowManagementChanged = null;
+        this._boundOnQuickLayoutShortcutsChanged = null;
     }
 
     /**
@@ -74,15 +79,17 @@ export class KeybindingManager {
         this._registerQuickLayoutShortcuts();
 
         // Listen for settings changes to toggle enhanced window management
+        this._boundOnEnhancedWindowManagementChanged = this._onEnhancedWindowManagementChanged.bind(this);
         this._settingsChangedId = this._settings.connect(
             'changed::enhanced-window-management-enabled',
-            () => this._onEnhancedWindowManagementChanged(),
+            this._boundOnEnhancedWindowManagementChanged,
         );
 
         // Listen for settings changes to toggle quick layout shortcuts
+        this._boundOnQuickLayoutShortcutsChanged = this._onQuickLayoutShortcutsChanged.bind(this);
         this._quickLayoutSettingsChangedId = this._settings.connect(
             'changed::quick-layout-shortcuts-enabled',
-            () => this._onQuickLayoutShortcutsChanged(),
+            this._boundOnQuickLayoutShortcutsChanged,
         );
 
         logger.info(`Registered ${this._registeredKeys.length} keybindings`);
@@ -503,6 +510,10 @@ export class KeybindingManager {
             this._settings.disconnect(this._quickLayoutSettingsChangedId);
             this._quickLayoutSettingsChangedId = null;
         }
+
+        // Release bound function references to prevent memory leaks
+        this._boundOnEnhancedWindowManagementChanged = null;
+        this._boundOnQuickLayoutShortcutsChanged = null;
 
         this.unregisterKeybindings();
     }

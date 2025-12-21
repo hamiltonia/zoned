@@ -36,6 +36,10 @@ export class ThemeManager {
         // Signal tracking for cleanup
         this._signalIds = [];
 
+        // Bound callbacks for theme changes (stored for proper cleanup)
+        this._boundUserPrefChanged = null;
+        this._boundSystemThemeChanged = null;
+
         logger.debug('ThemeManager initialized');
     }
 
@@ -362,6 +366,10 @@ export class ThemeManager {
             });
             this._signalIds = [];
         }
+
+        // Release bound callback references to prevent memory leaks
+        this._boundUserPrefChanged = null;
+        this._boundSystemThemeChanged = null;
 
         // Clear our reference to interface settings
         // (GSettings objects are managed by GLib, but we should release our reference)
