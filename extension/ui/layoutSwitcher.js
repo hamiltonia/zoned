@@ -21,6 +21,7 @@ import GLib from 'gi://GLib';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from '../utils/debug.js';
+import {SignalTracker} from '../utils/signalTracker.js';
 import {TemplateManager} from '../templateManager.js';
 import {LayoutSettingsDialog} from './layoutSettingsDialog.js';
 import {ThemeManager} from '../utils/theme.js';
@@ -1946,6 +1947,19 @@ export class LayoutSwitcher {
      */
     destroy() {
         this.hide();
+
+        // Release bound function references to prevent memory leaks
+        this._boundHandleBackgroundClick = null;
+        this._boundHandleKeyPress = null;
+        this._boundHandleContainerClick = null;
+        this._boundHandleDeleteCancelClick = null;
+        this._boundHandleDeleteConfirmClick = null;
+        this._boundHandleDeleteWrapperClick = null;
+        this._boundHideDialog = null;
+        this._boundHandleCardClick = null;
+        this._boundHandleCardEnter = null;
+        this._boundHandleCardLeave = null;
+        this._boundHandleCardScroll = null;
 
         // Clean up TemplateManager
         if (this._templateManager) {

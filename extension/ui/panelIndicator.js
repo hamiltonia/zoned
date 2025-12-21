@@ -15,6 +15,7 @@ import GLib from 'gi://GLib';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {createLogger} from '../utils/debug.js';
+import {SignalTracker} from '../utils/signalTracker.js';
 import {NotifyCategory} from '../utils/notificationService.js';
 
 const logger = createLogger('PanelIndicator');
@@ -34,6 +35,12 @@ export const PanelIndicator = GObject.registerClass(
             this._notificationService = notificationService;
             this._hasConflicts = false;
 
+            // Signal tracking
+            this._signalTracker = new SignalTracker('PanelIndicator');
+
+            // Bound methods for signal handlers
+            this._boundOnMenuOpenStateChanged = this._onMenuOpenStateChanged.bind(this);
+
             // Create icon with reduced padding - using custom SVG
             this._extensionPath = import.meta.url.replace('file://', '').replace('/ui/panelIndicator.js', '');
             const iconPath = `${this._extensionPath}/icons/zoned-symbolic.svg`;
@@ -51,12 +58,20 @@ export const PanelIndicator = GObject.registerClass(
             this._buildMenu();
 
             // Re-detect conflicts every time the menu opens
-            this.menu.connect('open-state-changed', (menu, isOpen) => {
-                if (isOpen) {
-                    this._conflictDetector.detectConflicts();
-                    this.setConflictStatus(this._conflictDetector.hasConflicts());
-                }
-            });
+            this._signalTracker.connect(this.menu, 'open-state-changed', this._boundOnMenuOpenStateChanged);
+        }
+
+        /**
+         * Handle menu open state changed
+         * @param {PopupMenu.PopupMenu} menu - The menu
+         * @param {boolean} isOpen - Whether menu is open
+         * @private
+         */
+        _onMenuOpenStateChanged(menu, isOpen) {
+            if (isOpen) {
+                this._conflictDetector.detectConflicts();
+                this.setConflictStatus(this._conflictDetector.hasConflicts());
+            }
         }
 
         /**
@@ -305,6 +320,15 @@ export const PanelIndicator = GObject.registerClass(
      * Clean up
      */
         destroy() {
+            // Disconnect all tracked signals
+            if (this._signalTracker) {
+                this._signalTracker.disconnectAll();
+                this._signalTracker = null;
+            }
+
+            // Release bound function references
+            this._boundOnMenuOpenStateChanged = null;
+
             super.destroy();
         }
     });

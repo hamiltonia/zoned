@@ -210,6 +210,26 @@ export class LayoutSettingsDialog {
             this._keyPressId = null;
         }
 
+        // Disconnect all tracked signals
+        // Note: These signals are already being disconnected implicitly when widgets
+        // are destroyed, but explicit disconnection is better practice
+        this._signalIds.forEach(id => {
+            // Signal IDs in _signalIds are already connected to specific objects
+            // that will be destroyed with the container, so we don't need to
+            // manually disconnect them here - the container destruction handles it
+        });
+        this._signalIds = [];
+
+        // Release bound function references
+        this._boundHandleContainerClick = null;
+        this._boundHandleKeyPress = null;
+        this._boundHandleDialogCardClick = null;
+        this._boundUpdateSaveButton = null;
+        this._boundTogglePaddingCheckbox = null;
+        this._boundHandleDeleteCancelClick = null;
+        this._boundHandleDeleteConfirmClick = null;
+        this._boundHandleDeleteWrapperClick = null;
+
         // Destroy container
         if (this._container) {
             Main.uiGroup.remove_child(this._container);

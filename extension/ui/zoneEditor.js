@@ -1860,6 +1860,14 @@ export class ZoneEditor {
     destroy() {
         this.hide();
 
+        // Release bound function references
+        // Note: Signals are automatically disconnected when overlay is destroyed in hide()
+        this._boundHandleOverlayMotion = null;
+        this._boundHandleOverlayButtonRelease = null;
+        this._boundHandleKeyPress = null;
+        this._boundOnSave = null;
+        this._boundOnCancel = null;
+
         // Clean up ThemeManager
         if (this._themeManager) {
             this._themeManager.destroy();
