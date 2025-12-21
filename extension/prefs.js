@@ -1144,6 +1144,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
             'notify-conflicts',
             // Debug
             'debug-logging',
+            'memory-debug',
             'debug-layout-rects',
             'debug-layout-overlay',
             'developer-mode-revealed',
@@ -1714,6 +1715,14 @@ export default class ZonedPreferences extends ExtensionPreferences {
         settings.bind('debug-logging', debugLoggingRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         developerGroup.add(debugLoggingRow);
 
+        // Memory Debug Logging toggle
+        const memoryDebugRow = new Adw.SwitchRow({
+            title: 'Memory Debug Logging',
+            subtitle: 'Extremely verbose memory lifecycle logging (for leak debugging only)',
+        });
+        settings.bind('memory-debug', memoryDebugRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        developerGroup.add(memoryDebugRow);
+
         // Debug Layout Rectangles toggle
         const debugRectsRow = new Adw.SwitchRow({
             title: 'Debug Layout Rectangles',
@@ -1746,6 +1755,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
             log('Resetting all debug settings to defaults');
             // Reset all debug settings to their defaults
             settings.reset('debug-logging');
+            settings.reset('memory-debug');
             settings.reset('debug-layout-rects');
             settings.reset('debug-layout-overlay');
             settings.reset('option-force-tier');

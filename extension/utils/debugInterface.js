@@ -36,7 +36,11 @@ const DBUS_INTERFACE_XML = `
     <method name="GetResourceReport">
       <arg direction="out" type="a{sv}" name="report"/>
     </method>
-    
+
+    <method name="GetMemoryReport">
+      <arg direction="out" type="s" name="report"/>
+    </method>
+
     <method name="GetComponentReports">
       <arg direction="out" type="s" name="reports"/>
     </method>
@@ -543,6 +547,25 @@ export class DebugInterface {
             return {
                 error: GLib.Variant.new_string(e.message),
             };
+        }
+    }
+
+    /**
+     * D-Bus Method: GetMemoryReport
+     * Returns instance count report from global memory debug registry
+     */
+    GetMemoryReport() {
+        logger.debug('D-Bus GetMemoryReport called');
+
+        try {
+            if (global.zonedDebug) {
+                return global.zonedDebug.getReport();
+            } else {
+                return 'Memory debug registry not initialized';
+            }
+        } catch (e) {
+            logger.error('GetMemoryReport error:', e.message);
+            return `Error: ${e.message}`;
         }
     }
 

@@ -101,7 +101,7 @@ export class LayoutSwitcher {
         this._boundHandleDeleteConfirmClick = this._onDeleteConfirmClick.bind(this);
         this._boundHandleDeleteWrapperClick = this._handleDeleteWrapperClick.bind(this);
         this._boundHideDialog = this.hide.bind(this);
-        
+
         // Bind card event handlers (CRITICAL: no closures, no layout object captures!)
         this._boundHandleCardClick = this._handleCardClick.bind(this);
         this._boundHandleCardEnter = this._handleCardEnter.bind(this);
@@ -223,13 +223,13 @@ export class LayoutSwitcher {
             return;
         }
 
-        logger.info(`[Zoned:Cleanup] Disconnecting ${this._signals.length} tracked signals`);
+        logger.memdebug(`Disconnecting ${this._signals.length} tracked signals`);
         this._signals.forEach(({object, id}) => {
             if (object && id) {
                 try {
                     object.disconnect(id);
                 } catch (e) {
-                    logger.error(`[Zoned:Cleanup] Error disconnecting signal: ${e.message}`);
+                    logger.error(`Error disconnecting signal: ${e.message}`);
                 }
             }
         });
@@ -245,12 +245,12 @@ export class LayoutSwitcher {
             return;
         }
 
-        logger.info(`[Zoned:Cleanup] Removing ${this._timeoutIds.length} timeouts`);
+        logger.memdebug(`Removing ${this._timeoutIds.length} timeouts`);
         this._timeoutIds.forEach(id => {
             try {
                 GLib.Source.remove(id);
             } catch (e) {
-                logger.error(`[Zoned:Cleanup] Error removing timeout: ${e.message}`);
+                logger.error(`Error removing timeout: ${e.message}`);
             }
         });
         this._timeoutIds = [];
@@ -259,8 +259,6 @@ export class LayoutSwitcher {
     /**
      * Nullify all properties to break reference cycles
      * Only nullifies properties created in show(), preserves constructor properties
-     * TODO: After leak testing is complete, this logging can be commented out for production.
-     * The nullification itself should remain to ensure clean teardown.
      * @private
      */
     _nullifyAllProperties() {
@@ -278,7 +276,7 @@ export class LayoutSwitcher {
             '_MIN_DIALOG_HEIGHT',
         ]);
 
-        logger.info('[Zoned:Cleanup] Nullifying show() properties...');
+        logger.memdebug('Nullifying show() properties...');
         for (const key of Object.keys(this)) {
             if (key.startsWith('_') &&
                 !key.startsWith('_bound') &&
@@ -288,11 +286,11 @@ export class LayoutSwitcher {
                 const type = typeof value;
                 const hasDestroy = value?.destroy !== undefined;
 
-                logger.info(`[Zoned:Cleanup]   Nulling ${key}: ${type}${hasDestroy ? ' (has destroy)' : ''}`);
+                logger.memdebug(`  Nulling ${key}: ${type}${hasDestroy ? ' (has destroy)' : ''}`);
                 this[key] = null;
             }
         }
-        logger.info('[Zoned:Cleanup] Nullification complete');
+        logger.memdebug('Nullification complete');
     }
 
     /**
@@ -1656,30 +1654,30 @@ export class LayoutSwitcher {
             return;
         }
 
-        logger.info(`[Zoned:Cleanup] ===== CARD SIGNAL CLEANUP START =====`);
-        logger.info(`[Zoned:Cleanup] Total cards to process: ${this._allCards.length}`);
+        logger.memdebug('===== CARD SIGNAL CLEANUP START =====');
+        logger.memdebug(`Total cards to process: ${this._allCards.length}`);
 
         this._allCards.forEach((cardObj, idx) => {
             const card = cardObj.card;
             const layout = cardObj.layout;
-            
-            logger.info(`[Zoned:Cleanup] Card ${idx}: layout="${layout?.name || 'unknown'}"`);
-            logger.info(`[Zoned:Cleanup]   Card has _signalIds? ${card._signalIds !== undefined}`);
-            logger.info(`[Zoned:Cleanup]   Card signal count: ${card._signalIds?.length || 0}`);
-            
+
+            logger.memdebug(`Card ${idx}: layout="${layout?.name || 'unknown'}"`);
+            logger.memdebug(`  Card has _signalIds? ${card._signalIds !== undefined}`);
+            logger.memdebug(`  Card signal count: ${card._signalIds?.length || 0}`);
+
             // Disconnect card's tracked signals
             if (card._signalIds && card._signalIds.length > 0) {
-                logger.info(`[Zoned:Cleanup]   Disconnecting ${card._signalIds.length} card signals...`);
+                logger.memdebug(`  Disconnecting ${card._signalIds.length} card signals...`);
                 card._signalIds.forEach(({object, id}, signalIdx) => {
                     if (object && id) {
                         try {
                             object.disconnect(id);
-                            logger.info(`[Zoned:Cleanup]     ✓ Disconnected signal ${signalIdx} (ID: ${id})`);
+                            logger.memdebug(`    ✓ Disconnected signal ${signalIdx} (ID: ${id})`);
                         } catch (e) {
-                            logger.error(`[Zoned:Cleanup]     ✗ Error disconnecting signal ${signalIdx}: ${e.message}`);
+                            logger.error(`Error disconnecting signal ${signalIdx}: ${e.message}`);
                         }
                     } else {
-                        logger.warn(`[Zoned:Cleanup]     ⚠ Signal ${signalIdx} missing object or ID`);
+                        logger.warn(`Signal ${signalIdx} missing object or ID`);
                     }
                 });
                 card._signalIds = [];
@@ -1690,18 +1688,18 @@ export class LayoutSwitcher {
             const wrapper = card.get_child();
             if (wrapper) {
                 const children = wrapper.get_children();
-                logger.info(`[Zoned:Cleanup]   Wrapper has ${children.length} children`);
-                
+                logger.memdebug(`  Wrapper has ${children.length} children`);
+
                 children.forEach((child, childIdx) => {
                     if (child._signalIds && child._signalIds.length > 0) {
-                        logger.info(`[Zoned:Cleanup]   Child ${childIdx}: ${child._signalIds.length} signals`);
+                        logger.memdebug(`  Child ${childIdx}: ${child._signalIds.length} signals`);
                         child._signalIds.forEach(({object, id}, signalIdx) => {
                             if (object && id) {
                                 try {
                                     object.disconnect(id);
-                                    logger.info(`[Zoned:Cleanup]     ✓ Disconnected child signal ${signalIdx} (ID: ${id})`);
+                                    logger.memdebug(`    ✓ Disconnected child signal ${signalIdx} (ID: ${id})`);
                                 } catch (e) {
-                                    logger.error(`[Zoned:Cleanup]     ✗ Error disconnecting child signal: ${e.message}`);
+                                    logger.error(`Error disconnecting child signal: ${e.message}`);
                                 }
                             }
                         });
@@ -1709,17 +1707,17 @@ export class LayoutSwitcher {
                     }
                 });
             }
-            
+
             // NULL the layout reference explicitly
-            logger.info(`[Zoned:Cleanup]   Nullifying layout reference...`);
+            logger.memdebug('  Nullifying layout reference...');
             cardObj.layout = null;
         });
 
         // Clear the array - this releases our references to the card objects
         // and their associated layout data, allowing them to be GC'd
-        logger.info(`[Zoned:Cleanup] Clearing _allCards array (${this._allCards.length} items)`);
+        logger.memdebug(`Clearing _allCards array (${this._allCards.length} items)`);
         this._allCards.length = 0;
-        logger.info(`[Zoned:Cleanup] ===== CARD SIGNAL CLEANUP END =====`);
+        logger.memdebug('===== CARD SIGNAL CLEANUP END =====');
     }
 
     /**
@@ -1874,13 +1872,13 @@ export class LayoutSwitcher {
     _handleCardClick(card) {
         const layout = card._layoutRef;
         const isTemplate = card._isTemplate;
-        
+
         if (isTemplate) {
             this._onTemplateClicked(layout);
         } else {
             this._onLayoutClicked(layout);
         }
-        
+
         return Clutter.EVENT_STOP;
     }
 
@@ -1892,7 +1890,7 @@ export class LayoutSwitcher {
      */
     _handleCardEnter(card) {
         const isActive = card._isActive;
-        
+
         if (!isActive) {
             const colors = this._themeManager.getColors();
             const cardRadius = this._cardRadius;
@@ -1902,12 +1900,12 @@ export class LayoutSwitcher {
                         `background-color: ${colors.accentRGBA(0.35)}; border: 2px solid ${colors.accentHex}; ` +
                         'box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);';
         }
-        
+
         // Update preview background
         if (this._onCardHover) {
             this._onCardHover(card._layoutRef);
         }
-        
+
         return Clutter.EVENT_PROPAGATE;
     }
 
@@ -1919,7 +1917,7 @@ export class LayoutSwitcher {
      */
     _handleCardLeave(card) {
         const isActive = card._isActive;
-        
+
         if (!isActive) {
             const colors = this._themeManager.getColors();
             const cardRadius = this._cardRadius;
@@ -1928,12 +1926,12 @@ export class LayoutSwitcher {
                         'overflow: hidden; ' +
                         `background-color: ${colors.cardBg}; border: 2px solid transparent;`;
         }
-        
+
         // Revert preview background
         if (this._onCardHoverEnd) {
             this._onCardHoverEnd();
         }
-        
+
         return Clutter.EVENT_PROPAGATE;
     }
 

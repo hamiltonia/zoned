@@ -72,6 +72,32 @@ export default class ZonedExtension extends Extension {
         initDebugSettings(this._settings);
         logger.debug('Debug settings initialized');
 
+        // Initialize global memory debug registry
+        global.zonedDebug = {
+            instances: new Map(),
+
+            trackInstance(className, increment = true) {
+                if (!this.instances.has(className)) {
+                    this.instances.set(className, 0);
+                }
+                const current = this.instances.get(className);
+                const newCount = current + (increment ? 1 : -1);
+                this.instances.set(className, newCount);
+
+                logger.memdebug(`${className} instance count: ${newCount} (${increment ? '+' : '-'}1)`);
+            },
+
+            getReport() {
+                const lines = ['=== Zoned Instance Counts ==='];
+                for (const [className, count] of this.instances) {
+                    lines.push(`  ${className}: ${count}`);
+                }
+                lines.push('=============================');
+                return lines.join('\n');
+            },
+        };
+        logger.debug('Memory debug registry initialized');
+
         // Initialize resource tracking (for stability testing)
         initResourceTracking(this._settings);
         logger.debug('Resource tracking initialized');
@@ -237,6 +263,12 @@ export default class ZonedExtension extends Extension {
         // Clean up resource tracking
         destroyResourceTracking();
         logger.debug('Resource tracking destroyed');
+
+        // Clear global memory debug registry
+        if (global.zonedDebug) {
+            global.zonedDebug = null;
+            logger.debug('Memory debug registry cleared');
+        }
 
         // Clean up debug settings listener
         destroyDebugSettings();
