@@ -28,6 +28,19 @@ const logger = createLogger('LayoutPreviewBackground');
 // Fast fade duration in milliseconds (for polished transitions)
 const FADE_DURATION_MS = 100;
 
+/**
+ * Handle button-press-event on overlay to dismiss preview
+ * Module-level handler (Wave 3: avoid arrow function closure)
+ * @param {Function} onBackgroundClick - Callback to invoke
+ * @returns {boolean} Clutter.EVENT_STOP
+ */
+function handleOverlayButtonPress(onBackgroundClick) {
+    if (onBackgroundClick) {
+        onBackgroundClick();
+    }
+    return Clutter.EVENT_STOP;
+}
+
 export class LayoutPreviewBackground {
     /**
      * Create a new layout preview background
@@ -95,13 +108,10 @@ export class LayoutPreviewBackground {
                 style: `background-color: ${colors.modalOverlay};`,
             });
 
-            // Click on any overlay to dismiss
-            overlay.connect('button-press-event', () => {
-                if (this._onBackgroundClick) {
-                    this._onBackgroundClick();
-                }
-                return Clutter.EVENT_STOP;
-            });
+            // Click on any overlay to dismiss (Wave 3: bound method)
+            const boundButtonPress = handleOverlayButtonPress.bind(null, this._onBackgroundClick);
+            overlay.connect('button-press-event', boundButtonPress);
+            overlay._boundButtonPress = boundButtonPress;  // Store for potential cleanup
 
             // Add to uiGroup
             Main.uiGroup.add_child(overlay);

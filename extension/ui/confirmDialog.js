@@ -20,6 +20,36 @@ import {ThemeManager} from '../utils/theme.js';
 const logger = createLogger('ConfirmDialog');
 
 /**
+ * Handle enter-event on destructive confirm button for hover styling
+ * Module-level handler (Wave 3: avoid arrow function closure)
+ * @param {St.Button} button - The confirm button
+ * @returns {boolean} Clutter.EVENT_PROPAGATE
+ */
+function handleConfirmButtonEnter(button) {
+    button.style = `
+        background-color: #a01720;
+        color: white;
+        border: none;
+    `;
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Handle leave-event on destructive confirm button to restore styling
+ * Module-level handler (Wave 3: avoid arrow function closure)
+ * @param {St.Button} button - The confirm button
+ * @returns {boolean} Clutter.EVENT_PROPAGATE
+ */
+function handleConfirmButtonLeave(button) {
+    button.style = `
+        background-color: #c01c28;
+        color: white;
+        border: none;
+    `;
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
  * ConfirmDialog - Simple yes/no confirmation
  *
  * Usage:
@@ -177,23 +207,13 @@ export const ConfirmDialog = GObject.registerClass(
                     color: white;
                     border: none;
                 `;
-                    // Also style on hover
-                    confirmButton.connect('enter-event', () => {
-                        confirmButton.style = `
-                        background-color: #a01720;
-                        color: white;
-                        border: none;
-                    `;
-                        return Clutter.EVENT_PROPAGATE;
-                    });
-                    confirmButton.connect('leave-event', () => {
-                        confirmButton.style = `
-                        background-color: #c01c28;
-                        color: white;
-                        border: none;
-                    `;
-                        return Clutter.EVENT_PROPAGATE;
-                    });
+                    // Also style on hover (Wave 3: bound methods)
+                    const boundEnter = handleConfirmButtonEnter.bind(null, confirmButton);
+                    const boundLeave = handleConfirmButtonLeave.bind(null, confirmButton);
+                    confirmButton.connect('enter-event', boundEnter);
+                    confirmButton.connect('leave-event', boundLeave);
+                    confirmButton._boundEnter = boundEnter;  // Store for potential cleanup
+                    confirmButton._boundLeave = boundLeave;  // Store for potential cleanup
                 }
             }
         }
