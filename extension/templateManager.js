@@ -10,9 +10,6 @@ import {createLogger} from './utils/debug.js';
 
 const logger = createLogger('TemplateManager');
 
-// Instance tracking for leak detection
-let _instanceCount = 0;
-
 /**
  * Built-in layout templates
  * All coordinates are normalized (0.0 to 1.0)
@@ -85,7 +82,7 @@ const BUILTIN_TEMPLATES = {
  */
 export class TemplateManager {
     constructor() {
-        _instanceCount++;
+        global.zonedDebug?.trackInstance('TemplateManager', 1);
         this._templates = {...BUILTIN_TEMPLATES};
         logger.info(`TemplateManager initialized with ${Object.keys(this._templates).length} built-in templates`);
     }
@@ -159,6 +156,6 @@ export class TemplateManager {
      */
     destroy() {
         this._templates = null;
-        _instanceCount--;
+        global.zonedDebug?.trackInstance('TemplateManager', -1);
     }
 }

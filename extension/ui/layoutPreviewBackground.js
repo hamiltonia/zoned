@@ -28,9 +28,6 @@ const logger = createLogger('LayoutPreviewBackground');
 // Fast fade duration in milliseconds (for polished transitions)
 const FADE_DURATION_MS = 100;
 
-// Instance tracking for leak detection
-let _instanceCount = 0;
-
 export class LayoutPreviewBackground {
     /**
      * Create a new layout preview background
@@ -38,7 +35,7 @@ export class LayoutPreviewBackground {
      * @param {Function} onBackgroundClick - Callback when background is clicked (to dismiss dialog)
      */
     constructor(settings, onBackgroundClick) {
-        _instanceCount++;
+        global.zonedDebug?.trackInstance('LayoutPreviewBackground', 1);
         this._settings = settings;
         this._themeManager = new ThemeManager(settings);
         this._onBackgroundClick = onBackgroundClick;
@@ -464,6 +461,6 @@ export class LayoutPreviewBackground {
             this._themeManager = null;
         }
 
-        _instanceCount--;
+        global.zonedDebug?.trackInstance('LayoutPreviewBackground', -1);
     }
 }

@@ -19,16 +19,13 @@ import {createLogger} from './debug.js';
 
 const logger = createLogger('ThemeManager');
 
-// Instance tracking for leak detection
-let _instanceCount = 0;
-
 export class ThemeManager {
     /**
      * Create a new ThemeManager
      * @param {Gio.Settings} settings - Extension settings instance
      */
     constructor(settings) {
-        _instanceCount++;
+        global.zonedDebug?.trackInstance('ThemeManager', 1);
         this._settings = settings;
 
         // Listen to GNOME system interface settings
@@ -371,6 +368,6 @@ export class ThemeManager {
         this._interfaceSettings = null;
         this._settings = null;
 
-        _instanceCount--;
+        global.zonedDebug?.trackInstance('ThemeManager', -1);
     }
 }

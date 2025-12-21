@@ -38,9 +38,6 @@ const logger = createLogger('LayoutSwitcher');
 const NAV_LEFT = -1;
 const NAV_RIGHT = 1;
 
-// Instance tracking for leak detection
-let _instanceCount = 0;
-
 export class LayoutSwitcher {
     /**
      * @param {LayoutManager} layoutManager - Layout manager instance
@@ -48,7 +45,7 @@ export class LayoutSwitcher {
      * @param {Gio.Settings} settings - GSettings instance
      */
     constructor(layoutManager, zoneOverlay, settings) {
-        _instanceCount++;
+        global.zonedDebug?.trackInstance('LayoutSwitcher', 1);
         this._layoutManager = layoutManager;
         this._zoneOverlay = zoneOverlay;
         this._settings = settings;
@@ -1962,6 +1959,6 @@ export class LayoutSwitcher {
             this._themeManager = null;
         }
 
-        _instanceCount--;
+        global.zonedDebug?.trackInstance('LayoutSwitcher', -1);
     }
 }
