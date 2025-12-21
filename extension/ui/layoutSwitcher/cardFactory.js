@@ -28,6 +28,124 @@ import {createLogger} from '../../utils/debug.js';
 const logger = createLogger('CardFactory');
 
 /**
+ * Bound method handlers for edit button signals
+ * These avoid closure leaks from arrow functions
+ */
+
+/**
+ * Handle edit button hover enter
+ * @param {St.Button} button - The edit button
+ * @param {St.Icon} icon - The icon within the button
+ * @param {string} hoverStyle - Style to apply on hover
+ */
+function handleEditButtonEnter(button, icon, hoverStyle) {
+    button.style = hoverStyle;
+    icon.style = 'color: white;';
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Handle edit button hover leave
+ * @param {St.Button} button - The edit button
+ * @param {St.Icon} icon - The icon within the button
+ * @param {string} idleStyle - Style to apply when not hovering
+ */
+function handleEditButtonLeave(button, icon, idleStyle) {
+    button.style = idleStyle;
+    icon.style = 'color: rgba(255, 255, 255, 0.7);';
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Handle edit button click
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param {boolean} isTemplate - Whether this is a template (true) or custom layout (false)
+ * @param {Object} layout - The layout object
+ */
+function handleEditButtonClick(ctx, isTemplate, layout) {
+    if (isTemplate) {
+        ctx._onEditTemplateClicked(layout);
+    } else {
+        ctx._onEditLayoutClicked(layout);
+    }
+    return Clutter.EVENT_STOP;
+}
+
+/**
+ * Handle canvas repaint for zone preview
+ * @param {St.DrawingArea} canvas - The canvas being repainted
+ * @param {Array} zones - Array of zone definitions
+ * @param {Object} colors - Theme colors
+ */
+function handleCanvasRepaint(canvas, zones, colors) {
+    try {
+        const cr = canvas.get_context();
+        const [w, h] = canvas.get_surface_size();
+        const isDark = colors.isDark;
+
+        // Larger inset for visible transparent gaps between zones
+        // Card background color shows through these gaps
+        const inset = 8;
+        const drawW = w - (inset * 2);  // Available width for zones
+        const drawH = h - (inset * 2);  // Available height for zones
+
+        // Bubbly settings
+        const cornerRadius = 4;  // Rounded corners for bubbly feel
+        const shadowOffset = 2;
+        const highlightHeight = 2;
+
+        zones.forEach((zone) => {
+            // Calculate zone position within the inset area
+            const x = inset + (zone.x * drawW);
+            const y = inset + (zone.y * drawH);
+            const zoneW = zone.w * drawW;
+            const zoneH = zone.h * drawH;
+
+            // Gap between zones for transparent edge effect
+            const gap = 2;
+            const zx = x + gap;
+            const zy = y + gap;
+            const zw = zoneW - (gap * 2);
+            const zh = zoneH - (gap * 2);
+
+            // 1. Draw shadow (offset down-right, rounded)
+            cr.setSourceRGBA(0, 0, 0, isDark ? 0.35 : 0.2);
+            roundedRect(cr, zx + shadowOffset, zy + shadowOffset, zw, zh, cornerRadius);
+            cr.fill();
+
+            // 2. Flat zone fill (single solid color - no gradient)
+            const fillGrey = isDark ? 0.45 : 0.55;
+            const fillAlpha = isDark ? 0.9 : 0.85;
+            cr.setSourceRGBA(fillGrey, fillGrey, fillGrey, fillAlpha);
+            roundedRect(cr, zx, zy, zw, zh, cornerRadius);
+            cr.fill();
+
+            // 3. Top edge highlight (bright line at top, follows rounded corners)
+            // Draw as a thin rounded rect clipped to top portion
+            cr.save();
+            roundedRect(cr, zx, zy, zw, zh, cornerRadius);
+            cr.clip();
+            const highlightAlpha = isDark ? 0.45 : 0.55;
+            cr.setSourceRGBA(1, 1, 1, highlightAlpha);
+            cr.rectangle(zx, zy, zw, highlightHeight);
+            cr.fill();
+            cr.restore();
+
+            // 4. Subtle border for definition (rounded)
+            const borderGrey = isDark ? 0.3 : 0.35;
+            cr.setSourceRGBA(borderGrey, borderGrey, borderGrey, 0.5);
+            cr.setLineWidth(1);
+            roundedRect(cr, zx, zy, zw, zh, cornerRadius);
+            cr.stroke();
+        });
+
+        cr.$dispose();
+    } catch (e) {
+        logger.error('Error drawing zone preview:', e);
+    }
+}
+
+/**
  * Create a keybinding badge showing the quick-access shortcut number
  * Subtle, static appearance in lower-right corner (below edit button)
  * Only shown for layouts that have a shortcut assigned (1-9)
@@ -138,31 +256,25 @@ export function createFloatingEditButton(ctx, isTemplate, layout) {
     // Track signal IDs for cleanup
     button._signalIds = [];
 
-    // Hover effects
-    const enterId = button.connect('enter-event', () => {
-        button.style = hoverStyle;
-        icon.style = 'color: white;';
-        return Clutter.EVENT_PROPAGATE;
-    });
+    // Hover effects - use bound methods with captured parameters
+    const boundEnter = handleEditButtonEnter.bind(null, button, icon, hoverStyle);
+    const boundLeave = handleEditButtonLeave.bind(null, button, icon, idleStyle);
+    const boundClick = handleEditButtonClick.bind(null, ctx, isTemplate, layout);
+
+    const enterId = button.connect('enter-event', boundEnter);
     button._signalIds.push({object: button, id: enterId});
 
-    const leaveId = button.connect('leave-event', () => {
-        button.style = idleStyle;
-        icon.style = 'color: rgba(255, 255, 255, 0.7);';
-        return Clutter.EVENT_PROPAGATE;
-    });
+    const leaveId = button.connect('leave-event', boundLeave);
     button._signalIds.push({object: button, id: leaveId});
 
     // Click handler - use button-press-event to stop propagation to parent card
-    const pressId = button.connect('button-press-event', () => {
-        if (isTemplate) {
-            ctx._onEditTemplateClicked(layout);
-        } else {
-            ctx._onEditLayoutClicked(layout);
-        }
-        return Clutter.EVENT_STOP;
-    });
+    const pressId = button.connect('button-press-event', boundClick);
     button._signalIds.push({object: button, id: pressId});
+
+    // Store bound handlers for potential cleanup
+    button._boundEnter = boundEnter;
+    button._boundLeave = boundLeave;
+    button._boundClick = boundClick;
 
     // Store size for positioning
     button._buttonSize = buttonSize;
@@ -502,72 +614,12 @@ export function createZonePreview(ctx, zones) {
 
     const isDark = colors.isDark;
 
-    canvas.connect('repaint', () => {
-        try {
-            const cr = canvas.get_context();
-            const [w, h] = canvas.get_surface_size();
+    // Use bound method with captured parameters to avoid closure leak
+    const boundRepaint = handleCanvasRepaint.bind(null, canvas, zones, colors);
+    canvas.connect('repaint', boundRepaint);
 
-            // Larger inset for visible transparent gaps between zones
-            // Card background color shows through these gaps
-            const inset = 8;
-            const drawW = w - (inset * 2);  // Available width for zones
-            const drawH = h - (inset * 2);  // Available height for zones
-
-            // Bubbly settings
-            const cornerRadius = 4;  // Rounded corners for bubbly feel
-            const shadowOffset = 2;
-            const highlightHeight = 2;
-
-            zones.forEach((zone) => {
-                // Calculate zone position within the inset area
-                const x = inset + (zone.x * drawW);
-                const y = inset + (zone.y * drawH);
-                const zoneW = zone.w * drawW;
-                const zoneH = zone.h * drawH;
-
-                // Gap between zones for transparent edge effect
-                const gap = 2;
-                const zx = x + gap;
-                const zy = y + gap;
-                const zw = zoneW - (gap * 2);
-                const zh = zoneH - (gap * 2);
-
-                // 1. Draw shadow (offset down-right, rounded)
-                cr.setSourceRGBA(0, 0, 0, isDark ? 0.35 : 0.2);
-                roundedRect(cr, zx + shadowOffset, zy + shadowOffset, zw, zh, cornerRadius);
-                cr.fill();
-
-                // 2. Flat zone fill (single solid color - no gradient)
-                const fillGrey = isDark ? 0.45 : 0.55;
-                const fillAlpha = isDark ? 0.9 : 0.85;
-                cr.setSourceRGBA(fillGrey, fillGrey, fillGrey, fillAlpha);
-                roundedRect(cr, zx, zy, zw, zh, cornerRadius);
-                cr.fill();
-
-                // 3. Top edge highlight (bright line at top, follows rounded corners)
-                // Draw as a thin rounded rect clipped to top portion
-                cr.save();
-                roundedRect(cr, zx, zy, zw, zh, cornerRadius);
-                cr.clip();
-                const highlightAlpha = isDark ? 0.45 : 0.55;
-                cr.setSourceRGBA(1, 1, 1, highlightAlpha);
-                cr.rectangle(zx, zy, zw, highlightHeight);
-                cr.fill();
-                cr.restore();
-
-                // 4. Subtle border for definition (rounded)
-                const borderGrey = isDark ? 0.3 : 0.35;
-                cr.setSourceRGBA(borderGrey, borderGrey, borderGrey, 0.5);
-                cr.setLineWidth(1);
-                roundedRect(cr, zx, zy, zw, zh, cornerRadius);
-                cr.stroke();
-            });
-
-            cr.$dispose();
-        } catch (e) {
-            logger.error('Error drawing zone preview:', e);
-        }
-    });
+    // Store bound handler for potential cleanup
+    canvas._boundRepaint = boundRepaint;
 
     return canvas;
 }

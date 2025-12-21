@@ -21,6 +21,222 @@ import {createZonePreview} from './cardFactory.js';
 const logger = createLogger('TopBar');
 
 /**
+ * Bound method handlers for signal connections
+ * These are created once and stored on ctx (LayoutSwitcher instance)
+ * to avoid closure leaks from arrow functions
+ */
+
+/**
+ * Handle scroll events on workspace pills wrapper
+ * @param {Clutter.Actor} actor - The scroll wrapper actor
+ * @param {Clutter.Event} event - The scroll event
+ * @returns {number} Clutter.EVENT_STOP or Clutter.EVENT_PROPAGATE
+ */
+function handleWorkspaceScrollEvent(actor, event) {
+    const ctx = this;  // ctx (LayoutSwitcher) bound via .bind(ctx)
+    const direction = event.get_scroll_direction();
+    const adjustment = ctx._workspaceScrollView.hadjustment;
+
+    if (!adjustment) {
+        logger.warn('[SCROLL] No adjustment available!');
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    const tier = ctx._currentTier;
+    const thumbW = tier.workspaceThumb.w;
+    const thumbGap = tier.workspaceThumbGap || 8;
+    const scrollAmount = thumbW + thumbGap;
+
+    // Handle smooth scrolling (touchpad, high-res wheel)
+    if (direction === Clutter.ScrollDirection.SMOOTH) {
+        const [_deltaX, deltaY] = event.get_scroll_delta();
+        const newValue = Math.max(
+            adjustment.lower,
+            Math.min(adjustment.value + deltaY * scrollAmount * 0.5, adjustment.upper - adjustment.page_size),
+        );
+        adjustment.value = newValue;
+        return Clutter.EVENT_STOP;
+    }
+
+    // Handle discrete scroll directions
+    if (direction === Clutter.ScrollDirection.DOWN ||
+        direction === Clutter.ScrollDirection.RIGHT) {
+        const newValue = Math.min(adjustment.value + scrollAmount, adjustment.upper - adjustment.page_size);
+        adjustment.value = newValue;
+        return Clutter.EVENT_STOP;
+    } else if (direction === Clutter.ScrollDirection.UP ||
+               direction === Clutter.ScrollDirection.LEFT) {
+        const newValue = Math.max(adjustment.value - scrollAmount, adjustment.lower);
+        adjustment.value = newValue;
+        return Clutter.EVENT_STOP;
+    }
+
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Handle monitor pill button hover enter
+ */
+function handleMonitorPillEnter() {
+    const ctx = this;
+    const c = ctx._themeManager.getColors();
+    ctx._monitorPillBtn.style = 'padding: 6px 14px; ' +
+           'border-radius: 16px; ' +
+           `background-color: ${c.inputBg}; ` +
+           `border: 1px solid ${c.accentHex};`;
+}
+
+/**
+ * Handle monitor pill button hover leave
+ */
+function handleMonitorPillLeave() {
+    const ctx = this;
+    const c = ctx._themeManager.getColors();
+    ctx._monitorPillBtn.style = 'padding: 6px 14px; ' +
+           'border-radius: 16px; ' +
+           `background-color: ${c.inputBg}; ` +
+           `border: 1px solid ${c.borderLight};`;
+}
+
+/**
+ * Handle monitor pill button click
+ */
+function handleMonitorPillClick() {
+    const ctx = this;
+    toggleMonitorDropdown(ctx);
+}
+
+/**
+ * Handle workspace thumbnail hover enter
+ * @param {St.Button} thumb - The thumbnail button
+ */
+function handleWorkspaceThumbnailEnter(thumb) {
+    const ctx = this;
+    const i = thumb._workspaceIndex;
+    if (i !== ctx._currentWorkspace) {
+        const tier = ctx._currentTier;
+        const thumbW = tier.workspaceThumb.w;
+        const thumbH = tier.workspaceThumb.h;
+        const thumbRadius = Math.max(2, tier.cardRadius);
+        thumb.style = getWorkspaceThumbnailStyle(ctx, false, false, thumbW, thumbH, thumbRadius, true);
+    }
+}
+
+/**
+ * Handle workspace thumbnail hover leave
+ * @param {St.Button} thumb - The thumbnail button
+ */
+function handleWorkspaceThumbnailLeave(thumb) {
+    const ctx = this;
+    const i = thumb._workspaceIndex;
+    if (i !== ctx._currentWorkspace) {
+        const tier = ctx._currentTier;
+        const thumbW = tier.workspaceThumb.w;
+        const thumbH = tier.workspaceThumb.h;
+        const thumbRadius = Math.max(2, tier.cardRadius);
+        thumb.style = getWorkspaceThumbnailStyle(ctx, false, false, thumbW, thumbH, thumbRadius, false);
+    }
+}
+
+/**
+ * Handle workspace thumbnail click
+ * @param {St.Button} thumb - The thumbnail button
+ */
+function handleWorkspaceThumbnailClick(thumb) {
+    const ctx = this;
+    const i = thumb._workspaceIndex;
+    onWorkspaceThumbnailClicked(ctx, i);
+}
+
+/**
+ * Handle global checkbox label click
+ */
+function handleGlobalCheckboxLabelClick() {
+    const ctx = this;
+    toggleGlobalCheckbox(ctx);
+    return Clutter.EVENT_STOP;
+}
+
+/**
+ * Handle global checkbox button click
+ */
+function handleGlobalCheckboxClick() {
+    const ctx = this;
+    toggleGlobalCheckbox(ctx);
+    return Clutter.EVENT_STOP;
+}
+
+/**
+ * Handle monitor menu item hover enter
+ * @param {St.Button} item - The menu item
+ * @param {boolean} isSelected - Whether this item is selected
+ */
+function handleMonitorMenuItemEnter(item, isSelected) {
+    const ctx = this;
+    if (!isSelected) {
+        const colors = ctx._themeManager.getColors();
+        item.style = `padding: 8px 12px; margin: 0; background: ${colors.menuItemBgHover}; border-radius: 4px;`;
+    }
+}
+
+/**
+ * Handle monitor menu item hover leave
+ * @param {St.Button} item - The menu item
+ * @param {boolean} isSelected - Whether this item is selected
+ */
+function handleMonitorMenuItemLeave(item, isSelected) {
+    const ctx = this;
+    if (!isSelected) {
+        const colors = ctx._themeManager.getColors();
+        item.style = `padding: 8px 12px; margin: 0; background: ${colors.menuItemBg}; border-radius: 4px;`;
+    }
+}
+
+/**
+ * Handle monitor menu item click
+ * @param {number} index - Monitor index
+ */
+function handleMonitorMenuItemClick(index) {
+    const ctx = this;
+    logger.info(`[MONITOR CLICK] Clicked monitor ${index}`);
+    onMonitorSelected(ctx, index);
+    return Clutter.EVENT_STOP;
+}
+
+/**
+ * Toggle global checkbox state
+ * Extracted to avoid code duplication between label and checkbox handlers
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ */
+function toggleGlobalCheckbox(ctx) {
+    ctx._applyGlobally = !ctx._applyGlobally;
+    // Write inverted value: applyGlobally=true means per-workspace=false
+    ctx._settings.set_boolean('use-per-workspace-layouts', !ctx._applyGlobally);
+
+    const c = ctx._themeManager.getColors();
+
+    ctx._applyGloballyCheckbox.style = 'width: 18px; height: 18px; ' +
+           `border: 2px solid ${ctx._applyGlobally ? c.accentHex : c.textMuted}; ` +
+           'border-radius: 3px; ' +
+           `background-color: ${ctx._applyGlobally ? c.accentHex : 'transparent'};`;
+
+    if (ctx._applyGlobally) {
+        const checkmark = new St.Label({
+            text: '✓',
+            style: `color: ${c.isDark ? '#1a202c' : 'white'}; font-size: 12px; font-weight: bold;`,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        ctx._applyGloballyCheckbox.set_child(checkmark);
+    } else {
+        ctx._applyGloballyCheckbox.set_child(null);
+    }
+
+    // Update workspace thumbnails disabled state
+    updateWorkspaceThumbnailsDisabledState(ctx);
+}
+
+/**
  * Create "Spaces" section with compact pill-style workspace selector + monitor picker
  * Redesigned for professional appearance with minimal footprint
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
@@ -33,6 +249,14 @@ export function createTopBar(ctx) {
     // applyGlobally=true means per-workspace=false (global mode)
     // applyGlobally=false means per-workspace=true (per-space mode)
     ctx._applyGlobally = !ctx._settings.get_boolean('use-per-workspace-layouts');
+
+    // Create bound function references for signal handlers (avoid closure leaks)
+    ctx._boundHandleWorkspaceScroll = handleWorkspaceScrollEvent.bind(ctx);
+    ctx._boundHandleMonitorPillEnter = handleMonitorPillEnter.bind(ctx);
+    ctx._boundHandleMonitorPillLeave = handleMonitorPillLeave.bind(ctx);
+    ctx._boundHandleMonitorPillClick = handleMonitorPillClick.bind(ctx);
+    ctx._boundHandleGlobalCheckboxLabelClick = handleGlobalCheckboxLabelClick.bind(ctx);
+    ctx._boundHandleGlobalCheckboxClick = handleGlobalCheckboxClick.bind(ctx);
 
     // Compact horizontal bar design (not a card)
     ctx._spacesSection = new St.BoxLayout({
@@ -125,46 +349,8 @@ export function createTopBar(ctx) {
     });
     scrollWrapper.add_child(workspaceScrollView);
 
-    // Handle scroll events on the wrapper - this catches all scroll events in the area
-    scrollWrapper.connect('scroll-event', (actor, event) => {
-        const direction = event.get_scroll_direction();
-        // Use hadjustment directly - hscroll.adjustment doesn't work as expected
-        const adjustment = workspaceScrollView.hadjustment;
-
-        if (!adjustment) {
-            logger.warn('[SCROLL] No adjustment available!');
-            return Clutter.EVENT_PROPAGATE;
-        }
-
-        const scrollAmount = thumbW + thumbGap;  // Scroll by one thumbnail
-
-        // Handle smooth scrolling (touchpad, high-res wheel)
-        if (direction === Clutter.ScrollDirection.SMOOTH) {
-            const [_deltaX, deltaY] = event.get_scroll_delta();
-            // Convert vertical scroll to horizontal
-            const newValue = Math.max(
-                adjustment.lower,
-                Math.min(adjustment.value + deltaY * scrollAmount * 0.5, adjustment.upper - adjustment.page_size),
-            );
-            adjustment.value = newValue;
-            return Clutter.EVENT_STOP;
-        }
-
-        // Handle discrete scroll directions
-        if (direction === Clutter.ScrollDirection.DOWN ||
-            direction === Clutter.ScrollDirection.RIGHT) {
-            const newValue = Math.min(adjustment.value + scrollAmount, adjustment.upper - adjustment.page_size);
-            adjustment.value = newValue;
-            return Clutter.EVENT_STOP;
-        } else if (direction === Clutter.ScrollDirection.UP ||
-                   direction === Clutter.ScrollDirection.LEFT) {
-            const newValue = Math.max(adjustment.value - scrollAmount, adjustment.lower);
-            adjustment.value = newValue;
-            return Clutter.EVENT_STOP;
-        }
-
-        return Clutter.EVENT_PROPAGATE;
-    });
+    // Handle scroll events on the wrapper - use bound method to avoid closure leak
+    scrollWrapper.connect('scroll-event', ctx._boundHandleWorkspaceScroll);
 
     workspaceGroup.add_child(scrollWrapper);
 
@@ -305,26 +491,10 @@ export function createMonitorPill(ctx) {
 
     ctx._monitorPillBtn.set_child(btnContent);
 
-    // Hover effect
-    ctx._monitorPillBtn.connect('enter-event', () => {
-        const c = ctx._themeManager.getColors();
-        ctx._monitorPillBtn.style = 'padding: 6px 14px; ' +
-               'border-radius: 16px; ' +
-               `background-color: ${c.inputBg}; ` +
-               `border: 1px solid ${c.accentHex};`;
-    });
-
-    ctx._monitorPillBtn.connect('leave-event', () => {
-        const c = ctx._themeManager.getColors();
-        ctx._monitorPillBtn.style = 'padding: 6px 14px; ' +
-               'border-radius: 16px; ' +
-               `background-color: ${c.inputBg}; ` +
-               `border: 1px solid ${c.borderLight};`;
-    });
-
-    ctx._monitorPillBtn.connect('clicked', () => {
-        toggleMonitorDropdown(ctx);
-    });
+    // Hover effects and click - use bound methods to avoid closure leaks
+    ctx._monitorPillBtn.connect('enter-event', ctx._boundHandleMonitorPillEnter);
+    ctx._monitorPillBtn.connect('leave-event', ctx._boundHandleMonitorPillLeave);
+    ctx._monitorPillBtn.connect('clicked', ctx._boundHandleMonitorPillClick);
 
     // Add button to dropdown wrapper
     dropdownWrapper.add_child(ctx._monitorPillBtn);
@@ -451,22 +621,20 @@ export function createWorkspaceThumbnails(ctx) {
         thumb._isDisabled = isDisabled;
 
         if (!isDisabled) {
-            // Hover effects (only when not disabled)
-            thumb.connect('enter-event', () => {
-                if (i !== ctx._currentWorkspace) {
-                    thumb.style = getWorkspaceThumbnailStyle(ctx, false, false, thumbW, thumbH, thumbRadius, true);
-                }
-            });
+            // Hover effects (only when not disabled) - use bound methods
+            // Create per-thumb bound handlers with thumb captured
+            const boundEnter = handleWorkspaceThumbnailEnter.bind(ctx, thumb);
+            const boundLeave = handleWorkspaceThumbnailLeave.bind(ctx, thumb);
+            const boundClick = handleWorkspaceThumbnailClick.bind(ctx, thumb);
 
-            thumb.connect('leave-event', () => {
-                if (i !== ctx._currentWorkspace) {
-                    thumb.style = getWorkspaceThumbnailStyle(ctx, false, false, thumbW, thumbH, thumbRadius, false);
-                }
-            });
+            thumb.connect('enter-event', boundEnter);
+            thumb.connect('leave-event', boundLeave);
+            thumb.connect('clicked', boundClick);
 
-            thumb.connect('clicked', () => {
-                onWorkspaceThumbnailClicked(ctx, i);
-            });
+            // Store bound handlers on thumb for potential cleanup
+            thumb._boundEnter = boundEnter;
+            thumb._boundLeave = boundLeave;
+            thumb._boundClick = boundClick;
         }
 
         ctx._workspaceButtons.push(thumb);
@@ -692,15 +860,8 @@ export function createGlobalCheckbox(ctx) {
         updateWorkspaceThumbnailsDisabledState(ctx);
     };
 
-    label.connect('button-press-event', () => {
-        toggleCheckbox();
-        return Clutter.EVENT_STOP;
-    });
-
-    ctx._applyGloballyCheckbox.connect('clicked', () => {
-        toggleCheckbox();
-        return Clutter.EVENT_STOP;
-    });
+    label.connect('button-press-event', ctx._boundHandleGlobalCheckboxLabelClick);
+    ctx._applyGloballyCheckbox.connect('clicked', ctx._boundHandleGlobalCheckboxClick);
 
     container.add_child(label);
     container.add_child(ctx._applyGloballyCheckbox);
@@ -872,25 +1033,19 @@ export function createMonitorDropdownMenu(ctx) {
 
         item.set_child(itemContent);
 
-        // Hover effect
-        item.connect('enter-event', () => {
-            if (!isSelected) {
-                item.style = `padding: 8px 12px; margin: 0; background: ${colors.menuItemBgHover}; border-radius: 4px;`;
-            }
-        });
+        // Hover effects and click - use bound methods with index/isSelected captured
+        const boundEnter = handleMonitorMenuItemEnter.bind(ctx, item, isSelected);
+        const boundLeave = handleMonitorMenuItemLeave.bind(ctx, item, isSelected);
+        const boundClick = handleMonitorMenuItemClick.bind(ctx, index);
 
-        item.connect('leave-event', () => {
-            if (!isSelected) {
-                item.style = `padding: 8px 12px; margin: 0; background: ${colors.menuItemBg}; border-radius: 4px;`;
-            }
-        });
+        item.connect('enter-event', boundEnter);
+        item.connect('leave-event', boundLeave);
+        item.connect('button-press-event', boundClick);
 
-        // Click to select monitor - use button-press-event for better reliability
-        item.connect('button-press-event', () => {
-            logger.info(`[MONITOR CLICK] Clicked monitor ${index}`);
-            onMonitorSelected(ctx, index);
-            return Clutter.EVENT_STOP;
-        });
+        // Store bound handlers on item for potential cleanup
+        item._boundEnter = boundEnter;
+        item._boundLeave = boundLeave;
+        item._boundClick = boundClick;
 
         menu.add_child(item);
     });

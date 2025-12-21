@@ -1961,6 +1961,14 @@ export class LayoutSwitcher {
         this._boundHandleCardLeave = null;
         this._boundHandleCardScroll = null;
 
+        // Release topBar bound function references (Wave 3)
+        this._boundHandleWorkspaceScroll = null;
+        this._boundHandleMonitorPillEnter = null;
+        this._boundHandleMonitorPillLeave = null;
+        this._boundHandleMonitorPillClick = null;
+        this._boundHandleGlobalCheckboxLabelClick = null;
+        this._boundHandleGlobalCheckboxClick = null;
+
         // Clean up TemplateManager
         if (this._templateManager) {
             this._templateManager.destroy();
