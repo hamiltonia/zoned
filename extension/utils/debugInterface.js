@@ -64,6 +64,10 @@ const DBUS_INTERFACE_XML = `
       <arg direction="out" type="a{sv}" name="memory"/>
     </method>
     
+    <method name="GetActorCount">
+      <arg direction="out" type="i" name="count"/>
+    </method>
+    
     <signal name="ActionCompleted">
       <arg type="s" name="action"/>
       <arg type="b" name="success"/>
@@ -690,6 +694,21 @@ export class DebugInterface {
             return {
                 error: GLib.Variant.new_string(e.message),
             };
+        }
+    }
+
+    /**
+     * D-Bus Method: GetActorCount
+     * Returns the number of actors in Main.uiGroup
+     * Used for leak detection by comparing counts before/after operations
+     * @returns {number} Number of child actors
+     */
+    GetActorCount() {
+        try {
+            return Main.uiGroup.get_n_children();
+        } catch (e) {
+            logger.error('GetActorCount error:', e.message);
+            return -1;
         }
     }
 

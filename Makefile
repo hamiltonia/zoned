@@ -68,6 +68,7 @@ help:
 	@printf "  make vm-stability-test   - Full test suite (~15-30 min, high iterations)\n"
 	@printf "  make vm-quick-test       - Quick verification (~3-5 min, low iterations)\n"
 	@printf "  make vm-leak-diagnostic  - Fast signal leak check (<1 min, 10 cycles)\n"
+	@printf "  make vm-actor-leak-check - Check for actor/texture leaks via Looking Glass\n"
 	@printf "  make vm-longhaul         - Interactive menu for focused long tests\n"
 	@printf "  make vm-longhaul-all DURATION=8h - Soak test: cycles through all tests repeatedly\n"
 	@printf "                           tracking per-test memory to identify leaks\n"
@@ -351,6 +352,14 @@ vm-leak-diagnostic:
 		exit 1; \
 	fi
 	@. ./$(VM_CACHE) && ssh -t $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/test-leak-diagnostic.sh"
+
+vm-actor-leak-check:
+	@printf "$(COLOR_INFO)Checking for actor/texture leaks via Looking Glass...$(COLOR_RESET)\n"
+	@if [ ! -f $(VM_CACHE) ]; then \
+		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi
+	@. ./$(VM_CACHE) && ssh -t $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/test-actor-leak-check.sh"
 
 vm-longhaul:
 	@printf "$(COLOR_INFO)Starting interactive long-running test...$(COLOR_RESET)\n"
