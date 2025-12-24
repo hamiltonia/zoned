@@ -225,13 +225,53 @@ export default class ZonedExtension extends Extension {
         this._windowManager = new WindowManager();
         logger.debug('WindowManager initialized');
 
-        // All other managers disabled
-        this._layoutSwitcher = null;
-        this._panelIndicator = null;
-        this._keybindingManager = null;
+        // BUILD 9: Add LayoutSwitcher (layout selection UI)
+        this._layoutSwitcher = new LayoutSwitcher(this._layoutManager, this._zoneOverlay, this._settings);
+        logger.debug('LayoutSwitcher initialized');
+
+        // BUILD 10: Add PanelIndicator (top bar menu)
+        this._panelIndicator = new PanelIndicator(
+            this._layoutManager,
+            this._conflictDetector,
+            this._layoutSwitcher,
+            this._notificationManager,
+            this._zoneOverlay,
+            this._settings,
+            this._notificationService
+        );
+        logger.debug('PanelIndicator initialized');
+
+        // Connect panel indicator signals
+        this._boundOnShowIndicatorChanged = this._onShowIndicatorChanged.bind(this);
+        this._showIndicatorSignal = this._settings.connect(
+            'changed::show-panel-indicator',
+            this._boundOnShowIndicatorChanged
+        );
+
+        this._boundOnConflictCountChanged = this._onConflictCountChanged.bind(this);
+        this._conflictCountSignal = this._settings.connect(
+            'changed::keybinding-conflict-count',
+            this._boundOnConflictCountChanged
+        );
+
+        // Set initial visibility
+        this._panelIndicator.visible = this._settings.get_boolean('show-panel-indicator');
         
-        logger.warn('🧪 TEST BUILD 8: Build 7 + WindowManager');
-        logger.warn('🧪 Testing: Window positioning and manipulation logic');
+        // BUILD 11: Add KeybindingManager (FINAL COMPONENT!)
+        this._keybindingManager = new KeybindingManager(
+            this._settings,
+            this._layoutManager,
+            this._windowManager,
+            this._notificationManager,
+            this._layoutSwitcher,
+            this._zoneOverlay,
+            this._notificationService
+        );
+        this._keybindingManager.registerKeybindings();
+        logger.debug('KeybindingManager initialized');
+        
+        logger.warn('🧪 TEST BUILD 11: Build 10 + KeybindingManager');
+        logger.warn('🧪 Testing: FINAL COMPONENT - All keybindings and shortcuts');
 
         logger.info('Extension enabled successfully');
     }
