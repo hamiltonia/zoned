@@ -217,19 +217,21 @@ export default class ZonedExtension extends Extension {
         this._notificationService = new NotificationService(this, this._zoneOverlay, this._notificationManager);
         logger.debug('NotificationService initialized');
         
-        // Disabled for later builds:
-        // this._layoutManager = new LayoutManager(this._settings, this._templateManager, this._spatialStateManager, this._notificationService);
-        // logger.debug('LayoutManager initialized');
+        // BUILD 7: Add LayoutManager (core layout logic)
+        this._layoutManager = new LayoutManager(this._settings, this.path);
+        logger.debug('LayoutManager initialized');
+
+        // BUILD 8: Add WindowManager (window positioning and manipulation)
+        this._windowManager = new WindowManager();
+        logger.debug('WindowManager initialized');
 
         // All other managers disabled
-        this._windowManager = null;
-        this._layoutManager = null;
         this._layoutSwitcher = null;
         this._panelIndicator = null;
         this._keybindingManager = null;
         
-        logger.warn('🧪 TEST BUILD 6+: All tested components (ConflictDetector + ZoneOverlay + NotificationService)');
-        logger.warn('🧪 Final validation before LayoutManager');
+        logger.warn('🧪 TEST BUILD 8: Build 7 + WindowManager');
+        logger.warn('🧪 Testing: Window positioning and manipulation logic');
 
         logger.info('Extension enabled successfully');
     }

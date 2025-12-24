@@ -33,9 +33,9 @@ A "Build" is a specific configuration of enabled components in `extension/extens
 | **Build 5b** | Build 4 + ZoneOverlay | ✅ Clean | 6.8 MB |
 | **Build 6** | Build 5b + NotificationService | ✅ Clean | 12.6 MB |
 | **Build 6+** | Build 5a + 5b + 6 (all tested) | ✅ Clean | 3.5 MB |
-| **Build 7** | Build 6+ + LayoutManager | ⏳ Next | - |
-| **Build 8** | Build 7 + WindowManager | 📋 Future | - |
-| **Build 9** | Build 8 + LayoutSwitcher | 📋 Future | - |
+| **Build 7** | Build 6+ + LayoutManager | ✅ Clean | 5.4 MB |
+| **Build 8** | Build 7 + WindowManager | ✅ Clean | 7.8 MB |
+| **Build 9** | Build 8 + LayoutSwitcher | ⏳ Next | - |
 | **Build 10** | Build 9 + PanelIndicator | 📋 Future | - |
 | **Build 11** | Build 10 + KeybindingManager | 📋 Future | - |
 | **Full** | All components | 📋 Goal | - |
@@ -171,6 +171,52 @@ destroy() {
 ```
 
 **Result:** Variance improved from 10.7 MB → 6.8 MB (36% reduction)
+
+### WindowManager (Build 8)
+
+**Issues:** 
+1. Constructor parameter mismatch
+2. Incomplete destroy() method
+
+**Fixes:**
+```javascript
+// Constructor call fix (was passing wrong params)
+this._windowManager = new WindowManager();  // Needs no parameters
+
+// destroy() fix - add reference cleanup
+destroy() {
+    this._display = null;
+}
+```
+
+**Result:** Part of Build 8 improvements (see LayoutManager)
+
+### LayoutManager (Build 8)
+
+**Issues:**
+1. Constructor parameter mismatch (CRITICAL)
+2. Incomplete destroy() method (CRITICAL)
+
+**Fixes:**
+```javascript
+// Constructor call fix
+// Was: new LayoutManager(settings, templateManager, spatialStateManager, notificationService)
+// Now: new LayoutManager(settings, extensionPath)
+this._layoutManager = new LayoutManager(this._settings, this.path);
+
+// destroy() fix - add missing reference cleanup
+destroy() {
+    this._layouts = [];
+    this._currentLayout = null;
+    this._currentZoneIndex = 0;
+    // CRITICAL ADDITIONS:
+    this._settings = null;
+    this._extensionPath = null;
+    this._spatialStateManager = null;
+}
+```
+
+**Result:** Variance improved from 18.3 MB → 7.8 MB (57% reduction, R²=0.023)
 
 ## Tips for Success
 

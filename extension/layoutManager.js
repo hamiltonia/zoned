@@ -1234,8 +1234,12 @@ export class LayoutManager {
      * Clean up resources
      */
     destroy() {
+        // Clear all references to prevent memory leaks
         this._layouts = [];
         this._currentLayout = null;
         this._currentZoneIndex = 0;
+        this._settings = null;
+        this._extensionPath = null;
+        this._spatialStateManager = null;
     }
 }
