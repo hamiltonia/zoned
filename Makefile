@@ -70,6 +70,7 @@ help:
 	@printf "  make vm-leak-diagnostic  - Fast signal leak check (<1 min, 10 cycles)\n"
 	@printf "  make vm-actor-leak-check - Check for actor/texture leaks via Looking Glass\n"
 	@printf "  make vm-longhaul         - Interactive menu for focused long tests\n"
+	@printf "  make vm-test-restart     - Multi-run test with GNOME Shell restarts for clean baseline\n"
 	@printf "  make vm-longhaul-all DURATION=8h - Soak test: cycles through all tests repeatedly\n"
 	@printf "                           tracking per-test memory to identify leaks\n"
 	@printf "  make vm-analyze-tests  - Analyze latest test results and generate HTML report\n"
@@ -368,6 +369,14 @@ vm-longhaul:
 		exit 1; \
 	fi
 	@. ./$(VM_CACHE) && ssh -t $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/test-longhaul-interactive.sh"
+
+vm-test-restart:
+	@printf "$(COLOR_INFO)Starting multi-run test with manual restarts...$(COLOR_RESET)\n"
+	@if [ ! -f $(VM_CACHE) ]; then \
+		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi
+	@. ./$(VM_CACHE) && ssh -t $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/test-with-restarts.sh"
 
 # Default long haul duration (DURATION is alias for convenience)
 LONG_HAUL_DURATION ?= 8h

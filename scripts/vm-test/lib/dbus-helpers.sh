@@ -249,34 +249,6 @@ is_multi_monitor() {
 }
 
 # =============================================================================
-# Zone Editor (for memory footprint testing)
-# =============================================================================
-
-# Open zone editor for current layout
-# Returns: 0 on success, 1 on failure
-dbus_show_zone_editor() {
-    local result
-    result=$(dbus_trigger "show-zone-editor" "{}" 2>/dev/null)
-    if echo "$result" | grep -q "true"; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Close zone editor
-# Returns: 0 on success, 1 on failure
-dbus_hide_zone_editor() {
-    local result
-    result=$(dbus_trigger "hide-zone-editor" "{}" 2>/dev/null)
-    if echo "$result" | grep -q "true"; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# =============================================================================
 # GJS Memory Introspection
 # =============================================================================
 

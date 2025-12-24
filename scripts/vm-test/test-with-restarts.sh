@@ -1,0 +1,510 @@
+#!/bin/bash
+#
+# test-with-restarts.sh - Multi-run test with automated GNOME Shell restarts
+#
+# Runs the same test multiple times with automated GNOME Shell restarts between runs.
+# This ensures each test starts from a clean state, eliminating accumulated state issues.
+#
+# Requires xdotool and X11 session for automated restarts.
+#
+# Usage:
+#   ./test-with-restarts.sh
+#
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/lib/setup.sh"
+
+# Check for xdotool-restart-gnome.sh availability (required for automated testing)
+if [ ! -x "$SCRIPT_DIR/xdotool-restart-gnome.sh" ]; then
+    error "xdotool-restart-gnome.sh not found or not executable"
+    echo ""
+    echo "This test requires automated GNOME Shell restart capability."
+    echo "Ensure xdotool-restart-gnome.sh is present and executable."
+    echo ""
+    exit 1
+fi
+
+# Results storage
+declare -a RESULTS_MB
+declare -a RESULTS_CYCLES
+declare -a RESULTS_START_MEM
+declare -a RESULTS_FINAL_MEM
+declare -a RESULTS_DEVIATION
+TEMP_RESULT_FILE="/tmp/zoned-test-result-$$"
+
+# Display header
+clear
+echo "========================================"
+echo "  Multi-Run Test with Restarts"
+echo "========================================"
+echo ""
+echo "This script runs the same test multiple times"
+echo "with GNOME Shell restarts between runs to ensure"
+echo "clean state and consistent results."
+echo ""
+
+# Prompt for test parameters
+echo "Select test:"
+echo "  1) Enable/Disable Cycles"
+echo "  2) LayoutSwitcher (Show/Hide)"
+echo "  3) Zone Overlay (Show/Hide)"
+echo ""
+read -p "Choice [1-3]: " test_choice
+
+case $test_choice in
+    1) TEST_NAME="Enable/Disable" ;;
+    2) TEST_NAME="LayoutSwitcher" ;;
+    3) TEST_NAME="Zone Overlay" ;;
+    *)
+        error "Invalid choice"
+        exit 1
+        ;;
+esac
+
+echo ""
+read -p "Use Variable Cycle Times [Y/n]: " use_variable
+use_variable=${use_variable,,}  # Convert to lowercase
+
+# Determine if variable or fixed duration
+declare -a DURATIONS
+VARIABLE_DURATION=true  # Default to variable
+
+if [[ "$use_variable" == "n" || "$use_variable" == "no" ]]; then
+    # Fixed duration mode
+    VARIABLE_DURATION=false
+else
+    # Variable duration mode (default)
+    read -p "Max duration in minutes [4]: " max_duration
+    max_duration=${max_duration:-4}
+    
+    # Generate durations: 1, 2, 3, ..., max
+    for i in $(seq 1 $max_duration); do
+        DURATIONS+=("$i")
+    done
+    num_runs=${#DURATIONS[@]}
+    info "Variable duration mode: ${DURATIONS[*]} minutes"
+fi
+
+if [[ "$VARIABLE_DURATION" == false ]]; then
+    # Fixed duration mode
+    read -p "How many runs [3]: " num_runs
+    num_runs=${num_runs:-3}
+    
+    read -p "Duration per run in minutes [2]: " duration_per_run
+    duration_per_run=${duration_per_run:-2}
+    
+    # Generate array with same duration for all runs
+    for i in $(seq 1 $num_runs); do
+        DURATIONS+=("$duration_per_run")
+    done
+    info "Fixed duration mode: $duration_per_run minutes per run"
+fi
+
+echo ""
+read -p "Delay between operations (ms) [100]: " delay_ms
+delay_ms=${delay_ms:-100}
+
+# Calculate time estimates
+RESTART_TIME_SECS=15  # Time for GNOME Shell restart
+TOTAL_RUN_TIME_SECS=0
+for duration in "${DURATIONS[@]}"; do
+    TOTAL_RUN_TIME_SECS=$((TOTAL_RUN_TIME_SECS + (duration * 60)))
+done
+TOTAL_TIME_SECS=$(( TOTAL_RUN_TIME_SECS + (num_runs * RESTART_TIME_SECS) ))
+
+START_TIME=$(date +%s)
+START_TIME_DISPLAY=$(date +"%I:%M %p")
+ESTIMATED_END=$(date -d "@$((START_TIME + TOTAL_TIME_SECS))" +"%I:%M %p" 2>/dev/null || date -r "$((START_TIME + TOTAL_TIME_SECS))" +"%I:%M %p" 2>/dev/null || echo "N/A")
+
+echo ""
+info "Configuration:"
+info "  Test: $TEST_NAME"
+info "  Runs: $num_runs"
+if $VARIABLE_DURATION; then
+    info "  Duration: Variable (${DURATIONS[*]} minutes)"
+else
+    info "  Duration: ${DURATIONS[0]} minutes per run"
+fi
+info "  Delay: ${delay_ms}ms"
+echo ""
+echo "**************************************"
+echo "  TIME ESTIMATE"
+echo "**************************************"
+echo ""
+printf "  Start time:        %s\n" "$START_TIME_DISPLAY"
+printf "  Est. completion:   ~%s\n" "$ESTIMATED_END"
+printf "  Total duration:    ~%d minutes\n" "$((TOTAL_TIME_SECS / 60))"
+echo ""
+echo "  Breakdown:"
+printf "    • Test runs                = %d min\n" "$((TOTAL_RUN_TIME_SECS / 60))"
+printf "    • Shell restarts           ~ %d min\n" "$((num_runs * RESTART_TIME_SECS / 60))"
+echo ""
+echo "**************************************"
+echo "  PRE-FLIGHT CHECKLIST"
+echo "**************************************"
+echo ""
+echo "Before starting the test, ensure:"
+echo "  1. You have deployed latest code: make vm-dev"
+echo ""
+echo "The script will automatically restart GNOME Shell before testing."
+echo ""
+read -p "Press Enter to confirm and start testing..."
+
+# Perform initial GNOME Shell restart for clean starting state
+echo ""
+echo "========================================="
+echo "  INITIAL GNOME SHELL RESTART"
+echo "========================================="
+info "Restarting GNOME Shell before Run 1..."
+info "This ensures a clean starting state"
+echo ""
+if ! "$SCRIPT_DIR/xdotool-restart-gnome.sh" 3 5; then
+    error "Initial GNOME Shell restart failed"
+    exit 1
+fi
+info "✓ GNOME Shell restarted successfully"
+echo "========================================="
+
+# Function to reset resource tracking
+reset_tracking() {
+    info "Resetting resource tracking..."
+    if dbus_interface_available; then
+        dbus_reset_tracking >/dev/null 2>&1 || true
+        info "✓ Tracking reset"
+    else
+        warn "D-Bus interface not available, skipping reset"
+    fi
+}
+
+# Function to run single test iteration
+run_single_test() {
+    local run_number=$1
+    local test_duration="${DURATIONS[$((run_number - 1))]}"
+    
+    # Calculate progress based on completed runs
+    local completed_runs=$((run_number - 1))
+    local percent=$((completed_runs * 100 / num_runs))
+    local elapsed=$(($(date +%s) - START_TIME))
+    local current_time=$(date +"%I:%M %p")
+    
+    # Recalculate ETA based on actual progress
+    if [ $run_number -gt 1 ]; then
+        local avg_time_per_run=$((elapsed / completed_runs))
+        local remaining_runs=$((num_runs - run_number + 1))
+        local eta_seconds=$(($(date +%s) + (avg_time_per_run * remaining_runs)))
+        local eta_display=$(date -d "@$eta_seconds" +"%I:%M %p" 2>/dev/null || date -r "$eta_seconds" +"%I:%M %p" 2>/dev/null || echo "$ESTIMATED_END")
+    else
+        local eta_display="$ESTIMATED_END"
+    fi
+    
+    echo ""
+    echo "========================================="
+    echo "  PROGRESS: Starting Run $run_number of $num_runs ($test_duration min)"
+    echo "========================================="
+    printf "  Completed: %d/%d (%d%%) | Current: %s | ETA: ~%s\n" "$completed_runs" "$num_runs" "$percent" "$current_time" "$eta_display"
+    echo "========================================="
+    echo ""
+    
+    # Reset tracking before test
+    reset_tracking
+    
+    # Run test with preset parameters, capturing output
+    # Use printf to feed answers to the interactive script
+    printf "%s\n%s\n%s\n\n" "$test_choice" "$test_duration" "$delay_ms" | \
+        "$SCRIPT_DIR/test-longhaul-interactive.sh" 2>&1 | tee "$TEMP_RESULT_FILE"
+    
+    # Extract results from output - now focusing on actual final memory
+    local start_mem_mb=$(grep "Baseline (pre-load):" "$TEMP_RESULT_FILE" | \
+        grep -oP '[0-9.]+' | head -1)
+    local final_mem_mb=$(grep "Actual final:" "$TEMP_RESULT_FILE" | \
+        grep -oP '[0-9.]+' | head -1)
+    local init_cost_mb=$(grep "Init cost (one-time):" "$TEMP_RESULT_FILE" | \
+        grep -oP ':\s+[0-9.]+' | grep -oP '[0-9.]+' | head -1)
+    local deviation_mb=$(grep "Deviation:" "$TEMP_RESULT_FILE" | \
+        grep -oP '[+-]?[0-9.]+' | head -1)
+    local cycles=$(grep "Total cycles:" "$TEMP_RESULT_FILE" | \
+        grep -oP '\d+')
+    
+    if [ -z "$start_mem_mb" ]; then
+        start_mem_mb="N/A"
+    fi
+    if [ -z "$final_mem_mb" ]; then
+        final_mem_mb="N/A"
+    fi
+    if [ -z "$init_cost_mb" ]; then
+        init_cost_mb="N/A"
+    fi
+    if [ -z "$deviation_mb" ]; then
+        deviation_mb="N/A"
+    fi
+    if [ -z "$cycles" ]; then
+        cycles="N/A"
+    fi
+    
+    # Store results
+    RESULTS_MB+=("$init_cost_mb")
+    RESULTS_CYCLES+=("$cycles")
+    RESULTS_START_MEM+=("$start_mem_mb")
+    RESULTS_FINAL_MEM+=("$final_mem_mb")
+    RESULTS_DEVIATION+=("$deviation_mb")
+    
+    echo ""
+    echo "----------------------------------------"
+    echo "  Run $run_number ($test_duration min) Result: $cycles cycles [Final: ${final_mem_mb} MB]"
+    echo "----------------------------------------"
+}
+
+# Function to perform automated restart between runs
+perform_restart() {
+    local run_number=$1
+    
+    echo ""
+    echo ""
+    echo "========================================="
+    echo "  GNOME SHELL RESTART (between runs)"
+    echo "========================================="
+    info "Completed: Run $run_number"
+    info "Restarting GNOME Shell before Run $((run_number + 1))..."
+    info "This ensures clean state for next test"
+    echo ""
+    
+    if ! "$SCRIPT_DIR/xdotool-restart-gnome.sh" 3 5; then
+        error "Automated GNOME Shell restart failed"
+        echo ""
+        echo "Cannot continue with automated testing."
+        exit 1
+    fi
+    
+    info "✓ GNOME Shell restarted successfully"
+    info "✓ Ready for Run $((run_number + 1))"
+    echo "========================================="
+    echo ""
+}
+
+# Run all test iterations
+for i in $(seq 1 $num_runs); do
+    run_single_test "$i"
+    
+    # Perform automated restart if not last run
+    if [ "$i" -lt "$num_runs" ]; then
+        perform_restart "$i"
+    fi
+done
+
+# Clean up temp file
+rm -f "$TEMP_RESULT_FILE"
+
+# Display final report
+echo ""
+echo ""
+echo "========================================"
+echo "  FINAL REPORT"
+echo "========================================"
+echo ""
+echo "Test: $TEST_NAME"
+if $VARIABLE_DURATION; then
+    echo "Duration: Variable (${DURATIONS[*]} minutes)"
+else
+    echo "Duration: ${DURATIONS[0]} minutes per run"
+fi
+echo "Delay: ${delay_ms}ms per operation"
+echo "Runs: $num_runs"
+echo ""
+echo "Results (start → final memory across runs):"
+echo "----------------------------------------"
+
+# Display individual results with start → final format
+for i in $(seq 0 $((num_runs - 1))); do
+    run_num=$((i + 1))
+    duration_label=""
+    if $VARIABLE_DURATION; then
+        duration_label=" (${DURATIONS[$i]} min)"
+    fi
+    
+    printf "  Run %d%s: Start %s MB → Final %s MB  [Init cost: %s MB, %s cycles]\n" \
+           "$run_num" "$duration_label" "${RESULTS_START_MEM[$i]}" "${RESULTS_FINAL_MEM[$i]}" "${RESULTS_MB[$i]}" "${RESULTS_CYCLES[$i]}"
+done
+
+# Calculate statistics if we have numeric results
+NUMERIC_INIT_COSTS=()
+NUMERIC_FINAL_MEM=()
+NUMERIC_START_MEM=()
+NUMERIC_CYCLES=()
+NUMERIC_DEVIATION=()
+for i in $(seq 0 $((num_runs - 1))); do
+    if [[ "${RESULTS_MB[$i]}" =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then
+        NUMERIC_INIT_COSTS+=("${RESULTS_MB[$i]}")
+    fi
+    if [[ "${RESULTS_FINAL_MEM[$i]}" =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then
+        NUMERIC_FINAL_MEM+=("${RESULTS_FINAL_MEM[$i]}")
+    fi
+    if [[ "${RESULTS_START_MEM[$i]}" =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then
+        NUMERIC_START_MEM+=("${RESULTS_START_MEM[$i]}")
+    fi
+    if [[ "${RESULTS_CYCLES[$i]}" =~ ^[0-9]+$ ]]; then
+        NUMERIC_CYCLES+=("${RESULTS_CYCLES[$i]}")
+    fi
+    if [[ "${RESULTS_DEVIATION[$i]}" =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then
+        NUMERIC_DEVIATION+=("${RESULTS_DEVIATION[$i]}")
+    fi
+done
+
+if [ ${#NUMERIC_FINAL_MEM[@]} -gt 1 ]; then
+    echo "----------------------------------------"
+    echo "Summary:"
+    
+    # Calculate start memory range (restart consistency check)
+    if [ ${#NUMERIC_START_MEM[@]} -gt 1 ]; then
+        min_start=${NUMERIC_START_MEM[0]}
+        max_start=${NUMERIC_START_MEM[0]}
+        sum_start=0
+        for val in "${NUMERIC_START_MEM[@]}"; do
+            if (( $(echo "$val < $min_start" | bc -l) )); then
+                min_start=$val
+            fi
+            if (( $(echo "$val > $max_start" | bc -l) )); then
+                max_start=$val
+            fi
+            sum_start=$(echo "$sum_start + $val" | bc)
+        done
+        avg_start=$(echo "scale=1; $sum_start / ${#NUMERIC_START_MEM[@]}" | bc)
+        start_range=$(echo "scale=1; $max_start - $min_start" | bc)
+        
+        printf "  Start memory range:  %.1f - %.1f MB (%.1f MB spread)\n" "$min_start" "$max_start" "$start_range"
+        if (( $(echo "$start_range > 5.0" | bc -l) )); then
+            echo -e "    ${YELLOW}⚠ Restart consistency issue: >5 MB variance${NC}"
+        fi
+    fi
+    
+    # Calculate final memory range
+    min_final=${NUMERIC_FINAL_MEM[0]}
+    max_final=${NUMERIC_FINAL_MEM[0]}
+    sum_final=0
+    for val in "${NUMERIC_FINAL_MEM[@]}"; do
+        if (( $(echo "$val < $min_final" | bc -l) )); then
+            min_final=$val
+        fi
+        if (( $(echo "$val > $max_final" | bc -l) )); then
+            max_final=$val
+        fi
+        sum_final=$(echo "$sum_final + $val" | bc)
+    done
+    avg_final=$(echo "scale=1; $sum_final / ${#NUMERIC_FINAL_MEM[@]}" | bc)
+    final_range=$(echo "scale=1; $max_final - $min_final" | bc)
+    
+    printf "  Final memory range:  %.1f - %.1f MB (%.1f MB spread)\n" "$min_final" "$max_final" "$final_range"
+    
+    # Calculate average init cost
+    if [ ${#NUMERIC_INIT_COSTS[@]} -gt 0 ]; then
+        sum_init=0
+        for val in "${NUMERIC_INIT_COSTS[@]}"; do
+            sum_init=$(echo "$sum_init + $val" | bc)
+        done
+        avg_init=$(echo "scale=1; $sum_init / ${#NUMERIC_INIT_COSTS[@]}" | bc)
+        printf "  Average init cost:   %s MB\n" "$avg_init"
+    fi
+    
+    # Variable duration correlation analysis
+    if $VARIABLE_DURATION && [ ${#NUMERIC_CYCLES[@]} -eq ${#NUMERIC_DEVIATION[@]} ] && [ ${#NUMERIC_CYCLES[@]} -gt 2 ]; then
+        echo ""
+        echo "Correlation Analysis (deviation vs cycles):"
+        
+        # Calculate correlation using simple linear regression
+        sum_x=0
+        sum_y=0
+        sum_xy=0
+        sum_x2=0
+        n=${#NUMERIC_CYCLES[@]}
+        
+        for i in $(seq 0 $((n - 1))); do
+            x=${NUMERIC_CYCLES[$i]}
+            # Strip leading + sign from deviation if present
+            y=$(echo "${NUMERIC_DEVIATION[$i]}" | sed 's/^+//')
+            sum_x=$(echo "$sum_x + $x" | bc -l)
+            sum_y=$(echo "$sum_y + $y" | bc -l)
+            xy=$(echo "$x * $y" | bc -l)
+            sum_xy=$(echo "$sum_xy + $xy" | bc -l)
+            x2=$(echo "$x * $x" | bc -l)
+            sum_x2=$(echo "$sum_x2 + $x2" | bc -l)
+        done
+        
+        # Calculate slope (MB per cycle)
+        n_sum_xy=$(echo "$n * $sum_xy" | bc -l)
+        sum_x_sum_y=$(echo "$sum_x * $sum_y" | bc -l)
+        numerator=$(echo "$n_sum_xy - $sum_x_sum_y" | bc -l)
+        
+        n_sum_x2=$(echo "$n * $sum_x2" | bc -l)
+        sum_x_squared=$(echo "$sum_x * $sum_x" | bc -l)
+        denominator=$(echo "$n_sum_x2 - $sum_x_squared" | bc -l)
+        
+        if (( $(echo "$denominator != 0" | bc -l) )); then
+            slope=$(echo "scale=6; $numerator / $denominator" | bc -l)
+            slope_per_100=$(echo "scale=3; $slope * 100" | bc -l)
+            
+            # Calculate R-squared for correlation strength
+            avg_y=$(echo "scale=3; $sum_y / $n" | bc -l)
+            avg_x=$(echo "scale=3; $sum_x / $n" | bc -l)
+            slope_avg_x=$(echo "$slope * $avg_x" | bc -l)
+            intercept=$(echo "scale=3; $avg_y - $slope_avg_x" | bc -l)
+            
+            ss_tot=0
+            ss_res=0
+            for i in $(seq 0 $((n - 1))); do
+                x=${NUMERIC_CYCLES[$i]}
+                # Strip leading + sign from deviation if present
+                y=$(echo "${NUMERIC_DEVIATION[$i]}" | sed 's/^+//')
+                
+                slope_x=$(echo "$slope * $x" | bc -l)
+                y_pred=$(echo "scale=3; $intercept + $slope_x" | bc -l)
+                
+                y_diff=$(echo "$y - $avg_y" | bc -l)
+                y_diff_sq=$(echo "$y_diff * $y_diff" | bc -l)
+                ss_tot=$(echo "$ss_tot + $y_diff_sq" | bc -l)
+                
+                res=$(echo "$y - $y_pred" | bc -l)
+                res_sq=$(echo "$res * $res" | bc -l)
+                ss_res=$(echo "$ss_res + $res_sq" | bc -l)
+            done
+            
+            if (( $(echo "$ss_tot != 0" | bc -l) )); then
+                ss_ratio=$(echo "scale=6; $ss_res / $ss_tot" | bc -l)
+                r_squared=$(echo "scale=3; 1 - $ss_ratio" | bc -l)
+            else
+                r_squared=0
+            fi
+            
+            printf "  Per-cycle leak rate: %+.3f MB/100 cycles (R²=%.3f)\n" "$slope_per_100" "$r_squared"
+            
+            # Interpret correlation
+            if (( $(echo "$r_squared > 0.8" | bc -l) )); then
+                if (( $(echo "$slope_per_100 > 0.5" | bc -l) )); then
+                    echo -e "  ${RED}⚠ Strong correlation: Per-cycle leak detected${NC}"
+                elif (( $(echo "$slope_per_100 > 0.1" | bc -l) )); then
+                    echo -e "  ${YELLOW}⚠ Weak correlation: Possible small leak${NC}"
+                else
+                    echo -e "  ${GREEN}✓ Strong correlation but negligible rate${NC}"
+                fi
+            else
+                echo -e "  ${GREEN}✓ No correlation: Variability is measurement noise${NC}"
+            fi
+        fi
+    fi
+    
+    # Interpretation based on final memory stability
+    echo ""
+    if (( $(echo "$final_range > 20.0" | bc -l) )); then
+        echo -e "${RED}FAIL: Final memory climbing >20 MB across runs - likely leak${NC}"
+        send_notification "FAIL" "Test with Restarts FAILED" "$num_runs runs: Memory climbing (${final_range} MB spread)"
+    elif (( $(echo "$final_range > 10.0" | bc -l) )); then
+        echo -e "${YELLOW}WARN: Final memory variability >10 MB - investigate further${NC}"
+        send_notification "WARN" "Test with Restarts Warning" "$num_runs runs: Memory variable (${final_range} MB spread)"
+    else
+        echo -e "${GREEN}PASS: Final memory stable across runs (${final_range} MB variance)${NC}"
+        send_notification "PASS" "Test with Restarts Complete" "$num_runs runs: Memory stable"
+    fi
+fi
+
+echo "========================================"
+echo ""

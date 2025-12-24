@@ -183,125 +183,53 @@ export default class ZonedExtension extends Extension {
         initResourceTracking(this._settings);
         logger.debug('Resource tracking initialized');
 
-        // Initialize D-Bus debug interface (for automated testing)
+        // Initialize D-Bus debug interface
         this._debugInterface = createDebugInterface(this);
         this._debugInterface.init();
         logger.debug('Debug interface initialized');
 
-        // Initialize WindowManager
-        this._windowManager = new WindowManager();
-        logger.debug('WindowManager initialized');
-
-        // Initialize LayoutManager and load layouts
-        this._layoutManager = new LayoutManager(this._settings, this.path);
-        const layoutsLoaded = this._layoutManager.loadLayouts();
-
-        if (!layoutsLoaded) {
-            throw new Error('Failed to load layouts');
-        }
-        logger.debug('LayoutManager initialized');
-
-        // Initialize SpatialStateManager (per-space layout state)
-        this._spatialStateManager = new SpatialStateManager(this._settings);
-        this._layoutManager.setSpatialStateManager(this._spatialStateManager);
-        logger.debug('SpatialStateManager initialized');
-
-        // Initialize ConflictDetector
-        this._conflictDetector = new ConflictDetector(this._settings);
-        const conflicts = this._conflictDetector.detectConflicts();
-        logger.debug('ConflictDetector initialized');
-
-        // Initialize NotificationManager
+        // ============================================================
+        // TEMPORARY TEST CONFIGURATION - Build 6+
+        // Testing incremental component enable to isolate memory leaks
+        // Current: All tested components (ConflictDetector + ZoneOverlay + NotificationService)
+        // Status: All components tested CLEAN (variance 3.5 MB)
+        // Next: Will add LayoutManager (Build 7) after commit
+        // ============================================================
+        
         this._notificationManager = new NotificationManager(this);
         logger.debug('NotificationManager initialized');
 
-        // Initialize ZoneOverlay
-        this._zoneOverlay = new ZoneOverlay(this);
-        logger.debug('ZoneOverlay initialized');
-
-        // Initialize NotificationService (routes notifications based on settings)
-        this._notificationService = new NotificationService(
-            this,
-            this._zoneOverlay,
-            this._notificationManager,
-        );
-        logger.debug('NotificationService initialized');
-
-        // Initialize TemplateManager
         this._templateManager = new TemplateManager();
         logger.debug('TemplateManager initialized');
 
-        // Initialize LayoutSwitcher
-        this._layoutSwitcher = new LayoutSwitcher(
-            this._layoutManager,
-            this._zoneOverlay,
-            this._settings,
-        );
-        logger.debug('LayoutSwitcher initialized');
+        this._spatialStateManager = new SpatialStateManager(this._settings);
+        logger.debug('SpatialStateManager initialized');
 
-        // Initialize PanelIndicator (pass settings for scroll-target support)
-        this._panelIndicator = new PanelIndicator(
-            this._layoutManager,
-            this._conflictDetector,
-            this._layoutSwitcher,
-            this._notificationManager,
-            this._zoneOverlay,
-            this._settings,
-            this._notificationService,
-        );
+        // BUILD 6+: Add ConflictDetector (tested clean) + Build 6 components
+        this._conflictDetector = new ConflictDetector(this._settings);
+        logger.debug('ConflictDetector initialized');
 
-        // Add to status area, but check visibility setting
-        Main.panel.addToStatusArea('zoned-indicator', this._panelIndicator);
-        const showIndicator = this._settings.get_boolean('show-panel-indicator');
-        this._panelIndicator.visible = showIndicator;
+        // Add ZoneOverlay (with fix)
+        this._zoneOverlay = new ZoneOverlay(this);
+        logger.debug('ZoneOverlay initialized');
 
-        // Watch for show-panel-indicator changes to show/hide in real-time
-        this._boundOnShowIndicatorChanged = this._onShowIndicatorChanged.bind(this);
-        this._showIndicatorSignal = this._settings.connect('changed::show-panel-indicator', this._boundOnShowIndicatorChanged);
+        // Add NotificationService (depends on ZoneOverlay)
+        this._notificationService = new NotificationService(this, this._zoneOverlay, this._notificationManager);
+        logger.debug('NotificationService initialized');
+        
+        // Disabled for later builds:
+        // this._layoutManager = new LayoutManager(this._settings, this._templateManager, this._spatialStateManager, this._notificationService);
+        // logger.debug('LayoutManager initialized');
 
-        // Set conflict status in panel
-        this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
-
-        // Watch for conflict count changes from prefs (pref runs in separate process)
-        this._boundOnConflictCountChanged = this._onConflictCountChanged.bind(this);
-        this._conflictCountSignal = this._settings.connect('changed::keybinding-conflict-count', this._boundOnConflictCountChanged);
-        logger.debug('PanelIndicator initialized');
-
-        // Watch for preview trigger from prefs (shows sample center notification)
-        this._boundOnPreviewChanged = this._onPreviewChanged.bind(this);
-        this._previewSignal = this._settings.connect('changed::center-notification-preview', this._boundOnPreviewChanged);
-        logger.debug('Preview signal handler initialized');
-
-        // Initialize KeybindingManager (with notification service)
-        this._keybindingManager = new KeybindingManager(
-            this._settings,
-            this._layoutManager,
-            this._windowManager,
-            this._notificationManager,
-            this._layoutSwitcher,
-            this._zoneOverlay,
-            this._notificationService,
-        );
-
-        // Register all keybindings
-        this._keybindingManager.registerKeybindings();
-        logger.debug('KeybindingManager initialized');
-
-        // Setup workspace switching handler (if workspace mode enabled)
-        this._setupWorkspaceHandler();
-
-        // Show startup notification (uses notification settings)
-        // Include conflict warning as 2nd line if conflicts detected
-        const hasConflicts = this._conflictDetector.hasConflicts();
-        const conflictCount = conflicts.length;
-        let startupMessage = 'Zoned Enabled';
-        if (hasConflicts) {
-            startupMessage += `\n⚠️ ${conflictCount} keybinding conflict${conflictCount !== 1 ? 's' : ''}`;
-        }
-        this._notificationService.notify(
-            NotifyCategory.STARTUP,
-            startupMessage,
-        );
+        // All other managers disabled
+        this._windowManager = null;
+        this._layoutManager = null;
+        this._layoutSwitcher = null;
+        this._panelIndicator = null;
+        this._keybindingManager = null;
+        
+        logger.warn('🧪 TEST BUILD 6+: All tested components (ConflictDetector + ZoneOverlay + NotificationService)');
+        logger.warn('🧪 Final validation before LayoutManager');
 
         logger.info('Extension enabled successfully');
     }

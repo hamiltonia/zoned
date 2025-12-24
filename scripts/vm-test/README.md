@@ -10,6 +10,39 @@ For the reasoning behind these tests and how they work, see [docs/testing-strate
 - Zoned extension installed and enabled
 - SSH access from host to VM configured
 
+## Desktop Notifications
+
+Tests automatically send desktop notifications when they complete, showing the test status (PASS/WARN/FAIL).
+
+### VM-to-Host Notifications (Recommended)
+
+When running tests in a VM, notifications will automatically be sent to your **host machine** so you can be notified when long-running tests complete while you work on other tasks.
+
+**Setup (one-time):**
+
+1. On the **host machine**, ensure SSH server is running:
+   ```bash
+   sudo systemctl enable --now sshd
+   ```
+
+2. **Inside the VM**, run the setup script:
+   ```bash
+   ./scripts/vm-test/setup-host-notifications.sh
+   ```
+
+This configures SSH from VM to host and tests the notification system. Once set up, all test notifications will appear on your host desktop instead of in the VM.
+
+**How it works:**
+- Tests detect they're running in a VM using `systemd-detect-virt`
+- The gateway IP (host) is determined from the default route
+- Notifications are sent via SSH to the host machine
+- Falls back to local VM notifications if host is unreachable
+
+**Notification types:**
+- **PASS** (normal urgency, info icon) - Tests completed successfully
+- **WARN** (normal urgency, warning icon) - Tests passed but with warnings (e.g., memory growth)
+- **FAIL** (critical urgency, error icon) - Tests failed or leaked resources (persists until dismissed)
+
 ## Running Tests
 
 ### From Host (via Makefile)

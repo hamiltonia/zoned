@@ -18,6 +18,9 @@ source "$SCRIPT_DIR/lib/setup.sh"
 START_TIME=0
 CYCLES=0
 BASELINE_MEM=0
+WARMUP_BASELINE=0
+INIT_COST=0
+WARMUP_CYCLES=1  # Reduced from 30: single cycle + GC for accurate baseline
 INTERRUPTED=false
 
 # Cleanup handler for Ctrl+C
@@ -38,7 +41,15 @@ print_final_report() {
     local minutes=$((duration / 60))
     local seconds=$((duration % 60))
     local final_mem=$(get_gnome_shell_memory)
-    local mem_diff=$((final_mem - BASELINE_MEM))
+    local final_mem_mb=$(echo "scale=1; $final_mem/1024" | bc)
+    local baseline_mb=$(echo "scale=1; $BASELINE_MEM/1024" | bc)
+    local init_cost_mb=$(echo "scale=1; $INIT_COST/1024" | bc)
+    
+    # Calculate expected final if no leak (baseline + init cost)
+    local expected_final=$((BASELINE_MEM + INIT_COST))
+    local expected_final_mb=$(echo "scale=1; $expected_final/1024" | bc)
+    local deviation=$((final_mem - expected_final))
+    local deviation_mb=$(echo "scale=1; $deviation/1024" | bc)
     
     echo ""
     echo "========================================"
@@ -46,35 +57,102 @@ print_final_report() {
     echo "========================================"
     printf "Duration:      %dm %ds\n" "$minutes" "$seconds"
     printf "Total cycles:  %d\n" "$CYCLES"
-    printf "Memory growth: %+d KB (%.1f MB)\n" "$mem_diff" "$(echo "scale=1; $mem_diff/1024" | bc)"
+    echo ""
+    echo "Memory Results:"
+    printf "  Baseline (pre-load):     %6.1f MB\n" "$baseline_mb"
+    printf "  Init cost (one-time):    %6.1f MB\n" "$init_cost_mb"
+    printf "  Expected final:          %6.1f MB (baseline + init)\n" "$expected_final_mb"
+    printf "  Actual final:            %6.1f MB\n" "$final_mem_mb"
+    printf "  Deviation:               %+6.1f MB\n" "$deviation_mb"
+    echo ""
     
     if dbus_interface_available; then
         local report=$(dbus_get_resource_report)
         local leaked_signals=$(extract_variant "leakedSignals" "$report" 2>/dev/null || echo "0")
         local leaked_timers=$(extract_variant "leakedTimers" "$report" 2>/dev/null || echo "0")
-        printf "Leaked signals: %d\n" "$leaked_signals"
-        printf "Leaked timers:  %d\n" "$leaked_timers"
+        printf "Resource Tracking:\n"
+        printf "  Leaked signals: %d\n" "$leaked_signals"
+        printf "  Leaked timers:  %d\n" "$leaked_timers"
+        echo ""
+    fi
+    
+    # Determine pass/fail based on deviation
+    local abs_deviation_mb=$(echo "$deviation_mb" | sed 's/-//')
+    if dbus_interface_available; then
+        local report=$(dbus_get_resource_report)
+        local leaked_signals=$(extract_variant "leakedSignals" "$report" 2>/dev/null || echo "0")
+        local leaked_timers=$(extract_variant "leakedTimers" "$report" 2>/dev/null || echo "0")
         
         if [ "$leaked_signals" -gt 0 ] || [ "$leaked_timers" -gt 0 ]; then
-            echo ""
-            echo -e "${RED}FAIL: Resources leaked${NC}"
-        elif [ "$mem_diff" -gt 20000 ]; then
-            echo ""
-            echo -e "${YELLOW}WARN: Significant memory growth (>20MB)${NC}"
+            echo -e "${RED}FAIL: Resources leaked (signals: $leaked_signals, timers: $leaked_timers)${NC}"
+        elif (( $(echo "$abs_deviation_mb > 15.0" | bc -l) )); then
+            echo -e "${YELLOW}WARN: Memory deviation >15 MB from expected${NC}"
+            echo -e "${YELLOW}Note: Some variance is normal due to GC timing and background processes${NC}"
         else
-            echo ""
-            echo -e "${GREEN}PASS: No leaks detected${NC}"
+            echo -e "${GREEN}PASS: Memory stable (deviation within normal range)${NC}"
         fi
     else
-        if [ "$mem_diff" -gt 20000 ]; then
-            echo ""
-            echo -e "${YELLOW}WARN: Significant memory growth (>20MB)${NC}"
+        if (( $(echo "$abs_deviation_mb > 15.0" | bc -l) )); then
+            echo -e "${YELLOW}WARN: Memory deviation >15 MB from expected${NC}"
+            echo -e "${YELLOW}Note: Some variance is normal due to GC timing and background processes${NC}"
         else
-            echo ""
-            echo -e "${GREEN}PASS: Memory stable${NC}"
+            echo -e "${GREEN}PASS: Memory stable (deviation within normal range)${NC}"
         fi
     fi
     echo "========================================"
+}
+
+# Unified warmup phase for all test types
+# Runs a single warmup cycle, forces GC, then takes clean baseline
+run_warmup() {
+    local test_type=$1  # "enable-disable", "layoutswitcher", or "zone-overlay"
+    local delay_ms=$2
+    
+    info "Running warmup phase (1 cycle to load modules)..."
+    
+    # Run ONE warmup cycle depending on test type
+    case $test_type in
+        enable-disable)
+            EXTENSION_UUID="zoned@hamiltonia.me"
+            gnome-extensions disable "$EXTENSION_UUID" 2>/dev/null || true
+            sleep_ms "$delay_ms"
+            gnome-extensions enable "$EXTENSION_UUID" 2>/dev/null || true
+            sleep_ms "$delay_ms"
+            ;;
+        layoutswitcher)
+            dbus_trigger "show-layout-switcher" "{}" >/dev/null 2>&1
+            sleep_ms "$delay_ms"
+            dbus_trigger "hide-layout-switcher" "{}" >/dev/null 2>&1
+            sleep_ms "$((delay_ms / 2))"
+            ;;
+        zone-overlay)
+            dbus_trigger "show-zone-overlay" "{}" >/dev/null 2>&1
+            sleep_ms "$delay_ms"
+            dbus_trigger "hide-zone-overlay" "{}" >/dev/null 2>&1
+            sleep_ms "$((delay_ms / 2))"
+            ;;
+    esac
+    
+    # Force GC to clean up warmup artifacts
+    echo ""
+    if ! force_gc; then
+        echo -e "${YELLOW}Warning: GC failed, continuing without GC${NC}"
+    fi
+    echo ""
+    
+    # Take clean baseline after GC
+    WARMUP_BASELINE=$(get_gnome_shell_memory)
+    INIT_COST=$((WARMUP_BASELINE - BASELINE_MEM))
+    
+    # Reset resource tracking now that we're post-warmup
+    if dbus_interface_available; then
+        dbus_reset_tracking >/dev/null 2>&1
+        info "Resource tracking reset"
+    fi
+    
+    info "Warmup complete."
+    info "Initialization cost: ${INIT_COST} KB ($(echo "scale=1; $INIT_COST/1024" | bc) MB)"
+    echo ""
 }
 
 # Run enable/disable test
@@ -105,9 +183,9 @@ run_enable_disable() {
         if [ $(date +%s) -ge $next_report ]; then
             local elapsed=$(($(date +%s) - START_TIME))
             local mem=$(get_gnome_shell_memory)
-            local mem_diff=$((mem - BASELINE_MEM))
+            local actual_diff=$((mem - WARMUP_BASELINE))
             printf "[%02d:%02d] Memory: %+6d KB | Cycles: %5d" \
-                   $((elapsed / 60)) $((elapsed % 60)) "$mem_diff" "$CYCLES"
+                   $((elapsed / 60)) $((elapsed % 60)) "$actual_diff" "$CYCLES"
             
             if dbus_interface_available; then
                 local report=$(dbus_get_resource_report)
@@ -155,13 +233,13 @@ run_layoutswitcher() {
         if [ $(date +%s) -ge $next_report ]; then
             local elapsed=$(($(date +%s) - START_TIME))
             local mem=$(get_gnome_shell_memory)
-            local mem_diff=$((mem - BASELINE_MEM))
+            local actual_diff=$((mem - WARMUP_BASELINE))
             local report=$(dbus_get_resource_report)
             local leaked_signals=$(extract_variant "leakedSignals" "$report" 2>/dev/null || echo "0")
             local leaked_timers=$(extract_variant "leakedTimers" "$report" 2>/dev/null || echo "0")
             
             printf "[%02d:%02d] Memory: %+6d KB | Cycles: %5d | Signals: %d | Timers: %d\n" \
-                   $((elapsed / 60)) $((elapsed % 60)) "$mem_diff" "$CYCLES" \
+                   $((elapsed / 60)) $((elapsed % 60)) "$actual_diff" "$CYCLES" \
                    "$leaked_signals" "$leaked_timers"
             
             next_report=$(($(date +%s) + 30))
@@ -201,13 +279,13 @@ run_zone_overlay() {
         if [ $(date +%s) -ge $next_report ]; then
             local elapsed=$(($(date +%s) - START_TIME))
             local mem=$(get_gnome_shell_memory)
-            local mem_diff=$((mem - BASELINE_MEM))
+            local actual_diff=$((mem - WARMUP_BASELINE))
             local report=$(dbus_get_resource_report)
             local leaked_signals=$(extract_variant "leakedSignals" "$report" 2>/dev/null || echo "0")
             local leaked_timers=$(extract_variant "leakedTimers" "$report" 2>/dev/null || echo "0")
             
             printf "[%02d:%02d] Memory: %+6d KB | Cycles: %5d | Signals: %d | Timers: %d\n" \
-                   $((elapsed / 60)) $((elapsed % 60)) "$mem_diff" "$CYCLES" \
+                   $((elapsed / 60)) $((elapsed % 60)) "$actual_diff" "$CYCLES" \
                    "$leaked_signals" "$leaked_timers"
             
             next_report=$(($(date +%s) + 30))
@@ -216,7 +294,11 @@ run_zone_overlay() {
 }
 
 # Main script
-clear
+# Only clear if running interactively (not piped/automated)
+if [ -t 0 ]; then
+    clear
+fi
+
 echo "========================================"
 echo "  Zoned Long-Running Test Suite"
 echo "========================================"
@@ -264,12 +346,25 @@ fi
 
 echo ""
 
+# Run warmup phase for selected test (unified warmup)
+case $choice in
+    1) run_warmup "enable-disable" "$delay_ms" ;;
+    2) run_warmup "layoutswitcher" "$delay_ms" ;;
+    3) run_warmup "zone-overlay" "$delay_ms" ;;
+esac
+
 # Run selected test
 case $choice in
     1) run_enable_disable "$duration_minutes" "$delay_ms" ;;
     2) run_layoutswitcher "$duration_minutes" "$delay_ms" ;;
     3) run_zone_overlay "$duration_minutes" "$delay_ms" ;;
 esac
+
+# Force GC before final measurement
+echo ""
+if ! force_gc; then
+    echo -e "${YELLOW}Warning: GC failed before final measurement${NC}"
+fi
 
 # Print final report
 print_final_report

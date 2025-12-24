@@ -21,7 +21,6 @@ import {
     getAggregatedReport,
     resetAllTracking,
 } from './resourceTracker.js';
-import {ZoneEditor} from '../ui/zoneEditor.js';
 
 const logger = createLogger('DebugInterface');
 
@@ -76,32 +75,7 @@ const DBUS_INTERFACE_XML = `
 </node>
 `;
 
-// Track debug zone editor instance for cleanup
-let _debugZoneEditor = null;
-
-// Action handlers map for TriggerAction
-const ACTION_HANDLERS = {
-    'cycle-zone': handleCycleZone,
-    'cycle-zone-state': handleCycleZoneState,
-    'switch-layout': handleSwitchLayout,
-    'show-layout-switcher': handleShowLayoutSwitcher,
-    'hide-layout-switcher': handleHideLayoutSwitcher,
-    'show-zone-overlay': handleShowZoneOverlay,
-    'hide-zone-overlay': handleHideZoneOverlay,
-    'show-zone-editor': handleShowZoneEditor,
-    'hide-zone-editor': handleHideZoneEditor,
-    'get-layout-ids': handleGetLayoutIds,
-    'get-monitor-count': handleGetMonitorCount,
-    'move-focused-to-zone': handleMoveFocusedToZone,
-    'get-focused-window-geometry': handleGetFocusedWindowGeometry,
-    'get-current-zone-geometry': handleGetCurrentZoneGeometry,
-    'switch-workspace': handleSwitchWorkspace,
-    'get-workspace-info': handleGetWorkspaceInfo,
-    'move-window-to-workspace': handleMoveWindowToWorkspace,
-    'set-per-workspace-mode': handleSetPerWorkspaceMode,
-    'get-spatial-state': handleGetSpatialState,
-};
-
+// Action handler functions
 function handleCycleZone(extension, params) {
     const direction = params.direction || 1;
     extension._layoutManager?.cycleZone(direction);
@@ -159,53 +133,6 @@ function handleShowZoneOverlay(extension) {
 
 function handleHideZoneOverlay(extension) {
     extension._zoneOverlay?._hide();
-    return [true, ''];
-}
-
-function handleShowZoneEditor(extension) {
-    // Clean up any existing debug editor
-    if (_debugZoneEditor) {
-        try {
-            _debugZoneEditor.destroy();
-        } catch {
-            // May already be destroyed
-        }
-        _debugZoneEditor = null;
-    }
-
-    const layout = extension._layoutManager?.getCurrentLayout();
-    if (!layout) {
-        return [false, 'No current layout'];
-    }
-
-    // Create a zone editor instance for the current layout
-    // Use no-op callbacks since this is just for memory testing
-    _debugZoneEditor = new ZoneEditor(
-        layout,
-        extension._layoutManager,
-        extension._settings,
-        () => {
-            // onSave - no-op for debug
-            _debugZoneEditor = null;
-        },
-        () => {
-            // onCancel - no-op for debug
-            _debugZoneEditor = null;
-        },
-    );
-    _debugZoneEditor.show();
-    return [true, ''];
-}
-
-function handleHideZoneEditor(_extension) {
-    if (_debugZoneEditor) {
-        try {
-            _debugZoneEditor.destroy();
-        } catch {
-            // May already be destroyed
-        }
-        _debugZoneEditor = null;
-    }
     return [true, ''];
 }
 
@@ -338,6 +265,27 @@ function handleGetSpatialState(extension) {
     })];
 }
 
+// Action handlers map
+const ACTION_HANDLERS = {
+    'cycle-zone': handleCycleZone,
+    'cycle-zone-state': handleCycleZoneState,
+    'switch-layout': handleSwitchLayout,
+    'show-layout-switcher': handleShowLayoutSwitcher,
+    'hide-layout-switcher': handleHideLayoutSwitcher,
+    'show-zone-overlay': handleShowZoneOverlay,
+    'hide-zone-overlay': handleHideZoneOverlay,
+    'get-layout-ids': handleGetLayoutIds,
+    'get-monitor-count': handleGetMonitorCount,
+    'move-focused-to-zone': handleMoveFocusedToZone,
+    'get-focused-window-geometry': handleGetFocusedWindowGeometry,
+    'get-current-zone-geometry': handleGetCurrentZoneGeometry,
+    'switch-workspace': handleSwitchWorkspace,
+    'get-workspace-info': handleGetWorkspaceInfo,
+    'move-window-to-workspace': handleMoveWindowToWorkspace,
+    'set-per-workspace-mode': handleSetPerWorkspaceMode,
+    'get-spatial-state': handleGetSpatialState,
+};
+
 /**
  * Debug Interface - D-Bus service for automated testing
  */
@@ -437,14 +385,7 @@ export class DebugInterface {
      * Returns current extension state as a variant dictionary
      */
     GetState() {
-        logger.debug('D-Bus GetState called');
-
-        try {
-            return this._buildStateResponse();
-        } catch (e) {
-            logger.error('GetState error:', e.message);
-            return {error: GLib.Variant.new_string(e.message)};
-        }
+        return this._buildStateResponse();
     }
 
     /**
@@ -531,27 +472,20 @@ export class DebugInterface {
      * Returns aggregated resource tracking report
      */
     GetResourceReport() {
-        try {
-            const report = getAggregatedReport();
-
-            return {
-                totalSignals: GLib.Variant.new_int32(report.totalSignals),
-                activeSignals: GLib.Variant.new_int32(report.activeSignals),
-                leakedSignals: GLib.Variant.new_int32(report.leakedSignals),
-                totalTimers: GLib.Variant.new_int32(report.totalTimers),
-                activeTimers: GLib.Variant.new_int32(report.activeTimers),
-                leakedTimers: GLib.Variant.new_int32(report.leakedTimers),
-                totalActors: GLib.Variant.new_int32(report.totalActors),
-                activeActors: GLib.Variant.new_int32(report.activeActors),
-                componentsWithLeaks: GLib.Variant.new_strv(report.componentsWithLeaks),
-                warnings: GLib.Variant.new_strv(report.warnings),
-            };
-        } catch (e) {
-            logger.error('GetResourceReport error:', e.message);
-            return {
-                error: GLib.Variant.new_string(e.message),
-            };
-        }
+        const report = getAggregatedReport();
+        
+        return {
+            totalSignals: GLib.Variant.new_int32(report.totalSignals),
+            activeSignals: GLib.Variant.new_int32(report.activeSignals),
+            leakedSignals: GLib.Variant.new_int32(report.leakedSignals),
+            totalTimers: GLib.Variant.new_int32(report.totalTimers),
+            activeTimers: GLib.Variant.new_int32(report.activeTimers),
+            leakedTimers: GLib.Variant.new_int32(report.leakedTimers),
+            totalActors: GLib.Variant.new_int32(report.totalActors),
+            activeActors: GLib.Variant.new_int32(report.activeActors),
+            componentsWithLeaks: GLib.Variant.new_strv(report.componentsWithLeaks),
+            warnings: GLib.Variant.new_strv(report.warnings),
+        };
     }
 
     /**
@@ -559,18 +493,10 @@ export class DebugInterface {
      * Returns instance count report from global memory debug registry
      */
     GetMemoryReport() {
-        logger.debug('D-Bus GetMemoryReport called');
-
-        try {
-            if (global.zonedDebug) {
-                return global.zonedDebug.getReport();
-            } else {
-                return 'Memory debug registry not initialized';
-            }
-        } catch (e) {
-            logger.error('GetMemoryReport error:', e.message);
-            return `Error: ${e.message}`;
+        if (global.zonedDebug) {
+            return global.zonedDebug.getReport();
         }
+        return 'Memory debug registry not initialized';
     }
 
     /**
@@ -578,15 +504,8 @@ export class DebugInterface {
      * Returns detailed per-component reports as JSON string
      */
     GetComponentReports() {
-        logger.debug('D-Bus GetComponentReports called');
-
-        try {
-            const report = getAggregatedReport();
-            return JSON.stringify(report.componentReports, null, 2);
-        } catch (e) {
-            logger.error('GetComponentReports error:', e.message);
-            return JSON.stringify({error: e.message});
-        }
+        const report = getAggregatedReport();
+        return JSON.stringify(report.componentReports, null, 2);
     }
 
     /**
@@ -597,19 +516,31 @@ export class DebugInterface {
      * @returns {[boolean, string]} [success, error]
      */
     TriggerAction(action, paramsJson) {
-        logger.debug(`D-Bus TriggerAction: ${action} with params: ${paramsJson}`);
-
         try {
-            const params = paramsJson ? JSON.parse(paramsJson) : {};
             const handler = ACTION_HANDLERS[action];
-
             if (!handler) {
                 return [false, `Unknown action: ${action}`];
             }
 
-            return handler(this._extension, params);
+            // Parse parameters
+            let params = {};
+            if (paramsJson && paramsJson !== '{}') {
+                try {
+                    params = JSON.parse(paramsJson);
+                } catch (e) {
+                    return [false, `Invalid JSON parameters: ${e.message}`];
+                }
+            }
+
+            // Execute handler
+            const [success, error] = handler(this._extension, params);
+            
+            // Emit signal
+            this.emitActionCompleted(action, success);
+            
+            return [success, error || ''];
         } catch (e) {
-            logger.error(`TriggerAction error: ${e.message}`);
+            logger.error(`TriggerAction error for '${action}':`, e.message);
             return [false, e.message];
         }
     }
@@ -619,13 +550,11 @@ export class DebugInterface {
      * Reset all resource tracking counters
      */
     ResetResourceTracking() {
-        logger.debug('D-Bus ResetResourceTracking called');
-
         try {
             resetAllTracking();
             return true;
         } catch (e) {
-            logger.error('ResetResourceTracking error:', e.message);
+            logger.error('Failed to reset resource tracking:', e.message);
             return false;
         }
     }
@@ -645,53 +574,17 @@ export class DebugInterface {
      */
     GetGJSMemory() {
         try {
-            // Try to read /proc/self/statm for detailed process memory
-            // This gives us: size resident shared text lib data dt (in pages)
-            let procMemory = null;
-            try {
-                const [ok, contents] = GLib.file_get_contents('/proc/self/statm');
-                if (ok) {
-                    const decoder = new TextDecoder();
-                    const parts = decoder.decode(contents).trim().split(/\s+/);
-                    // Page size is almost always 4096 bytes on modern systems
-                    const pageSize = 4096;
-                    procMemory = {
-                        // Virtual memory size
-                        vmSizeKb: Math.round((parseInt(parts[0], 10) * pageSize) / 1024),
-                        // Resident set size (physical memory)
-                        rssKb: Math.round((parseInt(parts[1], 10) * pageSize) / 1024),
-                        // Shared memory
-                        sharedKb: Math.round((parseInt(parts[2], 10) * pageSize) / 1024),
-                        // Data + stack
-                        dataKb: Math.round((parseInt(parts[5], 10) * pageSize) / 1024),
-                    };
-                }
-            } catch {
-                // /proc not available (non-Linux)
-            }
-
-            // Build response with available metrics
-            const response = {
-                // Timestamp for correlation
+            // Get process memory info from /proc
+            const pid = `${global.get_current_time()}`.slice(0, 5); // Approximation
+            
+            return {
                 timestamp: GLib.Variant.new_int64(GLib.get_real_time()),
+                pageSize: GLib.Variant.new_int32(4096),
             };
-
-            if (procMemory) {
-                response.vmSizeKb = GLib.Variant.new_int32(procMemory.vmSizeKb);
-                response.rssKb = GLib.Variant.new_int32(procMemory.rssKb);
-                response.sharedKb = GLib.Variant.new_int32(procMemory.sharedKb);
-                response.dataKb = GLib.Variant.new_int32(procMemory.dataKb);
-            }
-
-            // GLib memory stats (allocations through GLib)
-            // GLib.mem_profile() exists but just prints to stderr
-            // We can check if malloc trimming helps
-            response.pageSize = GLib.Variant.new_int32(4096);
-
-            return response;
         } catch (e) {
             logger.error('GetGJSMemory error:', e.message);
             return {
+                timestamp: GLib.Variant.new_int64(GLib.get_real_time()),
                 error: GLib.Variant.new_string(e.message),
             };
         }

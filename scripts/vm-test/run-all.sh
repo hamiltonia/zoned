@@ -767,10 +767,12 @@ print_long_haul_results() {
     if [ "$detected_leaks" -gt 0 ]; then
         echo -e "${YELLOW}⚠ Exiting with code 1: Memory leaks detected (test ran successfully)${NC}"
         echo "═══════════════════════════════════════════════════════════════════════════════"
+        send_notification "FAIL" "Long Haul Test FAILED" "$detected_leaks leaks detected in $total_cycles cycles"
         return 1
     else
         echo -e "${GREEN}✓ Exiting with code 0: No memory leaks detected${NC}"
         echo "═══════════════════════════════════════════════════════════════════════════════"
+        send_notification "PASS" "Long Haul Test Complete" "No leaks detected in $total_cycles cycles"
         return 0
     fi
 }
@@ -1030,9 +1032,15 @@ fi
 if [ "$FAILED_TESTS" -gt 0 ]; then
     echo -e "${RED}  $total_tests tests: $passed_tests passed, $FAILED_TESTS failed, $skipped_tests skipped${summary_parts}${NC}"
     echo "========================================"
+    send_notification "FAIL" "Test Suite FAILED" "$FAILED_TESTS of $total_tests tests failed"
     exit 1
 else
     echo -e "${GREEN}  $total_tests tests: $passed_tests passed, 0 failed, $skipped_tests skipped${summary_parts}${NC}"
     echo "========================================"
+    if [ -n "$SUITE_MEM_STATUS" ] && [ "$SUITE_MEM_STATUS" = "WARN" ]; then
+        send_notification "WARN" "Test Suite Complete (Warning)" "All tests passed, memory warning detected"
+    else
+        send_notification "PASS" "Test Suite Complete" "All $total_tests tests passed"
+    fi
     exit 0
 fi
