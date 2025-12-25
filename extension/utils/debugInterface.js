@@ -71,6 +71,11 @@ const DBUS_INTERFACE_XML = `
       <arg type="s" name="action"/>
       <arg type="b" name="success"/>
     </signal>
+    
+    <signal name="InitCompleted">
+      <arg type="b" name="success"/>
+      <arg type="s" name="version"/>
+    </signal>
   </interface>
 </node>
 `;
@@ -473,7 +478,7 @@ export class DebugInterface {
      */
     GetResourceReport() {
         const report = getAggregatedReport();
-        
+
         return {
             totalSignals: GLib.Variant.new_int32(report.totalSignals),
             activeSignals: GLib.Variant.new_int32(report.activeSignals),
@@ -534,10 +539,10 @@ export class DebugInterface {
 
             // Execute handler
             const [success, error] = handler(this._extension, params);
-            
+
             // Emit signal
             this.emitActionCompleted(action, success);
-            
+
             return [success, error || ''];
         } catch (e) {
             logger.error(`TriggerAction error for '${action}':`, e.message);
@@ -574,9 +579,6 @@ export class DebugInterface {
      */
     GetGJSMemory() {
         try {
-            // Get process memory info from /proc
-            const pid = `${global.get_current_time()}`.slice(0, 5); // Approximation
-            
             return {
                 timestamp: GLib.Variant.new_int64(GLib.get_real_time()),
                 pageSize: GLib.Variant.new_int32(4096),
@@ -616,6 +618,21 @@ export class DebugInterface {
                 'ActionCompleted',
                 new GLib.Variant('(sb)', [action, success]),
             );
+        }
+    }
+
+    /**
+     * Emit InitCompleted signal
+     * Called at the end of extension enable() to signal successful initialization
+     * @param {boolean} success - Whether initialization completed successfully
+     */
+    emitInitCompleted(success) {
+        if (this._dbusExportId) {
+            this._dbusExportId.emit_signal(
+                'InitCompleted',
+                new GLib.Variant('(bs)', [success, '1.0']),
+            );
+            logger.debug(`InitCompleted signal emitted: ${success}`);
         }
     }
 

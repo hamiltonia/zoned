@@ -61,6 +61,9 @@ export default class ZonedExtension extends Extension {
         this._boundOnPreviewChanged = null;
         this._boundOnWorkspaceSwitched = null;
 
+        // Recursion guard for preview signal handler
+        this._handlingPreview = false;
+
         logger.info('Extension constructed');
     }
 
@@ -195,7 +198,7 @@ export default class ZonedExtension extends Extension {
         // Status: All components tested CLEAN (variance 3.5 MB)
         // Next: Will add LayoutManager (Build 7) after commit
         // ============================================================
-        
+
         this._notificationManager = new NotificationManager(this);
         logger.debug('NotificationManager initialized');
 
@@ -205,7 +208,6 @@ export default class ZonedExtension extends Extension {
         this._spatialStateManager = new SpatialStateManager(this._settings);
         logger.debug('SpatialStateManager initialized');
 
-        // BUILD 6+: Add ConflictDetector (tested clean) + Build 6 components
         this._conflictDetector = new ConflictDetector(this._settings);
         logger.debug('ConflictDetector initialized');
 
@@ -216,20 +218,25 @@ export default class ZonedExtension extends Extension {
         // Add NotificationService (depends on ZoneOverlay)
         this._notificationService = new NotificationService(this, this._zoneOverlay, this._notificationManager);
         logger.debug('NotificationService initialized');
-        
-        // BUILD 7: Add LayoutManager (core layout logic)
+
+        // Initialize LayoutManager and load layouts - MUST be before LayoutSwitcher and PanelIndicator
         this._layoutManager = new LayoutManager(this._settings, this.path);
+        const layoutsLoaded = this._layoutManager.loadLayouts();
+        if (!layoutsLoaded) {
+            throw new Error('Failed to load layouts');
+        }
+        this._layoutManager.setSpatialStateManager(this._spatialStateManager);
         logger.debug('LayoutManager initialized');
 
-        // BUILD 8: Add WindowManager (window positioning and manipulation)
+        // Initialize WindowManager
         this._windowManager = new WindowManager();
         logger.debug('WindowManager initialized');
 
-        // BUILD 9: Add LayoutSwitcher (layout selection UI)
+        // Add LayoutSwitcher (layout selection UI) - MUST be after LayoutManager
         this._layoutSwitcher = new LayoutSwitcher(this._layoutManager, this._zoneOverlay, this._settings);
         logger.debug('LayoutSwitcher initialized');
 
-        // BUILD 10: Add PanelIndicator (top bar menu)
+        // Add PanelIndicator (top bar menu) - MUST be after LayoutManager and LayoutSwitcher
         this._panelIndicator = new PanelIndicator(
             this._layoutManager,
             this._conflictDetector,
@@ -237,7 +244,7 @@ export default class ZonedExtension extends Extension {
             this._notificationManager,
             this._zoneOverlay,
             this._settings,
-            this._notificationService
+            this._notificationService,
         );
         logger.debug('PanelIndicator initialized');
 
@@ -245,19 +252,38 @@ export default class ZonedExtension extends Extension {
         this._boundOnShowIndicatorChanged = this._onShowIndicatorChanged.bind(this);
         this._showIndicatorSignal = this._settings.connect(
             'changed::show-panel-indicator',
-            this._boundOnShowIndicatorChanged
+            this._boundOnShowIndicatorChanged,
         );
 
         this._boundOnConflictCountChanged = this._onConflictCountChanged.bind(this);
         this._conflictCountSignal = this._settings.connect(
             'changed::keybinding-conflict-count',
-            this._boundOnConflictCountChanged
+            this._boundOnConflictCountChanged,
+        );
+
+        // Preview signal with recursion guard to prevent memory leak
+        this._boundOnPreviewChanged = this._onPreviewChanged.bind(this);
+        this._previewSignal = this._settings.connect(
+            'changed::center-notification-preview',
+            this._boundOnPreviewChanged,
         );
 
         // Set initial visibility
         this._panelIndicator.visible = this._settings.get_boolean('show-panel-indicator');
-        
-        // BUILD 11: Add KeybindingManager (FINAL COMPONENT!)
+
+        // Detect keybinding conflicts and update panel indicator
+        this._conflictDetector.detectConflicts();
+        this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
+
+        // Show startup notification if conflicts detected
+        if (this._conflictDetector.hasConflicts()) {
+            const count = this._settings.get_int('keybinding-conflict-count');
+            this._notificationService.notify(
+                NotifyCategory.WARNINGS,
+                `Warning: ${count} keybinding conflict(s) detected`,
+            );
+        }
+
         this._keybindingManager = new KeybindingManager(
             this._settings,
             this._layoutManager,
@@ -265,15 +291,21 @@ export default class ZonedExtension extends Extension {
             this._notificationManager,
             this._layoutSwitcher,
             this._zoneOverlay,
-            this._notificationService
+            this._notificationService,
         );
         this._keybindingManager.registerKeybindings();
         logger.debug('KeybindingManager initialized');
-        
-        logger.warn('🧪 TEST BUILD 11: Build 10 + KeybindingManager');
-        logger.warn('🧪 Testing: FINAL COMPONENT - All keybindings and shortcuts');
+
+        // Setup workspace switching handler
+        this._setupWorkspaceHandler();
+
+        // Add panel indicator to top bar
+        Main.panel.addToStatusArea('zoned-indicator', this._panelIndicator);
 
         logger.info('Extension enabled successfully');
+
+        // Signal successful initialization via D-Bus (for automated testing)
+        this._debugInterface?.emitInitCompleted(true);
     }
 
     /**
@@ -421,16 +453,22 @@ export default class ZonedExtension extends Extension {
 
     /**
      * Signal handler: center-notification-preview changed
+     * Uses recursion guard to prevent memory leak from signal loop
      * @private
      */
     _onPreviewChanged() {
+        // Prevent recursive call when we reset the flag
+        if (this._handlingPreview) return;
+
         if (this._settings.get_boolean('center-notification-preview')) {
+            this._handlingPreview = true;
             logger.debug('Preview triggered from preferences');
             // Show preview with current settings
             const duration = this._settings.get_int('notification-duration');
             this._zoneOverlay.showMessage('Preview Notification', duration);
-            // Reset the flag
+            // Reset the flag (won't recurse due to guard)
             this._settings.set_boolean('center-notification-preview', false);
+            this._handlingPreview = false;
         }
     }
 

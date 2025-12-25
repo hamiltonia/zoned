@@ -967,7 +967,8 @@ const ShortcutCaptureRow = GObject.registerClass({
         // Create alert dialog
         const dialog = new Adw.AlertDialog({
             heading: 'Keyboard Shortcut Conflict',
-            body: `This shortcut conflicts with:\n\n<b>${conflict.name}</b>\n\nDisabling the GNOME shortcut will allow Zoned to use this key combination.`,
+            body: `This shortcut conflicts with:\n\n<b>${conflict.name}</b>\n\n` +
+                'Disabling the GNOME shortcut will allow Zoned to use this key combination.',
             body_use_markup: true,
         });
 
@@ -1269,7 +1270,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
         altCheck.connect('toggled', onModifierChanged);
 
         // Reset button handler (Wave 4: bound method)
-        const boundResetClick = handleQuickLayoutResetClicked.bind(null, row, shiftCheck, ctrlCheck, superCheck, altCheck, saveQuickLayoutShortcuts);
+        const boundResetClick = handleQuickLayoutResetClicked.bind(
+            null, row, shiftCheck, ctrlCheck, superCheck, altCheck, saveQuickLayoutShortcuts,
+        );
         resetButton.connect('clicked', boundResetClick);
 
         // Initial load
@@ -1602,7 +1605,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
             row.set_selected(styleMapping.indexOf(currentStyle));
 
             // Wave 4: bound method
-            const boundCategorySelected = handleCategoryRowSelected.bind(null, settingsKey, styleMapping, row, settings);
+            const boundCategorySelected = handleCategoryRowSelected.bind(
+                null, settingsKey, styleMapping, row, settings,
+            );
             row.connect('notify::selected', boundCategorySelected);
 
             return row;
@@ -1657,7 +1662,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // "Apply globally" ON = per-workspace OFF, "Apply globally" OFF = per-workspace ON
         const applyGloballyRow = new Adw.SwitchRow({
             title: 'Apply one layout to all spaces',
-            subtitle: 'When enabled, layouts apply to all monitors and workspaces. When disabled, each workspace can have its own layout.',
+            subtitle: 'When enabled, layouts apply to all monitors and workspaces. ' +
+                'When disabled, each workspace can have its own layout.',
         });
 
         // Use INVERT_BOOLEAN flag so the UI switch is inverted
@@ -1989,7 +1995,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
 
         // Clean up signal handlers when window closes
         // Wave 4: bound method
-        const boundWindowCloseRequest = handleWindowCloseRequest.bind(null, settings, closeRequestSignal, scrollTargetSignal);
+        const boundWindowCloseRequest = handleWindowCloseRequest.bind(
+            null, settings, closeRequestSignal, scrollTargetSignal,
+        );
         window.connect('close-request', boundWindowCloseRequest);
 
         log('=== fillPreferencesWindow complete ===');

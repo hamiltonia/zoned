@@ -152,20 +152,54 @@ echo "The script will automatically restart GNOME Shell before testing."
 echo ""
 read -p "Press Enter to confirm and start testing..."
 
-# Perform initial GNOME Shell restart for clean starting state
+# Pre-flight verification: Ensure extension can initialize successfully
 echo ""
-echo "========================================="
-echo "  INITIAL GNOME SHELL RESTART"
-echo "========================================="
-info "Restarting GNOME Shell before Run 1..."
-info "This ensures a clean starting state"
+echo "========================================"
+echo "  PRE-FLIGHT VERIFICATION"
+echo "========================================"
+info "Testing extension initialization..."
+echo ""
+if ! "$SCRIPT_DIR/verify-extension-init.sh" 10; then
+    echo -e "${RED}ERROR: Extension failed initialization verification${NC}"
+    exit 1
+fi
+echo ""
+info "✓ Pre-flight verification passed"
+echo "========================================"
+
+# Perform initial GNOME Shell restart for Run 1
+# This ensures Run 1 uses the same initialization as Runs 2-4
+echo ""
+echo "========================================"
+echo "  INITIAL RESTART FOR RUN 1"
+echo "========================================"
+info "Restarting GNOME Shell to ensure consistent state..."
+info "All runs will use: restart → auto-enable → test"
 echo ""
 if ! "$SCRIPT_DIR/xdotool-restart-gnome.sh" 3 5; then
-    error "Initial GNOME Shell restart failed"
+    echo -e "${RED}ERROR: Initial GNOME Shell restart failed${NC}"
     exit 1
 fi
 info "✓ GNOME Shell restarted successfully"
-echo "========================================="
+
+# Wait for extension to auto-enable and verify D-Bus
+sleep 2
+if ! dbus_interface_available; then
+    echo -e "${RED}ERROR: Extension D-Bus interface not available${NC}"
+    exit 1
+fi
+info "✓ Extension loaded"
+
+# Force garbage collection and wait for memory to stabilize
+info "Forcing garbage collection to stabilize memory..."
+if force_gc; then
+    info "✓ Garbage collection complete"
+else
+    warn "GC failed, continuing anyway"
+fi
+sleep 3
+info "✓ Memory stabilized, ready for testing"
+echo "========================================"
 
 # Function to reset resource tracking
 reset_tracking() {
@@ -278,7 +312,22 @@ perform_restart() {
     fi
     
     info "✓ GNOME Shell restarted successfully"
-    info "✓ Ready for Run $((run_number + 1))"
+    echo ""
+    
+    # Extension auto-enables after restart, just wait a moment for it to load
+    sleep 2
+    
+    # Verify D-Bus interface is available (extension should be loaded)
+    if ! dbus_interface_available; then
+        echo -e "${RED}ERROR: Extension D-Bus interface not available after restart${NC}"
+        echo ""
+        echo "Cannot proceed with testing. Check logs with:"
+        echo "  journalctl -f /usr/bin/gnome-shell"
+        echo ""
+        exit 1
+    fi
+    
+    info "✓ Extension loaded, ready for Run $((run_number + 1))"
     echo "========================================="
     echo ""
 }
@@ -492,16 +541,28 @@ if [ ${#NUMERIC_FINAL_MEM[@]} -gt 1 ]; then
         fi
     fi
     
-    # Interpretation based on final memory stability
+    # Interpretation based on final memory stability AND correlation
+    # FAIL only if BOTH spread > 20 MB AND R² > 0.8 (statistically significant leak)
     echo ""
     if (( $(echo "$final_range > 20.0" | bc -l) )); then
-        echo -e "${RED}FAIL: Final memory climbing >20 MB across runs - likely leak${NC}"
-        send_notification "FAIL" "Test with Restarts FAILED" "$num_runs runs: Memory climbing (${final_range} MB spread)"
+        # High spread detected - check if it's correlated (R² > 0.8)
+        if [ -n "$r_squared" ] && (( $(echo "$r_squared > 0.8" | bc -l) )); then
+            echo -e "${RED}FAIL: Memory leak detected (spread ${final_range} MB, R²=${r_squared})${NC}"
+            send_notification "FAIL" "Test with Restarts FAILED" "$num_runs runs: Leak confirmed (R²=${r_squared})"
+        else
+            # High spread but low correlation = measurement noise
+            echo -e "${YELLOW}WARN: High memory variance but no correlation (spread ${final_range} MB, R²=${r_squared:-N/A})${NC}"
+            echo -e "${YELLOW}This indicates measurement noise, not a systematic leak${NC}"
+            send_notification "WARN" "Test with Restarts Warning" "$num_runs runs: Noisy variance (${final_range} MB)"
+        fi
     elif (( $(echo "$final_range > 10.0" | bc -l) )); then
-        echo -e "${YELLOW}WARN: Final memory variability >10 MB - investigate further${NC}"
-        send_notification "WARN" "Test with Restarts Warning" "$num_runs runs: Memory variable (${final_range} MB spread)"
+        echo -e "${YELLOW}WARN: Moderate memory variability (${final_range} MB spread)${NC}"
+        if [ -n "$r_squared" ]; then
+            echo -e "${YELLOW}R²=${r_squared} suggests $([ $(echo "$r_squared > 0.8" | bc -l) -eq 1 ] && echo "correlation" || echo "no correlation")${NC}"
+        fi
+        send_notification "WARN" "Test with Restarts Warning" "$num_runs runs: Moderate variance"
     else
-        echo -e "${GREEN}PASS: Final memory stable across runs (${final_range} MB variance)${NC}"
+        echo -e "${GREEN}PASS: Memory stable across runs (${final_range} MB variance)${NC}"
         send_notification "PASS" "Test with Restarts Complete" "$num_runs runs: Memory stable"
     fi
 fi

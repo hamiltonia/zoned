@@ -81,7 +81,6 @@ function handleCanvasRepaint(canvas, zones, colors) {
     try {
         const cr = canvas.get_context();
         const [w, h] = canvas.get_surface_size();
-        const isDark = colors.isDark;
 
         // Larger inset for visible transparent gaps between zones
         // Card background color shows through these gaps
@@ -109,13 +108,13 @@ function handleCanvasRepaint(canvas, zones, colors) {
             const zh = zoneH - (gap * 2);
 
             // 1. Draw shadow (offset down-right, rounded)
-            cr.setSourceRGBA(0, 0, 0, isDark ? 0.35 : 0.2);
+            cr.setSourceRGBA(0, 0, 0, colors.isDark ? 0.35 : 0.2);
             roundedRect(cr, zx + shadowOffset, zy + shadowOffset, zw, zh, cornerRadius);
             cr.fill();
 
             // 2. Flat zone fill (single solid color - no gradient)
-            const fillGrey = isDark ? 0.45 : 0.55;
-            const fillAlpha = isDark ? 0.9 : 0.85;
+            const fillGrey = colors.isDark ? 0.45 : 0.55;
+            const fillAlpha = colors.isDark ? 0.9 : 0.85;
             cr.setSourceRGBA(fillGrey, fillGrey, fillGrey, fillAlpha);
             roundedRect(cr, zx, zy, zw, zh, cornerRadius);
             cr.fill();
@@ -125,14 +124,14 @@ function handleCanvasRepaint(canvas, zones, colors) {
             cr.save();
             roundedRect(cr, zx, zy, zw, zh, cornerRadius);
             cr.clip();
-            const highlightAlpha = isDark ? 0.45 : 0.55;
+            const highlightAlpha = colors.isDark ? 0.45 : 0.55;
             cr.setSourceRGBA(1, 1, 1, highlightAlpha);
             cr.rectangle(zx, zy, zw, highlightHeight);
             cr.fill();
             cr.restore();
 
             // 4. Subtle border for definition (rounded)
-            const borderGrey = isDark ? 0.3 : 0.35;
+            const borderGrey = colors.isDark ? 0.3 : 0.35;
             cr.setSourceRGBA(borderGrey, borderGrey, borderGrey, 0.5);
             cr.setLineWidth(1);
             roundedRect(cr, zx, zy, zw, zh, cornerRadius);
@@ -588,8 +587,6 @@ export function createZonePreview(ctx, zones) {
         x_expand: true,
         y_expand: true,
     });
-
-    const isDark = colors.isDark;
 
     // Use bound method with captured parameters to avoid closure leak
     const boundRepaint = handleCanvasRepaint.bind(null, canvas, zones, colors);

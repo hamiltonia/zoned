@@ -184,7 +184,9 @@ export function createTemplatesSection(ctx) {
         vertical: false,
         x_expand: false,
         x_align: Clutter.ActorAlign.CENTER,  // Center the row
-        style: `spacing: ${ctx._CARD_GAP}px; padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`,
+        style: `spacing: ${ctx._CARD_GAP}px; ` +
+            `padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; ` +
+            `padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`,
     });
 
     templates.forEach((template) => {
@@ -387,7 +389,10 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
     // Calculate fixed row width: 5 cards + 4 gaps
     const fixedRowWidth = (COLUMNS * ctx._cardWidth) + ((COLUMNS - 1) * ctx._CARD_GAP);
 
-    logger.debug(`[GRID] Creating grid with COLUMNS=${COLUMNS}, layouts=${layouts.length}, fixedRowWidth=${fixedRowWidth}`);
+    logger.debug(
+        `[GRID] Creating grid with COLUMNS=${COLUMNS}, layouts=${layouts.length}, ` +
+        `fixedRowWidth=${fixedRowWidth}`,
+    );
 
     // Container holds all rows, centered
     const container = new St.BoxLayout({
@@ -410,7 +415,9 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
             currentRow = new St.BoxLayout({
                 vertical: false,
                 x_expand: false,
-                style: `spacing: ${ctx._CARD_GAP}px; padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`,
+                style: `spacing: ${ctx._CARD_GAP}px; ` +
+                    `padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; ` +
+                    `padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`,
             });
             ctx._addDebugRect(currentRow, 'row', `Custom Row ${rowNumber}`);
             rowNumber++;
@@ -495,8 +502,12 @@ export function createNewLayoutButton(ctx) {
 
     // Use bound methods with captured parameters
     const boundClick = handleCreateButtonClick.bind(null, ctx);
-    const boundEnter = handleCreateButtonEnter.bind(null, button, verticalPadding, horizontalPadding, accentHexHover, cardRadius, buttonMargin);
-    const boundLeave = handleCreateButtonLeave.bind(null, button, verticalPadding, horizontalPadding, accentHex, cardRadius, buttonMargin);
+    const boundEnter = handleCreateButtonEnter.bind(
+        null, button, verticalPadding, horizontalPadding, accentHexHover, cardRadius, buttonMargin,
+    );
+    const boundLeave = handleCreateButtonLeave.bind(
+        null, button, verticalPadding, horizontalPadding, accentHex, cardRadius, buttonMargin,
+    );
 
     ctx._signalTracker.connect(button, 'clicked', boundClick);
     ctx._signalTracker.connect(button, 'enter-event', boundEnter);
