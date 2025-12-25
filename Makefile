@@ -65,19 +65,27 @@ help:
 	@printf "  make vm-delete VM=<name> - Delete VM and its disk image\n"
 	@printf "\n"
 	@printf "$(COLOR_SUCCESS)Stability Testing:$(COLOR_RESET)\n"
-	@printf "  make vm-stability-test   - Full test suite (~15-30 min, high iterations)\n"
-	@printf "  make vm-quick-test       - Quick verification (~3-5 min, low iterations)\n"
-	@printf "  make vm-leak-diagnostic  - Fast signal leak check (<1 min, 10 cycles)\n"
-	@printf "  make vm-actor-leak-check - Check for actor/texture leaks via Looking Glass\n"
-	@printf "  make vm-longhaul         - Interactive menu for focused long tests\n"
-	@printf "  make vm-test-restart     - Multi-run test with GNOME Shell restarts for clean baseline\n"
-	@printf "  make vm-longhaul-all DURATION=8h - Soak test: cycles through all tests repeatedly\n"
-	@printf "                           tracking per-test memory to identify leaks\n"
-	@printf "  make vm-analyze-tests  - Analyze latest test results and generate HTML report\n"
-	@printf "  make vm-test-single TEST=<name> - Run single test (e.g., window-movement)\n"
-	@printf "  make vm-stop-test      - Kill any running test processes in VM\n"
-	@printf "  make vm-enable-debug   - Enable debug features in VM\n"
-	@printf "  make vm-disable-debug  - Disable debug features in VM\n"
+	@printf "  $(COLOR_INFO)Functional Tests (vm-test-func):$(COLOR_RESET)\n"
+	@printf "    make vm-test-func              - Interactive functional test suite\n"
+	@printf "    make vm-test-func PRESET=full  - Full regression (~15-30 min)\n"
+	@printf "    make vm-test-func PRESET=quick - Quick verification (~3-5 min)\n"
+	@printf "    make vm-test-func PRESET=minimal - Fast smoke test (~1-2 min)\n"
+	@printf "\n"
+	@printf "  $(COLOR_INFO)Memory Tests (vm-test-mem):$(COLOR_RESET)\n"
+	@printf "    make vm-test-mem                  - Interactive memory leak testing\n"
+	@printf "    make vm-test-mem PRESET=standard  - All tests, variable 1-10min\n"
+	@printf "    make vm-test-mem PRESET=quick     - LayoutSwitcher, variable 1-4min\n"
+	@printf "    make vm-test-mem PRESET=deep      - All tests, variable 1-20min\n"
+	@printf "\n"
+	@printf "  $(COLOR_INFO)Advanced/Legacy:$(COLOR_RESET)\n"
+	@printf "    make vm-longhaul-all DURATION=8h  - Soak test with per-test analysis\n"
+	@printf "    make vm-leak-diagnostic           - Fast signal leak check (<1 min)\n"
+	@printf "    make vm-actor-leak-check          - Actor/texture leak check\n"
+	@printf "    make vm-test-single TEST=<name>   - Run single test\n"
+	@printf "    make vm-analyze-tests             - Analyze test results (HTML report)\n"
+	@printf "    make vm-stop-test                 - Kill running test processes\n"
+	@printf "    make vm-enable-debug              - Enable debug features\n"
+	@printf "    make vm-disable-debug             - Disable debug features\n"
 	@printf "\n"
 	@printf "$(COLOR_SUCCESS)Build/Packaging:$(COLOR_RESET)\n"
 	@printf "  make build          - Create extension zip for distribution\n"
@@ -330,21 +338,39 @@ vm-delete:
 	printf "$(COLOR_SUCCESS)✓ VM '$$VM_NAME' deleted successfully$(COLOR_RESET)\n"
 
 # VM Stability Testing targets
-vm-stability-test:
-	@printf "$(COLOR_INFO)Running full stability test suite in VM...$(COLOR_RESET)\n"
-	@if [ ! -f $(VM_CACHE) ]; then \
+vm-test-func:
+	@if [ -n "$(PRESET)" ]; then \
+		printf "$(COLOR_INFO)Running functional tests (preset: $(PRESET)) in VM...$(COLOR_RESET)\n"; \
+		ARGS="--preset $(PRESET)"; \
+	else \
+		printf "$(COLOR_INFO)Running interactive functional test suite in VM...$(COLOR_RESET)\n"; \
+		ARGS=""; \
+	fi; \
+	if [ ! -f $(VM_CACHE) ]; then \
 		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
 		exit 1; \
-	fi
-	@. ./$(VM_CACHE) && ssh $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/run-all.sh"
+	fi; \
+	. ./$(VM_CACHE) && ssh -t $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/vm-test-func $$ARGS"
+
+vm-test-mem:
+	@if [ -n "$(PRESET)" ]; then \
+		printf "$(COLOR_INFO)Running memory tests (preset: $(PRESET)) in VM...$(COLOR_RESET)\n"; \
+		ARGS="--preset $(PRESET)"; \
+	else \
+		printf "$(COLOR_INFO)Running interactive memory test suite in VM...$(COLOR_RESET)\n"; \
+		ARGS=""; \
+	fi; \
+	if [ ! -f $(VM_CACHE) ]; then \
+		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi; \
+	. ./$(VM_CACHE) && ssh -t $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/vm-test-mem $$ARGS"
+
+# Legacy aliases for backward compatibility
+vm-stability-test: vm-test-func
 
 vm-quick-test:
-	@printf "$(COLOR_INFO)Running quick stability tests in VM...$(COLOR_RESET)\n"
-	@if [ ! -f $(VM_CACHE) ]; then \
-		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
-		exit 1; \
-	fi
-	@. ./$(VM_CACHE) && ssh $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/run-all.sh --quick"
+	@$(MAKE) vm-test-func PRESET=quick
 
 vm-leak-diagnostic:
 	@printf "$(COLOR_INFO)Running quick leak diagnostic (<1 min)...$(COLOR_RESET)\n"
@@ -362,21 +388,22 @@ vm-actor-leak-check:
 	fi
 	@. ./$(VM_CACHE) && ssh -t $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/test-actor-leak-check.sh"
 
+# Legacy single-test memory runner (deprecated - use vm-test-mem instead)
 vm-longhaul:
-	@printf "$(COLOR_INFO)Starting interactive long-running test...$(COLOR_RESET)\n"
+	@printf "$(COLOR_WARN)Warning: vm-longhaul is deprecated. Use 'make vm-test-mem' instead.$(COLOR_RESET)\n"
+	@sleep 2
+	@printf "$(COLOR_INFO)Starting interactive memory test...$(COLOR_RESET)\n"
 	@if [ ! -f $(VM_CACHE) ]; then \
 		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
 		exit 1; \
 	fi
-	@. ./$(VM_CACHE) && ssh -t $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/test-longhaul-interactive.sh"
+	@. ./$(VM_CACHE) && ssh -t $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/test-memory-monitored.sh"
 
+# Legacy restart test (deprecated - use vm-test-mem instead)
 vm-test-restart:
-	@printf "$(COLOR_INFO)Starting multi-run test with manual restarts...$(COLOR_RESET)\n"
-	@if [ ! -f $(VM_CACHE) ]; then \
-		printf "$(COLOR_ERROR)VM not configured. Run 'make vm-setup' first.$(COLOR_RESET)\n"; \
-		exit 1; \
-	fi
-	@. ./$(VM_CACHE) && ssh -t $${VM_DOMAIN} "cd $${VM_MOUNT_PATH} && ./scripts/vm-test/test-with-restarts.sh"
+	@printf "$(COLOR_WARN)Warning: vm-test-restart is deprecated. Use 'make vm-test-mem' instead.$(COLOR_RESET)\n"
+	@sleep 2
+	@$(MAKE) vm-test-mem
 
 # Default long haul duration (DURATION is alias for convenience)
 LONG_HAUL_DURATION ?= 8h

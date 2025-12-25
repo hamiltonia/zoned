@@ -45,47 +45,124 @@ This configures SSH from VM to host and tests the notification system. Once set 
 
 ## Running Tests
 
+### Test Runners Overview
+
+**Two primary test runners:**
+
+1. **`vm-test-func`** - Functional regression testing
+   - Runs all 9 test suites sequentially
+   - Focus: Verify functionality, basic memory checks
+   - Use for: Pre-release testing, regression checks
+
+2. **`vm-test-mem`** - Memory leak testing with restarts
+   - Runs specific tests multiple times with GNOME Shell restarts
+   - Focus: Deep memory analysis, leak detection with statistical correlation
+   - Use for: Memory leak investigation, proof of fixes
+
 ### From Host (via Makefile)
 
+**Functional Testing:**
 ```bash
-# Full stability test suite
-make vm-stability-test
+# Interactive mode (prompts for full/quick/minimal)
+make vm-test-func
 
-# Quick mode (reduced iterations)
-make vm-quick-test
+# Non-interactive with presets
+make vm-test-func PRESET=full      # Full regression (~15-30 min)
+make vm-test-func PRESET=quick     # Quick verification (~3-5 min)
+make vm-test-func PRESET=minimal   # Fast smoke test (~1-2 min)
+```
 
-# Long-haul soak test (extended duration)
-make vm-long-haul DURATION=1h
+**Memory Testing:**
+```bash
+# Interactive mode (prompts for test selection)
+make vm-test-mem
+
+# Non-interactive with presets
+make vm-test-mem PRESET=standard   # All tests, variable 1-10min
+make vm-test-mem PRESET=quick      # LayoutSwitcher, variable 1-4min
+make vm-test-mem PRESET=deep       # All tests, variable 1-20min
+```
+
+**Advanced (Long-Haul Soak Testing):**
+```bash
+# Cycles through all 9 tests repeatedly with per-test memory tracking
+make vm-longhaul-all DURATION=8h
 ```
 
 ### Inside VM
 
+**Functional Testing:**
 ```bash
-# Full stability mode
-./scripts/vm-test/run-all.sh
+# Interactive
+./scripts/vm-test/vm-test-func
 
-# Quick mode
-./scripts/vm-test/run-all.sh --quick
+# Non-interactive
+./scripts/vm-test/vm-test-func --preset full
+./scripts/vm-test/vm-test-func --preset quick
+./scripts/vm-test/vm-test-func --preset minimal
+```
 
-# Long-haul mode
+**Memory Testing:**
+```bash
+# Interactive
+./scripts/vm-test/vm-test-mem
+
+# Non-interactive
+./scripts/vm-test/vm-test-mem --preset standard
+./scripts/vm-test/vm-test-mem --preset quick
+./scripts/vm-test/vm-test-mem --preset deep
+```
+
+**Advanced:**
+```bash
+# Long-haul soak test with per-test analysis
 ./scripts/vm-test/run-all.sh --long-haul 8h
 ```
 
-## Test Modes
+## Test Runner Details
 
-### Stability Mode (default)
+### vm-test-func (Functional Testing)
 
-Full verification with substantial iterations per test. Use before releases or after significant changes.
+Runs all 9 test suites sequentially to verify functionality.
 
-### Quick Mode (`--quick`)
-
-Reduced iterations for fast sanity checks during development.
-
-### Long-Haul Mode (`--long-haul DURATION`)
-
-Extended soak testing that cycles through all 9 tests repeatedly for the specified duration (e.g., `8h`, `30m`, `1h30m`).
+**Presets:**
+- `full` - Full regression (50-500 iterations per test, ~15-30 min)
+- `quick` - Quick verification (10-100 iterations per test, ~3-5 min)
+- `minimal` - Fast smoke test (5-50 iterations per test, ~1-2 min)
 
 **Features:**
+- Sequential test execution (no restarts)
+- Basic memory tracking with warn/fail thresholds
+- Comprehensive coverage of all 9 test types
+- Background memory monitoring with CSV export
+
+### vm-test-mem (Memory Leak Testing)
+
+Runs specific tests multiple times with GNOME Shell restarts between runs for deep memory analysis.
+
+**Presets:**
+- `standard` - All 3 tests, variable 1-10min duration (recommended)
+- `quick` - LayoutSwitcher only, variable 1-4min (fast check)
+- `deep` - All 3 tests, variable 1-20min (thorough analysis)
+
+**Features:**
+- Tests: Enable/Disable, LayoutSwitcher, ZoneOverlay
+- **GNOME Shell restarts between runs** for clean baseline
+- **Variable duration runs** (1min, 2min, 3min, etc.) for correlation analysis
+- **Statistical analysis** with R² correlation to detect systematic leaks
+- Distinguishes measurement noise from actual leaks
+
+**Output interpretation:**
+- `PASS` - Memory stable across runs (variance <10 MB)
+- `WARN` - High variance but no correlation (measurement noise)
+- `FAIL` - High variance AND strong correlation (R² > 0.8) = confirmed leak
+
+### Long-Haul Mode (Advanced)
+
+Extended soak testing via `run-all.sh --long-haul DURATION`.
+
+**Features:**
+- Cycles through all 9 tests repeatedly for specified duration
 - Per-test memory delta tracking to identify consistent leakers
 - Statistical analysis (min/max/avg/stddev) to distinguish GC noise from real leaks
 - Safety limits with automatic shutdown if memory exceeds thresholds
@@ -233,22 +310,42 @@ gdbus call -e -d org.gnome.Shell \
 
 ```
 scripts/vm-test/
-├── README.md                # This file
-├── run-all.sh               # Run complete test suite
-├── test-enable-disable.sh   # Extension lifecycle test
-├── test-ui-stress.sh        # UI component stress test
-├── test-zone-cycling.sh     # Zone cycling test
-├── test-layout-switching.sh # Layout switching test
-├── test-combined-stress.sh  # Combined operations stress test
-├── test-multi-monitor.sh    # Multi-monitor test
-├── test-window-movement.sh  # Window movement test
-├── test-edge-cases.sh       # Edge case and boundary tests
-├── test-workspace.sh        # Per-workspace layout tests
+├── README.md                    # This file
+│
+├── vm-test-func                 # Functional test runner (interactive + presets)
+├── vm-test-mem                  # Memory test runner (interactive + presets)
+├── run-all.sh                   # Legacy/advanced runner (long-haul mode)
+│
+├── test-memory-monitored.sh     # Single memory test with live monitoring
+├── test-enable-disable.sh       # Individual test implementations
+├── test-ui-stress.sh
+├── test-zone-cycling.sh
+├── test-layout-switching.sh
+├── test-combined-stress.sh
+├── test-multi-monitor.sh
+├── test-window-movement.sh
+├── test-edge-cases.sh
+├── test-workspace.sh
+│
 └── lib/
-    ├── setup.sh             # Test setup and prerequisites
-    ├── dbus-helpers.sh      # D-Bus interaction utilities
-    ├── assertions.sh        # Test assertion functions
-    └── test-window.py       # GTK4 test window with D-Bus
+    ├── setup.sh                 # Test setup and prerequisites
+    ├── dbus-helpers.sh          # D-Bus interaction utilities
+    ├── assertions.sh            # Test assertion functions
+    └── test-window.py           # GTK4 test window with D-Bus
+```
+
+### Runner Hierarchy
+
+```
+vm-test-func (functional regression)
+  └── Calls test-*.sh directly (9 tests sequentially)
+
+vm-test-mem (memory leak testing)
+  └── Calls test-memory-monitored.sh multiple times with restarts
+      └── Runs one of: Enable/Disable, LayoutSwitcher, or ZoneOverlay
+
+run-all.sh --long-haul (advanced soak testing)
+  └── Calls all test-*.sh repeatedly in cycles
 ```
 
 ## See Also

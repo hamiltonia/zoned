@@ -1,73 +1,82 @@
-Fix memory leak regression and improve code quality
+Refactor VM test infrastructure for clarity and usability
 
-Root Cause Analysis:
-- Memory leak regression detected after adding "full production" features
-- Pre-fix: R²=0.890 (strong correlation indicating leak)
-- Post-fix: R²=0.029 (no correlation, leak eliminated)
-- Improvement: 97% reduction in correlation coefficient
+Reorganized the VM test infrastructure from an ad-hoc collection of scripts
+into a clean, purposeful structure with two primary test runners and clear
+use cases.
 
-Primary Issues Fixed:
-1. Component initialization order (R²=0.891 - PRIMARY CULPRIT)
-   - LayoutManager/WindowManager moved too early broke dependency chain
-   - PanelIndicator requires LayoutManager + LayoutSwitcher to exist first
-   - Fixed by restoring correct initialization sequence
+## Changes
 
-2. Signal recursion in preview feature (R²=0.712 - SECONDARY CULPRIT)
-   - _previewSignal connection created potential recursive loop
-   - Added _handlingPreview recursion guard flag
-   - Prevents infinite signal triggering during preview handling
+### New Test Runners
 
-Testing Infrastructure Improvements:
-3. Created extension initialization verification system
-   - New: scripts/vm-test/verify-extension-init.sh
-   - Detects extension load failures before running tests
-   - Uses D-Bus InitCompleted signal for early detection
-   - Updated: scripts/vm-test/lib/dbus-helpers.sh with wait_for_init_signal()
-   - Updated: extension/utils/debugInterface.js with emitInitCompleted()
+1. **vm-test-mem** (Memory Leak Testing)
+   - Renamed from test-with-restarts.sh
+   - Added preset support: standard, quick, deep
+   - Added interactive mode with prompts
+   - Tests specific operations with GNOME Shell restarts between runs
+   - Statistical correlation analysis (R²) to detect systematic leaks
+   - Distinguishes measurement noise from actual leaks
 
-4. Fixed test methodology inconsistency
-   - Test Run 1 used different initialization path than Runs 2-4
-   - Added GNOME Shell restart after verification for consistency
-   - Added force_gc() call to reduce memory variance (28.8 MB → 6.2 MB)
-   - Improved fail logic: require spread >20MB AND R²>0.8
+2. **vm-test-func** (Functional Regression Testing)
+   - Evolved from run-all.sh
+   - Added preset support: full, quick, minimal
+   - Added interactive mode with prompts
+   - Runs all 9 tests sequentially for comprehensive verification
+   - Removed long-haul mode (now exclusive to run-all.sh)
 
-Code Quality Improvements:
-5. Fixed all ESLint warnings (25 → 0)
-   - Auto-fixed: 18 warnings (trailing spaces, comma-dangle)
-   - Manual fixes:
-     * extension/utils/debugInterface.js: Renamed pid → _pid (unused var)
-     * extension/ui/layoutSwitcher/cardFactory.js: Removed duplicate isDark
-     * extension/prefs.js: Fixed 5 line-length violations (>120 chars)
-     * extension/ui/layoutSwitcher/sectionFactory.js: Fixed 5 line-length violations
+3. **test-memory-monitored.sh** (Test Engine)
+   - Renamed from test-longhaul-interactive.sh
+   - Single memory test with live 30-second monitoring
+   - Called by vm-test-mem for each test run
+   - Can also be used standalone for ad-hoc testing
 
-Documentation:
-6. Consolidated investigation docs
-   - Created: MEMORY_LEAK_REGRESSION_REPORT.md (comprehensive report)
-   - Removed: ISOLATION_TEST_PLAN.md (consolidated)
-   - Removed: TEST_CODE_SNIPPETS.md (consolidated)
-   - Removed: VERIFICATION_TASK.md (consolidated)
+### Makefile Updates
 
-Files Modified:
-- extension/extension.js (init order, recursion guard)
-- extension/utils/debugInterface.js (InitCompleted signal, unused var fix)
-- extension/ui/layoutSwitcher/cardFactory.js (duplicate var fix)
-- extension/prefs.js (line length fixes, quote fixes)
-- extension/ui/layoutSwitcher/sectionFactory.js (line length fixes)
-- scripts/vm-test/test-with-restarts.sh (methodology improvements)
-- scripts/vm-test/lib/dbus-helpers.sh (init verification functions)
+- Added `vm-test-mem` and `vm-test-func` targets
+- Both support PRESET parameter for non-interactive mode
+- Updated help text to clearly display available presets
+- Legacy aliases maintained for backward compatibility:
+  - vm-stability-test → vm-test-func
+  - vm-quick-test → vm-test-func PRESET=quick
+  - vm-longhaul → test-memory-monitored.sh (deprecated warning)
+  - vm-test-restart → vm-test-mem (deprecated warning)
 
-Files Created:
-- scripts/vm-test/verify-extension-init.sh (standalone verification)
-- MEMORY_LEAK_REGRESSION_REPORT.md (investigation documentation)
+### Documentation
 
-Files Deleted:
-- ISOLATION_TEST_PLAN.md
-- TEST_CODE_SNIPPETS.md
-- VERIFICATION_TASK.md
+- Updated scripts/vm-test/README.md with:
+  - Test runner overview and use cases
+  - Preset documentation for both runners
+  - Runner hierarchy diagram
+  - Updated file structure
 
-Test Results:
-- Enable/Disable test: R²=0.029, 6.2 MB spread ✅ PASS
-- ESLint: 0 warnings ✅ PASS
-- Extension initialization: Verified via D-Bus ✅ PASS
+### Deleted Files
+
+- test-with-restarts.sh (replaced by vm-test-mem)
+- test-longhaul-interactive.sh (replaced by test-memory-monitored.sh)
+
+## Rationale
+
+The previous structure evolved ad-hoc during memory leak debugging, resulting in:
+- Overlapping functionality between test-with-restarts and test-longhaul-interactive
+- Confusion about which test to use for which purpose
+- No clear automation path (all tests required interactive prompts)
+
+The new structure provides:
+- **Clear separation**: vm-test-mem for memory testing, vm-test-func for regression
+- **Flexibility**: Interactive mode for investigation, presets for automation
+- **Consistency**: Both runners follow the same preset pattern
+- **Documentation**: Make help clearly shows available options
+
+## Usage Examples
+
+Functional testing:
+  make vm-test-func                # Interactive
+  make vm-test-func PRESET=quick   # CI/automation
+
+Memory testing:
+  make vm-test-mem                   # Interactive investigation
+  make vm-test-mem PRESET=standard   # Standard memory test
+
+Long-haul soak testing:
+  make vm-longhaul-all DURATION=8h   # Advanced per-test analysis
 
 Modified by Cline
