@@ -423,12 +423,78 @@ perform_restart() {
 }
 
 # Run all test iterations
-for i in $(seq 1 $num_runs); do
-    run_single_test "$i"
+# Outer loop: iterate through each test choice
+for test_choice in "${TEST_CHOICES[@]}"; do
+    # Determine test name for this choice
+    case $test_choice in
+        1) TEST_NAME="Enable/Disable" ;;
+        2) TEST_NAME="LayoutSwitcher" ;;
+        3) TEST_NAME="Zone Overlay" ;;
+    esac
     
-    # Perform automated restart if not last run
-    if [ "$i" -lt "$num_runs" ]; then
-        perform_restart "$i"
+    # If multiple tests, print separator
+    if [ ${#TEST_CHOICES[@]} -gt 1 ]; then
+        echo ""
+        echo ""
+        echo "========================================"
+        echo "  STARTING TEST: $TEST_NAME"
+        echo "========================================"
+        echo ""
+    fi
+    
+    # Inner loop: run this test multiple times with restarts
+    for i in $(seq 1 $num_runs); do
+        run_single_test "$i"
+        
+        # Perform automated restart if not last run of this test
+        if [ "$i" -lt "$num_runs" ]; then
+            perform_restart "$i"
+        fi
+    done
+    
+    # Display final report for this test if multiple tests
+    if [ ${#TEST_CHOICES[@]} -gt 1 ]; then
+        # Clean up temp file
+        rm -f "$TEMP_RESULT_FILE"
+        
+        # Display final report
+        echo ""
+        echo ""
+        echo "========================================"
+        echo "  FINAL REPORT: $TEST_NAME"
+        echo "========================================"
+        echo ""
+        echo "Test: $TEST_NAME"
+        if $VARIABLE_DURATION; then
+            echo "Duration: Variable (${DURATIONS[*]} minutes)"
+        else
+            echo "Duration: ${DURATIONS[0]} minutes per run"
+        fi
+        echo "Delay: ${delay_ms}ms per operation"
+        echo "Runs: $num_runs"
+        echo ""
+        echo "Results (start → final memory across runs):"
+        echo "----------------------------------------"
+        
+        # Display individual results with start → final format
+        for j in $(seq 0 $((num_runs - 1))); do
+            run_num=$((j + 1))
+            duration_label=""
+            if $VARIABLE_DURATION; then
+                duration_label=" (${DURATIONS[$j]} min)"
+            fi
+            
+            printf "  Run %d%s: Start %s MB → Final %s MB  [Init cost: %s MB, %s cycles]\n" \
+                   "$run_num" "$duration_label" "${RESULTS_START_MEM[$j]}" "${RESULTS_FINAL_MEM[$j]}" "${RESULTS_MB[$j]}" "${RESULTS_CYCLES[$j]}"
+        done
+        echo "========================================"
+        
+        # Reset results for next test
+        RESULTS_MB=()
+        RESULTS_CYCLES=()
+        RESULTS_START_MEM=()
+        RESULTS_FINAL_MEM=()
+        RESULTS_DEVIATION=()
     fi
 done
 
