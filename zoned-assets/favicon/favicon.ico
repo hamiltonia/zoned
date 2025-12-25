@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="256"
+   height="256"
+   viewBox="0 0 16 16"
+   version="1.1"
+   id="svg18"
+   sodipodi:docname="favicon.ico"
+   inkscape:version="1.4.2 (ebf0e940d0, 2025-05-08)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview18"
+     pagecolor="#505050"
+     bordercolor="#eeeeee"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#505050"
+     inkscape:zoom="2.8789062"
+     inkscape:cx="127.82632"
+     inkscape:cy="128"
+     inkscape:window-width="1920"
+     inkscape:window-height="948"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg18" />
+  <defs
+     id="defs11">
+    <!-- Dark gradient for columns -->
+    <linearGradient
+       id="dark-column"
+       x1="0%"
+       y1="0%"
+       x2="0%"
+       y2="100%">
+      <stop
+         offset="0%"
+         style="stop-color:#475569;stop-opacity:1"
+         id="stop1" />
+      <stop
+         offset="100%"
+         style="stop-color:#1e293b;stop-opacity:1"
+         id="stop2" />
+    </linearGradient>
+    <!-- Cyan neon for Z -->
+    <linearGradient
+       id="neon-cyan"
+       x1="0%"
+       y1="0%"
+       x2="0%"
+       y2="100%">
+      <stop
+         offset="0%"
+         style="stop-color:#22d3ee;stop-opacity:1"
+         id="stop3" />
+      <stop
+         offset="100%"
+         style="stop-color:#06b6d4;stop-opacity:1"
+         id="stop4" />
+    </linearGradient>
+    <!-- Grid pattern -->
+    <pattern
+       id="grid"
+       width="2"
+       height="2"
+       patternUnits="userSpaceOnUse">
+      <path
+         d="M 2 0 L 0 0 0 2"
+         fill="none"
+         stroke="#1e293b"
+         stroke-width="0.05"
+         opacity="0.3"
+         id="path4" />
+    </pattern>
+    <radialGradient
+       id="bg-dark"
+       cx="50%"
+       cy="40%">
+      <stop
+         offset="0%"
+         style="stop-color:#1e293b;stop-opacity:1"
+         id="stop5" />
+      <stop
+         offset="100%"
+         style="stop-color:#0f172a;stop-opacity:1"
+         id="stop6" />
+    </radialGradient>
+    <!-- Neon glow effect -->
+    <filter
+       id="neon-glow"
+       x="-0.078260873"
+       y="-0.056250002"
+       width="1.1565217"
+       height="1.1125">
+      <feGaussianBlur
+         in="SourceGraphic"
+         stdDeviation="0.15"
+         result="blur"
+         id="feGaussianBlur6" />
+      <feColorMatrix
+         in="blur"
+         mode="matrix"
+         values="0 0 0 0 0.133                              0 0 0 0 0.714                              0 0 0 0 0.831                              0 0 0 0.8 0"
+         result="glow"
+         id="feColorMatrix6" />
+      <feMerge
+         id="feMerge8">
+        <feMergeNode
+           in="glow"
+           id="feMergeNode6" />
+        <feMergeNode
+           in="glow"
+           id="feMergeNode7" />
+        <feMergeNode
+           in="SourceGraphic"
+           id="feMergeNode8" />
+      </feMerge>
+    </filter>
+    <!-- Edge highlight -->
+    <linearGradient
+       id="edge-light"
+       x1="0%"
+       y1="0%"
+       x2="100%"
+       y2="0%">
+      <stop
+         offset="0%"
+         style="stop-color:#64748b;stop-opacity:0"
+         id="stop8" />
+      <stop
+         offset="50%"
+         style="stop-color:#cbd5e1;stop-opacity:0.6"
+         id="stop9" />
+      <stop
+         offset="100%"
+         style="stop-color:#64748b;stop-opacity:0"
+         id="stop10" />
+    </linearGradient>
+    <filter
+       id="dark-shadow"
+       x="-0.057142861"
+       y="-0.035294117"
+       width="1.1142857"
+       height="1.0926471">
+      <feGaussianBlur
+         in="SourceAlpha"
+         stdDeviation="0.1"
+         id="feGaussianBlur10" />
+      <feOffset
+         dx="0"
+         dy="0.15"
+         result="offsetblur"
+         id="feOffset10" />
+      <feComponentTransfer
+         id="feComponentTransfer10">
+        <feFuncA
+           type="linear"
+           slope="0.5"
+           id="feFuncA10" />
+      </feComponentTransfer>
+      <feMerge
+         id="feMerge11">
+        <feMergeNode
+           id="feMergeNode10" />
+        <feMergeNode
+           in="SourceGraphic"
+           id="feMergeNode11" />
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- Background -->
+  <rect
+     width="16"
+     height="16"
+     fill="url(#bg-dark)"
+     rx="2"
+     id="rect11" />
+  <rect
+     width="16"
+     height="16"
+     fill="url(#grid)"
+     rx="2"
+     opacity="0.4"
+     id="rect12" />
+  <!-- FULL-BLEED ZONE: Fills almost entire space with minimal padding -->
+  <!-- Left column (full height) - starts at 0.8, ends at 15.2 (14.4 units tall) -->
+  <rect
+     x="0.8"
+     y="0.8"
+     width="4.2"
+     height="14.4"
+     rx="0.4"
+     fill="url(#dark-column)"
+     filter="url(#dark-shadow)"
+     id="rect13" />
+  <rect
+     x="0.8"
+     y="0.8"
+     width="4.2"
+     height="0.2"
+     rx="0.4"
+     fill="url(#edge-light)"
+     id="rect14" />
+  <!-- Middle column (full height) -->
+  <rect
+     x="5.8"
+     y="0.8"
+     width="4.2"
+     height="14.4"
+     rx="0.4"
+     fill="url(#dark-column)"
+     filter="url(#dark-shadow)"
+     id="rect15" />
+  <rect
+     x="5.8"
+     y="0.8"
+     width="4.2"
+     height="0.2"
+     rx="0.4"
+     fill="url(#edge-light)"
+     id="rect16" />
+  <!-- Right: Z on top (much larger) -->
+  <path
+     d="M 11 0.8            L 15 0.8            C 15.15 0.8, 15.3 0.95, 15.3 1.1            L 15.3 1.6            C 15.3 1.85, 15.15 2.1, 14.9 2.35            L 12 5.25            C 11.75 5.5, 11.75 5.75, 12 5.75            L 15 5.75            C 15.15 5.75, 15.3 5.9, 15.3 6.05            L 15.3 6.7            C 15.3 6.95, 15.15 7.2, 15 7.2            L 11 7.2            C 10.85 7.2, 10.7 6.95, 10.7 6.7            L 10.7 6.05            C 10.7 5.9, 10.85 5.65, 11.1 5.4            L 14 2.5            C 14.25 2.25, 14.25 2, 14 2            L 11 2            C 10.85 2, 10.7 1.85, 10.7 1.7            L 10.7 1.1            C 10.7 0.95, 10.85 0.8, 11 0.8 Z"
+     fill="url(#neon-cyan)"
+     filter="url(#neon-glow)"
+     id="path16" />
+  <path
+     d="M 11 0.8            L 15 0.8            C 15.15 0.8, 15.3 0.95, 15.3 1.1            L 15.3 0.95            L 10.7 0.95            L 10.7 1.1            C 10.7 0.95, 10.85 0.8, 11 0.8 Z"
+     fill="#ffffff"
+     opacity="0.7"
+     id="path17" />
+  <!-- Right: window below (larger) -->
+  <rect
+     x="10.8"
+     y="8.4"
+     width="4.4"
+     height="6.8"
+     rx="0.4"
+     fill="url(#dark-column)"
+     filter="url(#dark-shadow)"
+     id="rect17" />
+  <rect
+     x="10.8"
+     y="8.4"
+     width="4.4"
+     height="0.2"
+     rx="0.4"
+     fill="url(#edge-light)"
+     id="rect18" />
+</svg>

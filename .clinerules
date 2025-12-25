@@ -1,0 +1,61 @@
+## Communication Style
+- Provide clear, technical explanations without unnecessary conversational fluff
+- Offer command-line solutions when available
+- Cross-reference related memory bank entries when relevant
+- Be direct and to-the-point while being thorough
+
+## Project Workflow
+- Update memory bank context files when system state changes
+- Document new scripts and configurations
+- Maintain clean, organized file structure
+- Use git for version control and change tracking
+- Prefer automation and reproducible setups
+
+## Code Standards
+- Use consistent markdown formatting in memory bank
+- Include timestamps in documentation
+- Add cross-references between related topics
+- Use descriptive filenames and directory structure
+- Comment shell scripts and configurations clearly
+
+## Code Attribution Policy
+- **NEVER** include "Created by Cline" or "Modified by Cline" in source code files
+- Code attribution belongs in git commit messages, not in code comments
+- **Rationale**: 99.99% of this code is written by Cline; inline attribution is redundant and clutters the codebase
+- **Exception**: Documentation files (*.md) may reference Cline when contextually appropriate
+- **Git history is the source of truth**: All attribution is preserved in commit messages where it belongs
+
+## Git Workflow and Attribution
+- **CRITICAL**: Do NOT stage files (`git add`) without explicit user request
+- **CRITICAL**: Do NOT ask about committing until user explicitly requests a commit
+- **CRITICAL**: Do NOT push without explicit user request
+- **Rationale**: User prefers to stage files manually to watch incremental diffs during development
+- **When User Requests a Commit**:
+  1. Stage ALL modified/new/deleted files with `git add -A`
+  2. **Determine what needs inspection**:
+     - For files I worked on in this session: Use existing context from the conversation (no re-inspection needed)
+     - For files I don't have context about: Inspect those files to understand the changes
+  3. Prepare a comprehensive commit message covering ALL staged changes
+  4. Include "Created by Cline" or "Modified by Cline" attribution
+  5. Present the staged changes and proposed commit message to user
+  6. Use `ask_followup_question` to explicitly request approval to commit
+  7. Only execute `git commit` after receiving explicit user approval
+- **Efficiency Note**: Skip redundant file inspection when context is already known from the current session
+- **Attribution Format**: Include "Created by Cline" or "Modified by Cline" in all commit messages
+- **Example**: "Add Debian support for shell scripts - Modified by Cline"
+
+## Testing and Deployment
+- **CRITICAL**: NEVER execute `make install`, `make compile-schema`, or any deployment commands without explicit user permission
+- **Testing Location**: All testing is done in the VM environment, not locally
+- **Deployment Workflow**:
+  1. Make code changes as requested
+  2. Inform user that changes are complete and ready for testing
+  3. Wait for user to deploy to VM and test
+  4. Do NOT automatically run install/build commands
+- **Rationale**: User controls when and where code is deployed to avoid disrupting local system
+
+## Notes
+- Always check existing memory bank entries before creating new ones
+- Update system state documentation after major changes
+- Maintain the balance between comprehensive documentation and usability
+- Remember that this repository serves as both personal configuration and learning resource

@@ -1,0 +1,16 @@
+{
+  "uuid": "zoned@hamiltonia.me",
+  "name": "Zoned",
+  "description": "FancyZones-style window management for GNOME. Organize windows into customizable zones with keyboard-driven workflows.",
+  "version": 1,
+  "shell-version": [
+    "46",
+    "47",
+    "48",
+    "49"
+  ],
+  "url": "https://github.com/hamiltonia/zoned",
+  "settings-schema": "org.gnome.shell.extensions.zoned",
+  "gettext-domain": "zoned@hamiltonia.me",
+  "stylesheet": "stylesheet.css"
+}

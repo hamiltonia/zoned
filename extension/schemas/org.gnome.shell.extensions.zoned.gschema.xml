@@ -1,0 +1,455 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.zoned" path="/org/gnome/shell/extensions/zoned/">
+    
+    <!-- State persistence -->
+    <key name="templates-version" type="i">
+      <default>0</default>
+      <summary>Installed templates version</summary>
+      <description>
+        Tracks the version of built-in templates installed to user config.
+        When extension ships newer templates (higher version), they are
+        automatically migrated while preserving user custom layouts.
+      </description>
+    </key>
+    
+    <key name="current-layout-id" type="s">
+      <default>"split"</default>
+      <summary>Current active layout ID</summary>
+      <description>
+        The ID of the currently active window layout layout.
+      </description>
+    </key>
+    
+    <key name="current-zone-index" type="i">
+      <default>0</default>
+      <summary>Current zone index</summary>
+      <description>
+        The index of the currently active zone within the current layout (0-based).
+      </description>
+    </key>
+    
+    <!-- Keybindings -->
+    <key name="cycle-zone-left" type="as">
+      <default>['&lt;Super&gt;Left']</default>
+      <summary>Cycle to previous zone</summary>
+      <description>
+        Move the focused window to the previous zone in the current layout.
+      </description>
+    </key>
+    
+    <key name="cycle-zone-right" type="as">
+      <default>['&lt;Super&gt;Right']</default>
+      <summary>Cycle to next zone</summary>
+      <description>
+        Move the focused window to the next zone in the current layout.
+      </description>
+    </key>
+    
+    <key name="show-layout-picker" type="as">
+      <default>['&lt;Super&gt;grave']</default>
+      <summary>Open Layout Switcher</summary>
+      <description>
+        Display the Layout Switcher dialog for selecting and managing layouts.
+      </description>
+    </key>
+    
+    <!-- Quick Layout Shortcuts (optional feature) -->
+    <key name="quick-layout-shortcuts-enabled" type="b">
+      <default>false</default>
+      <summary>Enable quick layout shortcuts</summary>
+      <description>
+        When enabled, registers global shortcuts (Super+Ctrl+Alt+1-9) to quickly switch
+        layouts. When disabled, number keys 1-9 still work within the Layout Switcher dialog.
+      </description>
+    </key>
+    
+    <!-- Enhanced Windows Management (optional feature) -->
+    <key name="enhanced-window-management-enabled" type="b">
+      <default>true</default>
+      <summary>Enable enhanced window management</summary>
+      <description>
+        When enabled, adds Windows-like minimize/maximize shortcuts (Super+Down/Up).
+        Super+Down minimizes a window; pressing again restores it.
+        Super+Up restores a minimized window, or toggles maximize on normal windows.
+      </description>
+    </key>
+    
+    <key name="minimize-window" type="as">
+      <default>['&lt;Super&gt;Down']</default>
+      <summary>Minimize or restore window</summary>
+      <description>
+        Minimize the focused window. If pressed again while the same window is 
+        minimized, restore it. Requires enhanced-window-management-enabled.
+      </description>
+    </key>
+    
+    <key name="maximize-window" type="as">
+      <default>['&lt;Super&gt;Up']</default>
+      <summary>Restore or toggle maximize</summary>
+      <description>
+        If a window was minimized with Super+Down, restore it. Otherwise, toggle 
+        between maximized and floating state. Requires enhanced-window-management-enabled.
+      </description>
+    </key>
+    
+    <!-- Layout Switcher Settings -->
+    <key name="layout-picker-size" type="d">
+      <default>0.8</default>
+      <range min="0.3" max="0.9"/>
+      <summary>Layout Switcher dialog size</summary>
+      <description>
+        Size of the Layout Switcher dialog as a fraction of screen size (0.3-0.9). Default is 0.8 (80%).
+      </description>
+    </key>
+    
+    <!-- Layout Management Settings -->
+    <key name="layout-order" type="as">
+      <default>[]</default>
+      <summary>Custom layout order</summary>
+      <description>
+        Array of layout IDs in custom display order. Empty array means use natural order.
+      </description>
+    </key>
+    
+    <!-- Panel Indicator Visibility -->
+    <key name="show-panel-indicator" type="b">
+      <default>true</default>
+      <summary>Show panel indicator</summary>
+      <description>
+        Show the Zoned icon in the top bar panel. When disabled, all 
+        functionality remains accessible via keyboard shortcuts, the 
+        Layout Switcher, and the Extensions app settings.
+      </description>
+    </key>
+    
+    <!-- UI Theme Preference -->
+    <key name="ui-theme" type="s">
+      <default>"system"</default>
+      <summary>UI color theme preference</summary>
+      <description>
+        Color scheme for extension UI dialogs. Options: 'system' (follows GNOME color-scheme), 
+        'light' (force light mode), 'dark' (force dark mode). Default is 'system'.
+      </description>
+    </key>
+    
+    <!-- Workspace-specific layouts -->
+    <key name="use-per-workspace-layouts" type="b">
+      <default>false</default>
+      <summary>Use different layouts per workspace</summary>
+      <description>
+        When enabled, each workspace can have its own layout. When disabled, 
+        the layout applies globally to all workspaces.
+      </description>
+    </key>
+    
+    <key name="workspace-layout-map" type="s">
+      <default>"{}"</default>
+      <summary>Workspace to layout mapping (deprecated)</summary>
+      <description>
+        DEPRECATED: Migrated to spatial-state-map on first load.
+        JSON object mapping workspace indices to layout IDs. 
+        Example: {"0": "layout-halves", "1": "layout-code"}
+      </description>
+    </key>
+    
+    <!-- Spatial state (per-space layouts) -->
+    <key name="spatial-state-map" type="s">
+      <default>"{}"</default>
+      <summary>Per-space layout state</summary>
+      <description>
+        JSON mapping "connector:workspace" to {layoutId, zoneIndex}.
+        Example: {"DP-1:0": {"layoutId": "halves", "zoneIndex": 0}}
+        Connector is the hardware port name (eDP-1, HDMI-1, DP-2, etc.)
+      </description>
+    </key>
+    
+    <key name="last-selected-layout" type="s">
+      <default>"split"</default>
+      <summary>Most recently selected layout</summary>
+      <description>
+        Used as default for unconfigured spaces when per-space mode enabled.
+        Also serves as fallback when a saved layout is deleted.
+      </description>
+    </key>
+    
+    <!-- Quick layout shortcuts (by assigned shortcut, 1-9) -->
+    <key name="quick-layout-1" type="as">
+      <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;1']</default>
+      <summary>Activate layout assigned to shortcut 1</summary>
+      <description>Activate the layout that has shortcut "1" assigned in its settings.</description>
+    </key>
+    
+    <key name="quick-layout-2" type="as">
+      <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;2']</default>
+      <summary>Activate layout assigned to shortcut 2</summary>
+      <description>Activate the layout that has shortcut "2" assigned in its settings.</description>
+    </key>
+    
+    <key name="quick-layout-3" type="as">
+      <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;3']</default>
+      <summary>Activate layout assigned to shortcut 3</summary>
+      <description>Activate the layout that has shortcut "3" assigned in its settings.</description>
+    </key>
+    
+    <key name="quick-layout-4" type="as">
+      <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;4']</default>
+      <summary>Activate layout assigned to shortcut 4</summary>
+      <description>Activate the layout that has shortcut "4" assigned in its settings.</description>
+    </key>
+    
+    <key name="quick-layout-5" type="as">
+      <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;5']</default>
+      <summary>Activate layout assigned to shortcut 5</summary>
+      <description>Activate the layout that has shortcut "5" assigned in its settings.</description>
+    </key>
+    
+    <key name="quick-layout-6" type="as">
+      <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;6']</default>
+      <summary>Activate layout assigned to shortcut 6</summary>
+      <description>Activate the layout that has shortcut "6" assigned in its settings.</description>
+    </key>
+    
+    <key name="quick-layout-7" type="as">
+      <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;7']</default>
+      <summary>Activate layout assigned to shortcut 7</summary>
+      <description>Activate the layout that has shortcut "7" assigned in its settings.</description>
+    </key>
+    
+    <key name="quick-layout-8" type="as">
+      <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;8']</default>
+      <summary>Activate layout assigned to shortcut 8</summary>
+      <description>Activate the layout that has shortcut "8" assigned in its settings.</description>
+    </key>
+    
+    <key name="quick-layout-9" type="as">
+      <default>['&lt;Super&gt;&lt;Ctrl&gt;&lt;Alt&gt;9']</default>
+      <summary>Activate layout assigned to shortcut 9</summary>
+      <description>Activate the layout that has shortcut "9" assigned in its settings.</description>
+    </key>
+    
+    <!-- Debug Settings -->
+    <key name="debug-layout-rects" type="b">
+      <default>false</default>
+      <summary>Show debug layout rectangles</summary>
+      <description>
+        When enabled, shows colored debug borders around all layout elements 
+        in the Layout Switcher dialog to help visualize layout issues.
+        Red=container, Blue=section, Green=row, Yellow=card, Magenta=spacer.
+      </description>
+    </key>
+    
+    <key name="debug-layout-overlay" type="b">
+      <default>false</default>
+      <summary>Show debug measurement overlay</summary>
+      <description>
+        When enabled, shows a debug overlay with calculated dimensions,
+        tier information, and validation results for layout debugging.
+      </description>
+    </key>
+    
+    <key name="option-force-tier" type="i">
+      <default>0</default>
+      <range min="0" max="5"/>
+      <summary>Force specific layout tier</summary>
+      <description>
+        Override automatic tier selection for testing. 
+        0=auto (default), 1=tiny, 2=small, 3=medium, 4=large, 5=xlarge.
+        Use Ctrl+T in Layout Switcher to cycle through tiers.
+      </description>
+    </key>
+    
+    <!-- Keybinding Conflict Detection -->
+    <key name="keybinding-conflict-count" type="i">
+      <default>0</default>
+      <summary>Number of keybinding conflicts</summary>
+      <description>
+        Used for signaling between preferences and extension when conflicts change.
+        Updated by prefs.js after any shortcut change, watched by extension to update panel icon.
+      </description>
+    </key>
+    
+    <key name="prefs-scroll-target" type="s">
+      <default>""</default>
+      <summary>Preferences scroll target</summary>
+      <description>
+        When set, preferences window will scroll to and highlight this section on open.
+        Values: "keyboard-shortcuts", "enhanced-shortcuts", or empty string.
+        Reset to empty after use.
+      </description>
+    </key>
+    
+    <key name="prefs-close-requested" type="b">
+      <default>false</default>
+      <summary>Request preferences window to close</summary>
+      <description>
+        When set to true by extension, preferences window should close itself.
+        Used when panel menu fixes conflicts while prefs is open.
+        Prefs resets this to false after closing.
+      </description>
+    </key>
+    
+    <!-- Developer Mode Settings -->
+    <!-- Notification Settings -->
+    <key name="notifications-enabled" type="b">
+      <default>true</default>
+      <summary>Enable notifications</summary>
+      <description>
+        Master toggle for all Zoned notifications. When disabled, no 
+        notifications will be shown for any action.
+      </description>
+    </key>
+    
+    <key name="notification-duration" type="i">
+      <default>1000</default>
+      <range min="500" max="5000"/>
+      <summary>Notification duration in milliseconds</summary>
+      <description>
+        How long notifications stay visible before auto-dismissing.
+        Default is 1000ms (1 second). Range: 500ms to 5000ms.
+      </description>
+    </key>
+    
+    <key name="center-notification-size" type="s">
+      <default>"small"</default>
+      <summary>Center notification size</summary>
+      <description>
+        Size of the center-screen notification overlay.
+        Options: "small" (256px), "medium" (384px), "large" (512px).
+      </description>
+    </key>
+    
+    <key name="center-notification-opacity" type="i">
+      <default>80</default>
+      <range min="50" max="100"/>
+      <summary>Center notification background opacity</summary>
+      <description>
+        Opacity of the center notification background (50-100%).
+        Default is 85%.
+      </description>
+    </key>
+    
+    <key name="center-notification-preview" type="b">
+      <default>false</default>
+      <summary>Trigger center notification preview</summary>
+      <description>
+        Internal flag used to trigger a preview notification from preferences.
+        When set to true, extension shows a sample notification and resets to false.
+      </description>
+    </key>
+    
+    <key name="notify-window-snapping" type="s">
+      <default>"disabled"</default>
+      <summary>Window snapping notification style</summary>
+      <description>
+        Notification style for zone cycling (Super+Left/Right).
+        Options: "center" (large center-screen), "system" (top-bar), "disabled".
+      </description>
+    </key>
+    
+    <key name="notify-layout-switching" type="s">
+      <default>"disabled"</default>
+      <summary>Layout switching notification style</summary>
+      <description>
+        Notification style for layout/profile changes via picker, menu, or shortcuts.
+        Options: "center" (large center-screen), "system" (top-bar), "disabled".
+      </description>
+    </key>
+    
+    <key name="notify-window-management" type="s">
+      <default>"disabled"</default>
+      <summary>Window management notification style</summary>
+      <description>
+        Notification style for minimize/maximize/restore actions.
+        Options: "center" (large center-screen), "system" (top-bar), "disabled".
+      </description>
+    </key>
+    
+    <key name="notify-workspace-changes" type="s">
+      <default>"disabled"</default>
+      <summary>Workspace changes notification style</summary>
+      <description>
+        Notification style for per-space layout display when switching workspaces.
+        Options: "center" (large center-screen), "system" (top-bar), "disabled".
+      </description>
+    </key>
+    
+    <key name="notify-startup" type="s">
+      <default>"center"</default>
+      <summary>Startup messages notification style</summary>
+      <description>
+        Notification style for extension startup messages.
+        Options: "center" (large center-screen), "system" (top-bar), "disabled".
+      </description>
+    </key>
+    
+    <key name="notify-conflicts" type="s">
+      <default>"system"</default>
+      <summary>Conflict warnings notification style</summary>
+      <description>
+        Notification style for keybinding conflict detection.
+        Options: "center" (large center-screen), "system" (top-bar), "disabled".
+      </description>
+    </key>
+    
+    <!-- Debug Settings -->
+    <key name="debug-logging" type="b">
+      <default>false</default>
+      <summary>Enable verbose debug logging</summary>
+      <description>
+        Enables info/debug level console output for troubleshooting.
+        Errors and warnings are always logged regardless of this setting.
+        View logs with: journalctl -f /usr/bin/gnome-shell
+      </description>
+    </key>
+    
+    <key name="memory-debug" type="b">
+      <default>false</default>
+      <summary>Enable memory debug logging</summary>
+      <description>
+        Enables extremely verbose memory lifecycle and cleanup logging for debugging memory leaks.
+        Only use when actively investigating memory issues - very verbose output.
+        Requires developer-mode-revealed to be enabled.
+        View logs with: journalctl -f /usr/bin/gnome-shell | grep MEMDEBUG
+      </description>
+    </key>
+    
+    <key name="developer-mode-revealed" type="b">
+      <default>false</default>
+      <summary>Developer section visibility state</summary>
+      <description>
+        Internal flag tracking whether the hidden Developer section is visible.
+        Toggle with Ctrl+Shift+D in the preferences window.
+        Reset via the "Reset Debug Settings" button.
+      </description>
+    </key>
+    
+    <!-- Stability Testing Settings -->
+    <key name="debug-expose-dbus" type="b">
+      <default>false</default>
+      <summary>Expose D-Bus debug interface</summary>
+      <description>
+        When enabled, exposes the org.gnome.Shell.Extensions.Zoned.Debug
+        D-Bus interface for automated stability testing. This allows external
+        scripts to trigger actions, query state, and check resource usage.
+        
+        Security: Only enable during development/testing. The interface
+        allows triggering any extension action programmatically.
+      </description>
+    </key>
+    
+    <key name="debug-track-resources" type="b">
+      <default>false</default>
+      <summary>Enable resource leak tracking</summary>
+      <description>
+        When enabled, tracks all signal connections, timers, and actors
+        to detect potential memory leaks. Adds slight performance overhead.
+        
+        Resource warnings are logged when destroy() is called with
+        unreleased resources. Use with debug-expose-dbus to query
+        resource reports via D-Bus for automated testing.
+      </description>
+    </key>
+    
+  </schema>
+</schemalist>

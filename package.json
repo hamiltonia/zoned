@@ -1,0 +1,22 @@
+{
+  "name": "zoned",
+  "version": "1.0.0",
+  "description": "GNOME Shell extension for window zone management",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint extension/",
+    "lint:fix": "eslint extension/ --fix"
+  },
+  "devDependencies": {
+    "eslint": "^9.16.0",
+    "@eslint/js": "^9.16.0",
+    "globals": "^15.13.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hamiltonia/zoned.git"
+  },
+  "author": "hamiltonia",
+  "license": "GPL-3.0-or-later"
+}

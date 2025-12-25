@@ -1,0 +1,167 @@
+/**
+ * Zoned Extension Stylesheet
+ * 
+ * Theme-aware styling for ModalDialog-based components.
+ * Uses CSS custom properties set dynamically by ThemeManager.
+ * 
+ * LayoutSwitcher and ZoneEditor don't need this (they use inline styles).
+ * This stylesheet targets ModalDialog internals that can't be easily styled from JS.
+ */
+
+/* ============================================================================
+ * CSS CUSTOM PROPERTIES (Set dynamically by ThemeManager)
+ * ============================================================================
+ * These variables are set on dialog root elements by JavaScript:
+ *   --zoned-container-bg
+ *   --zoned-card-bg
+ *   --zoned-text-primary
+ *   --zoned-text-secondary
+ *   --zoned-text-muted
+ *   --zoned-accent
+ *   --zoned-button-bg
+ *   --zoned-button-text
+ *   --zoned-border
+ */
+
+/* ============================================================================
+ * LAYOUT SETTINGS DIALOG
+ * ============================================================================ */
+
+.layout-settings-dialog {
+    /* ModalDialog's internal containers */
+}
+
+.layout-settings-dialog .modal-dialog {
+    background-color: var(--zoned-container-bg, rgba(40, 40, 40, 0.98));
+}
+
+.layout-settings-dialog .modal-dialog-content-box {
+    background-color: var(--zoned-container-bg, rgba(40, 40, 40, 0.98));
+    padding: 24px;
+}
+
+.layout-settings-dialog .modal-dialog-button-box {
+    background-color: var(--zoned-container-bg, rgba(40, 40, 40, 0.98));
+    padding: 16px;
+    padding-top: 0;
+}
+
+/* Text elements */
+.layout-settings-dialog St-Label {
+    color: var(--zoned-text-primary, #ffffff);
+}
+
+/* Entry fields */
+.layout-settings-dialog St-Entry {
+    background-color: var(--zoned-card-bg, rgba(60, 60, 60, 0.5));
+    color: var(--zoned-text-primary, #ffffff);
+    border: 1px solid var(--zoned-border, #404040);
+    border-radius: 4px;
+    padding: 8px 12px;
+}
+
+.layout-settings-dialog St-Entry:focus {
+    border-color: var(--zoned-accent, #00d4ff);
+    box-shadow: 0 0 0 2px var(--zoned-accent, #00d4ff);
+}
+
+/* Buttons */
+.layout-settings-dialog .button {
+    border-radius: 6px;
+    padding: 8px 24px;
+    font-weight: 600;
+}
+
+/* Button styling will be overridden by inline styles for specific colors */
+.layout-settings-dialog .modal-dialog-button {
+    border-radius: 6px;
+    padding: 8px 24px;
+    font-weight: 600;
+}
+
+/* ============================================================================
+ * CONFIRM DIALOG
+ * ============================================================================ */
+
+.zoned-confirm-dialog {
+    /* ModalDialog's internal containers */
+}
+
+.zoned-confirm-dialog .modal-dialog {
+    background-color: var(--zoned-container-bg, rgba(40, 40, 40, 0.98));
+}
+
+.zoned-confirm-dialog .modal-dialog-content-box {
+    background-color: var(--zoned-container-bg, rgba(40, 40, 40, 0.98));
+    padding: 24px;
+}
+
+.zoned-confirm-dialog .modal-dialog-button-box {
+    background-color: var(--zoned-container-bg, rgba(40, 40, 40, 0.98));
+    padding: 16px;
+    padding-top: 0;
+}
+
+/* Text elements */
+.zoned-confirm-dialog St-Label {
+    color: var(--zoned-text-primary, #ffffff);
+}
+
+/* Buttons */
+.zoned-confirm-dialog .modal-dialog-button {
+    border-radius: 6px;
+    padding: 8px 24px;
+    font-weight: 600;
+    background-color: var(--zoned-button-bg, rgba(80, 80, 80, 0.9));
+    color: var(--zoned-button-text, white);
+}
+
+.zoned-confirm-dialog .modal-dialog-button:hover {
+    background-color: var(--zoned-button-bg-hover, rgba(100, 100, 100, 0.9));
+}
+
+/* Primary button (confirm action) */
+.zoned-confirm-dialog .modal-dialog-button.default {
+    background-color: var(--zoned-accent, #00d4ff);
+    color: white;
+}
+
+.zoned-confirm-dialog .modal-dialog-button.default:hover {
+    background-color: var(--zoned-accent-hover, #00e5ff);
+}
+
+/* ============================================================================
+ * THEME-SPECIFIC OVERRIDES
+ * ============================================================================ */
+
+/* Dark theme class (applied to dialog root) */
+.zoned-theme-dark .modal-dialog {
+    background-color: rgba(40, 40, 40, 0.98);
+}
+
+/* Light theme class (applied to dialog root) */
+.zoned-theme-light .modal-dialog {
+    background-color: rgba(250, 250, 250, 0.98);
+}
+
+/* ============================================================================
+ * GENERAL MODAL DIALOG IMPROVEMENTS
+ * ============================================================================ */
+
+/* Ensure modal dialogs don't have sharp corners */
+.layout-settings-dialog .modal-dialog,
+.zoned-confirm-dialog .modal-dialog {
+    border-radius: 12px;
+}
+
+/* Improve focus visibility */
+.layout-settings-dialog *:focus,
+.zoned-confirm-dialog *:focus {
+    outline: none;
+}
+
+/* Smooth transitions */
+.layout-settings-dialog .button,
+.zoned-confirm-dialog .modal-dialog-button {
+    transition: all 0.15s ease-out;
+}

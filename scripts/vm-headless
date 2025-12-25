@@ -1,0 +1,391 @@
+#!/bin/bash
+#
+# vm-headless - Manage VM without GUI for headless testing
+#
+# This script enables running VMs without a display client attached,
+# which is useful for longhaul testing where the SPICE/display client
+# consumes unnecessary memory.
+#
+# Usage:
+#   ./vm-headless start      - Start VM headlessly (no display)
+#   ./vm-headless stop       - Gracefully stop VM
+#   ./vm-headless status     - Show VM status
+#   ./vm-headless display    - Attach display viewer to running VM
+#   ./vm-headless help       - Show help
+#
+# Requires: virsh, virt-viewer or remote-viewer
+#
+
+set -e
+
+# Script location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Source the shared VM detection library
+source "$SCRIPT_DIR/lib/vm-detect.sh"
+
+# Override cache file location with proper path
+VM_CACHE_FILE="$PROJECT_DIR/.vm-cache"
+
+# ============================================
+#  COMMANDS
+# ============================================
+
+cmd_start() {
+    echo -e "${CYAN}▶ VM Headless Start${NC}"
+    echo ""
+    
+    # Load cache
+    if ! vm_read_cache "$VM_CACHE_FILE"; then
+        vm_print_error "No VM cache found"
+        echo ""
+        echo "Run 'make vm-setup' first to configure your VM."
+        exit 1
+    fi
+    
+    local domain="${VM_LIBVIRT_NAME:-$VM_DOMAIN}"
+    
+    # Check current state
+    local state
+    state=$(virsh --connect "$VIRSH_CONNECT" domstate "$domain" 2>/dev/null || echo "unknown")
+    
+    if [[ "$state" == "running" ]]; then
+        vm_print_success "VM '$domain' is already running"
+        
+        # Check if display is attached
+        local viewers
+        viewers=$(pgrep -f "virt-viewer.*$domain|remote-viewer.*$domain" 2>/dev/null || true)
+        
+        if [[ -n "$viewers" ]]; then
+            vm_print_info "Display viewer is attached (PID: $viewers)"
+            echo ""
+            echo "To run truly headless, close the display viewer:"
+            echo "  make vm-display-close"
+        else
+            vm_print_info "Running headless (no display attached)"
+        fi
+        return 0
+    fi
+    
+    # Start VM
+    vm_print_step "Starting VM '$domain' headlessly..."
+    
+    if virsh --connect "$VIRSH_CONNECT" start "$domain" >/dev/null 2>&1; then
+        vm_print_success "VM started"
+        
+        # Wait for SSH to become available
+        vm_print_step "Waiting for SSH..."
+        local attempts=0
+        local max_attempts=30
+        
+        while [[ $attempts -lt $max_attempts ]]; do
+            if ssh -o ConnectTimeout=2 -o BatchMode=yes "$VM_DOMAIN" "exit" 2>/dev/null; then
+                vm_print_success "SSH available"
+                break
+            fi
+            ((attempts++))
+            sleep 2
+        done
+        
+        if [[ $attempts -eq $max_attempts ]]; then
+            vm_print_warning "SSH not available after ${max_attempts} attempts"
+            echo "VM is running but SSH may not be ready yet."
+        fi
+        
+        echo ""
+        vm_print_success "VM running headlessly"
+        echo ""
+        echo "  Next steps:"
+        echo "    make vm-dev       - Deploy extension"
+        echo "    make vm-logs      - Watch logs"
+        echo "    make vm-display   - Attach display (when needed)"
+        echo ""
+    else
+        vm_print_error "Failed to start VM"
+        echo ""
+        echo "Check VM status: virsh --connect $VIRSH_CONNECT list --all"
+        exit 1
+    fi
+}
+
+cmd_stop() {
+    echo -e "${CYAN}▶ VM Headless Stop${NC}"
+    echo ""
+    
+    # Load cache
+    if ! vm_read_cache "$VM_CACHE_FILE"; then
+        vm_print_error "No VM cache found"
+        exit 1
+    fi
+    
+    local domain="${VM_LIBVIRT_NAME:-$VM_DOMAIN}"
+    local force=false
+    
+    # Check for --force flag
+    if [[ "$1" == "--force" ]] || [[ "$1" == "-f" ]]; then
+        force=true
+    fi
+    
+    # Check current state
+    local state
+    state=$(virsh --connect "$VIRSH_CONNECT" domstate "$domain" 2>/dev/null || echo "unknown")
+    
+    if [[ "$state" != "running" ]]; then
+        vm_print_info "VM '$domain' is not running (state: $state)"
+        return 0
+    fi
+    
+    if [[ "$force" == true ]]; then
+        vm_print_warning "Force stopping VM '$domain'..."
+        virsh --connect "$VIRSH_CONNECT" destroy "$domain" >/dev/null 2>&1 || true
+        vm_print_success "VM force stopped"
+    else
+        vm_print_step "Gracefully shutting down VM '$domain'..."
+        virsh --connect "$VIRSH_CONNECT" shutdown "$domain" >/dev/null 2>&1 || true
+        
+        # Wait for shutdown
+        local attempts=0
+        local max_attempts=30
+        
+        while [[ $attempts -lt $max_attempts ]]; do
+            state=$(virsh --connect "$VIRSH_CONNECT" domstate "$domain" 2>/dev/null || echo "unknown")
+            if [[ "$state" == "shut off" ]]; then
+                vm_print_success "VM stopped"
+                return 0
+            fi
+            ((attempts++))
+            sleep 2
+        done
+        
+        vm_print_warning "VM did not shut down gracefully"
+        echo "Use 'make vm-stop-force' to force stop"
+    fi
+}
+
+cmd_status() {
+    echo -e "${CYAN}▶ VM Status${NC}"
+    echo ""
+    
+    # Load cache
+    if ! vm_read_cache "$VM_CACHE_FILE"; then
+        vm_print_error "No VM cache found"
+        echo ""
+        echo "Run 'make vm-setup' first to configure your VM."
+        exit 1
+    fi
+    
+    local domain="${VM_LIBVIRT_NAME:-$VM_DOMAIN}"
+    
+    # Get VM state
+    local state
+    state=$(virsh --connect "$VIRSH_CONNECT" domstate "$domain" 2>/dev/null || echo "unknown")
+    
+    echo -e "  VM Name:     ${CYAN}$domain${NC}"
+    
+    if [[ "$state" == "running" ]]; then
+        echo -e "  State:       ${GREEN}$state${NC}"
+        
+        # Check SSH
+        if ssh -o ConnectTimeout=2 -o BatchMode=yes "$VM_DOMAIN" "exit" 2>/dev/null; then
+            echo -e "  SSH:         ${GREEN}available${NC}"
+        else
+            echo -e "  SSH:         ${YELLOW}not available${NC}"
+        fi
+        
+        # Check display viewer
+        local viewers
+        viewers=$(pgrep -f "virt-viewer.*$domain|remote-viewer.*$domain" 2>/dev/null || true)
+        
+        if [[ -n "$viewers" ]]; then
+            echo -e "  Display:     ${YELLOW}attached${NC} (PID: $viewers)"
+        else
+            echo -e "  Display:     ${GREEN}headless${NC}"
+        fi
+        
+        # Show share type
+        if [[ "$VM_SHARE_TYPE" == "virtiofs" ]]; then
+            echo -e "  Sharing:     ${GREEN}virtiofs${NC}"
+        else
+            echo -e "  Sharing:     ${YELLOW}SPICE WebDAV${NC}"
+        fi
+    else
+        echo -e "  State:       ${YELLOW}$state${NC}"
+    fi
+    
+    echo ""
+}
+
+cmd_display() {
+    echo -e "${CYAN}▶ VM Display${NC}"
+    echo ""
+    
+    # Load cache
+    if ! vm_read_cache "$VM_CACHE_FILE"; then
+        vm_print_error "No VM cache found"
+        exit 1
+    fi
+    
+    local domain="${VM_LIBVIRT_NAME:-$VM_DOMAIN}"
+    
+    # Check if VM is running
+    local state
+    state=$(virsh --connect "$VIRSH_CONNECT" domstate "$domain" 2>/dev/null || echo "unknown")
+    
+    if [[ "$state" != "running" ]]; then
+        vm_print_error "VM '$domain' is not running (state: $state)"
+        echo "Start it first: make vm-headless"
+        exit 1
+    fi
+    
+    # Check if display already attached
+    local viewers
+    viewers=$(pgrep -f "virt-viewer.*$domain|remote-viewer.*$domain" 2>/dev/null || true)
+    
+    if [[ -n "$viewers" ]]; then
+        vm_print_warning "Display viewer already running (PID: $viewers)"
+        echo "Bringing to foreground may require window manager action."
+        return 0
+    fi
+    
+    # Try to attach viewer
+    vm_print_step "Attaching display viewer..."
+    
+    if command -v virt-viewer &>/dev/null; then
+        vm_print_info "Using virt-viewer"
+        nohup virt-viewer --connect "$VIRSH_CONNECT" "$domain" >/dev/null 2>&1 &
+        vm_print_success "Display viewer started"
+    elif command -v remote-viewer &>/dev/null; then
+        # Get SPICE URI
+        local uri
+        uri=$(virsh --connect "$VIRSH_CONNECT" domdisplay "$domain" --type spice 2>/dev/null || echo "")
+        
+        if [[ -n "$uri" ]]; then
+            vm_print_info "Using remote-viewer with SPICE"
+            nohup remote-viewer "$uri" >/dev/null 2>&1 &
+            vm_print_success "Display viewer started"
+        else
+            vm_print_error "Could not get SPICE display URI"
+            echo "The VM may not have SPICE configured."
+            exit 1
+        fi
+    else
+        vm_print_error "No display viewer found"
+        echo ""
+        echo "Install one of these:"
+        echo "  Fedora: sudo dnf install virt-viewer"
+        echo "  Ubuntu: sudo apt install virt-viewer"
+        echo "  Arch:   sudo pacman -S virt-viewer"
+        exit 1
+    fi
+    
+    echo ""
+    echo "To close the display and return to headless mode,"
+    echo "simply close the viewer window."
+}
+
+cmd_display_close() {
+    echo -e "${CYAN}▶ VM Display Close${NC}"
+    echo ""
+    
+    # Load cache
+    if ! vm_read_cache "$VM_CACHE_FILE"; then
+        vm_print_error "No VM cache found"
+        exit 1
+    fi
+    
+    local domain="${VM_LIBVIRT_NAME:-$VM_DOMAIN}"
+    
+    # Find and kill viewer processes
+    local viewers
+    viewers=$(pgrep -f "virt-viewer.*$domain|remote-viewer.*$domain" 2>/dev/null || true)
+    
+    if [[ -z "$viewers" ]]; then
+        vm_print_info "No display viewer running for '$domain'"
+        return 0
+    fi
+    
+    vm_print_step "Closing display viewer (PID: $viewers)..."
+    
+    for pid in $viewers; do
+        kill "$pid" 2>/dev/null || true
+    done
+    
+    vm_print_success "Display viewer closed - VM now running headless"
+}
+
+cmd_help() {
+    echo "vm-headless - Manage VM without GUI for headless testing"
+    echo ""
+    echo -e "${YELLOW}Usage:${NC}"
+    echo "    vm-headless <command> [options]"
+    echo ""
+    echo -e "${YELLOW}Commands:${NC}"
+    echo "    start           Start VM headlessly (no display attached)"
+    echo "    stop            Gracefully shut down VM"
+    echo "    stop --force    Force stop VM (like pulling power)"
+    echo "    status          Show VM status"
+    echo "    display         Attach display viewer to running VM"
+    echo "    display-close   Close display viewer (return to headless)"
+    echo "    help            Show this help message"
+    echo ""
+    echo -e "${YELLOW}Makefile Targets:${NC}"
+    echo "    make vm-headless       - Start VM headlessly"
+    echo "    make vm-stop           - Gracefully stop VM"
+    echo "    make vm-stop-force     - Force stop VM"
+    echo "    make vm-status         - Show VM status"
+    echo "    make vm-display        - Attach display"
+    echo "    make vm-display-close  - Close display"
+    echo ""
+    echo -e "${YELLOW}Workflow (longhaul testing):${NC}"
+    echo "    1. make vm-headless    # Start without display"
+    echo "    2. make vm-dev         # Deploy extension"
+    echo "    3. make vm-logs        # Watch logs in one terminal"
+    echo "    4. ./scripts/vm-test/run-all.sh  # Run tests"
+    echo "    5. make vm-display     # Attach display if needed"
+    echo "    6. make vm-stop        # When done"
+    echo ""
+    echo -e "${YELLOW}Benefits:${NC}"
+    echo "    - ~500MB less memory usage without display client"
+    echo "    - More reliable longhaul testing"
+    echo "    - On-demand display when visual inspection needed"
+    echo ""
+}
+
+# ============================================
+#  MAIN
+# ============================================
+
+main() {
+    local cmd="${1:-help}"
+    shift || true
+    
+    case "$cmd" in
+        start)
+            cmd_start "$@"
+            ;;
+        stop)
+            cmd_stop "$@"
+            ;;
+        status)
+            cmd_status
+            ;;
+        display)
+            cmd_display
+            ;;
+        display-close)
+            cmd_display_close
+            ;;
+        help|--help|-h)
+            cmd_help
+            ;;
+        *)
+            vm_print_error "Unknown command: $cmd"
+            echo ""
+            cmd_help
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

@@ -1,0 +1,297 @@
+#!/bin/bash
+#
+# vm-setup - Full VM setup and configuration script
+#
+# This script handles the complete VM setup workflow:
+# - Auto-detects running VMs
+# - Sets up SSH access
+# - Prompts for file sharing method (virtiofs or SPICE)
+# - Sets up the chosen sharing method
+# - Creates extension symlink
+# - Writes cache for fast vm-dev iterations
+#
+# Usage: ./vm-setup or 'make vm-setup'
+#
+
+set -e
+
+# Script location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Source the shared VM detection library
+source "$SCRIPT_DIR/lib/vm-detect.sh"
+
+# Override cache file location with proper path
+VM_CACHE_FILE="$PROJECT_DIR/.vm-cache"
+
+# Extension details
+EXTENSION_UUID="zoned@hamiltonia.me"
+
+# ============================================
+#  MAIN WORKFLOW
+# ============================================
+
+main() {
+    echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}   Zoned VM Setup${NC}"
+    echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    
+    # Step 1: Detect running VM
+    vm_print_step "Step 1: Detecting running VMs..."
+    if ! vm_detect_target; then
+        exit 1
+    fi
+    echo ""
+    
+    # Step 2: Ensure SSH access
+    vm_print_step "Step 2: Setting up SSH access..."
+    if ! vm_ensure_ssh; then
+        exit 1
+    fi
+    echo ""
+    
+    # Step 3: Check for existing cache/config
+    local need_share_setup=true
+    
+    if vm_read_cache "$VM_CACHE_FILE" 2>/dev/null; then
+        if [[ -n "$VM_SHARE_TYPE" ]]; then
+            vm_print_info "Previous configuration: $VM_SHARE_TYPE"
+            
+            # Check if existing mount still works
+            if vm_check_existing_mount "$VM_DOMAIN" "$VM_SHARE_TYPE"; then
+                vm_print_success "File sharing is working: $VM_MOUNT_PATH"
+                need_share_setup=false
+            else
+                vm_print_warning "Previous mount no longer working, will re-setup"
+            fi
+        fi
+    fi
+    
+    # Step 4: Setup file sharing if needed
+    if [[ "$need_share_setup" == "true" ]]; then
+        vm_print_step "Step 3: Setting up file sharing..."
+        
+        # Ask user to choose sharing method
+        vm_select_share_type
+        echo ""
+        
+        # For virtiofs, ensure permissions are correct on host
+        if [[ "$VM_SHARE_TYPE" == "virtiofs" ]]; then
+            vm_ensure_virtiofs_permissions
+        fi
+        
+        # For virtiofs, check if host side is configured
+        if [[ "$VM_SHARE_TYPE" == "virtiofs" ]]; then
+            local has_virtiofs
+            has_virtiofs=$(virsh --connect "$VIRSH_CONNECT" dumpxml "$VM_DOMAIN" 2>/dev/null | grep -c "virtiofs" | head -1)
+            [[ -z "$has_virtiofs" ]] && has_virtiofs="0"
+            
+            if [[ "$has_virtiofs" -eq 0 ]]; then
+                vm_print_warning "virtiofs not configured on host"
+                echo ""
+                echo "The VM needs virtiofs configuration first."
+                echo ""
+                read -p "Run vm-virtiofs-migrate now to configure? [Y/n]: " migrate_confirm
+                if [[ "${migrate_confirm,,}" != "n" ]]; then
+                    "$SCRIPT_DIR/vm-virtiofs-migrate"
+                    if [[ $? -ne 0 ]]; then
+                        vm_print_error "virtiofs migration failed"
+                        exit 1
+                    fi
+                    
+                    # Wait for VM to be fully ready after migration restart
+                    vm_print_step "Waiting for VM to be ready..."
+                    local waited=0
+                    while [[ $waited -lt 60 ]]; do
+                        if ssh -o ConnectTimeout=3 -o BatchMode=yes "$VM_DOMAIN" "exit" 2>/dev/null; then
+                            vm_print_success "VM is ready"
+                            break
+                        fi
+                        echo -n "."
+                        sleep 2
+                        waited=$((waited + 2))
+                    done
+                    echo ""
+                    
+                    if ! ssh -o ConnectTimeout=3 -o BatchMode=yes "$VM_DOMAIN" "exit" 2>/dev/null; then
+                        vm_print_error "VM not responding after migration"
+                        echo "Please check VM status and try again"
+                        exit 1
+                    fi
+                else
+                    vm_print_error "Cannot continue without virtiofs configuration"
+                    echo "Run 'scripts/vm-virtiofs-migrate' manually, then try again."
+                    exit 1
+                fi
+            fi
+        fi
+        
+        # Setup the sharing
+        local setup_result
+        vm_setup_sharing "$VM_DOMAIN" "$VM_SHARE_TYPE"
+        setup_result=$?
+        
+        if [[ $setup_result -eq 1 ]]; then
+            vm_print_error "File sharing setup failed"
+            exit 1
+        elif [[ $setup_result -eq 2 ]]; then
+            vm_print_warning "Additional action required (see above)"
+            exit 0
+        fi
+    else
+        vm_print_step "Step 3: File sharing already configured"
+    fi
+    echo ""
+    
+    # Step 5: Check dependencies
+    vm_print_step "Step 4: Checking dependencies..."
+    if ! vm_check_dependencies; then
+        echo ""
+        read -p "Install missing dependencies? [Y/n]: " confirm
+        if [[ "${confirm,,}" != "n" ]]; then
+            if ! vm_install_dependencies; then
+                vm_print_error "Failed to install dependencies"
+                exit 1
+            fi
+        else
+            vm_print_warning "Continuing without all dependencies"
+        fi
+    fi
+    echo ""
+    
+    # Step 6: Verify extension exists in shared folder
+    vm_print_step "Step 5: Verifying extension..."
+    if ! ssh "$VM_DOMAIN" "test -f $VM_MOUNT_PATH/extension/metadata.json" 2>/dev/null; then
+        vm_print_error "Extension not found in shared folder"
+        echo ""
+        echo "Expected: $VM_MOUNT_PATH/extension/metadata.json"
+        echo ""
+        echo "Make sure:"
+        echo "  1. The shared folder points to the zoned project directory"
+        echo "  2. The folder is properly mounted in the VM"
+        exit 1
+    fi
+    vm_print_success "Extension found"
+    echo ""
+    
+    # Step 7: Create symlink
+    vm_print_step "Step 6: Setting up extension symlink..."
+    local ext_dir="\$HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
+    
+    local current_link
+    current_link=$(ssh "$VM_DOMAIN" "readlink $ext_dir 2>/dev/null" || echo "")
+    
+    if [[ "$current_link" == "$VM_MOUNT_PATH/extension" ]]; then
+        vm_print_success "Symlink already configured"
+    else
+        ssh "$VM_DOMAIN" "rm -rf $ext_dir 2>/dev/null" || true
+        ssh "$VM_DOMAIN" "mkdir -p \$(dirname $ext_dir) && ln -sf $VM_MOUNT_PATH/extension $ext_dir"
+        vm_print_success "Symlink created: $ext_dir → $VM_MOUNT_PATH/extension"
+    fi
+    echo ""
+    
+    # Step 8: Compile schema
+    vm_print_step "Step 7: Compiling GSettings schema..."
+    if ssh "$VM_DOMAIN" "test -d $ext_dir/schemas" 2>/dev/null; then
+        # For virtiofs, we need to compile to a writable location first
+        if [[ "$VM_SHARE_TYPE" == "virtiofs" ]]; then
+            vm_print_info "Compiling schema (virtiofs workaround)..."
+            ssh "$VM_DOMAIN" "
+                mkdir -p /tmp/zoned-schemas
+                cp $ext_dir/schemas/*.xml /tmp/zoned-schemas/
+                glib-compile-schemas /tmp/zoned-schemas/
+                cp /tmp/zoned-schemas/gschemas.compiled $ext_dir/schemas/ 2>/dev/null || sudo cp /tmp/zoned-schemas/gschemas.compiled $ext_dir/schemas/
+                rm -rf /tmp/zoned-schemas
+            " 2>/dev/null
+            vm_print_success "Schema compiled"
+        else
+            ssh "$VM_DOMAIN" "glib-compile-schemas $ext_dir/schemas/"
+            vm_print_success "Schema compiled"
+        fi
+    else
+        vm_print_warning "No schemas directory found"
+    fi
+    echo ""
+    
+    # Step 9: Enable extension
+    vm_print_step "Step 8: Checking extension status..."
+    local ext_state
+    ext_state=$(ssh "$VM_DOMAIN" "gnome-extensions info $EXTENSION_UUID 2>/dev/null | grep 'State:'" 2>/dev/null || echo "State: UNKNOWN")
+    
+    if echo "$ext_state" | grep -qE 'State:\s*(ACTIVE|INACTIVE)'; then
+        vm_print_success "Extension is enabled"
+    else
+        vm_print_info "Enabling extension..."
+        ssh "$VM_DOMAIN" "gnome-extensions enable $EXTENSION_UUID" 2>/dev/null || true
+        vm_print_success "Extension enabled"
+    fi
+    echo ""
+    
+    # Step 10: Store libvirt domain name
+    VM_LIBVIRT_NAME="$VM_DOMAIN"
+    
+    # Step 11: Write cache
+    vm_print_step "Saving configuration..."
+    vm_write_cache "$VM_CACHE_FILE"
+    echo ""
+    
+    # Step 12: Reload GNOME Shell
+    vm_print_step "Checking session type..."
+    
+    local session_type
+    session_type=$(ssh "$VM_DOMAIN" "
+        for sid in \$(loginctl --no-legend | awk '{print \$1}'); do
+            type=\$(loginctl show-session \$sid -p Type --value 2>/dev/null)
+            if [ \"\$type\" = 'x11' ] || [ \"\$type\" = 'wayland' ]; then
+                echo \$type
+                break
+            fi
+        done
+    " 2>/dev/null || echo "")
+    [[ -z "$session_type" ]] && session_type="unknown"
+    
+    echo ""
+    if [[ "$session_type" == "x11" ]]; then
+        vm_print_info "Session type: X11"
+        vm_print_step "Reloading GNOME Shell..."
+        
+        if ssh "$VM_DOMAIN" "DISPLAY=:0 gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval 'Meta.restart(\"Restarting…\")'" &>/dev/null; then
+            vm_print_success "GNOME Shell reloaded"
+        else
+            vm_print_warning "Could not reload automatically"
+            echo "  In VM: Press Alt+F2, type 'r', press Enter"
+        fi
+    elif [[ "$session_type" == "wayland" ]]; then
+        vm_print_info "Session type: Wayland"
+        vm_print_warning "Wayland cannot hot-reload GNOME Shell"
+        echo ""
+        echo "  To see changes: Log out and log back in"
+        echo ""
+        echo "  Tip: For faster development, switch to X11:"
+        echo "    Log out → Click gear icon at login → Select 'GNOME on Xorg'"
+    else
+        vm_print_info "Session type: Unknown"
+        echo "  To reload: Alt+F2 → 'r' (X11) or log out/in (Wayland)"
+    fi
+    
+    echo ""
+    echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+    echo -e "${GREEN}   ✓ VM setup complete!${NC}"
+    echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "  VM: ${CYAN}$VM_DOMAIN${NC} ($VM_IP)"
+    if [[ "$VM_SHARE_TYPE" == "virtiofs" ]]; then
+        echo -e "  File Sharing: ${GREEN}virtiofs${NC} (optimal)"
+    else
+        echo -e "  File Sharing: ${YELLOW}SPICE WebDAV${NC}"
+    fi
+    echo ""
+    echo "  Next steps:"
+    echo "    make vm-dev     - Fast deploy (use for iteration)"
+    echo "    make vm-logs    - Watch extension logs"
+    echo ""
+}
+
+main "$@"
