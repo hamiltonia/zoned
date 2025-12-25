@@ -112,6 +112,11 @@ warn() {
     WARN_COUNT=$((WARN_COUNT + 1))
 }
 
+# Print error message (does not exit - caller decides)
+error() {
+    echo -e "${RED:-\033[0;31m}✗ ERROR:${NC:-\033[0m} $1"
+}
+
 # Print info
 info() {
     echo -e "  $1"
