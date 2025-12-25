@@ -1,7 +1,6 @@
 #!/bin/bash
 #
 # vm-setup - Full VM setup and configuration script
-# Created by Cline (refactored)
 #
 # This script handles the complete VM setup workflow:
 # - Auto-detects running VMs

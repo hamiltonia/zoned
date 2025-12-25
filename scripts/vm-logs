@@ -1,7 +1,6 @@
 #!/bin/bash
 #
 # vm-logs - Watch extension logs from VM
-# Modified by Cline
 #
 # Tails GNOME Shell logs from the VM over SSH,
 # filtering for Zoned-related messages.

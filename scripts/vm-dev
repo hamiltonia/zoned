@@ -1,7 +1,6 @@
 #!/bin/bash
 #
 # vm-dev - Fast VM deployment script
-# Created by Cline
 #
 # This script provides fast iterative development:
 # - Uses cached VM state from previous vm-setup

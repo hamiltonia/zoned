@@ -1,7 +1,6 @@
 #!/bin/bash
 #
 # vm-spice-setup.sh - Setup SPICE WebDAV sharing in guest VM
-# Created by Cline
 #
 # This library handles the guest-side setup for SPICE WebDAV file sharing.
 #

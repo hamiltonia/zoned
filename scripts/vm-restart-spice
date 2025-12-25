@@ -1,7 +1,6 @@
 #!/bin/bash
 #
 # vm-restart-spice - Restart SPICE display services in VM
-# Modified by Cline
 #
 # Use this when SPICE client connection fails after a VM reboot.
 # This is a common issue where the spice-vdagentd service doesn't

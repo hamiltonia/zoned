@@ -1,7 +1,6 @@
 #!/bin/bash
 #
 # vm-headless - Manage VM without GUI for headless testing
-# Created by Cline
 #
 # This script enables running VMs without a display client attached,
 # which is useful for longhaul testing where the SPICE/display client

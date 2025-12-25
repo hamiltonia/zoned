@@ -1,7 +1,6 @@
 #!/bin/bash
 #
 # vm-virtiofs-setup.sh - Setup virtiofs sharing in guest VM
-# Created by Cline
 #
 # This library handles the guest-side setup for virtiofs file sharing.
 # It assumes vm-virtiofs-migrate has already configured the host side.

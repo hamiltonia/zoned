@@ -1,7 +1,6 @@
 #!/bin/bash
 #
 # vm-detect.sh - Shared VM detection and setup functions
-# Created by Cline
 #
 # This library provides functions for auto-detecting running VMs
 # and setting up SSH access. Used by vm-install, vm-logs, etc.
