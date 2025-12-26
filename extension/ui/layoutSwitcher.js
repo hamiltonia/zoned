@@ -1243,7 +1243,7 @@ export class LayoutSwitcher {
      * Connect keyboard event handlers
      * Note: When modal is active, keyboard events go to the modal actor (this._dialog)
      * not to global.stage, so we connect directly to the dialog
-     * 
+     *
      * Uses SignalTracker for proper cleanup to prevent memory leaks
      */
     _connectKeyEvents() {
@@ -1634,7 +1634,7 @@ export class LayoutSwitcher {
 
     /**
      * Disconnect keyboard event handlers
-     * 
+     *
      * Note: Now handled automatically by SignalTracker.disconnectAll()
      * This method is kept for clarity in the cleanup flow
      */
@@ -1716,7 +1716,7 @@ export class LayoutSwitcher {
     /**
      * Release modal so settings dialog can have it, but keep UI visible
      * Called before opening LayoutSettingsDialog
-     * 
+     *
      * Note: We keep signals connected since the dialog isn't being destroyed,
      * only the modal grab is being released for the settings dialog to use
      * @private
@@ -1743,7 +1743,7 @@ export class LayoutSwitcher {
      */
     _restorePreviewBackgroundAfterModal() {
         logger.info('    >>> ENTER _restorePreviewBackgroundAfterModal');
-        
+
         if (!this._previewBackground) {
             logger.info('    >>> No preview background, returning');
             return;
@@ -1764,7 +1764,7 @@ export class LayoutSwitcher {
             this._previewBackground.show(layoutToShow, this._selectedMonitorIndex);
             logger.info('    >>> Show complete');
         }
-        
+
         logger.info('    >>> EXIT _restorePreviewBackgroundAfterModal');
     }
 
@@ -1774,7 +1774,7 @@ export class LayoutSwitcher {
      */
     _restoreDialogVisibilityAfterModal() {
         logger.info('    >>> ENTER _restoreDialogVisibilityAfterModal');
-        
+
         // Show container if it was hidden (zone editor flow)
         if (this._container) {
             logger.info('    >>> Showing container');
@@ -1796,7 +1796,7 @@ export class LayoutSwitcher {
             this._dialog.grab_key_focus();
             logger.info('    >>> grab_key_focus complete');
         }
-        
+
         logger.info('    >>> EXIT _restoreDialogVisibilityAfterModal');
     }
 
@@ -1814,7 +1814,7 @@ export class LayoutSwitcher {
      */
     _reacquireModalAfterSettings() {
         logger.info('>>> ENTER _reacquireModalAfterSettings');
-        
+
         // Guard against re-entrance (Fedora 43 recursion fix)
         if (this._reacquiringModal) {
             logger.warn('!!! Already re-acquiring modal, skipping to prevent recursion');
@@ -1835,7 +1835,7 @@ export class LayoutSwitcher {
         // The guard flag in _handleBackgroundClick will prevent recursion
         GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
             logger.info('  >>> START idle callback');
-            
+
             // Double-check dialog still exists after deferral
             if (!this._dialog) {
                 logger.warn('  !!! Dialog was destroyed during deferral');
@@ -1864,17 +1864,17 @@ export class LayoutSwitcher {
             // Restore UI visibility and state
             this._restorePreviewBackgroundAfterModal();
             logger.info('  >>> Preview background restored');
-            
+
             logger.info('  >>> About to restore dialog visibility');
             this._restoreDialogVisibilityAfterModal();
             logger.info('  >>> Dialog visibility restored');
-            
+
             logger.info('  >>> Reconnecting key events');
             // Reconnect key events to ensure Escape handler works after modal handoff
             this._disconnectKeyEvents();
             this._connectKeyEvents();
             logger.info('  >>> Key events reconnected');
-            
+
             // CRITICAL: Clear guard flag ONLY after ALL operations complete
             // Must be outside try-finally to prevent premature clearing on exception
             logger.info('  >>> Clearing guard flag');
@@ -1884,7 +1884,7 @@ export class LayoutSwitcher {
             logger.info('  >>> END idle callback');
             return GLib.SOURCE_REMOVE;
         });
-        
+
         logger.info('<<< EXIT _reacquireModalAfterSettings');
     }
 
