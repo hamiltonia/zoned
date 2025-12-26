@@ -65,6 +65,9 @@ export class LayoutSwitcher {
         // Guard flag to prevent re-entrance during cleanup
         this._isHiding = false;
 
+        // Guard flag to prevent re-entrance during modal re-acquisition
+        this._reacquiringModal = false;
+
         // Debug mode configuration (re-read fresh each time dialog opens)
         this._debugMode = false;
         this._DEBUG_COLORS = {
@@ -314,6 +317,9 @@ export class LayoutSwitcher {
         this._selectedCardIndex = -1;
         this._hoveredLayout = null;
         this._selectedMonitorIndex = undefined;
+
+        // Reset guard flags
+        this._reacquiringModal = false;
     }
 
     /**
@@ -590,7 +596,8 @@ export class LayoutSwitcher {
 
         // Click on background (outside container) dismisses the dialog
         // Use bound method to avoid closure leak
-        this._signalTracker.connect(this._dialog, 'button-press-event', this._boundHandleBackgroundClick);
+        // Store signal ID for later disconnection during modal re-acquisition
+        this._dialogBackgroundClickId = this._signalTracker.connect(this._dialog, 'button-press-event', this._boundHandleBackgroundClick);
 
         // Main container with padding on all sides
         const container = new St.BoxLayout({
@@ -1236,10 +1243,12 @@ export class LayoutSwitcher {
      * Connect keyboard event handlers
      * Note: When modal is active, keyboard events go to the modal actor (this._dialog)
      * not to global.stage, so we connect directly to the dialog
+     * 
+     * Uses SignalTracker for proper cleanup to prevent memory leaks
      */
     _connectKeyEvents() {
-        // Use bound method to avoid closure leak
-        this._keyPressId = this._dialog.connect('key-press-event', this._boundHandleKeyPress);
+        // Use SignalTracker for proper cleanup (prevents memory leak)
+        this._keyPressId = this._signalTracker.connect(this._dialog, 'key-press-event', this._boundHandleKeyPress);
     }
 
     /**
@@ -1250,6 +1259,12 @@ export class LayoutSwitcher {
      * @private
      */
     _handleBackgroundClick(event) {
+        // CRITICAL: Guard against recursive calls during modal re-acquisition
+        // Prevents Fedora 43 infinite loop when stray click events leak through
+        if (this._reacquiringModal) {
+            return Clutter.EVENT_PROPAGATE;
+        }
+
         const [clickX, clickY] = event.get_coords();
         const containerAlloc = this._container ? this._container.get_transformed_extents() : null;
 
@@ -1619,16 +1634,14 @@ export class LayoutSwitcher {
 
     /**
      * Disconnect keyboard event handlers
+     * 
+     * Note: Now handled automatically by SignalTracker.disconnectAll()
+     * This method is kept for clarity in the cleanup flow
      */
     _disconnectKeyEvents() {
-        if (this._keyPressId && this._dialog) {
-            try {
-                this._dialog.disconnect(this._keyPressId);
-            } catch {
-                // Dialog may already be destroyed
-            }
-            this._keyPressId = null;
-        }
+        // Signal is automatically cleaned up by _disconnectTrackedSignals()
+        // Just null the ID for consistency
+        this._keyPressId = null;
     }
 
     /**
@@ -1703,13 +1716,13 @@ export class LayoutSwitcher {
     /**
      * Release modal so settings dialog can have it, but keep UI visible
      * Called before opening LayoutSettingsDialog
+     * 
+     * Note: We keep signals connected since the dialog isn't being destroyed,
+     * only the modal grab is being released for the settings dialog to use
      * @private
      */
     _releaseModalForSettings() {
-        // Disconnect key events temporarily
-        this._disconnectKeyEvents();
-
-        // Release modal grab
+        // Release modal grab (but keep dialog and all signals intact)
         if (this._modalGrabbed) {
             try {
                 Main.popModal(this._modalGrabbed);
@@ -1721,6 +1734,70 @@ export class LayoutSwitcher {
 
         // NOTE: Keep preview background visible - it provides the backdrop
         // for both LayoutSwitcher and LayoutSettingsDialog
+        // NOTE: Keep all signals connected - dialog remains alive, just not modal
+    }
+
+    /**
+     * Restore preview background visibility after modal re-acquisition
+     * @private
+     */
+    _restorePreviewBackgroundAfterModal() {
+        logger.info('    >>> ENTER _restorePreviewBackgroundAfterModal');
+        
+        if (!this._previewBackground) {
+            logger.info('    >>> No preview background, returning');
+            return;
+        }
+
+        logger.info('    >>> Getting layout to show');
+        const layoutToShow = this._pendingPreviewLayout || this._getCurrentLayout();
+        this._pendingPreviewLayout = null;
+
+        if (this._previewBackground.isVisible()) {
+            logger.info('    >>> Preview is visible, updating');
+            this._previewBackground.setVisibility(true);
+            logger.info('    >>> Set visibility true');
+            this._previewBackground.setLayout(layoutToShow);
+            logger.info('    >>> Set layout complete');
+        } else {
+            logger.info('    >>> Preview not visible, showing');
+            this._previewBackground.show(layoutToShow, this._selectedMonitorIndex);
+            logger.info('    >>> Show complete');
+        }
+        
+        logger.info('    >>> EXIT _restorePreviewBackgroundAfterModal');
+    }
+
+    /**
+     * Restore dialog visibility and focus after modal re-acquisition
+     * @private
+     */
+    _restoreDialogVisibilityAfterModal() {
+        logger.info('    >>> ENTER _restoreDialogVisibilityAfterModal');
+        
+        // Show container if it was hidden (zone editor flow)
+        if (this._container) {
+            logger.info('    >>> Showing container');
+            this._container.show();
+            logger.info('    >>> Container shown');
+        }
+
+        // Ensure dialog is on top of preview overlays
+        if (this._dialog) {
+            logger.info('    >>> Calling raise_top');
+            this._dialog.raise_top();
+            logger.info('    >>> raise_top complete');
+        }
+
+        // Note: Key events remain connected - we only release modal, not destroy dialog
+        // Focus the dialog to ensure keyboard events route correctly
+        if (this._dialog) {
+            logger.info('    >>> Calling grab_key_focus');
+            this._dialog.grab_key_focus();
+            logger.info('    >>> grab_key_focus complete');
+        }
+        
+        logger.info('    >>> EXIT _restoreDialogVisibilityAfterModal');
     }
 
     /**
@@ -1730,59 +1807,85 @@ export class LayoutSwitcher {
      * CRITICAL: Modal must be acquired BEFORE showing the container, otherwise
      * click events (e.g., from zone editor cancel button) can propagate to the
      * container's dismiss handler and immediately close the dialog.
+     *
+     * FEDORA 43 FIX: Uses guard flag in _handleBackgroundClick to prevent recursion.
+     * The guard flag is set during re-acquisition to block stray click events.
      * @private
      */
     _reacquireModalAfterSettings() {
-        if (!this._dialog) {
-            logger.warn('No dialog exists - cannot re-acquire modal');
+        logger.info('>>> ENTER _reacquireModalAfterSettings');
+        
+        // Guard against re-entrance (Fedora 43 recursion fix)
+        if (this._reacquiringModal) {
+            logger.warn('!!! Already re-acquiring modal, skipping to prevent recursion');
             return;
         }
 
-        // Re-acquire modal FIRST before making anything visible
-        // This prevents stray click events from dismissing the dialog
-        try {
-            this._modalGrabbed = Main.pushModal(this._dialog, {
-                actionMode: imports.gi.Shell.ActionMode.NORMAL,
-            });
+        if (!this._dialog) {
+            logger.warn('!!! No dialog exists - cannot re-acquire modal');
+            return;
+        }
 
-            if (!this._modalGrabbed) {
-                logger.error('Failed to re-acquire modal');
+        logger.info('  >>> Setting guard flag');
+        // Set guard flag - this prevents _handleBackgroundClick from processing events
+        this._reacquiringModal = true;
+
+        logger.info('  >>> Scheduling idle callback');
+        // Defer modal re-acquisition to allow pending click events to clear
+        // The guard flag in _handleBackgroundClick will prevent recursion
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            logger.info('  >>> START idle callback');
+            
+            // Double-check dialog still exists after deferral
+            if (!this._dialog) {
+                logger.warn('  !!! Dialog was destroyed during deferral');
+                this._reacquiringModal = false;
+                return GLib.SOURCE_REMOVE;
             }
-        } catch (e) {
-            logger.error(`Error re-acquiring modal: ${e.message}`);
-            this._modalGrabbed = null;
-        }
 
-        // Restore preview background visibility
-        if (this._previewBackground) {
-            const layoutToShow = this._pendingPreviewLayout || this._getCurrentLayout();
-            this._pendingPreviewLayout = null;
+            logger.info('  >>> About to pushModal');
+            // Re-acquire modal FIRST before making anything visible
+            try {
+                this._modalGrabbed = Main.pushModal(this._dialog, {
+                    actionMode: imports.gi.Shell.ActionMode.NORMAL,
+                });
 
-            if (this._previewBackground.isVisible()) {
-                // Overlays exist but may be hidden - restore them
-                this._previewBackground.setVisibility(true);
-                this._previewBackground.setLayout(layoutToShow);
-            } else {
-                // Fallback: overlays were destroyed
-                this._previewBackground.show(layoutToShow, this._selectedMonitorIndex);
+                if (!this._modalGrabbed) {
+                    logger.error('  !!! Failed to re-acquire modal');
+                } else {
+                    logger.info('  >>> pushModal complete');
+                }
+            } catch (e) {
+                logger.error(`  !!! Error re-acquiring modal: ${e.message}`);
+                this._modalGrabbed = null;
             }
-        }
 
-        // Show container if it was hidden (zone editor flow)
-        if (this._container) {
-            this._container.show();
-        }
+            logger.info('  >>> About to restore preview background');
+            // Restore UI visibility and state
+            this._restorePreviewBackgroundAfterModal();
+            logger.info('  >>> Preview background restored');
+            
+            logger.info('  >>> About to restore dialog visibility');
+            this._restoreDialogVisibilityAfterModal();
+            logger.info('  >>> Dialog visibility restored');
+            
+            logger.info('  >>> Reconnecting key events');
+            // Reconnect key events to ensure Escape handler works after modal handoff
+            this._disconnectKeyEvents();
+            this._connectKeyEvents();
+            logger.info('  >>> Key events reconnected');
+            
+            // CRITICAL: Clear guard flag ONLY after ALL operations complete
+            // Must be outside try-finally to prevent premature clearing on exception
+            logger.info('  >>> Clearing guard flag');
+            this._reacquiringModal = false;
+            logger.info('  >>> Guard flag cleared');
 
-        // Ensure dialog is on top of preview overlays
-        if (this._dialog) {
-            this._dialog.raise_top();
-        }
-
-        // Reconnect key events and focus
-        this._connectKeyEvents();
-        if (this._dialog) {
-            this._dialog.grab_key_focus();
-        }
+            logger.info('  >>> END idle callback');
+            return GLib.SOURCE_REMOVE;
+        });
+        
+        logger.info('<<< EXIT _reacquireModalAfterSettings');
     }
 
     /**
