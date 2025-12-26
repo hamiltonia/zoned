@@ -35,6 +35,7 @@
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import GLib from 'gi://GLib';
+import Shell from 'gi://Shell';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from '../utils/debug.js';
 import {SignalTracker} from '../utils/signalTracker.js';
@@ -104,7 +105,6 @@ export class LayoutSettingsDialog {
         // Bind methods to avoid closure leaks
         this._boundHandleContainerClick = this._handleContainerClick.bind(this);
         this._boundHandleKeyPress = this._handleKeyPress.bind(this);
-        this._boundHandleDialogCardClick = () => Clutter.EVENT_STOP;
         this._boundUpdateSaveButton = this._updateSaveButton.bind(this);
         this._boundTogglePaddingCheckbox = this._onTogglePaddingCheckbox.bind(this);
         this._boundHandleDeleteCancelClick = this._hideDeleteConfirmation.bind(this);
@@ -157,9 +157,30 @@ export class LayoutSettingsDialog {
         this._container.add_child(this._dialogCard);
         Main.uiGroup.add_child(this._container);
 
-        // Push modal to capture input
-        this._modal = Main.pushModal(this._container, {
-            actionMode: 1,  // Shell.ActionMode.NORMAL
+        // Push modal to capture input - use proper Shell.ActionMode constant
+        // Defer modal acquisition to avoid conflict with LayoutSwitcher's modal release
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            if (!this._container) {
+                logger.warn('Container destroyed before modal acquisition');
+                return GLib.SOURCE_REMOVE;
+            }
+
+            try {
+                this._modal = Main.pushModal(this._container, {
+                    actionMode: Shell.ActionMode.NORMAL,
+                });
+
+                if (!this._modal) {
+                    logger.error('Failed to acquire modal - dialog will not be interactive!');
+                } else {
+                    logger.debug('Modal acquired successfully');
+                }
+            } catch (e) {
+                logger.error(`Exception acquiring modal: ${e.message}`);
+                this._modal = null;
+            }
+
+            return GLib.SOURCE_REMOVE;
         });
 
         // Connect key handler for ESC - use bound method
@@ -217,7 +238,6 @@ export class LayoutSettingsDialog {
         // Release bound function references
         this._boundHandleContainerClick = null;
         this._boundHandleKeyPress = null;
-        this._boundHandleDialogCardClick = null;
         this._boundUpdateSaveButton = null;
         this._boundTogglePaddingCheckbox = null;
         this._boundHandleDeleteCancelClick = null;
@@ -468,10 +488,6 @@ export class LayoutSettingsDialog {
             style: `background-color: ${colors.containerBg}; border-radius: 16px; ` +
                    'padding: 24px; min-width: 420px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);',
         });
-
-        this._signalTracker.connect(
-            this._dialogCard, 'button-press-event', this._boundHandleDialogCardClick,
-        );
 
         // Header
         this._dialogCard.add_child(this._buildHeaderRow(colors));
@@ -1689,9 +1705,10 @@ export class LayoutSettingsDialog {
 
         if (isOutside) {
             this._hideDeleteConfirmation();
+            return Clutter.EVENT_STOP;
         }
 
-        return Clutter.EVENT_STOP;
+        return Clutter.EVENT_PROPAGATE;
     }
 
     /**

@@ -6,13 +6,12 @@
 ## v1.0 Release
 
 ### Remaining Work
-- No major feature work remaining
+- no major feature work planned for MVP
 
 **Code Quality:**
 - [ ] Final testing pass on X11 and Wayland
 - [x] Stability testing infrastructure (D-Bus interface, resource tracking)
-- [ ] Run stability tests and verify no leaks
-- [ ] Integrate resource tracking into remaining components
+- [ ] Memory leak testing of settings (layout switcher and extension testing completed with fixes)
 
 ### Known Issues
 
