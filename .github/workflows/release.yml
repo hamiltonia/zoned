@@ -44,6 +44,6 @@ jobs:
           files: build/zoned-${{ steps.version.outputs.VERSION }}.zip
           body_path: release_notes.md
           draft: false
-          prerelease: ${{ contains(github.ref, '-') || fromJSON(steps.version.outputs.VERSION) < 1 }}
+          prerelease: ${{ contains(github.ref, '-') || startsWith(steps.version.outputs.VERSION, '0.') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
