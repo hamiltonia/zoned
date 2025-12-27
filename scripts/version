@@ -166,8 +166,19 @@ tag_release_workflow() {
     
     # Check if tag already exists
     if check_tag_exists "$version"; then
-        echo -e "${COLOR_ERROR}ERROR: Tag v$version already exists${COLOR_RESET}"
-        return 1
+        echo -e "${COLOR_WARN}⚠ Tag v$version already exists${COLOR_RESET}"
+        echo ""
+        read -rp "Delete and recreate tag? [y/N]: " recreate
+        
+        if [[ $recreate =~ ^[Yy]$ ]]; then
+            echo -e "\n${COLOR_INFO}Deleting existing tag...${COLOR_RESET}"
+            git tag -d "v$version" 2>/dev/null || true
+            git push origin ":refs/tags/v$version" 2>/dev/null || true
+            echo -e "${COLOR_SUCCESS}✓ Deleted v$version${COLOR_RESET}"
+        else
+            echo "Cancelled."
+            return 0
+        fi
     fi
     
     # Ask for commit
