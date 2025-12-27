@@ -110,11 +110,24 @@ gsettings reset-recursively org.gnome.shell.extensions.zoned  # Reset
 
 ---
 
+## For Developers
+
+**VM Development:** Use the `vm` script for all VM operations:
+```bash
+./scripts/vm setup         # Configure VM
+./scripts/vm logs          # Watch VM logs  
+./scripts/vm test func     # Run tests
+make vm-dev                # Deploy to VM
+```
+
+See [scripts/README.md](scripts/README.md) for complete VM command reference.
+
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Developer quick reference, Makefile commands |
+| [scripts/README.md](scripts/README.md) | VM development scripts and commands |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines, code style, PR process |
 | [docs/architecture.md](docs/architecture.md) | Component overview, system design |
 | [docs/keybindings.md](docs/keybindings.md) | Complete keyboard shortcut reference |
@@ -160,6 +173,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 🐛 [Report bugs](https://github.com/hamiltonia/zoned/issues) · 💬 [Discussions](https://github.com/hamiltonia/zoned/discussions)
 
-*Inspired by Microsoft PowerToys FancyZones. Not affiliated with Microsoft, GNOME, or Hammerspoon.*
+*Inspired by Microsoft PowerToys FancyZones. Not affiliated with Microsoft or GNOME.*
 
 </div>

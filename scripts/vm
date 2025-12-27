@@ -1,0 +1,133 @@
+#!/bin/bash
+# VM Management Dispatcher - Main entry point for all VM operations
+# Usage: vm <command> [args...]
+
+set -e
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Color codes
+COLOR_RESET='\033[0m'
+COLOR_INFO='\033[36m'
+COLOR_SUCCESS='\033[32m'
+COLOR_ERROR='\033[31m'
+COLOR_WARN='\033[33m'
+
+show_help() {
+    printf "${COLOR_INFO}VM Management Commands${COLOR_RESET}\n"
+    printf "\n"
+    printf "${COLOR_SUCCESS}Usage:${COLOR_RESET} vm <command> [args...]\n"
+    printf "\n"
+    printf "${COLOR_SUCCESS}Setup & Configuration:${COLOR_RESET}\n"
+    printf "  ${COLOR_INFO}setup${COLOR_RESET} [options]     - Initial VM setup and configuration\n"
+    printf "  ${COLOR_INFO}profile${COLOR_RESET} <action>    - Manage VM profiles (list, switch, info, delete)\n"
+    printf "\n"
+    printf "${COLOR_SUCCESS}Development:${COLOR_RESET}\n"
+    printf "  ${COLOR_INFO}dev${COLOR_RESET}               - Deploy extension to VM (lint + compile + reload)\n"
+    printf "  ${COLOR_INFO}logs${COLOR_RESET}              - Watch extension logs from VM\n"
+    printf "\n"
+    printf "${COLOR_SUCCESS}VM Control:${COLOR_RESET}\n"
+    printf "  ${COLOR_INFO}headless${COLOR_RESET} <action>  - Headless mode operations (start, stop, status, display)\n"
+    printf "  ${COLOR_INFO}start${COLOR_RESET} [vmname]     - Start VM with display\n"
+    printf "\n"
+    printf "${COLOR_SUCCESS}Testing:${COLOR_RESET}\n"
+    printf "  ${COLOR_INFO}test${COLOR_RESET} func [preset] - Run functional tests (full, quick, minimal)\n"
+    printf "  ${COLOR_INFO}test${COLOR_RESET} mem [preset]  - Run memory tests (standard, quick, deep)\n"
+    printf "\n"
+    printf "${COLOR_SUCCESS}Utilities:${COLOR_RESET}\n"
+    printf "  ${COLOR_INFO}network${COLOR_RESET}           - Configure host networking\n"
+    printf "  ${COLOR_INFO}restart-spice${COLOR_RESET}     - Fix SPICE display issues\n"
+    printf "  ${COLOR_INFO}virtiofs${COLOR_RESET}          - Migrate VM to virtiofs\n"
+    printf "\n"
+    printf "${COLOR_SUCCESS}Examples:${COLOR_RESET}\n"
+    printf "  vm setup              - Run initial VM setup\n"
+    printf "  vm profile list       - List all VM profiles\n"
+    printf "  vm logs               - Watch VM logs\n"
+    printf "  vm test func quick    - Run quick functional tests\n"
+    printf "\n"
+    printf "${COLOR_INFO}Tip:${COLOR_RESET} Use 'direnv' or add an alias in .zshrc:\n"
+    printf "  alias vm='./scripts/vm'\n"
+    printf "\n"
+}
+
+# Parse command
+COMMAND="${1:-}"
+shift 2>/dev/null || true
+
+case "$COMMAND" in
+    # Setup & Configuration
+    setup)
+        exec "$SCRIPT_DIR/user/vm-setup" "$@"
+        ;;
+    
+    profile)
+        exec "$SCRIPT_DIR/user/vm-profile" "$@"
+        ;;
+    
+    # Development
+    dev)
+        exec "$SCRIPT_DIR/user/vm-dev" "$@"
+        ;;
+    
+    logs)
+        exec "$SCRIPT_DIR/user/vm-logs" "$@"
+        ;;
+    
+    # VM Control
+    headless)
+        exec "$SCRIPT_DIR/user/vm-headless" "$@"
+        ;;
+    
+    start)
+        # This would need to be implemented or use headless start
+        printf "${COLOR_WARN}Use 'vm headless start' or run via Make: make vm-start${COLOR_RESET}\n"
+        exit 1
+        ;;
+    
+    # Testing
+    test)
+        TEST_TYPE="${1:-}"
+        shift 2>/dev/null || true
+        
+        case "$TEST_TYPE" in
+            func|functional)
+                exec "$SCRIPT_DIR/vm-test/vm-test-func" "$@"
+                ;;
+            mem|memory)
+                exec "$SCRIPT_DIR/vm-test/vm-test-mem" "$@"
+                ;;
+            *)
+                printf "${COLOR_ERROR}Unknown test type: $TEST_TYPE${COLOR_RESET}\n"
+                printf "Available: func, mem\n"
+                exit 1
+                ;;
+        esac
+        ;;
+    
+    # Utilities
+    network)
+        exec "$SCRIPT_DIR/util/vm-network-setup" "$@"
+        ;;
+    
+    restart-spice)
+        exec "$SCRIPT_DIR/util/vm-restart-spice" "$@"
+        ;;
+    
+    virtiofs)
+        exec "$SCRIPT_DIR/util/vm-virtiofs-migrate" "$@"
+        ;;
+    
+    # Help
+    help|--help|-h|"")
+        show_help
+        exit 0
+        ;;
+    
+    # Unknown command
+    *)
+        printf "${COLOR_ERROR}Unknown command: $COMMAND${COLOR_RESET}\n\n"
+        show_help
+        exit 1
+        ;;
+esac
