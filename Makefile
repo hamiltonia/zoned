@@ -1,5 +1,5 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean build \
-        vm-dev lint lint-strict lint-fix dev reinstall dev-version
+        vm-dev lint lint-strict lint-fix dev reinstall dev-version test-release
 
 # Detect OS for sed compatibility
 UNAME_S := $(shell uname -s)
@@ -207,3 +207,34 @@ vm-dev: lint
 	@glib-compile-schemas extension/schemas/
 	@printf "$(COLOR_SUCCESS)✓ Schema compiled$(COLOR_RESET)\n"
 	@./scripts/user/vm-dev
+
+# Test release package (interactive zip selection)
+test-release:
+	@printf "$(COLOR_INFO)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)Test Release Package$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)\n"
+	@printf "\n$(COLOR_WARN)This will uninstall your current dev version!$(COLOR_RESET)\n\n"
+	@# Find all zoned zip files
+	@files=$$(find ~/Downloads build -name '*zoned*.zip' 2>/dev/null | sort -r); \
+	if [ -z "$$files" ]; then \
+		printf "$(COLOR_ERROR)✗ No zoned zip files found in ~/Downloads or build/$(COLOR_RESET)\n"; \
+		printf "$(COLOR_INFO)Run 'make build' to create a local package$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi; \
+	printf "Select release package to test:\n\n"; \
+	select zipfile in $$files "Cancel"; do \
+		case $$zipfile in \
+			"Cancel"|"") \
+				printf "\n$(COLOR_INFO)Cancelled.$(COLOR_RESET)\n"; \
+				exit 0 ;; \
+			*) \
+				printf "\n$(COLOR_INFO)Installing: $$zipfile$(COLOR_RESET)\n\n"; \
+				$(MAKE) disable 2>/dev/null || true; \
+				$(MAKE) uninstall 2>/dev/null || true; \
+				gnome-extensions install "$$zipfile" --force; \
+				gnome-extensions enable $(EXTENSION_UUID); \
+				printf "\n$(COLOR_SUCCESS)✓ Release package installed and enabled$(COLOR_RESET)\n"; \
+				printf "$(COLOR_INFO)Reload GNOME Shell to test (make reload or logout/login)$(COLOR_RESET)\n"; \
+				break ;; \
+		esac; \
+	done
