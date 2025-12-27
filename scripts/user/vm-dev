@@ -17,7 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Source the shared VM detection library
-source "$SCRIPT_DIR/lib/vm-detect.sh"
+source "$SCRIPT_DIR/../lib/vm-detect.sh"
 
 # Override cache file location with proper path
 VM_CACHE_FILE="$PROJECT_DIR/.vm-cache"

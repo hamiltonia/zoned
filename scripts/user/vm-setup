@@ -20,7 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Source the shared VM detection library
-source "$SCRIPT_DIR/lib/vm-detect.sh"
+source "$SCRIPT_DIR/../lib/vm-detect.sh"
 
 # Override cache file location with proper path
 VM_CACHE_FILE="$PROJECT_DIR/.vm-cache"
@@ -29,10 +29,84 @@ VM_CACHE_FILE="$PROJECT_DIR/.vm-cache"
 EXTENSION_UUID="zoned@hamiltonia.me"
 
 # ============================================
+#  HELP
+# ============================================
+
+show_help() {
+    printf "${CYAN}vm-setup - VM Setup and Configuration${NC}\n"
+    printf "\n"
+    printf "Complete setup wizard for configuring a VM for Zoned development.\n"
+    printf "\n"
+    printf "${CYAN}Usage:${NC}\n"
+    printf "  vm-setup [options]\n"
+    printf "  make vm-setup\n"
+    printf "\n"
+    printf "${CYAN}What it does:${NC}\n"
+    printf "  1. Auto-detects running VMs (or lets you select from multiple)\n"
+    printf "  2. Sets up SSH access (creates config, copies keys)\n"
+    printf "  3. Configures file sharing (virtiofs or SPICE)\n"
+    printf "  4. Creates extension symlink in VM\n"
+    printf "  5. Compiles GSettings schema\n"
+    printf "  6. Enables the extension\n"
+    printf "  7. Saves configuration as a VM profile\n"
+    printf "\n"
+    printf "${CYAN}Options:${NC}\n"
+    printf "  -h, --help        Show this help message\n"
+    printf "\n"
+    printf "${CYAN}File Sharing Methods:${NC}\n"
+    printf "  ${GREEN}virtiofs${NC} (recommended)\n"
+    printf "    - Fast, kernel-level file sharing\n"
+    printf "    - Better for long-haul testing\n"
+    printf "    - Requires one-time VM restart\n"
+    printf "    - Persistent across reboots\n"
+    printf "\n"
+    printf "  ${YELLOW}SPICE WebDAV${NC}\n"
+    printf "    - Works with GNOME Boxes out of the box\n"
+    printf "    - Slower, uses GVFS mount\n"
+    printf "    - Requires display client connection\n"
+    printf "    - May need manual remounting\n"
+    printf "\n"
+    printf "${CYAN}Multi-VM Workflow:${NC}\n"
+    printf "  vm-setup automatically creates a profile for each VM you configure.\n"
+    printf "  Switch between VMs using:\n"
+    printf "\n"
+    printf "    scripts/vm-profile list              # View all VMs\n"
+    printf "    scripts/vm-profile switch <name>     # Switch to a different VM\n"
+    printf "    scripts/vm-profile delete <name>     # Remove dead VM profile\n"
+    printf "\n"
+    printf "${CYAN}After Setup:${NC}\n"
+    printf "  make vm-dev       Fast deploy (use for iteration)\n"
+    printf "  make vm-logs      Watch extension logs\n"
+    printf "  make vm-test      Run test suite\n"
+    printf "\n"
+    printf "${CYAN}First-Time Setup:${NC}\n"
+    printf "  1. Start a VM in GNOME Boxes\n"
+    printf "  2. Run: make vm-setup\n"
+    printf "  3. Follow the interactive prompts\n"
+    printf "  4. The VM is now configured!\n"
+    printf "\n"
+    printf "${CYAN}Documentation:${NC}\n"
+    printf "  docs/vm-setup-guide.md        Detailed setup guide\n"
+    printf "  docs/vm-profiles.md           Multi-VM management\n"
+    printf "  docs/vm-setup-improvements.md Recent improvements\n"
+    printf "\n"
+    printf "${CYAN}Legacy Migration:${NC}\n"
+    printf "  If you have an existing .vm-cache file, it will be automatically\n"
+    printf "  migrated to the new profile system on first run.\n"
+    printf "\n"
+}
+
+# ============================================
 #  MAIN WORKFLOW
 # ============================================
 
 main() {
+    # Parse arguments
+    if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]] || [[ "$1" == "help" ]]; then
+        show_help
+        exit 0
+    fi
+    
     echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
     echo -e "${CYAN}   Zoned VM Setup${NC}"
     echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
@@ -95,7 +169,7 @@ main() {
                 echo ""
                 read -p "Run vm-virtiofs-migrate now to configure? [Y/n]: " migrate_confirm
                 if [[ "${migrate_confirm,,}" != "n" ]]; then
-                    "$SCRIPT_DIR/vm-virtiofs-migrate"
+                    "$SCRIPT_DIR/../util/vm-virtiofs-migrate"
                     if [[ $? -ne 0 ]]; then
                         vm_print_error "virtiofs migration failed"
                         exit 1

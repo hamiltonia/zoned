@@ -1,0 +1,231 @@
+#!/bin/bash
+#
+# vm-profile - Manage VM profiles for quick switching between test VMs
+#
+# Usage:
+#   vm-profile list              - List all configured VM profiles
+#   vm-profile switch <name>     - Switch to a different VM profile
+#   vm-profile info [name]       - Show profile information
+#
+
+set -e
+
+# Script location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Source the shared VM detection library
+source "$SCRIPT_DIR/../lib/vm-detect.sh"
+
+# ============================================
+#  COMMANDS
+# ============================================
+
+cmd_list() {
+    vm_profiles_list
+}
+
+cmd_switch() {
+    local profile_name="$1"
+    
+    if [[ -z "$profile_name" ]]; then
+        vm_print_error "Profile name required"
+        echo ""
+        echo "Usage: vm-profile switch <name>"
+        echo ""
+        echo "Available profiles:"
+        vm_profiles_list
+        exit 1
+    fi
+    
+    if vm_profile_switch "$profile_name"; then
+        vm_print_success "Profile activated: $profile_name"
+        echo ""
+        echo "Now you can use:"
+        echo "  make vm-dev     - Deploy to this VM"
+        echo "  make vm-logs    - Watch logs from this VM"
+    else
+        exit 1
+    fi
+}
+
+cmd_info() {
+    local profile_name="$1"
+    
+    if [[ -z "$profile_name" ]]; then
+        # Show active profile
+        if vm_profile_read_active; then
+            echo -e "${CYAN}Active Profile:${NC}"
+            echo ""
+            echo -e "  Domain:     ${GREEN}$VM_DOMAIN${NC}"
+            echo -e "  Title:      $VM_TITLE"
+            echo -e "  IP:         $VM_IP"
+            echo -e "  User:       $VM_USER"
+            echo -e "  Share Type: $VM_SHARE_TYPE"
+            echo -e "  Mount Path: $VM_MOUNT_PATH"
+            echo ""
+        else
+            vm_print_warning "No active profile"
+            echo ""
+            echo "Run 'make vm-setup' to configure a VM."
+        fi
+    else
+        # Show specific profile
+        if vm_profile_read "$profile_name"; then
+            echo -e "${CYAN}Profile: $profile_name${NC}"
+            echo ""
+            echo -e "  Domain:     $VM_DOMAIN"
+            echo -e "  Title:      $VM_TITLE"
+            echo -e "  IP:         $VM_IP"
+            echo -e "  User:       $VM_USER"
+            echo -e "  Share Type: $VM_SHARE_TYPE"
+            echo -e "  Mount Path: $VM_MOUNT_PATH"
+            echo ""
+        else
+            vm_print_error "Profile not found: $profile_name"
+            exit 1
+        fi
+    fi
+}
+
+cmd_delete() {
+    local profile_name="$1"
+    
+    if [[ -z "$profile_name" ]]; then
+        vm_print_error "Profile name required"
+        echo ""
+        echo "Usage: vm-profile delete <name>"
+        echo ""
+        echo "Available profiles:"
+        vm_profiles_list
+        exit 1
+    fi
+    
+    vm_profiles_init
+    
+    local profile_file="$VM_PROFILES_DIR/${profile_name}.profile"
+    
+    if [[ ! -f "$profile_file" ]]; then
+        vm_print_error "Profile not found: $profile_name"
+        echo ""
+        echo "Available profiles:"
+        vm_profiles_list
+        exit 1
+    fi
+    
+    # Check if this is the active profile
+    local is_active=false
+    if [[ -L "$VM_ACTIVE_PROFILE_LINK" ]]; then
+        local active_file=$(readlink "$VM_ACTIVE_PROFILE_LINK")
+        local active_name=$(basename "$active_file" .profile)
+        if [[ "$active_name" == "$profile_name" ]]; then
+            is_active=true
+        fi
+    fi
+    
+    # Show confirmation
+    echo -e "${YELLOW}Are you sure you want to delete this profile?${NC}"
+    echo ""
+    echo -e "  Profile: ${CYAN}$profile_name${NC}"
+    if [[ "$is_active" == "true" ]]; then
+        echo -e "  Status:  ${RED}ACTIVE${NC} (currently in use)"
+    fi
+    echo ""
+    read -p "Delete profile? [y/N]: " confirm
+    
+    if [[ "${confirm,,}" != "y" ]]; then
+        vm_print_info "Cancelled - profile not deleted"
+        exit 0
+    fi
+    
+    # Delete the profile file
+    rm -f "$profile_file"
+    vm_print_success "Profile deleted: $profile_name"
+    
+    # If it was active, clear the active link
+    if [[ "$is_active" == "true" ]]; then
+        rm -f "$VM_ACTIVE_PROFILE_LINK"
+        vm_print_warning "Active profile was deleted"
+        echo ""
+        echo "You need to switch to another profile:"
+        echo ""
+        vm_profiles_list
+        echo ""
+        echo "Use: vm-profile switch <name>"
+    fi
+}
+
+cmd_help() {
+    cat << EOF
+${CYAN}vm-profile - VM Profile Manager${NC}
+
+Manage multiple VM configurations for easy switching between test environments.
+
+${CYAN}Usage:${NC}
+  vm-profile list               List all configured profiles
+  vm-profile switch <name>      Switch to a different profile
+  vm-profile info [name]        Show profile information
+  vm-profile delete <name>      Delete a profile (for dead VMs)
+  vm-profile help               Show this help
+
+${CYAN}Examples:${NC}
+  # List all profiles
+  vm-profile list
+
+  # Switch to a different VM
+  vm-profile switch fedora-40
+
+  # View active profile details
+  vm-profile info
+
+  # Remove a dead VM profile
+  vm-profile delete old-fedora-38
+
+${CYAN}Managing Profiles:${NC}
+  - Profiles are created automatically by 'make vm-setup'
+  - Each profile stores VM connection and mount information
+  - Switching profiles updates which VM 'make vm-dev' targets
+  - Delete profiles when VMs are no longer needed
+  - Profiles are stored in .vm-profiles/ (gitignored)
+
+${CYAN}Legacy Migration:${NC}
+  Existing .vm-cache files are automatically migrated to profiles
+  on first run. No manual intervention needed.
+
+EOF
+}
+
+# ============================================
+#  MAIN
+# ============================================
+
+main() {
+    local command="${1:-help}"
+    shift || true
+    
+    case "$command" in
+        list|ls)
+            cmd_list "$@"
+            ;;
+        switch|use)
+            cmd_switch "$@"
+            ;;
+        info|show)
+            cmd_info "$@"
+            ;;
+        delete|remove|rm)
+            cmd_delete "$@"
+            ;;
+        help|-h|--help)
+            cmd_help
+            ;;
+        *)
+            vm_print_error "Unknown command: $command"
+            echo ""
+            cmd_help
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

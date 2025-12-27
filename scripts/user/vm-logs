@@ -18,7 +18,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source the shared VM detection library
-source "$SCRIPT_DIR/lib/vm-detect.sh"
+source "$SCRIPT_DIR/../lib/vm-detect.sh"
 
 # Extension details
 EXTENSION_UUID="zoned@hamiltonia.me"

@@ -27,7 +27,7 @@ NC='\033[0m' # No Color
 
 # Load distro detection library
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/lib/distro-detect.sh"
+source "$SCRIPT_DIR/../lib/distro-detect.sh"
 
 # VM network configuration
 VM_BRIDGE="virbr0"

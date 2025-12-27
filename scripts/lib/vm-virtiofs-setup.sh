@@ -21,20 +21,95 @@ vm_virtiofs_setup() {
     local virtiofs_tag="zoned"
     local mount_point="/mnt/$virtiofs_tag"
     
-    vm_print_step "Setting up virtiofs sharing..."
+    echo ""
+    echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}   virtiofs Setup Wizard${NC}"
+    echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo "virtiofs provides fast, kernel-level file sharing between host and VM."
+    echo "This setup requires configuration on both host (libvirt) and guest (VM)."
+    echo ""
+    
+    vm_print_step "Step 1: Checking host-side virtiofs configuration..."
+    
+    # Check if virtiofs is configured on the host side
+    local has_virtiofs
+    has_virtiofs=$(virsh --connect "$VIRSH_CONNECT" dumpxml "$domain" 2>/dev/null | grep -c "virtiofs" | head -1)
+    [[ -z "$has_virtiofs" ]] && has_virtiofs="0"
+    
+    if [[ "$has_virtiofs" -eq 0 ]]; then
+        vm_print_warning "virtiofs not configured on host (libvirt)"
+        echo ""
+        echo "The VM's libvirt XML needs virtiofs filesystem configuration."
+        echo "This requires:"
+        echo "  1. Shutting down the VM"
+        echo "  2. Modifying the VM configuration"
+        echo "  3. Restarting the VM"
+        echo ""
+        echo "The vm-virtiofs-migrate script will do this automatically."
+        echo ""
+        read -p "Run vm-virtiofs-migrate now? [Y/n]: " migrate_confirm
+        
+        if [[ "${migrate_confirm,,}" == "n" ]]; then
+            vm_print_warning "Skipping virtiofs setup"
+            echo ""
+            echo "To set up virtiofs later:"
+            echo "  1. Run: scripts/vm-virtiofs-migrate"
+            echo "  2. Then run: make vm-setup"
+            return 1
+        fi
+        
+        # Run the migration script
+        "$SCRIPT_DIR/../util/vm-virtiofs-migrate"
+        local migrate_result=$?
+        
+        if [[ $migrate_result -ne 0 ]]; then
+            vm_print_error "virtiofs migration failed"
+            echo ""
+            echo "You can:"
+            echo "  1. Try again: scripts/vm-virtiofs-migrate"
+            echo "  2. Use SPICE instead: Re-run vm-setup and choose option 2"
+            return 1
+        fi
+        
+        # VM was restarted by migrate script, wait for it to be ready
+        vm_print_step "Waiting for VM to be ready after restart..."
+        local waited=0
+        while [[ $waited -lt 60 ]]; do
+            if ssh -o ConnectTimeout=3 -o BatchMode=yes "$domain" "exit" 2>/dev/null; then
+                vm_print_success "VM is ready"
+                break
+            fi
+            echo -n "."
+            sleep 2
+            waited=$((waited + 2))
+        done
+        echo ""
+        
+        if ! ssh -o ConnectTimeout=3 -o BatchMode=yes "$domain" "exit" 2>/dev/null; then
+            vm_print_error "VM not responding after migration"
+            echo "Please check VM status manually and try again"
+            return 1
+        fi
+    else
+        vm_print_success "Host-side virtiofs is configured"
+    fi
+    
+    echo ""
+    vm_print_step "Step 2: Checking guest-side virtiofs support..."
     
     # Set results directory permissions on HOST (before VM mounts it)
     # virtiofs passthrough means VM cannot modify permissions
     local share_path
     share_path=$(virsh --connect "$VIRSH_CONNECT" dumpxml "$domain" 2>/dev/null | grep -A1 'filesystem.*virtiofs' | grep 'source dir' | sed "s/.*dir='\([^']*\)'.*/\1/")
     if [ -n "$share_path" ] && [ -d "$share_path/results" ]; then
-        vm_print_step "Setting results/ permissions on host..."
-        chmod 777 "$share_path/results" 2>/dev/null && vm_print_success "Results directory writable (777)" || vm_print_warning "Could not set permissions"
+        chmod 777 "$share_path/results" 2>/dev/null || true
     fi
     
     # Check if virtiofs filesystem support exists
     if ! ssh "$domain" "grep -q virtiofs /proc/filesystems" 2>/dev/null; then
-        vm_print_warning "virtiofs not in /proc/filesystems, trying to load module..."
+        vm_print_warning "virtiofs not in /proc/filesystems"
+        vm_print_step "Attempting to load virtiofs kernel module..."
         
         # Try to load the virtiofs module
         if ssh "$domain" "sudo modprobe virtiofs 2>/dev/null" 2>/dev/null; then
@@ -42,24 +117,38 @@ vm_virtiofs_setup() {
             if ssh "$domain" "grep -q virtiofs /proc/filesystems" 2>/dev/null; then
                 vm_print_success "virtiofs module loaded successfully"
             else
-                vm_print_error "virtiofs module loaded but not available in /proc/filesystems"
+                vm_print_error "virtiofs module loaded but not in /proc/filesystems"
                 echo ""
                 vm_virtiofs_diagnose "$domain"
+                echo ""
+                echo "Suggestion: Use SPICE file sharing instead (option 2 in vm-setup)"
                 return 1
             fi
         else
-            vm_print_error "virtiofs filesystem not available in VM"
+            vm_print_error "virtiofs kernel module not available"
             echo ""
             vm_virtiofs_diagnose "$domain"
+            echo ""
+            echo "Suggestion: Use SPICE file sharing instead (option 2 in vm-setup)"
             return 1
         fi
+    else
+        vm_print_success "virtiofs filesystem support available"
     fi
+    
+    echo ""
+    vm_print_step "Step 3: Mounting virtiofs share in VM..."
     
     # Check if already mounted
     if ssh "$domain" "mountpoint -q $mount_point" 2>/dev/null; then
         vm_print_success "virtiofs already mounted at $mount_point"
         VM_MOUNT_PATH="$mount_point"
         VM_SHARE_TYPE="virtiofs"
+        
+        echo ""
+        echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}   ✓ virtiofs setup complete!${NC}"
+        echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
         return 0
     fi
     
@@ -81,10 +170,10 @@ vm_virtiofs_setup() {
     fi
     
     # Do mkdir + mount in a single SSH command to minimize password prompts
-    vm_print_step "Creating mount point and mounting..."
+    vm_print_info "Creating mount point: $mount_point"
+    vm_print_info "Mounting virtiofs share: $virtiofs_tag"
     echo ""
-    echo -e "${YELLOW}You will be prompted for your VM user password (for sudo):${NC}"
-    echo -e "${CYAN}(Type your password and press Enter - you won't see it as you type)${NC}"
+    echo -e "${YELLOW}Note: You may be prompted for your VM password (for sudo)${NC}"
     echo ""
     
     local setup_output
@@ -101,46 +190,55 @@ vm_virtiofs_setup() {
     if [[ "$setup_output" == *"MOUNT_SUCCESS"* ]]; then
         vm_print_success "virtiofs share mounted at $mount_point"
         
+        echo ""
+        vm_print_step "Step 4: Making mount persistent (fstab)..."
+        
         # Add fstab entry for persistence (non-fatal if it fails)
         vm_virtiofs_add_fstab "$domain" "$virtiofs_tag" "$mount_point" || true
         
         VM_MOUNT_PATH="$mount_point"
         VM_SHARE_TYPE="virtiofs"
+        
+        echo ""
+        echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}   ✓ virtiofs setup complete!${NC}"
+        echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+        echo ""
+        echo -e "  Mount: ${GREEN}$mount_point${NC}"
+        echo -e "  Share: $virtiofs_tag"
+        echo -e "  Persistent: Yes (fstab entry added)"
+        echo ""
+        
         return 0
     fi
     
-    # Mount failed - check if it's a "share not configured" error
-    if [[ "$setup_output" == *"No such device"* ]] || [[ "$setup_output" == *"bad superblock"* ]] || [[ "$setup_output" == *"wrong fs type"* ]] || [[ "$setup_output" == *"MOUNT_FAILED"* ]]; then
-        vm_print_warning "virtiofs share not available"
-        echo ""
-        echo "The virtiofs share '$virtiofs_tag' is not exposed to the VM."
-        echo ""
-        
-        # Check if vm-virtiofs-migrate was run (check host-side XML)
-        local has_virtiofs
-        has_virtiofs=$(virsh --connect "$VIRSH_CONNECT" dumpxml "$domain" 2>/dev/null | grep -c "virtiofs")
-        
-        if [[ "$has_virtiofs" -gt 0 ]]; then
-            echo "The host-side virtiofs is configured but the VM needs to be restarted."
-            echo ""
-            read -p "Restart VM now to apply configuration? [Y/n]: " restart_confirm
-            if [[ "${restart_confirm,,}" != "n" ]]; then
-                if vm_virtiofs_restart_and_mount "$domain" "$virtiofs_tag" "$mount_point"; then
-                    return 0
-                fi
-            fi
-            return 2  # Needs restart
-        else
-            echo "Host-side virtiofs is NOT configured."
-            echo "Run 'scripts/vm-virtiofs-migrate' first to configure virtiofs."
-            return 1
-        fi
-    fi
-    
-    # Some other error
+    # Mount failed - diagnose the issue
     vm_print_error "Failed to mount virtiofs"
-    echo "Output: $setup_output"
-    return 1
+    echo ""
+    
+    if [[ "$setup_output" == *"No such device"* ]] || [[ "$setup_output" == *"bad superblock"* ]] || [[ "$setup_output" == *"wrong fs type"* ]] || [[ "$setup_output" == *"MOUNT_FAILED"* ]]; then
+        echo "The virtiofs share '$virtiofs_tag' is not available to the VM."
+        echo ""
+        echo "This usually means the VM needs to be restarted for the"
+        echo "host-side configuration to take effect."
+        echo ""
+        read -p "Restart VM now? [Y/n]: " restart_confirm
+        if [[ "${restart_confirm,,}" != "n" ]]; then
+            if vm_virtiofs_restart_and_mount "$domain" "$virtiofs_tag" "$mount_point"; then
+                return 0
+            fi
+        fi
+        return 2  # Needs restart
+    else
+        echo "Unexpected mount error:"
+        echo "$setup_output"
+        echo ""
+        echo "Troubleshooting:"
+        echo "  1. Check VM logs: journalctl -xe"
+        echo "  2. Verify host config: virsh dumpxml $domain | grep -A5 virtiofs"
+        echo "  3. Try restarting the VM"
+        return 1
+    fi
 }
 
 # Add fstab entry for persistent mount
