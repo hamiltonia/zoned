@@ -1,5 +1,5 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean build \
-        vm-dev lint lint-strict lint-fix dev reinstall
+        vm-dev lint lint-strict lint-fix dev reinstall dev-version
 
 # Detect OS for sed compatibility
 UNAME_S := $(shell uname -s)
@@ -54,7 +54,7 @@ help:
 	@printf "  make clean          - Clean build artifacts\n"
 	@printf "\n"
 
-install:
+install: dev-version
 	@printf "$(COLOR_INFO)Installing Zoned extension...$(COLOR_RESET)\n"
 	@mkdir -p $(INSTALL_DIR)
 	@cp -r $(EXTENSION_DIR)/* $(INSTALL_DIR)/
@@ -146,11 +146,19 @@ lint-fix:
 	fi
 	@npm run lint:fix
 
+# Generate dev version override (auto-marked as development build)
+dev-version:
+	@printf "$(COLOR_INFO)Generating dev version override...$(COLOR_RESET)\n"
+	@mkdir -p $(EXTENSION_DIR)
+	@jq -r '."version-name"' $(EXTENSION_DIR)/metadata.json | awk '{print $$1"-dev-"strftime("%Y%m%d-%H%M%S")}' > $(EXTENSION_DIR)/.version-override
+	@printf "$(COLOR_SUCCESS)✓ Dev version: $$(cat $(EXTENSION_DIR)/.version-override)$(COLOR_RESET)\n"
+
 clean:
 	@printf "$(COLOR_INFO)Cleaning build artifacts...$(COLOR_RESET)\n"
 	@rm -f *.zip
 	@find . -name "*.gschema.compiled" -delete
 	@rm -rf build/ dist/
+	@rm -f $(EXTENSION_DIR)/.version-override
 	@printf "$(COLOR_SUCCESS)✓ Clean complete$(COLOR_RESET)\n"
 
 # Build target (creates distributable zip)
@@ -158,6 +166,7 @@ build: lint-strict
 	@printf "$(COLOR_INFO)Creating extension package...$(COLOR_RESET)\n"
 	@mkdir -p build/prod
 	@cp -r $(EXTENSION_DIR)/* build/prod/
+	@rm -f build/prod/.version-override
 	@cd build/prod && zip -r ../$(EXTENSION_UUID).zip . -x "*.git*"
 	@printf "$(COLOR_SUCCESS)✓ Package created: build/$(EXTENSION_UUID).zip$(COLOR_RESET)\n"
 	@printf "$(COLOR_INFO)  Note: Debug logging controlled via GSettings (default: disabled)$(COLOR_RESET)\n"

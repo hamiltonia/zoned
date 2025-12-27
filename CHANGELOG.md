@@ -8,36 +8,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Dynamic version management system
+- Development build auto-marking with timestamps
+- Version display in preferences UI
+- Interactive version bump and tagging script
+
+### Documentation
+- VM development documentation
+- Testing strategy documentation
+- Memory debugging guides
+
+## [0.9.0] - 2025-12-27
+
+### Added
 - Initial project setup with comprehensive documentation
-- Memory bank architecture and API documentation
-- 9 default window layout layouts
-- Layout-based zone cycling system
-- Keyboard shortcuts for zone management (Super+Left/Right)
-- Layout picker UI (Super+grave)
+- 9 default window layouts (Halves, Thirds, Quarters, Grid, Columns, etc.)
+- Layout-based zone cycling system with keyboard shortcuts
+- Layout picker UI (Super+grave) with visual previews
 - Window minimize/maximize shortcuts (Super+Up/Down)
+- Zone navigation with Super+Left/Right
 - State persistence via GSettings
 - Custom layout support via JSON configuration
 - Multi-monitor support
 - Visual feedback via notifications
+- Development build version tracking
+- VM development environment support
+- Comprehensive testing framework
 
 ### Documentation
-- Architecture overview and design
-- Development setup guide
+- Architecture overview and design patterns
+- Development setup guide with VM support
 - Component design specifications
 - Layout system API reference
 - Keyboard shortcuts reference
-- Reference implementation mapping from Hammerspoon
-
-## [0.1.0] - TBD
-
-### Added
-- First public release
-- Core window management functionality
-- 9 built-in layouts (Halves, Thirds, Quarters, etc.)
-- Keyboard-driven zone cycling
-- Layout picker with ASCII visualizations
-- State persistence across sessions
-- Custom layout configuration support
+- Memory debugging and testing guides
+- VM setup and profiles documentation
 
 ### Known Issues
 - Layout picker may need keyboard layout adjustments for backtick key
