@@ -17,6 +17,7 @@ import {
     GNOME_BINDINGS,
     normalizeAccelerator,
 } from './utils/keybindingConfig.js';
+import {getExtensionVersion} from './utils/versionUtil.js';
 
 // Debug logging for prefs (console.log goes to journalctl)
 // Reads debug-logging setting to gate verbose output
@@ -1780,9 +1781,12 @@ export default class ZonedPreferences extends ExtensionPreferences {
         });
         page.add(aboutGroup);
 
+        // Get version info dynamically
+        const versionInfo = getExtensionVersion(this.path, this.metadata);
+
         const aboutRow = new Adw.ActionRow({
             title: 'Zoned',
-            subtitle: 'Version 1.0 (Pre-release)',
+            subtitle: `Version ${versionInfo.display}`,
         });
         aboutGroup.add(aboutRow);
 

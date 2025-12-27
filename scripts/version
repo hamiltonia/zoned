@@ -1,0 +1,239 @@
+#!/usr/bin/env bash
+# Interactive version management for Zoned extension
+# Handles version bumps and git tagging with dual-track versioning (GitHub semver + EGO integer)
+
+set -euo pipefail
+
+# Get script directory and source utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/version-utils.sh"
+
+# Main menu
+show_menu() {
+    echo -e "\n${COLOR_INFO}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+    echo -e "${COLOR_INFO}Zoned Version Management${COLOR_RESET}"
+    echo -e "${COLOR_INFO}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+    
+    local current_version
+    local current_ego
+    local latest_tag
+    
+    current_version=$(get_current_version)
+    current_ego=$(get_current_ego_version)
+    latest_tag=$(get_latest_tag)
+    
+    echo -e "Current version: ${COLOR_SUCCESS}$current_version${COLOR_RESET} (EGO: $current_ego)"
+    echo -e "Latest tag:      ${COLOR_SUCCESS}$latest_tag${COLOR_RESET}"
+    echo ""
+    echo "1) Bump Version"
+    echo "2) Tag Release"
+    echo "3) Exit"
+    echo ""
+}
+
+# Bump version workflow
+bump_version_workflow() {
+    echo -e "\n${COLOR_INFO}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+    echo -e "${COLOR_INFO}Bump Version${COLOR_RESET}"
+    echo -e "${COLOR_INFO}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}\n"
+    
+    # Ensure we're on main and clean
+    if ! check_on_main; then
+        return 1
+    fi
+    
+    if ! check_git_clean; then
+        return 1
+    fi
+    
+    # Get current version
+    local current_version
+    current_version=$(get_current_version)
+    echo -e "Current version: ${COLOR_SUCCESS}$current_version${COLOR_RESET}\n"
+    
+    # Ask for bump type
+    echo "Select bump type:"
+    echo "1) Major (X.0.0)"
+    echo "2) Minor (x.Y.0)"
+    echo "3) Patch (x.y.Z)"
+    echo "4) Cancel"
+    echo ""
+    read -rp "Choice [1-4]: " bump_choice
+    
+    local bump_type
+    case $bump_choice in
+        1) bump_type="major" ;;
+        2) bump_type="minor" ;;
+        3) bump_type="patch" ;;
+        4) echo "Cancelled."; return 0 ;;
+        *) echo -e "${COLOR_ERROR}Invalid choice${COLOR_RESET}"; return 1 ;;
+    esac
+    
+    # Calculate new version
+    local new_version
+    new_version=$(bump_version "$current_version" "$bump_type")
+    echo -e "\nNew version will be: ${COLOR_SUCCESS}$new_version${COLOR_RESET}"
+    
+    # Ask about EGO submission
+    echo ""
+    read -rp "Will this release be submitted to GNOME Extensions (EGO)? [y/N]: " ego_submit
+    
+    local version_display
+    if [[ $ego_submit =~ ^[Yy]$ ]]; then
+        version_display="$new_version"
+        echo -e "${COLOR_INFO}→ EGO Release${COLOR_RESET}"
+    else
+        version_display="$new_version (Pre-release)"
+        echo -e "${COLOR_INFO}→ Pre-release (GitHub only)${COLOR_RESET}"
+    fi
+    
+    # Calculate new EGO version (always increment by 1)
+    local current_ego
+    local new_ego
+    current_ego=$(get_current_ego_version)
+    new_ego=$((current_ego + 1))
+    
+    echo -e "EGO version: ${COLOR_SUCCESS}$current_ego${COLOR_RESET} → ${COLOR_SUCCESS}$new_ego${COLOR_RESET}"
+    
+    # Confirm before proceeding
+    echo ""
+    echo -e "${COLOR_WARN}This will:${COLOR_RESET}"
+    echo "  • Update metadata.json: $current_version → $new_version (EGO: $current_ego → $new_ego)"
+    echo "  • Update CHANGELOG.md with release date"
+    echo "  • Create release branch: release/v$new_version"
+    echo "  • Commit changes"
+    echo "  • Push to origin"
+    echo "  • Create pull request"
+    echo ""
+    read -rp "Proceed? [y/N]: " confirm
+    
+    if [[ ! $confirm =~ ^[Yy]$ ]]; then
+        echo "Cancelled."
+        return 0
+    fi
+    
+    echo -e "\n${COLOR_INFO}Proceeding with version bump...${COLOR_RESET}\n"
+    
+    # Create release branch
+    local branch_name
+    branch_name=$(create_release_branch "$new_version")
+    
+    # Update metadata.json
+    update_metadata_version "$new_version" "$new_ego" "$version_display"
+    
+    # Update CHANGELOG.md
+    if ! update_changelog_version "$new_version"; then
+        echo -e "${COLOR_WARN}⚠ Please update CHANGELOG.md manually${COLOR_RESET}"
+    fi
+    
+    # Commit changes
+    commit_version_changes "$new_version"
+    
+    # Push and create PR
+    push_and_create_pr "$branch_name" "$new_version"
+    
+    echo -e "\n${COLOR_SUCCESS}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+    echo -e "${COLOR_SUCCESS}✓ Version bump complete!${COLOR_RESET}"
+    echo -e "${COLOR_SUCCESS}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+    echo -e "\n${COLOR_INFO}Next steps:${COLOR_RESET}"
+    echo "  1. Review the pull request"
+    echo "  2. Merge to main"
+    echo "  3. Tag the release: ./scripts/version → Tag Release"
+    echo ""
+}
+
+# Tag release workflow
+tag_release_workflow() {
+    echo -e "\n${COLOR_INFO}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+    echo -e "${COLOR_INFO}Tag Release${COLOR_RESET}"
+    echo -e "${COLOR_INFO}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}\n"
+    
+    # Get current version as default
+    local current_version
+    current_version=$(get_current_version)
+    
+    # Ask for version
+    echo "Version to tag (without 'v' prefix)"
+    read -rp "Version [$current_version]: " version_input
+    
+    local version=${version_input:-$current_version}
+    
+    # Validate version
+    if ! validate_semver "$version"; then
+        echo -e "${COLOR_ERROR}ERROR: Invalid version format (must be X.Y.Z)${COLOR_RESET}"
+        return 1
+    fi
+    
+    # Check if tag already exists
+    if check_tag_exists "$version"; then
+        echo -e "${COLOR_ERROR}ERROR: Tag v$version already exists${COLOR_RESET}"
+        return 1
+    fi
+    
+    # Ask for commit
+    echo ""
+    read -rp "Commit to tag [HEAD]: " commit_input
+    local commit=${commit_input:-HEAD}
+    
+    # Verify commit exists
+    if ! git rev-parse "$commit" >/dev/null 2>&1; then
+        echo -e "${COLOR_ERROR}ERROR: Commit does not exist: $commit${COLOR_RESET}"
+        return 1
+    fi
+    
+    # Get commit hash for display
+    local commit_hash
+    commit_hash=$(git rev-parse --short "$commit")
+    
+    # Confirm
+    echo ""
+    echo -e "${COLOR_WARN}This will:${COLOR_RESET}"
+    echo "  • Create annotated tag: v$version"
+    echo "  • On commit: $commit_hash"
+    echo "  • Push tag to origin"
+    echo ""
+    read -rp "Proceed? [y/N]: " confirm
+    
+    if [[ ! $confirm =~ ^[Yy]$ ]]; then
+        echo "Cancelled."
+        return 0
+    fi
+    
+    echo -e "\n${COLOR_INFO}Creating and pushing tag...${COLOR_RESET}\n"
+    
+    # Create and push tag
+    create_and_push_tag "$version" "$commit"
+    
+    echo -e "\n${COLOR_SUCCESS}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+    echo -e "${COLOR_SUCCESS}✓ Tag created and pushed!${COLOR_RESET}"
+    echo -e "${COLOR_SUCCESS}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+    echo -e "\n${COLOR_INFO}GitHub Actions should now build the release package.${COLOR_RESET}"
+    echo -e "${COLOR_INFO}Visit: https://github.com/hamiltonia/zoned/releases/tag/v$version${COLOR_RESET}\n"
+}
+
+# Main loop
+main() {
+    while true; do
+        show_menu
+        read -rp "Choice [1-3]: " choice
+        
+        case $choice in
+            1)
+                bump_version_workflow
+                ;;
+            2)
+                tag_release_workflow
+                ;;
+            3)
+                echo -e "\n${COLOR_INFO}Goodbye!${COLOR_RESET}\n"
+                exit 0
+                ;;
+            *)
+                echo -e "${COLOR_ERROR}Invalid choice${COLOR_RESET}"
+                ;;
+        esac
+    done
+}
+
+# Run main
+main

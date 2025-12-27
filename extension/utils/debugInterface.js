@@ -21,6 +21,7 @@ import {
     getAggregatedReport,
     resetAllTracking,
 } from './resourceTracker.js';
+import {getExtensionVersion} from './versionUtil.js';
 
 const logger = createLogger('DebugInterface');
 
@@ -401,9 +402,12 @@ export class DebugInterface {
         const layoutState = this._getLayoutState();
         const settingsState = this._getSettingsState();
 
+        // Get version info dynamically
+        const versionInfo = getExtensionVersion(this._extension.path, this._extension.metadata);
+
         return {
             enabled: GLib.Variant.new_boolean(true),
-            extensionVersion: GLib.Variant.new_string('1.0'),
+            extensionVersion: GLib.Variant.new_string(versionInfo.name),
             ...layoutState,
             ...settingsState,
         };
@@ -628,9 +632,12 @@ export class DebugInterface {
      */
     emitInitCompleted(success) {
         if (this._dbusExportId) {
+            // Get version info dynamically
+            const versionInfo = getExtensionVersion(this._extension.path, this._extension.metadata);
+
             this._dbusExportId.emit_signal(
                 'InitCompleted',
-                new GLib.Variant('(bs)', [success, '1.0']),
+                new GLib.Variant('(bs)', [success, versionInfo.name]),
             );
             logger.debug(`InitCompleted signal emitted: ${success}`);
         }
