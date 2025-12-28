@@ -344,7 +344,7 @@ vm_detect_target() {
         echo "  1. Open GNOME Boxes"
         echo "  2. Create a new VM (Fedora or Ubuntu recommended)"
         echo "  3. Start the VM and complete the OS setup"
-        echo "  4. Run 'make vm-dev' again"
+        echo "  4. Run 'make vm-install' again"
         return 1
     fi
     
@@ -510,7 +510,7 @@ vm_ensure_ssh() {
         # Add entry
         {
             echo ""
-            echo "# Added by zoned vm-dev"
+            echo "# Added by zoned vm-install"
             echo "Host $domain"
             echo "    HostName $ip"
             echo "    User $user"
@@ -871,6 +871,6 @@ vm_ensure_spice() {
     vm_print_success "SPICE packages installed"
     echo ""
     vm_print_warning "VM REBOOT REQUIRED for shared folders to work"
-    echo "Please reboot the VM, then run 'make vm-dev' again."
+    echo "Please reboot the VM, then run 'make vm-install' again."
     return 2  # Special return code indicating reboot needed
 }

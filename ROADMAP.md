@@ -82,7 +82,7 @@ make logs
 # VM development (recommended for fast iteration)
 make vm-init
 make vm-setup
-make vm-logs
+./scripts/vm logs
 ```
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for details.

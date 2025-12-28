@@ -131,7 +131,7 @@ gsettings reset-recursively org.gnome.shell.extensions.zoned  # Reset
 ./scripts/vm setup         # Configure VM
 ./scripts/vm logs          # Watch VM logs  
 ./scripts/vm test func     # Run tests
-make vm-dev                # Deploy to VM
+make vm-install            # Deploy to VM
 ```
 
 See [scripts/README.md](scripts/README.md) for complete VM command reference.

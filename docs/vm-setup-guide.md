@@ -38,7 +38,7 @@ Complete step-by-step guide to set up VM-based development for Zoned GNOME Shell
    ↓
 5. make vm-setup (SSH + verify virtiofs)
    ↓
-6. make vm-dev (deploy & test)
+6. make vm-install (deploy & test)
 ```
 
 This guide walks you through each step.
@@ -269,7 +269,7 @@ make vm-setup
 7. **Compile GSettings schema** (with virtiofs workaround)
 8. **Enable extension**
 9. **Reload GNOME Shell** (X11) or show instructions (Wayland)
-10. **Save configuration** to `.vm-cache` for fast vm-dev iterations
+10. **Save configuration** to `.vm-cache` for fast vm-install iterations
 
 **If multiple VMs are running**, you'll be prompted to select one.
 
@@ -296,7 +296,7 @@ code .   # or vim, emacs, etc.
 **Terminal 2 - Watch VM Logs:**
 ```bash
 cd ~/GitHub/zoned
-make vm-logs
+./scripts/vm logs
 # Watches extension logs from VM in real-time
 ```
 
@@ -307,7 +307,7 @@ make vm-logs
    ↓
 2. Save file (changes instantly visible in VM via virtiofs)
    ↓
-3. make vm-dev (lint → compile → reload)
+3. make vm-install (lint → compile → reload)
    ↓
 4. View logs on host (Terminal 2 shows output)
    ↓
@@ -318,10 +318,10 @@ make vm-logs
 
 ```bash
 # Fast deploy (lint, compile, reload)
-make vm-dev
+make vm-install
 
 # Watch logs
-make vm-logs
+./scripts/vm logs
 
 # Full setup (if config changes)
 make vm-setup
@@ -352,7 +352,7 @@ rm ~/GitHub/zoned/.vm-cache
 grep -A 6 "Host vm-" ~/.ssh/config
 
 # Remove it manually or use sed:
-sed -i '/# Added by zoned vm-dev/,/^$/d' ~/.ssh/config
+sed -i '/# Added by zoned vm-install/,/^$/d' ~/.ssh/config
 ```
 
 **3. Re-run setup:**
@@ -514,14 +514,14 @@ make vm-stop
 **Daily workflow:**
 1. Start VM in GNOME Boxes
 2. Edit code on host: `code ~/GitHub/zoned`
-3. `make vm-dev` (deploys in 2-3 seconds)
-4. `make vm-logs` (watch extension output)
+3. `make vm-install` (deploys in 2-3 seconds)
+4. `./scripts/vm logs` (watch extension output)
 5. Repeat!
 
 **Key commands:**
 - `make vm-setup` - Full VM configuration
-- `make vm-dev` - Fast deploy (daily use)
-- `make vm-logs` - Watch extension logs
+- `make vm-install` - Fast deploy (daily use)
+- `./scripts/vm logs` - Watch extension logs
 - `make vm-virtiofs-migrate` - Convert to virtiofs
 
 **Next Steps:**

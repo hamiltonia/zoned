@@ -60,7 +60,7 @@ make vm-init    # Interactive: enter VM IP, username
 make vm-setup   # Configures VM environment
 
 # Daily development:
-make vm-logs    # Terminal 1: Watch VM logs
+./scripts/vm logs    # Terminal 1: Watch VM logs
 code .          # Terminal 2: Edit code
 # In VM: Alt+F2 → r → Enter (after each save)
 ```
@@ -72,8 +72,8 @@ code .          # Terminal 2: Edit code
 | `make vm-init` | **First-time setup**: Create VM configuration |
 | `make vm-setup` | **One-time**: Configure VM for development |
 | `make vm-install` | Install/update extension in VM |
-| `make vm-logs` | Watch extension logs from VM |
-| `make vm-dev` | Quick install + reload in VM |
+| `./scripts/vm logs` | Watch extension logs from VM |
+| `make vm-install` | Quick install + reload in VM |
 
 ### Detailed VM Setup
 

@@ -42,8 +42,8 @@ cmd_switch() {
         vm_print_success "Profile activated: $profile_name"
         echo ""
         echo "Now you can use:"
-        echo "  make vm-dev     - Deploy to this VM"
-        echo "  make vm-logs    - Watch logs from this VM"
+        echo "  make vm-install     - Deploy to this VM"
+        echo "  ./scripts/vm logs   - Watch logs from this VM"
     else
         exit 1
     fi
@@ -184,7 +184,7 @@ ${CYAN}Examples:${NC}
 ${CYAN}Managing Profiles:${NC}
   - Profiles are created automatically by 'make vm-setup'
   - Each profile stores VM connection and mount information
-  - Switching profiles updates which VM 'make vm-dev' targets
+  - Switching profiles updates which VM 'make vm-install' targets
   - Delete profiles when VMs are no longer needed
   - Profiles are stored in .vm-profiles/ (gitignored)
 

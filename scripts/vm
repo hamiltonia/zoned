@@ -65,9 +65,9 @@ case "$COMMAND" in
         exec "$SCRIPT_DIR/user/vm-profile" "$@"
         ;;
     
-    # Development
-    dev)
-        exec "$SCRIPT_DIR/user/vm-dev" "$@"
+    # Install dev build
+    install)
+        exec "$SCRIPT_DIR/user/vm-install" "$@"
         ;;
     
     logs)

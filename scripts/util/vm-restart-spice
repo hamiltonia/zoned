@@ -85,7 +85,7 @@ main() {
         echo "  • SSH server not running in VM"
         echo "  • SSH keys not set up"
         echo ""
-        echo "Run 'make vm-dev' first to set up SSH access."
+        echo "Run 'make vm-install' first to set up SSH access."
         exit 1
     fi
     vm_print_success "SSH connection OK"
