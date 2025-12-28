@@ -46,9 +46,8 @@ show_help() {
     printf "  2. Sets up SSH access (creates config, copies keys)\n"
     printf "  3. Configures file sharing (virtiofs or SPICE)\n"
     printf "  4. Creates extension symlink in VM\n"
-    printf "  5. Compiles GSettings schema\n"
-    printf "  6. Enables the extension\n"
-    printf "  7. Saves configuration as a VM profile\n"
+    printf "  5. Enables the extension (GNOME Shell compiles schema on enable)\n"
+    printf "  6. Saves configuration as a VM profile\n"
     printf "\n"
     printf "${CYAN}Options:${NC}\n"
     printf "  -h, --help        Show this help message\n"
@@ -281,31 +280,8 @@ main() {
     fi
     echo ""
     
-    # Step 8: Compile schema
-    vm_print_step "Step 7: Compiling GSettings schema..."
-    if ssh "$VM_DOMAIN" "test -d $ext_dir/schemas" 2>/dev/null; then
-        # For virtiofs, we need to compile to a writable location first
-        if [[ "$VM_SHARE_TYPE" == "virtiofs" ]]; then
-            vm_print_info "Compiling schema (virtiofs workaround)..."
-            ssh "$VM_DOMAIN" "
-                mkdir -p /tmp/zoned-schemas
-                cp $ext_dir/schemas/*.xml /tmp/zoned-schemas/
-                glib-compile-schemas /tmp/zoned-schemas/
-                cp /tmp/zoned-schemas/gschemas.compiled $ext_dir/schemas/ 2>/dev/null || sudo cp /tmp/zoned-schemas/gschemas.compiled $ext_dir/schemas/
-                rm -rf /tmp/zoned-schemas
-            " 2>/dev/null
-            vm_print_success "Schema compiled"
-        else
-            ssh "$VM_DOMAIN" "glib-compile-schemas $ext_dir/schemas/"
-            vm_print_success "Schema compiled"
-        fi
-    else
-        vm_print_warning "No schemas directory found"
-    fi
-    echo ""
-    
-    # Step 9: Enable extension
-    vm_print_step "Step 8: Checking extension status..."
+    # Step 7: Enable extension (GNOME Shell will compile schema on enable)
+    vm_print_step "Step 7: Checking extension status..."
     local ext_state
     ext_state=$(ssh "$VM_DOMAIN" "gnome-extensions info $EXTENSION_UUID 2>/dev/null | grep 'State:'" 2>/dev/null || echo "State: UNKNOWN")
     
