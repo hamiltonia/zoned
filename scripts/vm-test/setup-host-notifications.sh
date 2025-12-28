@@ -5,7 +5,7 @@
 # This script sets up SSH access from the VM to the host machine
 # so that notifications can be sent from VM tests to the host desktop.
 #
-# Run this script INSIDE THE VM after running 'make vm-dev'
+# Run this script INSIDE THE VM after running 'make vm-install'
 #
 
 set -e

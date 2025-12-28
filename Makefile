@@ -203,8 +203,8 @@ reinstall: lint uninstall install
 	@printf "$(COLOR_SUCCESS)✓ Extension reinstalled$(COLOR_RESET)\n"
 	@printf "$(COLOR_WARN)⚠ Remember to reload GNOME Shell to see changes$(COLOR_RESET)\n"
 
-# VM install target (renamed from vm-dev, no schema pre-compilation)
-vm-install: lint
+# VM install target (no schema pre-compilation)
+vm-install: dev-version lint
 	@printf "$(COLOR_INFO)▶ Installing to VM...$(COLOR_RESET)\n"
 	@printf "$(COLOR_REMOTE)  (Remote operations shown in yellow)$(COLOR_RESET)\n"
 	@./scripts/user/vm-install

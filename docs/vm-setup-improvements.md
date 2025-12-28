@@ -69,10 +69,10 @@ make vm-setup  # Creates ubuntu-2404 profile
 # Switch between them
 scripts/vm-profile list
 scripts/vm-profile switch fedora-40
-make vm-dev  # Deploys to Fedora
+make vm-install  # Deploys to Fedora
 
 scripts/vm-profile switch ubuntu-2404
-make vm-dev  # Deploys to Ubuntu
+make vm-install  # Deploys to Ubuntu
 ```
 
 ### Improved Error Messages

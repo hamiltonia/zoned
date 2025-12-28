@@ -385,7 +385,7 @@ Use VM for fast iteration:
 
 ```bash
 # Terminal 1: Watch logs
-make vm-logs
+./scripts/vm logs
 
 # Terminal 2: Edit code
 # After saving, in VM: Alt+F2 → r → Enter

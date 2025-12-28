@@ -39,8 +39,8 @@ Once you've set up multiple VMs with `make vm-setup`, you can quickly switch bet
 scripts/vm-profile switch ubuntu-24-04
 
 # Now all vm-* commands target the new VM
-make vm-dev
-make vm-logs
+make vm-install
+./scripts/vm logs
 ```
 
 ### Creating Profiles
@@ -57,10 +57,10 @@ make vm-setup           # Creates another profile (e.g., "ubuntu-2404")
 
 # Switch between them
 scripts/vm-profile switch fedora-40
-make vm-dev             # Deploys to Fedora VM
+make vm-install             # Deploys to Fedora VM
 
 scripts/vm-profile switch ubuntu-2404
-make vm-dev             # Deploys to Ubuntu VM
+make vm-install             # Deploys to Ubuntu VM
 ```
 
 ## Profile Storage
@@ -87,7 +87,7 @@ The old `.vm-cache` file is automatically migrated to the new profile system on 
 1. **Quick Switching**: Change target VM instantly without re-setup
 2. **Multi-VM Testing**: Easily test across different distributions
 3. **Persistent Config**: VM configurations survive host reboots
-4. **Clean Workflow**: Run `make vm-dev` without worrying about which VM is active
+4. **Clean Workflow**: Run `make vm-install` without worrying about which VM is active
 
 ## Advanced Usage
 
@@ -101,6 +101,6 @@ You can maintain profiles for different testing scenarios:
 ### Integration with Scripts
 
 All vm-* scripts automatically use the active profile:
-- `make vm-dev` - Deploy to active VM
-- `make vm-logs` - View logs from active VM
+- `make vm-install` - Deploy to active VM
+- `./scripts/vm logs` - View logs from active VM
 - `scripts/vm-test/*` - Run tests in active VM

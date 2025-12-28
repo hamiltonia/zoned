@@ -7,12 +7,12 @@ This directory contains all scripts for VM development, testing, and utilities.
 ```
 scripts/
 ├── vm                    # Main dispatcher - use this for all VM operations
-├── user/                 # User-facing commands (called via vm dispatcher)
-│   ├── vm-setup         # Initial VM configuration
-│   ├── vm-dev           # Deploy to VM during development
-│   ├── vm-logs          # Watch VM logs
-│   ├── vm-profile       # Manage VM profiles
-│   └── vm-headless      # Headless VM operations
+├── user/                 # User-facing commands (called via ./scripts/vm dispatcher or directly)
+│   ├── vm-setup          # Initial VM configuration
+│   ├── vm-install        # Deploy to VM during development
+│   ├── vm-logs           # Watch VM logs
+│   ├── vm-profile        # Manage VM profiles
+│   └── vm-headless       # Headless VM operations
 ├── util/                 # Utilities (rarely called directly)
 │   ├── vm-network-setup
 │   ├── vm-restart-spice
@@ -65,13 +65,13 @@ alias vm='/path/to/zoned/scripts/vm'
 - `vm profile delete <name>` - Remove a VM profile
 
 ### Development
-- `make vm-dev` - Deploy extension to VM (lint + compile + reload)
+- `make vm-install` - Deploy extension to VM (lint + compile + reload)
 - `vm logs` - Watch extension logs from VM
-- `vm dev` - Same as vm-dev, but via dispatcher
+- `vm install` - Same as vm-install, but via dispatcher
 
 ### VM Control
 - `vm headless start` - Start VM without display
-- `vm headless stop` - Stop VM
+- `vm headless stop`  - Stop VM
 - `vm headless status` - Check VM status
 - `vm headless display` - Attach display to running VM
 
@@ -103,11 +103,11 @@ alias vm='/path/to/zoned/scripts/vm'
 | Old Command | New Command |
 |-------------|-------------|
 | `make vm-setup` | `vm setup` |
-| `make vm-logs` | `vm logs` |
+| `./scripts/vm logs` | `vm logs` |
 | `make vm-test-func` | `vm test func` |
 | `make vm-test-mem` | `vm test mem` |
 | `scripts/vm-profile list` | `vm profile list` |
-| `make vm-dev` | `make vm-dev` (still works!) |
+| `make vm-install` | `make vm-install` (still works!) |
 
 ## Documentation
 

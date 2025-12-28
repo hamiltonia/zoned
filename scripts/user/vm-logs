@@ -90,7 +90,7 @@ main() {
     if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "$VM_DOMAIN" "exit" 2>/dev/null; then
         vm_print_error "Cannot connect to VM: $VM_DOMAIN"
         echo ""
-        echo "Run 'make vm-dev' first to set up SSH access."
+        echo "Run 'make vm-install' first to set up SSH access."
         exit 1
     fi
     
@@ -115,7 +115,7 @@ main() {
         echo
         ssh "$VM_DOMAIN" "journalctl -f -o cat /usr/bin/gnome-shell 2>/dev/null"
     else
-        echo -e "${BLUE}Filtering for 'zoned' messages (use 'make vm-logs all' for all)...${NC}"
+        echo -e "${BLUE}Filtering for 'zoned' messages (use './scripts/vm logs all' for all)...${NC}"
         echo -e "${YELLOW}[VM]${NC} Streaming logs via SSH..."
         echo
         ssh "$VM_DOMAIN" "journalctl -f -o cat /usr/bin/gnome-shell 2>/dev/null | grep --line-buffered -i zoned"

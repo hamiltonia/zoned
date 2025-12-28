@@ -76,9 +76,9 @@ show_help() {
     printf "    scripts/vm-profile delete <name>     # Remove dead VM profile\n"
     printf "\n"
     printf "${CYAN}After Setup:${NC}\n"
-    printf "  make vm-dev       Fast deploy (use for iteration)\n"
-    printf "  make vm-logs      Watch extension logs\n"
-    printf "  make vm-test      Run test suite\n"
+    printf "  make vm-install       Fast deploy (use for iteration)\n"
+    printf "  ./scripts/vm logs     Watch extension logs\n"
+    printf "  make vm-test          Run test suite\n"
     printf "\n"
     printf "${CYAN}First-Time Setup:${NC}\n"
     printf "  1. Start a VM in GNOME Boxes\n"
@@ -390,8 +390,8 @@ main() {
     fi
     echo ""
     echo "  Next steps:"
-    echo "    make vm-dev     - Fast deploy (use for iteration)"
-    echo "    make vm-logs    - Watch extension logs"
+    echo "    make vm-install     - Fast deploy (use for iteration)"
+    echo "    ./scripts/vm logs    - Watch extension logs"
     echo ""
 }
 
