@@ -1,5 +1,5 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean build \
-        vm-dev lint lint-strict lint-fix dev reinstall dev-version test-release
+        vm-install clean-install vm-clean-install lint lint-strict lint-fix dev reinstall dev-version test-release
 
 # Detect OS for sed compatibility
 UNAME_S := $(shell uname -s)
@@ -41,8 +41,8 @@ help:
 	@printf "  make lint-fix       - Run ESLint and auto-fix issues\n"
 	@printf "  make test           - Run tests\n"
 	@printf "\n"
-	@printf "$(COLOR_SUCCESS)VM Development (Build/Deploy):$(COLOR_RESET)\n"
-	@printf "  make vm-dev         - Deploy extension to VM (lint + compile + reload)\n"
+	@printf "$(COLOR_SUCCESS)VM Development:$(COLOR_RESET)\n"
+	@printf "  make vm-install     - Install extension to VM (lint + sync + enable)\n"
 	@printf "\n"
 	@printf "$(COLOR_INFO)For VM operations (setup, logs, testing, etc.):$(COLOR_RESET)\n"
 	@printf "  Use: $(COLOR_SUCCESS)./scripts/vm --help$(COLOR_RESET)\n"
@@ -53,14 +53,17 @@ help:
 	@printf "  make build          - Create extension zip for distribution\n"
 	@printf "  make clean          - Clean build artifacts\n"
 	@printf "\n"
+	@printf "$(COLOR_SUCCESS)Diagnostic/Deep Clean:$(COLOR_RESET)\n"
+	@printf "  make clean-install     - Deep clean local installation (extension + settings)\n"
+	@printf "  make vm-clean-install  - Deep clean VM installation (extension + settings)\n"
+	@printf "\n"
 
 install: dev-version
 	@printf "$(COLOR_INFO)Installing Zoned extension...$(COLOR_RESET)\n"
 	@mkdir -p $(INSTALL_DIR)
 	@cp -r $(EXTENSION_DIR)/* $(INSTALL_DIR)/
-	@glib-compile-schemas $(INSTALL_DIR)/schemas/
 	@printf "$(COLOR_SUCCESS)✓ Installation complete: $(INSTALL_DIR)$(COLOR_RESET)\n"
-	@printf "$(COLOR_SUCCESS)✓ Schema compiled$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)  Note: Schema will be compiled by GNOME Shell when enabling extension$(COLOR_RESET)\n"
 	@printf "$(COLOR_INFO)  Tip: Enable debug logging in Preferences → Developer section (Ctrl+Shift+D)$(COLOR_RESET)\n"
 
 uninstall:
@@ -171,9 +174,6 @@ build: lint-strict
 	@printf "$(COLOR_SUCCESS)✓ Package created: build/$(EXTENSION_UUID).zip$(COLOR_RESET)\n"
 	@printf "$(COLOR_INFO)  Note: Debug logging controlled via GSettings (default: disabled)$(COLOR_RESET)\n"
 
-# Alias for backward compatibility
-zip: build
-
 # Convenience target for development workflow
 dev: lint install enable
 	@printf "$(COLOR_SUCCESS)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)\n"
@@ -201,12 +201,17 @@ reinstall: lint uninstall install
 	@printf "$(COLOR_SUCCESS)✓ Extension reinstalled$(COLOR_RESET)\n"
 	@printf "$(COLOR_WARN)⚠ Remember to reload GNOME Shell to see changes$(COLOR_RESET)\n"
 
-# VM Development - Deploy to VM (build/deploy only)
-vm-dev: lint
-	@printf "$(COLOR_INFO)▶ Compiling schema locally...$(COLOR_RESET)\n"
-	@glib-compile-schemas extension/schemas/
-	@printf "$(COLOR_SUCCESS)✓ Schema compiled$(COLOR_RESET)\n"
-	@./scripts/user/vm-dev
+# VM install target (renamed from vm-dev, no schema pre-compilation)
+vm-install: lint
+	@printf "$(COLOR_INFO)▶ Installing to VM...$(COLOR_RESET)\n"
+	@./scripts/user/vm-install
+
+# Deep clean targets with detailed diagnostics
+clean-install:
+	@./scripts/util/clean-install
+
+vm-clean-install:
+	@./scripts/util/vm-clean-install
 
 # Test release package (interactive zip selection)
 test-release:

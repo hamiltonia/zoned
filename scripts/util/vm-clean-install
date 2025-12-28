@@ -1,0 +1,121 @@
+#!/bin/bash
+#
+# vm-clean-install - Deep clean VM installation with diagnostic logging
+#
+# This script removes all traces of the extension from the VM and logs what it finds.
+# Useful for testing if deployment artifacts are causing issues.
+#
+
+set -e
+
+# Script location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Source the shared VM detection library
+source "$SCRIPT_DIR/../lib/vm-detect.sh"
+
+# Override cache file location with proper path
+VM_CACHE_FILE="$PROJECT_DIR/.vm-cache"
+
+# Extension details
+EXTENSION_UUID="zoned@hamiltonia.me"
+SCHEMA_ID="org.gnome.shell.extensions.zoned"
+
+# Load VM cache
+if ! vm_read_cache "$VM_CACHE_FILE"; then
+    vm_print_error "No VM cache found"
+    echo ""
+    echo "Run './scripts/vm setup' first to configure your VM."
+    exit 1
+fi
+
+# Verify VM is available
+if ! vm_cache_is_valid; then
+    vm_print_error "VM cache is stale"
+    echo ""
+    echo "The cached VM is not available. Run './scripts/vm setup' to reconfigure."
+    exit 1
+fi
+
+echo -e "${CYAN}═══════════════════════════════════════${NC}"
+echo -e "${CYAN}VM DIAGNOSTIC CLEANUP${NC}"
+echo -e "${CYAN}VM: $VM_DOMAIN${NC}"
+echo -e "${CYAN}═══════════════════════════════════════${NC}"
+
+# Run cleanup on VM
+ssh "$VM_DOMAIN" bash <<REMOTE_SCRIPT
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+EXTENSION_UUID="$EXTENSION_UUID"
+SCHEMA_ID="$SCHEMA_ID"
+INSTALL_DIR="\$HOME/.local/share/gnome-shell/extensions/\$EXTENSION_UUID"
+
+# 1. Check installed extension
+echo -e "\n\${YELLOW}[Extension Directory]\${NC}"
+if [ -d "\$INSTALL_DIR" ]; then
+    file_count=\$(find "\$INSTALL_DIR" -type f | wc -l)
+    dir_size=\$(du -sh "\$INSTALL_DIR" | cut -f1)
+    echo -e "  \${GREEN}FOUND\${NC}: \$INSTALL_DIR"
+    echo -e "  - Files: \$file_count"
+    echo -e "  - Size: \$dir_size"
+    
+    # Check for compiled schema
+    if [ -f "\$INSTALL_DIR/schemas/gschemas.compiled" ]; then
+        schema_size=\$(stat -c%s "\$INSTALL_DIR/schemas/gschemas.compiled" 2>/dev/null)
+        schema_date=\$(stat -c%y "\$INSTALL_DIR/schemas/gschemas.compiled" 2>/dev/null)
+        echo -e "  - Schema: compiled (\${schema_size} bytes)"
+        echo -e "    Modified: \${schema_date}"
+    else
+        echo -e "  - Schema: \${YELLOW}NOT compiled\${NC}"
+    fi
+    
+    # Check if virtiofs (read-only)
+    if mountpoint -q "\$(dirname "\$INSTALL_DIR")" 2>/dev/null; then
+        echo -e "  - Mount: \${YELLOW}virtiofs (read-only)\${NC}"
+        echo -e "  \${YELLOW}ACTION\${NC}: Cannot delete (virtiofs-mounted)"
+    else
+        echo -e "  - Mount: local filesystem"
+        echo -e "  \${CYAN}ACTION\${NC}: Removing directory"
+        rm -rf "\$INSTALL_DIR"
+    fi
+else
+    echo -e "  \${YELLOW}NOT FOUND\${NC}: No installed extension"
+fi
+
+# 2. Check GSettings state
+echo -e "\n\${YELLOW}[GSettings State]\${NC}"
+if gsettings list-keys "\$SCHEMA_ID" &>/dev/null; then
+    key_count=\$(gsettings list-keys "\$SCHEMA_ID" | wc -l)
+    echo -e "  \${GREEN}FOUND\${NC}: Schema registered"
+    echo -e "  - Keys: \$key_count"
+    echo -e "  \${CYAN}Sample values:\${NC}"
+    echo -e "    debug-logging: \$(gsettings get \$SCHEMA_ID debug-logging 2>/dev/null || echo 'N/A')"
+    echo -e "    current-layout-id: \$(gsettings get \$SCHEMA_ID current-layout-id 2>/dev/null || echo 'N/A')"
+    echo -e "  \${CYAN}ACTION\${NC}: Resetting all settings to defaults"
+    gsettings reset-recursively "\$SCHEMA_ID" 2>/dev/null || echo -e "  \${YELLOW}WARNING\${NC}: Could not reset settings"
+else
+    echo -e "  \${YELLOW}NOT FOUND\${NC}: Schema not registered"
+fi
+
+# 3. Check extension state
+echo -e "\n\${YELLOW}[Extension State]\${NC}"
+if gnome-extensions list 2>/dev/null | grep -q "\$EXTENSION_UUID"; then
+    state=\$(gnome-extensions info "\$EXTENSION_UUID" 2>/dev/null | grep State || echo "unknown")
+    echo -e "  \${GREEN}FOUND\${NC}: Extension registered with GNOME Shell"
+    echo -e "  - \$state"
+    echo -e "  \${CYAN}ACTION\${NC}: Disabling"
+    gnome-extensions disable "\$EXTENSION_UUID" 2>/dev/null || echo -e "  \${YELLOW}WARNING\${NC}: Could not disable"
+else
+    echo -e "  \${YELLOW}NOT FOUND\${NC}: Extension not registered"
+fi
+
+echo -e "\n\${GREEN}✓ VM clean complete\${NC}"
+REMOTE_SCRIPT
+
+echo -e "${CYAN}═══════════════════════════════════════${NC}"

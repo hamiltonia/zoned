@@ -1,13 +1,13 @@
 #!/bin/bash
 #
-# vm-dev - Fast VM deployment script
+# vm-install - VM deployment script
 #
 # This script provides fast iterative development:
 # - Uses cached VM state from previous vm-setup
-# - Compiles schema + reloads GNOME Shell
-# - Fails fast if setup is needed
+# - Syncs extension files and reloads GNOME Shell
+# - Schema compiled by GNOME Shell (matches production)
 #
-# Usage: ./vm-dev or 'make vm-dev'
+# Usage: ./vm-install or 'make vm-install'
 #
 
 set -e
@@ -56,14 +56,17 @@ main() {
         exit 1
     fi
     
-    # Step 3: Schema is compiled on host (via Makefile), so just verify it synced
-    vm_print_step "Verifying schema sync..."
+    # Step 3: Verify extension files synced
+    vm_print_step "Verifying extension sync..."
     local ext_dir="\$HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
     
-    if ssh "$VM_DOMAIN" "test -f $ext_dir/schemas/gschemas.compiled" 2>/dev/null; then
-        vm_print_success "Schema synced (pre-compiled on host)"
+    if ssh "$VM_DOMAIN" "test -f $ext_dir/metadata.json" 2>/dev/null; then
+        vm_print_success "Extension files synced"
+        vm_print_info "Schema will be compiled by GNOME Shell when enabling"
     else
-        vm_print_warning "Schema not found - may need to run 'make vm-setup'"
+        vm_print_error "Extension not found in VM"
+        echo "Run './scripts/vm setup' first to configure your VM."
+        exit 1
     fi
     
     # Step 4: Reload GNOME Shell
