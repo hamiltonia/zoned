@@ -186,14 +186,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - **Windows PowerToys FancyZones** - Original inspiration for zone-based window management
 - **GNOME Shell** - Excellent extensibility platform
 
-**Coming soon:** Zoned for macOS
-
 ---
 
 <div align="center">
 
 🐛 [Report bugs](https://github.com/hamiltonia/zoned/issues) · 💬 [Discussions](https://github.com/hamiltonia/zoned/discussions)
 
-*Inspired by Microsoft PowerToys FancyZones. Not affiliated with Microsoft or GNOME.*
 
 </div>
