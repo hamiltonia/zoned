@@ -77,6 +77,7 @@ main() {
     
     # Test SSH connection first
     vm_print_step "Testing SSH connection..."
+    echo -e "${YELLOW}  [VM]${NC} Testing connection..."
     if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "$VM_DOMAIN" "exit" 2>/dev/null; then
         vm_print_error "Cannot connect to VM: $VM_DOMAIN"
         echo ""
@@ -95,11 +96,12 @@ main() {
     echo ""
     
     # Check if passwordless sudo is available
+    echo -e "${YELLOW}  [VM]${NC} Checking sudo configuration..."
     local sudo_nopass
     sudo_nopass=$(ssh "$VM_DOMAIN" "sudo -n true 2>/dev/null && echo yes || echo no")
     
     # Restart spice-vdagentd (system service - this is the main one)
-    echo -n "  spice-vdagentd (system): "
+    echo -ne "${YELLOW}  [VM]${NC} spice-vdagentd (system): "
     if [[ "$sudo_nopass" == "yes" ]]; then
         # Passwordless sudo available
         if ssh "$VM_DOMAIN" "sudo systemctl restart spice-vdagentd" 2>/dev/null; then
@@ -110,12 +112,13 @@ main() {
     else
         # Need password - use -t for TTY allocation
         echo -e "${YELLOW}(sudo password required)${NC}"
+        echo -e "${YELLOW}  [VM]${NC} Restarting with sudo prompt..."
         ssh -t "$VM_DOMAIN" "sudo systemctl restart spice-vdagentd" 2>/dev/null || true
-        echo -e "  spice-vdagentd (system): ${GREEN}restarted${NC}"
+        echo -e "${YELLOW}  [VM]${NC} spice-vdagentd (system): ${GREEN}restarted${NC}"
     fi
     
     # Restart spice-vdagent (user service - if it exists)
-    echo -n "  spice-vdagent (user):    "
+    echo -ne "${YELLOW}  [VM]${NC} spice-vdagent (user):    "
     if ssh "$VM_DOMAIN" "systemctl --user restart spice-vdagent" 2>/dev/null; then
         echo -e "${GREEN}restarted${NC}"
     else
@@ -123,7 +126,7 @@ main() {
     fi
     
     # Restart spice-webdavd (for shared folders)
-    echo -n "  spice-webdavd (user):    "
+    echo -ne "${YELLOW}  [VM]${NC} spice-webdavd (user):    "
     if ssh "$VM_DOMAIN" "systemctl --user restart spice-webdavd" 2>/dev/null; then
         echo -e "${GREEN}restarted${NC}"
     else

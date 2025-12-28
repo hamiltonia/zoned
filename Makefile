@@ -20,6 +20,7 @@ COLOR_INFO = \033[36m
 COLOR_SUCCESS = \033[32m
 COLOR_ERROR = \033[31m
 COLOR_WARN = \033[33m
+COLOR_REMOTE = \033[33m
 
 .NOTPARALLEL: help
 
@@ -204,6 +205,7 @@ reinstall: lint uninstall install
 # VM install target (renamed from vm-dev, no schema pre-compilation)
 vm-install: lint
 	@printf "$(COLOR_INFO)▶ Installing to VM...$(COLOR_RESET)\n"
+	@printf "$(COLOR_REMOTE)  (Remote operations shown in yellow)$(COLOR_RESET)\n"
 	@./scripts/user/vm-install
 
 # Deep clean targets with detailed diagnostics

@@ -42,6 +42,8 @@ echo -e "${CYAN}═════════════════════�
 echo -e "${CYAN}VM DIAGNOSTIC CLEANUP${NC}"
 echo -e "${CYAN}VM: $VM_DOMAIN${NC}"
 echo -e "${CYAN}═══════════════════════════════════════${NC}"
+echo ""
+echo -e "${YELLOW}[VM]${NC} Running diagnostic cleanup..."
 
 # Run cleanup on VM
 ssh "$VM_DOMAIN" bash <<REMOTE_SCRIPT
