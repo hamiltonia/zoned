@@ -1,0 +1,95 @@
+#!/bin/bash
+#
+# clean-install - Deep clean local installation with diagnostic logging
+#
+# This script removes all traces of the extension and logs what it finds.
+# Useful for testing if deployment artifacts are causing issues.
+#
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Extension details
+EXTENSION_UUID="zoned@hamiltonia.me"
+INSTALL_DIR="$HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
+SCHEMA_ID="org.gnome.shell.extensions.zoned"
+
+echo -e "${CYAN}═══════════════════════════════════════${NC}"
+echo -e "${CYAN}LOCAL DIAGNOSTIC CLEANUP${NC}"
+echo -e "${CYAN}═══════════════════════════════════════${NC}"
+
+# 1. Check installed extension
+echo -e "\n${YELLOW}[Extension Directory]${NC}"
+if [ -d "$INSTALL_DIR" ]; then
+    file_count=$(find "$INSTALL_DIR" -type f | wc -l)
+    dir_size=$(du -sh "$INSTALL_DIR" | cut -f1)
+    echo -e "  ${GREEN}FOUND${NC}: $INSTALL_DIR"
+    echo -e "  - Files: $file_count"
+    echo -e "  - Size: $dir_size"
+    
+    # Check for compiled schema
+    if [ -f "$INSTALL_DIR/schemas/gschemas.compiled" ]; then
+        schema_size=$(stat -c%s "$INSTALL_DIR/schemas/gschemas.compiled" 2>/dev/null || stat -f%z "$INSTALL_DIR/schemas/gschemas.compiled" 2>/dev/null)
+        schema_date=$(stat -c%y "$INSTALL_DIR/schemas/gschemas.compiled" 2>/dev/null || stat -f%Sm "$INSTALL_DIR/schemas/gschemas.compiled" 2>/dev/null)
+        echo -e "  - Schema: compiled (${schema_size} bytes)"
+        echo -e "    Modified: ${schema_date}"
+    else
+        echo -e "  - Schema: ${YELLOW}NOT compiled${NC}"
+    fi
+    
+    echo -e "  ${CYAN}ACTION${NC}: Removing directory"
+    rm -rf "$INSTALL_DIR"
+else
+    echo -e "  ${YELLOW}NOT FOUND${NC}: No installed extension"
+fi
+
+# 2. Check source directory for pre-compiled schema
+echo -e "\n${YELLOW}[Source Directory Schema]${NC}"
+SOURCE_SCHEMA="extension/schemas/gschemas.compiled"
+if [ -f "$SOURCE_SCHEMA" ]; then
+    schema_size=$(stat -c%s "$SOURCE_SCHEMA" 2>/dev/null || stat -f%z "$SOURCE_SCHEMA" 2>/dev/null)
+    schema_date=$(stat -c%y "$SOURCE_SCHEMA" 2>/dev/null || stat -f%Sm "$SOURCE_SCHEMA" 2>/dev/null)
+    echo -e "  ${GREEN}FOUND${NC}: Pre-compiled schema in source"
+    echo -e "  - Size: ${schema_size} bytes"
+    echo -e "  - Modified: ${schema_date}"
+    echo -e "  ${CYAN}ACTION${NC}: Removing (should not exist in source)"
+    rm -f "$SOURCE_SCHEMA"
+else
+    echo -e "  ${GREEN}OK${NC}: No pre-compiled schema in source (correct)"
+fi
+
+# 3. Check GSettings state
+echo -e "\n${YELLOW}[GSettings State]${NC}"
+if gsettings list-keys "$SCHEMA_ID" &>/dev/null; then
+    key_count=$(gsettings list-keys "$SCHEMA_ID" | wc -l)
+    echo -e "  ${GREEN}FOUND${NC}: Schema registered"
+    echo -e "  - Keys: $key_count"
+    echo -e "  ${CYAN}Sample values:${NC}"
+    echo -e "    debug-logging: $(gsettings get $SCHEMA_ID debug-logging 2>/dev/null || echo 'N/A')"
+    echo -e "    current-layout-id: $(gsettings get $SCHEMA_ID current-layout-id 2>/dev/null || echo 'N/A')"
+    echo -e "  ${CYAN}ACTION${NC}: Resetting all settings to defaults"
+    gsettings reset-recursively "$SCHEMA_ID" 2>/dev/null || echo -e "  ${YELLOW}WARNING${NC}: Could not reset settings"
+else
+    echo -e "  ${YELLOW}NOT FOUND${NC}: Schema not registered"
+fi
+
+# 4. Check extension state
+echo -e "\n${YELLOW}[Extension State]${NC}"
+if gnome-extensions list 2>/dev/null | grep -q "$EXTENSION_UUID"; then
+    state=$(gnome-extensions info "$EXTENSION_UUID" 2>/dev/null | grep State || echo "unknown")
+    echo -e "  ${GREEN}FOUND${NC}: Extension registered with GNOME Shell"
+    echo -e "  - $state"
+    echo -e "  ${CYAN}ACTION${NC}: Disabling"
+    gnome-extensions disable "$EXTENSION_UUID" 2>/dev/null || echo -e "  ${YELLOW}WARNING${NC}: Could not disable"
+else
+    echo -e "  ${YELLOW}NOT FOUND${NC}: Extension not registered"
+fi
+
+echo -e "\n${GREEN}✓ Local clean complete${NC}"
+echo -e "${CYAN}═══════════════════════════════════════${NC}"

@@ -7,8 +7,9 @@
 # - Sets up SSH access
 # - Prompts for file sharing method (virtiofs or SPICE)
 # - Sets up the chosen sharing method
-# - Creates extension symlink
-# - Writes cache for fast vm-dev iterations
+# - Copies extension files to writable VM directory
+# - Compiles GSettings schema in writable location
+# - Writes cache for fast vm-install iterations
 #
 # Usage: ./vm-setup or 'make vm-setup'
 #
@@ -45,8 +46,8 @@ show_help() {
     printf "  1. Auto-detects running VMs (or lets you select from multiple)\n"
     printf "  2. Sets up SSH access (creates config, copies keys)\n"
     printf "  3. Configures file sharing (virtiofs or SPICE)\n"
-    printf "  4. Creates extension symlink in VM\n"
-    printf "  5. Compiles GSettings schema\n"
+    printf "  4. Copies extension files to writable VM directory\n"
+    printf "  5. Compiles GSettings schema in writable location\n"
     printf "  6. Enables the extension\n"
     printf "  7. Saves configuration as a VM profile\n"
     printf "\n"
@@ -236,10 +237,12 @@ main() {
     
     # Step 5: Check dependencies
     vm_print_step "Step 4: Checking dependencies..."
+    echo -e "${YELLOW}  [VM]${NC} Checking for required packages..."
     if ! vm_check_dependencies; then
         echo ""
         read -p "Install missing dependencies? [Y/n]: " confirm
         if [[ "${confirm,,}" != "n" ]]; then
+            echo -e "${YELLOW}  [VM]${NC} Installing dependencies..."
             if ! vm_install_dependencies; then
                 vm_print_error "Failed to install dependencies"
                 exit 1
@@ -252,6 +255,7 @@ main() {
     
     # Step 6: Verify extension exists in shared folder
     vm_print_step "Step 5: Verifying extension..."
+    echo -e "${YELLOW}  [VM]${NC} Checking shared folder..."
     if ! ssh "$VM_DOMAIN" "test -f $VM_MOUNT_PATH/extension/metadata.json" 2>/dev/null; then
         vm_print_error "Extension not found in shared folder"
         echo ""
@@ -265,39 +269,43 @@ main() {
     vm_print_success "Extension found"
     echo ""
     
-    # Step 7: Create symlink
-    vm_print_step "Step 6: Setting up extension symlink..."
+    # Step 7: Copy extension files to writable directory
+    vm_print_step "Step 6: Installing extension files..."
     local ext_dir="\$HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
     
-    local current_link
-    current_link=$(ssh "$VM_DOMAIN" "readlink $ext_dir 2>/dev/null" || echo "")
+    # Create installation directory and copy files (remove old install first)
+    echo -e "${YELLOW}  [VM]${NC} Removing old installation..."
+    ssh "$VM_DOMAIN" "rm -rf $ext_dir" 2>/dev/null || true
     
-    if [[ "$current_link" == "$VM_MOUNT_PATH/extension" ]]; then
-        vm_print_success "Symlink already configured"
+    echo -e "${YELLOW}  [VM]${NC} Copying extension files..."
+    if ! ssh "$VM_DOMAIN" "mkdir -p $ext_dir && cp -r '$VM_MOUNT_PATH/extension/'* $ext_dir/" 2>&1; then
+        vm_print_error "Failed to copy extension files"
+        exit 1
+    fi
+    
+    echo -e "${YELLOW}  [VM]${NC} Verifying installation..."
+    if ssh "$VM_DOMAIN" "test -f $ext_dir/metadata.json" 2>/dev/null; then
+        vm_print_success "Extension files copied to writable directory"
     else
-        ssh "$VM_DOMAIN" "rm -rf $ext_dir 2>/dev/null" || true
-        ssh "$VM_DOMAIN" "mkdir -p \$(dirname $ext_dir) && ln -sf $VM_MOUNT_PATH/extension $ext_dir"
-        vm_print_success "Symlink created: $ext_dir → $VM_MOUNT_PATH/extension"
+        vm_print_error "Extension copy verification failed"
+        exit 1
     fi
     echo ""
     
-    # Step 8: Compile schema
+    # Step 8: Compile schema in writable directory
     vm_print_step "Step 7: Compiling GSettings schema..."
+    
+    echo -e "${YELLOW}  [VM]${NC} Checking for schemas directory..."
     if ssh "$VM_DOMAIN" "test -d $ext_dir/schemas" 2>/dev/null; then
-        # For virtiofs, we need to compile to a writable location first
-        if [[ "$VM_SHARE_TYPE" == "virtiofs" ]]; then
-            vm_print_info "Compiling schema (virtiofs workaround)..."
-            ssh "$VM_DOMAIN" "
-                mkdir -p /tmp/zoned-schemas
-                cp $ext_dir/schemas/*.xml /tmp/zoned-schemas/
-                glib-compile-schemas /tmp/zoned-schemas/
-                cp /tmp/zoned-schemas/gschemas.compiled $ext_dir/schemas/ 2>/dev/null || sudo cp /tmp/zoned-schemas/gschemas.compiled $ext_dir/schemas/
-                rm -rf /tmp/zoned-schemas
-            " 2>/dev/null
-            vm_print_success "Schema compiled"
+        echo -e "${YELLOW}  [VM]${NC} Compiling GSettings schema..."
+        ssh "$VM_DOMAIN" "glib-compile-schemas $ext_dir/schemas/" 2>/dev/null
+        
+        echo -e "${YELLOW}  [VM]${NC} Verifying schema compilation..."
+        if ssh "$VM_DOMAIN" "test -f $ext_dir/schemas/gschemas.compiled" 2>/dev/null; then
+            vm_print_success "Schema compiled successfully"
         else
-            ssh "$VM_DOMAIN" "glib-compile-schemas $ext_dir/schemas/"
-            vm_print_success "Schema compiled"
+            vm_print_error "Schema compilation failed"
+            exit 1
         fi
     else
         vm_print_warning "No schemas directory found"
@@ -306,6 +314,7 @@ main() {
     
     # Step 9: Enable extension
     vm_print_step "Step 8: Checking extension status..."
+    echo -e "${YELLOW}  [VM]${NC} Querying extension state..."
     local ext_state
     ext_state=$(ssh "$VM_DOMAIN" "gnome-extensions info $EXTENSION_UUID 2>/dev/null | grep 'State:'" 2>/dev/null || echo "State: UNKNOWN")
     
@@ -313,6 +322,7 @@ main() {
         vm_print_success "Extension is enabled"
     else
         vm_print_info "Enabling extension..."
+        echo -e "${YELLOW}  [VM]${NC} Enabling extension..."
         ssh "$VM_DOMAIN" "gnome-extensions enable $EXTENSION_UUID" 2>/dev/null || true
         vm_print_success "Extension enabled"
     fi
@@ -329,6 +339,7 @@ main() {
     # Step 12: Reload GNOME Shell
     vm_print_step "Checking session type..."
     
+    echo -e "${YELLOW}  [VM]${NC} Detecting session type..."
     local session_type
     session_type=$(ssh "$VM_DOMAIN" "
         for sid in \$(loginctl --no-legend | awk '{print \$1}'); do
@@ -346,6 +357,7 @@ main() {
         vm_print_info "Session type: X11"
         vm_print_step "Reloading GNOME Shell..."
         
+        echo -e "${YELLOW}  [VM]${NC} Restarting GNOME Shell..."
         if ssh "$VM_DOMAIN" "DISPLAY=:0 gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval 'Meta.restart(\"Restarting…\")'" &>/dev/null; then
             vm_print_success "GNOME Shell reloaded"
         else

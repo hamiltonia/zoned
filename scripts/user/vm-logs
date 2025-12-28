@@ -86,6 +86,7 @@ main() {
     fi
     
     # Test SSH connection
+    echo -e "${YELLOW}[VM]${NC} Testing SSH connection..."
     if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "$VM_DOMAIN" "exit" 2>/dev/null; then
         vm_print_error "Cannot connect to VM: $VM_DOMAIN"
         echo ""
@@ -110,10 +111,12 @@ main() {
     
     if [[ "$filter_mode" == "all" ]]; then
         echo -e "${BLUE}Showing ALL GNOME Shell logs...${NC}"
+        echo -e "${YELLOW}[VM]${NC} Streaming logs via SSH..."
         echo
         ssh "$VM_DOMAIN" "journalctl -f -o cat /usr/bin/gnome-shell 2>/dev/null"
     else
         echo -e "${BLUE}Filtering for 'zoned' messages (use 'make vm-logs all' for all)...${NC}"
+        echo -e "${YELLOW}[VM]${NC} Streaming logs via SSH..."
         echo
         ssh "$VM_DOMAIN" "journalctl -f -o cat /usr/bin/gnome-shell 2>/dev/null | grep --line-buffered -i zoned"
     fi
