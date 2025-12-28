@@ -7,8 +7,9 @@
 # - Sets up SSH access
 # - Prompts for file sharing method (virtiofs or SPICE)
 # - Sets up the chosen sharing method
-# - Creates extension symlink
-# - Writes cache for fast vm-dev iterations
+# - Copies extension files to writable VM directory
+# - Compiles GSettings schema in writable location
+# - Writes cache for fast vm-install iterations
 #
 # Usage: ./vm-setup or 'make vm-setup'
 #
@@ -45,9 +46,10 @@ show_help() {
     printf "  1. Auto-detects running VMs (or lets you select from multiple)\n"
     printf "  2. Sets up SSH access (creates config, copies keys)\n"
     printf "  3. Configures file sharing (virtiofs or SPICE)\n"
-    printf "  4. Creates extension symlink in VM\n"
-    printf "  5. Enables the extension (GNOME Shell compiles schema on enable)\n"
-    printf "  6. Saves configuration as a VM profile\n"
+    printf "  4. Copies extension files to writable VM directory\n"
+    printf "  5. Compiles GSettings schema in writable location\n"
+    printf "  6. Enables the extension\n"
+    printf "  7. Saves configuration as a VM profile\n"
     printf "\n"
     printf "${CYAN}Options:${NC}\n"
     printf "  -h, --help        Show this help message\n"
@@ -264,24 +266,44 @@ main() {
     vm_print_success "Extension found"
     echo ""
     
-    # Step 7: Create symlink
-    vm_print_step "Step 6: Setting up extension symlink..."
+    # Step 7: Copy extension files to writable directory
+    vm_print_step "Step 6: Installing extension files..."
     local ext_dir="\$HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
     
-    local current_link
-    current_link=$(ssh "$VM_DOMAIN" "readlink $ext_dir 2>/dev/null" || echo "")
+    # Create installation directory and copy files (remove old install first)
+    ssh "$VM_DOMAIN" "rm -rf $ext_dir" 2>/dev/null || true
+    if ! ssh "$VM_DOMAIN" "mkdir -p $ext_dir && cp -r '$VM_MOUNT_PATH/extension/'* $ext_dir/" 2>&1; then
+        vm_print_error "Failed to copy extension files"
+        exit 1
+    fi
     
-    if [[ "$current_link" == "$VM_MOUNT_PATH/extension" ]]; then
-        vm_print_success "Symlink already configured"
+    if ssh "$VM_DOMAIN" "test -f $ext_dir/metadata.json" 2>/dev/null; then
+        vm_print_success "Extension files copied to writable directory"
     else
-        ssh "$VM_DOMAIN" "rm -rf $ext_dir 2>/dev/null" || true
-        ssh "$VM_DOMAIN" "mkdir -p \$(dirname $ext_dir) && ln -sf $VM_MOUNT_PATH/extension $ext_dir"
-        vm_print_success "Symlink created: $ext_dir → $VM_MOUNT_PATH/extension"
+        vm_print_error "Extension copy verification failed"
+        exit 1
     fi
     echo ""
     
-    # Step 7: Enable extension (GNOME Shell will compile schema on enable)
-    vm_print_step "Step 7: Checking extension status..."
+    # Step 8: Compile schema in writable directory
+    vm_print_step "Step 7: Compiling GSettings schema..."
+    
+    if ssh "$VM_DOMAIN" "test -d $ext_dir/schemas" 2>/dev/null; then
+        ssh "$VM_DOMAIN" "glib-compile-schemas $ext_dir/schemas/" 2>/dev/null
+        
+        if ssh "$VM_DOMAIN" "test -f $ext_dir/schemas/gschemas.compiled" 2>/dev/null; then
+            vm_print_success "Schema compiled successfully"
+        else
+            vm_print_error "Schema compilation failed"
+            exit 1
+        fi
+    else
+        vm_print_warning "No schemas directory found"
+    fi
+    echo ""
+    
+    # Step 9: Enable extension
+    vm_print_step "Step 8: Checking extension status..."
     local ext_state
     ext_state=$(ssh "$VM_DOMAIN" "gnome-extensions info $EXTENSION_UUID 2>/dev/null | grep 'State:'" 2>/dev/null || echo "State: UNKNOWN")
     

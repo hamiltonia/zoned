@@ -4,8 +4,9 @@
 #
 # This script provides fast iterative development:
 # - Uses cached VM state from previous vm-setup
-# - Syncs extension files and reloads GNOME Shell
-# - Schema compiled by GNOME Shell (matches production)
+# - Copies extension files to writable VM directory
+# - Compiles GSettings schema in writable location
+# - Reloads GNOME Shell to apply changes
 #
 # Usage: ./vm-install or 'make vm-install'
 #
@@ -56,20 +57,48 @@ main() {
         exit 1
     fi
     
-    # Step 3: Verify extension files synced
-    vm_print_step "Verifying extension sync..."
+    # Step 3: Copy extension files to writable directory
+    vm_print_step "Installing extension files to VM..."
     local ext_dir="\$HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
     
-    if ssh "$VM_DOMAIN" "test -f $ext_dir/metadata.json" 2>/dev/null; then
-        vm_print_success "Extension files synced"
-        vm_print_info "Schema will be compiled by GNOME Shell when enabling"
-    else
-        vm_print_error "Extension not found in VM"
+    # Verify source files are accessible
+    if ! ssh "$VM_DOMAIN" "test -f '$VM_MOUNT_PATH/extension/metadata.json'" 2>/dev/null; then
+        vm_print_error "Extension source not found at $VM_MOUNT_PATH/extension"
         echo "Run './scripts/vm setup' first to configure your VM."
         exit 1
     fi
     
-    # Step 4: Reload GNOME Shell
+    # Create installation directory and copy files (remove old install first)
+    ssh "$VM_DOMAIN" "rm -rf $ext_dir" 2>/dev/null || true
+    if ! ssh "$VM_DOMAIN" "mkdir -p $ext_dir && cp -r '$VM_MOUNT_PATH/extension/'* $ext_dir/" 2>&1; then
+        vm_print_error "Failed to copy extension files"
+        exit 1
+    fi
+    
+    if ssh "$VM_DOMAIN" "test -f $ext_dir/metadata.json" 2>/dev/null; then
+        vm_print_success "Extension files copied to writable directory"
+    else
+        vm_print_error "Extension copy verification failed"
+        exit 1
+    fi
+    
+    # Step 4: Compile schema in writable directory
+    vm_print_step "Compiling GSettings schema..."
+    
+    if ssh "$VM_DOMAIN" "test -d $ext_dir/schemas" 2>/dev/null; then
+        ssh "$VM_DOMAIN" "glib-compile-schemas $ext_dir/schemas/" 2>/dev/null
+        
+        if ssh "$VM_DOMAIN" "test -f $ext_dir/schemas/gschemas.compiled" 2>/dev/null; then
+            vm_print_success "Schema compiled successfully"
+        else
+            vm_print_error "Schema compilation failed"
+            exit 1
+        fi
+    else
+        vm_print_warning "No schemas directory found"
+    fi
+    
+    # Step 5: Reload GNOME Shell
     vm_print_step "Reloading GNOME Shell..."
     
     # Detect session type
