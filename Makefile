@@ -1,5 +1,6 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean build \
-        vm-install clean-install vm-clean-install lint lint-strict lint-fix dev reinstall dev-version test-release
+        vm-install clean-install vm-clean-install lint lint-strict lint-fix dev reinstall dev-version test-release \
+        changelog changelog-since
 
 # Detect OS for sed compatibility
 UNAME_S := $(shell uname -s)
@@ -245,3 +246,17 @@ test-release:
 				break ;; \
 		esac; \
 	done
+
+# Changelog generation targets
+changelog:
+	@printf "$(COLOR_INFO)Generating changelog from latest tag...$(COLOR_RESET)\n"
+	@./scripts/changelog-helper
+
+changelog-since:
+	@if [ -z "$(TAG)" ]; then \
+		printf "$(COLOR_ERROR)✗ TAG parameter required$(COLOR_RESET)\n"; \
+		printf "$(COLOR_INFO)Usage: make changelog-since TAG=v0.9.0$(COLOR_RESET)\n"; \
+		exit 1; \
+	fi
+	@printf "$(COLOR_INFO)Generating changelog since $(TAG)...$(COLOR_RESET)\n"
+	@./scripts/changelog-helper --since $(TAG)

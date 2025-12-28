@@ -16,7 +16,7 @@
  * - Templates (id starts with 'template-'): View-only (all controls disabled), Duplicate only
  * - Custom layouts: Full editing capability with Save, Delete, Duplicate
  *
- * FancyZones-Style UI Design:
+ * Settings Dialog UI Design:
  * - Header: "Edit layout" title with action icons (Duplicate, Delete)
  * - Layout Preview: Visual zone preview centered below header with floating edit button
  * - Floating Edit Button: Circular button centered over preview, opens zone editor
@@ -477,7 +477,7 @@ export class LayoutSettingsDialog {
     }
 
     /**
-     * Build the dialog card UI - FancyZones style
+     * Build the dialog card UI
      * @param {Object} colors - Theme colors
      * @private
      */

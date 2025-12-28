@@ -1,0 +1,108 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the sections below to help us identify and fix the issue.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: When I do X, Y happens instead of Z...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the behavior
+      placeholder: |
+        1. Open Layout Switcher (Super+`)
+        2. Select 'Halves' layout
+        3. Try to move window to zone
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: Window should snap to the left half of the screen
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: Window doesn't move, error appears in logs
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Zoned Version
+      description: What version of Zoned are you running? (Check Extensions app or `metadata.json`)
+      placeholder: "0.9.1"
+    validations:
+      required: true
+
+  - type: input
+    id: gnome-version
+    attributes:
+      label: GNOME Shell Version
+      description: Run `gnome-shell --version` in terminal
+      placeholder: "47.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: distro
+    attributes:
+      label: Distribution
+      description: Which Linux distribution are you using?
+      options:
+        - Ubuntu
+        - Fedora
+        - Arch Linux
+        - Debian
+        - openSUSE
+        - Other (please specify in Additional Context)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: session
+    attributes:
+      label: Session Type
+      description: Are you using Wayland or X11?
+      options:
+        - Wayland
+        - X11
+        - Not sure (please check in Settings → About)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Log Output
+      description: |
+        Please copy and paste any relevant log output. Run `journalctl -f -o cat /usr/bin/gnome-shell` to see logs.
+        This will be automatically formatted into code, so no need for backticks.
+      render: shell
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here (screenshots, configuration, other extensions, etc.)

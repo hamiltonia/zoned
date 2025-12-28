@@ -1,8 +1,8 @@
 # GJS Memory Management Guide for AI Agents
 
 > **Source**: https://gjs.guide/guides/gjs/memory-management.html  
-> **Target**: AI agents (Cline, Claude, etc.) developing GNOME Shell extensions  
-> **Last Updated**: December 2024
+> **Target**: AI agents developing GNOME Shell extensions  
+> **Last Updated**: December 2025
 
 ---
 

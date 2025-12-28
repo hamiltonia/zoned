@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# gif-convert - Convert video to optimized GIF for documentation
+#
+# Usage:
+#   scripts/gif-convert INPUT.mp4 OUTPUT.gif [OPTIONS]
+#
+# Options:
+#   --fps N           Frame rate (default: 15)
+#   --width N         Width in pixels (default: 800)
+#   --start TIME      Start time (format: HH:MM:SS or seconds)
+#   --duration TIME   Duration (format: HH:MM:SS or seconds)
+#   --quality N       Quality level 1-3 (1=best, 3=smallest, default: 2)
+#   --help            Show this help message
+#
+# Examples:
+#   scripts/gif-convert demo.mp4 demo.gif
+#   scripts/gif-convert demo.mp4 demo.gif --fps 20 --width 1000
+#   scripts/gif-convert demo.mp4 demo.gif --start 5 --duration 10
+#
+# Notes:
+#   - Uses ffmpeg with palette generation for high-quality output
+#   - Two-pass process creates optimized colors for better quality
+#   - Default settings balance quality and file size for GitHub READMEs
+
+set -euo pipefail
+
+# Check for ffmpeg
+if ! command -v ffmpeg &> /dev/null; then
+    echo "Error: ffmpeg is not installed" >&2
+    echo "Install with: sudo dnf install ffmpeg  (Fedora)" >&2
+    echo "           or: sudo apt install ffmpeg  (Debian/Ubuntu)" >&2
+    exit 1
+fi
+
+# Default options
+FPS=15
+WIDTH=800
+START_TIME=""
+DURATION=""
+QUALITY=2
+
+# Show help
+show_help() {
+    grep '^#' "$0" | sed 's/^# \?//' | head -n 25
+}
+
+# Parse arguments
+if [[ $# -lt 2 ]]; then
+    show_help
+    exit 1
+fi
+
+INPUT="$1"
+OUTPUT="$2"
+shift 2
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --fps)
+            FPS="$2"
+            shift 2
+            ;;
+        --width)
+            WIDTH="$2"
+            shift 2
+            ;;
+        --start)
+            START_TIME="$2"
+            shift 2
+            ;;
+        --duration)
+            DURATION="$2"
+            shift 2
+            ;;
+        --quality)
+            QUALITY="$2"
+            shift 2
+            ;;
+        --help)
+            show_help
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            echo "Run with --help for usage" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# Validate input file
+if [[ ! -f "$INPUT" ]]; then
+    echo "Error: Input file not found: $INPUT" >&2
+    exit 1
+fi
+
+# Set quality parameters
+case $QUALITY in
+    1)  # Best quality
+        STATS_MODE="full"
+        DITHER="bayer:bayer_scale=5"
+        ;;
+    2)  # Balanced (default)
+        STATS_MODE="diff"
+        DITHER="bayer:bayer_scale=3"
+        ;;
+    3)  # Smallest file
+        STATS_MODE="diff"
+        DITHER="none"
+        ;;
+    *)
+        echo "Error: Quality must be 1-3" >&2
+        exit 1
+        ;;
+esac
+
+# Build ffmpeg filter options
+FILTERS="fps=$FPS,scale=$WIDTH:-1:flags=lanczos"
+
+# Build input options
+INPUT_OPTS=()
+if [[ -n "$START_TIME" ]]; then
+    INPUT_OPTS+=(-ss "$START_TIME")
+fi
+if [[ -n "$DURATION" ]]; then
+    INPUT_OPTS+=(-t "$DURATION")
+fi
+
+# Create temporary palette file
+PALETTE=$(mktemp --suffix=.png)
+trap 'rm -f "$PALETTE"' EXIT
+
+echo "Generating color palette..."
+ffmpeg -v warning "${INPUT_OPTS[@]}" -i "$INPUT" \
+    -vf "$FILTERS,palettegen=stats_mode=$STATS_MODE" \
+    -y "$PALETTE"
+
+echo "Converting to GIF..."
+ffmpeg -v warning "${INPUT_OPTS[@]}" -i "$INPUT" -i "$PALETTE" \
+    -lavfi "$FILTERS [x]; [x][1:v] paletteuse=dither=$DITHER" \
+    -y "$OUTPUT"
+
+# Get file sizes
+INPUT_SIZE=$(du -h "$INPUT" | cut -f1)
+OUTPUT_SIZE=$(du -h "$OUTPUT" | cut -f1)
+
+echo "✓ Conversion complete!"
+echo "  Input:  $INPUT ($INPUT_SIZE)"
+echo "  Output: $OUTPUT ($OUTPUT_SIZE)"
+echo "  FPS: $FPS, Width: ${WIDTH}px, Quality: $QUALITY"

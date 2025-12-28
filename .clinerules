@@ -36,13 +36,18 @@
      - For files I worked on in this session: Use existing context from the conversation (no re-inspection needed)
      - For files I don't have context about: Inspect those files to understand the changes
   3. Prepare a comprehensive commit message covering ALL staged changes
-  4. Include "Created by Cline" or "Modified by Cline" attribution
+  4. Include "Created by Cline" or "Modified by Cline" attribution in commit BODY
   5. Present the staged changes and proposed commit message to user
   6. Use `ask_followup_question` to explicitly request approval to commit
   7. Only execute `git commit` after receiving explicit user approval
 - **Efficiency Note**: Skip redundant file inspection when context is already known from the current session
-- **Attribution Format**: Include "Created by Cline" or "Modified by Cline" in all commit messages
-- **Example**: "Add Debian support for shell scripts - Modified by Cline"
+- **Attribution Format**: Include "Created by Cline" or "Modified by Cline" in commit message BODY, not in the title
+- **Example**:
+  ```
+  Add Debian support for shell scripts
+  
+  Modified by Cline
+  ```
 
 ## Testing and Deployment
 - **CRITICAL**: NEVER execute `make install`, `make compile-schema`, or any deployment commands without explicit user permission
