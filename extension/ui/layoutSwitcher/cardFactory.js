@@ -88,10 +88,8 @@ function handleCanvasRepaint(canvas, zones, colors) {
         const drawW = w - (inset * 2);  // Available width for zones
         const drawH = h - (inset * 2);  // Available height for zones
 
-        // Bubbly settings
-        const cornerRadius = 4;  // Rounded corners for bubbly feel
-        const shadowOffset = 2;
-        const highlightHeight = 2;
+        // Flat design settings
+        const cornerRadius = 4;  // Rounded corners
 
         zones.forEach((zone) => {
             // Calculate zone position within the inset area
@@ -107,33 +105,17 @@ function handleCanvasRepaint(canvas, zones, colors) {
             const zw = zoneW - (gap * 2);
             const zh = zoneH - (gap * 2);
 
-            // 1. Draw shadow (offset down-right, rounded)
-            cr.setSourceRGBA(0, 0, 0, colors.isDark ? 0.35 : 0.2);
-            roundedRect(cr, zx + shadowOffset, zy + shadowOffset, zw, zh, cornerRadius);
-            cr.fill();
-
-            // 2. Flat zone fill (single solid color - no gradient)
+            // 1. Flat zone fill (single solid color)
             const fillGrey = colors.isDark ? 0.45 : 0.55;
             const fillAlpha = colors.isDark ? 0.9 : 0.85;
             cr.setSourceRGBA(fillGrey, fillGrey, fillGrey, fillAlpha);
             roundedRect(cr, zx, zy, zw, zh, cornerRadius);
             cr.fill();
 
-            // 3. Top edge highlight (bright line at top, follows rounded corners)
-            // Draw as a thin rounded rect clipped to top portion
-            cr.save();
-            roundedRect(cr, zx, zy, zw, zh, cornerRadius);
-            cr.clip();
-            const highlightAlpha = colors.isDark ? 0.45 : 0.55;
-            cr.setSourceRGBA(1, 1, 1, highlightAlpha);
-            cr.rectangle(zx, zy, zw, highlightHeight);
-            cr.fill();
-            cr.restore();
-
-            // 4. Subtle border for definition (rounded)
-            const borderGrey = colors.isDark ? 0.3 : 0.35;
-            cr.setSourceRGBA(borderGrey, borderGrey, borderGrey, 0.5);
-            cr.setLineWidth(1);
+            // 2. Thin border for definition
+            const borderGrey = colors.isDark ? 0.35 : 0.4;
+            cr.setSourceRGBA(borderGrey, borderGrey, borderGrey, 1.0);
+            cr.setLineWidth(1.0);
             roundedRect(cr, zx, zy, zw, zh, cornerRadius);
             cr.stroke();
         });
@@ -572,7 +554,7 @@ function roundedRect(cr, x, y, w, h, r) {
 
 /**
  * Create visual zone preview using Cairo
- * Bubbly 3D zone tiles with rounded corners, flat fill, top highlight, and shadow
+ * Flat zone tiles with rounded corners and thin borders
  * Zones are inset to create visible gaps where card background shows through
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {Array} zones - Array of zone definitions
