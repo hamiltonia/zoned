@@ -12,11 +12,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Development build auto-marking with timestamps
 - Version display in preferences UI
 - Interactive version bump and tagging script
+- GitHub issue templates (bug report and feature request forms)
+- Pull request template with comprehensive checklist
+- Changelog generation script (`scripts/changelog-helper`)
+- Makefile targets for changelog generation (`make changelog`, `make changelog-since`)
+
+### Changed
+- Updated extension description from "FancyZones-style window management" to "Advanced window management for GNOME"
+- Improved README.md with embedded demo videos and clearer structure
+- Enhanced DEVELOPMENT.md with proper git workflow and attribution guidelines
+- Updated CONTRIBUTING.md with references to GitHub templates and proper commit format
+- Refined .clinerules to clarify commit attribution belongs in body, not title
 
 ### Documentation
 - VM development documentation
 - Testing strategy documentation
 - Memory debugging guides
+- SECURITY.md with GitHub Security Advisories workflow
+- CODE_OF_CONDUCT.md (Contributor Covenant 2.1)
+- MAINTAINERS.md with release process and maintainer guidelines
+- Added 6 demo videos to README.md showcasing key features
+- Updated all documentation to remove unnecessary FancyZones references
+- Standardized AI agent references in development guides
 
 ## [0.9.0] - 2025-12-27
 

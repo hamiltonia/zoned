@@ -4,10 +4,7 @@ Thank you for your interest in contributing to Zoned! This document provides gui
 
 ## Code of Conduct
 
-- Be respectful and inclusive
-- Provide constructive feedback
-- Focus on what is best for the community
-- Show empathy towards other community members
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to the project maintainers.
 
 ## How to Contribute
 
@@ -15,12 +12,12 @@ Thank you for your interest in contributing to Zoned! This document provides gui
 
 Before creating a bug report:
 1. Check the [existing issues](https://github.com/hamiltonia/zoned/issues)
-2. Verify you're using a supported GNOME Shell version (49+)
+2. Verify you're using a supported GNOME Shell version (46+)
 3. Try with extension disabled to rule out conflicts
 
-When creating a bug report, include:
-- GNOME Shell version (`gnome-shell --version`)
-- Linux distribution and version
+**Use the [Bug Report template](.github/ISSUE_TEMPLATE/bug_report.yml)** when filing issues. The template will guide you through providing:
+- GNOME Shell version and distribution
+- Session type (X11/Wayland)
 - Steps to reproduce
 - Expected vs actual behavior
 - Relevant logs from `journalctl -f /usr/bin/gnome-shell`
@@ -28,9 +25,11 @@ When creating a bug report, include:
 
 ### Suggesting Features
 
-Feature requests are welcome! Please:
+Feature requests are welcome! **Use the [Feature Request template](.github/ISSUE_TEMPLATE/feature_request.yml)** when proposing new features.
+
+When suggesting features:
 1. Check existing issues/discussions first
-2. Clearly describe the use case
+2. Clearly describe the problem and use case
 3. Explain how it fits with Zoned's philosophy
 4. Consider implementation complexity
 
@@ -113,12 +112,24 @@ Fixes #123
 
 **Examples:**
 ```
-feat(layouts): add sixths layout layout
+feat(layouts): add sixths layout
+
+Modified by <Your Name or Tool>
+
+---
 
 fix(keybindings): resolve conflict with GNOME shortcuts
 
+Modified by <Your Name or Tool>
+
+---
+
 docs(readme): update installation instructions
+
+Modified by <Your Name or Tool>
 ```
+
+**Note:** Attribution goes in the commit body, not the title (per project conventions).
 
 #### Testing
 
@@ -207,7 +218,7 @@ If applicable
 - [ ] Code follows style guidelines
 - [ ] Documentation updated
 - [ ] CHANGELOG.md updated
-- [ ] Tested on GNOME Shell 49+
+- [ ] Tested on GNOME Shell 46+
 - [ ] No new warnings/errors in logs
 ```
 

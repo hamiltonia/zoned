@@ -17,6 +17,8 @@ GNOME gives you one layout: 50/50 left/right. On an ultrawide, that's two unusab
 
 **The in-between you've been missing**: Zoned sits between full tiling window managers and free-floating chaos. Define custom zones, snap windows with keyboard shortcuts, or ignore it entirely-Zoned won't fight you.
 
+![Zoned Demo](zoned-assets/demos/hero.gif)
+
 ### Features
 
 - **Custom zone profiles** - Define layouts that match how you actually work
@@ -52,6 +54,8 @@ Then reload GNOME Shell:
 
 ## Basic Workflow
 
+![Layout Switcher](zoned-assets/demos/layout-switcher.gif)
+
 1. **Choose a layout:** Press `Super+grave` to open the Layout Switcher
 2. **Select a layout** (e.g., "Split", "Triple", "Wide")
 3. **Snap windows:** Focus any window and press `Super+Right` to snap it to the next zone
@@ -63,6 +67,8 @@ Your layout choice persists—just snap windows as you open them.
 
 ## Keyboard Shortcuts
 
+![Zone Cycling](zoned-assets/demos/zone-cycling.gif)
+
 | Shortcut | Action |
 |----------|--------|
 | `Super+Left` | Snap window to previous zone |
@@ -72,6 +78,8 @@ Your layout choice persists—just snap windows as you open them.
 | `Super+Down` | Minimize window |
 
 > **Note:** `Super` is the Windows key (⊞)
+
+![Quick Layout Switching](zoned-assets/demos/quick-shortcuts.gif)
 
 ---
 
@@ -89,11 +97,17 @@ Five templates for common workflows:
 
 ### Custom Layouts
 
+![Zone Editor](zoned-assets/demos/zone-editor-cut.gif)
+
 Create your own using the **Layout Switcher** and **Zone Editor**:
 
 1. Press `Super+grave` to open the Layout Switcher
 2. Click "New Layout" to create a custom layout
 3. Use the visual zone editor to define your zones
+
+**Complete Tutorial:**
+
+![Creating a Custom Layout](zoned-assets/demos/create-custom-layout.gif)
 
 ---
 
@@ -139,12 +153,19 @@ See [scripts/README.md](scripts/README.md) for complete VM command reference.
 | [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
 
 ---
-
 ## About This Project
 
-A hobby project born from a personal need: better window management on a 5120×1440 super-ultrawide. Built entirely using agentic AI tools as a learning exercise in AI-assisted development workflows.
+I use a 5120×1440 super-ultrawide and work across macOS, Windows, and Linux. On Windows, FancyZones handles window management perfectly. On macOS, I built a solution with Hammerspoon. On GNOME? Nothing came close. Existing options were either full tiling window managers (too rigid) or basic extensions (too limited).
 
-Not commercial. GPL-3.0 licensed. Contributions welcome.
+So I built Zoned.
+
+### Built with AI
+
+This project is 100% AI-generated code. Not AI-assisted--AI-generated. I used VS Code with Cline as the agentic coding interface, powered by Claude Opus 4.5 and Sonnet 4.5. My role was architecture, direction, and review. The AI wrote every line.
+
+It started as a learning exercise in AI-assisted development workflows. It turned into something I use daily.
+
+Not commercial--just giving back to the Linux community. Contributions welcome.
 
 ---
 

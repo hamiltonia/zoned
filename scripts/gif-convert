@@ -2,7 +2,11 @@
 # gif-convert - Convert video to optimized GIF for documentation
 #
 # Usage:
-#   scripts/gif-convert INPUT.mp4 OUTPUT.gif [OPTIONS]
+#   scripts/gif-convert INPUT.mp4 [OPTIONS]
+#
+# Output:
+#   Creates INPUT.gif (replaces .mp4 extension with .gif)
+#   Errors if output file already exists
 #
 # Options:
 #   --fps N           Frame rate (default: 15)
@@ -13,9 +17,9 @@
 #   --help            Show this help message
 #
 # Examples:
-#   scripts/gif-convert demo.mp4 demo.gif
-#   scripts/gif-convert demo.mp4 demo.gif --fps 20 --width 1000
-#   scripts/gif-convert demo.mp4 demo.gif --start 5 --duration 10
+#   scripts/gif-convert demo.mp4
+#   scripts/gif-convert demo.mp4 --fps 20 --width 1000
+#   scripts/gif-convert demo.mp4 --start 5 --duration 10
 #
 # Notes:
 #   - Uses ffmpeg with palette generation for high-quality output
@@ -45,14 +49,21 @@ show_help() {
 }
 
 # Parse arguments
-if [[ $# -lt 2 ]]; then
+if [[ $# -lt 1 ]]; then
     show_help
     exit 1
 fi
 
 INPUT="$1"
-OUTPUT="$2"
-shift 2
+shift 1
+
+# Auto-generate output filename (replace .mp4 with .gif)
+if [[ "$INPUT" =~ \.mp4$ ]]; then
+    OUTPUT="${INPUT%.mp4}.gif"
+else
+    echo "Error: Input file must have .mp4 extension" >&2
+    exit 1
+fi
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -91,6 +102,13 @@ done
 # Validate input file
 if [[ ! -f "$INPUT" ]]; then
     echo "Error: Input file not found: $INPUT" >&2
+    exit 1
+fi
+
+# Check if output file already exists
+if [[ -f "$OUTPUT" ]]; then
+    echo "Error: Output file already exists: $OUTPUT" >&2
+    echo "Remove it first or choose a different input file" >&2
     exit 1
 fi
 

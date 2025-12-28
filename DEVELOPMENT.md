@@ -278,18 +278,20 @@ gsettings get org.gnome.desktop.wm.keybindings switch-group
 
 ## Git Workflow
 
-Per `.clinerules`, always ask for user approval before committing:
-
 ```bash
 # After making changes
-git add <files>
+git status                    # Review what changed
+git add <files>               # Stage specific files
+git add -A                    # Or stage all changes
 
-# Prepare commit message with attribution
-git commit -m "Description - Modified by Cline"
+# Commit with proper attribution (in body, not title)
+git commit -m "Brief description of change" -m "Modified by Cline"
 
 # Push changes
-git push origin main
+git push origin <branch>
 ```
+
+**Note:** Per `.clinerules`, attribution ("Modified by Cline") belongs in the commit body, not the title.
 
 ## Quick Tips
 
