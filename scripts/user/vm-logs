@@ -28,47 +28,61 @@ EXTENSION_UUID="zoned@hamiltonia.me"
 # ============================================
 
 main() {
-    # Detect running VM (quietly - just need the connection)
-    local running_vms
-    running_vms=$(vm_get_running)
-    
-    if [[ -z "$running_vms" ]]; then
-        vm_print_error "No VMs are currently running"
-        echo ""
-        echo "Start a VM first, then run this command again."
-        exit 1
+    # Try to use active profile first
+    if vm_profile_read_active 2>/dev/null; then
+        # Check if the cached VM is still running
+        if vm_cache_is_valid 2>/dev/null; then
+            # Active profile VM is running - use it
+            vm_print_info "Using active profile: $VM_DOMAIN"
+        else
+            # Cached VM not running - need to detect
+            unset VM_DOMAIN
+        fi
     fi
     
-    # Count running VMs
-    local count
-    count=$(echo "$running_vms" | wc -l)
-    
-    if [[ $count -eq 1 ]]; then
-        VM_DOMAIN="$running_vms"
-    else
-        # Multiple VMs - prompt to select
-        echo -e "${CYAN}Multiple VMs are running:${NC}"
-        echo ""
+    # If no valid cached VM, detect running VMs
+    if [[ -z "$VM_DOMAIN" ]]; then
+        local running_vms
+        running_vms=$(vm_get_running)
         
-        local vms=()
-        local i=1
-        while IFS= read -r vm; do
-            [[ -z "$vm" ]] && continue
-            local title=$(vm_get_title "$vm")
-            echo "  $i) $vm - \"$title\""
-            vms+=("$vm")
-            ((i++))
-        done <<< "$running_vms"
-        
-        echo ""
-        read -p "Select VM [1-${#vms[@]}]: " selection
-        
-        if [[ ! "$selection" =~ ^[0-9]+$ ]] || [[ $selection -lt 1 ]] || [[ $selection -gt ${#vms[@]} ]]; then
-            vm_print_error "Invalid selection"
+        if [[ -z "$running_vms" ]]; then
+            vm_print_error "No VMs are currently running"
+            echo ""
+            echo "Start a VM first, then run this command again."
             exit 1
         fi
         
-        VM_DOMAIN="${vms[$((selection-1))]}"
+        # Count running VMs
+        local count
+        count=$(echo "$running_vms" | wc -l)
+        
+        if [[ $count -eq 1 ]]; then
+            VM_DOMAIN="$running_vms"
+        else
+            # Multiple VMs - prompt to select
+            echo -e "${CYAN}Multiple VMs are running:${NC}"
+            echo ""
+            
+            local vms=()
+            local i=1
+            while IFS= read -r vm; do
+                [[ -z "$vm" ]] && continue
+                local title=$(vm_get_title "$vm")
+                echo "  $i) $vm - \"$title\""
+                vms+=("$vm")
+                ((i++))
+            done <<< "$running_vms"
+            
+            echo ""
+            read -p "Select VM [1-${#vms[@]}]: " selection
+            
+            if [[ ! "$selection" =~ ^[0-9]+$ ]] || [[ $selection -lt 1 ]] || [[ $selection -gt ${#vms[@]} ]]; then
+                vm_print_error "Invalid selection"
+                exit 1
+            fi
+            
+            VM_DOMAIN="${vms[$((selection-1))]}"
+        fi
     fi
     
     # Test SSH connection

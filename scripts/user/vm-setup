@@ -129,12 +129,21 @@ main() {
     # Step 3: Check for existing cache/config
     local need_share_setup=true
     
-    if vm_read_cache "$VM_CACHE_FILE" 2>/dev/null; then
+    # Save the detected VM variables (Step 1 set these correctly)
+    local selected_vm_domain="$VM_DOMAIN"
+    local selected_vm_ip="$VM_IP"
+    local selected_vm_title="$VM_TITLE"
+    local selected_vm_user="$VM_USER"
+    
+    # Try to read settings for the SELECTED VM (not the active profile)
+    local selected_profile_name=$(vm_profile_name_for_domain "$selected_vm_domain")
+    if vm_profile_read "$selected_profile_name" 2>/dev/null; then
+        # Profile exists for selected VM - check if sharing still works
         if [[ -n "$VM_SHARE_TYPE" ]]; then
             vm_print_info "Previous configuration: $VM_SHARE_TYPE"
             
             # Check if existing mount still works
-            if vm_check_existing_mount "$VM_DOMAIN" "$VM_SHARE_TYPE"; then
+            if vm_check_existing_mount "$selected_vm_domain" "$VM_SHARE_TYPE"; then
                 vm_print_success "File sharing is working: $VM_MOUNT_PATH"
                 need_share_setup=false
             else
@@ -142,6 +151,12 @@ main() {
             fi
         fi
     fi
+    
+    # Restore the selected VM variables (in case profile read changed them)
+    VM_DOMAIN="$selected_vm_domain"
+    VM_IP="$selected_vm_ip"
+    VM_TITLE="$selected_vm_title"
+    VM_USER="$selected_vm_user"
     
     # Step 4: Setup file sharing if needed
     if [[ "$need_share_setup" == "true" ]]; then
