@@ -28,7 +28,7 @@
  *
  * 2. User Simplicity:
  *    - Users don't need to understand internal "layouts" concept
- *    - "Layout" matches industry terminology (FancyZones, etc.)
+ *    - "Layout" matches industry terminology for zone-based window management
  *
  * 3. Code Precision:
  *    - Code explicitly manages complete layout objects

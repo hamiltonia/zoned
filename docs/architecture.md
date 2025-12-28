@@ -1,6 +1,6 @@
 # Zoned Architecture
 
-A GNOME Shell extension for FancyZones-style window management.
+A GNOME Shell extension for layout-based window management.
 
 ## Overview
 

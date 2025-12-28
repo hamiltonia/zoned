@@ -7,14 +7,12 @@
  * - Users see "Layout" everywhere; internal code uses LayoutManager for complete objects
  * - See: memory/development/v1-mvp-roadmap.md for architecture details
  *
- * FancyZones-style visual editor with edge-based data structure:
+ * Visual editor with edge-based data structure:
  * - Click region: Split horizontally
  * - Shift+Click: Split vertically
  * - Drag edges: Resize (affects all regions sharing that edge)
  * - Ctrl+Click on edge: Delete/merge regions
  * - Save/Cancel workflow
- *
- * Part of FancyZones-style implementation (Sprint 3/4)
  */
 
 import St from 'gi://St';

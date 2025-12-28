@@ -1,0 +1,216 @@
+#!/usr/bin/env bash
+# changelog-helper - Generate changelog entries from GitHub PRs and commits
+#
+# Usage:
+#   scripts/changelog-helper [--since TAG] [--category CATEGORY]
+#
+# Options:
+#   --since TAG       Generate changelog since this git tag (default: latest tag)
+#   --category CAT    Filter by category: feat, fix, docs, perf, refactor, test, chore
+#   --format FORMAT   Output format: markdown (default), json
+#   --help            Show this help message
+#
+# Examples:
+#   scripts/changelog-helper --since v0.9.0
+#   scripts/changelog-helper --category feat
+#   scripts/changelog-helper --format json
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Default options
+SINCE_TAG=""
+CATEGORY_FILTER=""
+OUTPUT_FORMAT="markdown"
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --since)
+            SINCE_TAG="$2"
+            shift 2
+            ;;
+        --category)
+            CATEGORY_FILTER="$2"
+            shift 2
+            ;;
+        --format)
+            OUTPUT_FORMAT="$2"
+            shift 2
+            ;;
+        --help)
+            grep '^#' "$0" | sed 's/^# \?//' | head -n 20
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            echo "Run with --help for usage" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# Change to project root
+cd "$PROJECT_ROOT"
+
+# Determine since tag if not provided
+if [[ -z "$SINCE_TAG" ]]; then
+    SINCE_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+    if [[ -z "$SINCE_TAG" ]]; then
+        echo "Warning: No tags found, using all commits" >&2
+        SINCE_REF=""
+    else
+        SINCE_REF="${SINCE_TAG}.."
+    fi
+else
+    SINCE_REF="${SINCE_TAG}.."
+fi
+
+# Get commit log with conventional commit format
+get_commits() {
+    if [[ -z "$SINCE_REF" ]]; then
+        git log --pretty=format:"%H|%s|%an|%aI" --no-merges
+    else
+        git log "${SINCE_REF}" --pretty=format:"%H|%s|%an|%aI" --no-merges
+    fi
+}
+
+# Categorize commit based on conventional commits
+categorize_commit() {
+    local subject="$1"
+    
+    # Match conventional commit format: type(scope): description
+    if [[ "$subject" =~ ^([a-z]+)(\([a-z0-9-]+\))?:\ (.+)$ ]]; then
+        local type="${BASH_REMATCH[1]}"
+        case "$type" in
+            feat|feature) echo "Features" ;;
+            fix|bugfix) echo "Bug Fixes" ;;
+            docs) echo "Documentation" ;;
+            perf) echo "Performance" ;;
+            refactor) echo "Refactoring" ;;
+            test) echo "Testing" ;;
+            build|ci) echo "Build/CI" ;;
+            chore) echo "Maintenance" ;;
+            *) echo "Other" ;;
+        esac
+    else
+        # Try to infer from keywords
+        if [[ "$subject" =~ [Ff]ix|[Bb]ug ]]; then
+            echo "Bug Fixes"
+        elif [[ "$subject" =~ [Aa]dd|[Nn]ew|[Ff]eature ]]; then
+            echo "Features"
+        elif [[ "$subject" =~ [Dd]oc ]]; then
+            echo "Documentation"
+        elif [[ "$subject" =~ [Rr]efactor ]]; then
+            echo "Refactoring"
+        elif [[ "$subject" =~ [Tt]est ]]; then
+            echo "Testing"
+        elif [[ "$subject" =~ [Pp]erf|[Oo]ptimize ]]; then
+            echo "Performance"
+        else
+            echo "Other"
+        fi
+    fi
+}
+
+# Extract clean description from conventional commit
+clean_description() {
+    local subject="$1"
+    
+    # Remove conventional commit prefix
+    if [[ "$subject" =~ ^[a-z]+(\([a-z0-9-]+\))?:\ (.+)$ ]]; then
+        echo "${BASH_REMATCH[2]}"
+    else
+        echo "$subject"
+    fi
+}
+
+# Generate markdown changelog
+generate_markdown() {
+    declare -A categories
+    
+    while IFS='|' read -r hash subject author date; do
+        category=$(categorize_commit "$subject")
+        
+        # Filter by category if specified
+        if [[ -n "$CATEGORY_FILTER" ]]; then
+            case "$CATEGORY_FILTER" in
+                feat|feature) [[ "$category" != "Features" ]] && continue ;;
+                fix) [[ "$category" != "Bug Fixes" ]] && continue ;;
+                docs) [[ "$category" != "Documentation" ]] && continue ;;
+                perf) [[ "$category" != "Performance" ]] && continue ;;
+                refactor) [[ "$category" != "Refactoring" ]] && continue ;;
+                test) [[ "$category" != "Testing" ]] && continue ;;
+                chore) [[ "$category" != "Maintenance" ]] && continue ;;
+            esac
+        fi
+        
+        description=$(clean_description "$subject")
+        
+        # Add to category
+        if [[ -z "${categories[$category]:-}" ]]; then
+            categories[$category]=""
+        fi
+        categories[$category]+="- $description (${hash:0:7})\n"
+    done < <(get_commits)
+    
+    # Output in standard order
+    local ordered_categories=("Features" "Bug Fixes" "Performance" "Documentation" "Refactoring" "Testing" "Build/CI" "Maintenance" "Other")
+    
+    for cat in "${ordered_categories[@]}"; do
+        if [[ -n "${categories[$cat]:-}" ]]; then
+            echo "### $cat"
+            echo ""
+            echo -e "${categories[$cat]}"
+        fi
+    done
+}
+
+# Generate JSON changelog
+generate_json() {
+    echo "{"
+    echo "  \"from\": \"$SINCE_TAG\","
+    echo "  \"to\": \"HEAD\","
+    echo "  \"commits\": ["
+    
+    local first=true
+    while IFS='|' read -r hash subject author date; do
+        category=$(categorize_commit "$subject")
+        description=$(clean_description "$subject")
+        
+        if [[ "$first" == true ]]; then
+            first=false
+        else
+            echo ","
+        fi
+        
+        echo -n "    {\"hash\": \"$hash\", \"category\": \"$category\", \"description\": \"$description\", \"author\": \"$author\", \"date\": \"$date\"}"
+    done < <(get_commits)
+    
+    echo ""
+    echo "  ]"
+    echo "}"
+}
+
+# Main output
+case "$OUTPUT_FORMAT" in
+    markdown)
+        if [[ -n "$SINCE_TAG" ]]; then
+            echo "## Changes since $SINCE_TAG"
+            echo ""
+        else
+            echo "## All Changes"
+            echo ""
+        fi
+        generate_markdown
+        ;;
+    json)
+        generate_json
+        ;;
+    *)
+        echo "Unknown format: $OUTPUT_FORMAT" >&2
+        exit 1
+        ;;
+esac

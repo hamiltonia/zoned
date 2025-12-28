@@ -1,13 +1,11 @@
 /**
  * LayoutSwitcher - Comprehensive layout management UI
  *
- * Mimics FancyZones UI with:
+ * Primary layout selection and management interface with:
  * - Monitor/Workspace selector at top
  * - Templates section (built-in, read-only, click to apply)
  * - Custom layouts section (user-created, editable)
  * - "Create new layout" button at bottom
- *
- * Primary layout selection and management interface for Zoned.
  *
  * REFACTORED: UI construction delegated to modular components:
  * - cardFactory.js - Card creation (template, custom, previews)

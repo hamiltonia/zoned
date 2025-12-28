@@ -1,7 +1,7 @@
 {
   "uuid": "zoned@hamiltonia.me",
   "name": "Zoned",
-  "description": "FancyZones-style window management for GNOME. Organize windows into customizable zones with keyboard-driven workflows.",
+  "description": "Advanced window management for GNOME. Organize windows into customizable zones with keyboard-driven workflows.",
   "version": 2,
   "version-name": "0.9.1",
   "version-display": "0.9.1 (Pre-release)",
