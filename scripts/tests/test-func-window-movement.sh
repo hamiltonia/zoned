@@ -89,6 +89,8 @@ test_window_available() {
 
 if ! test_window_available; then
     echo -e "${RED}Error: Test window D-Bus interface not available${NC}"
+    fail "Test window D-Bus interface not available"
+    print_summary
     exit 1
 fi
 
