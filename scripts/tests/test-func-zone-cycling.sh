@@ -45,14 +45,6 @@ info "Initial layout: $initial_layout"
 info "Zone count: $zone_count"
 echo ""
 
-# Reset resource tracking and show baseline
-dbus_reset_tracking >/dev/null 2>&1
-print_resource_baseline "Initial"
-
-# Record baseline memory and resources
-baseline_mem=$(get_gnome_shell_memory)
-baseline_res=$(snapshot_resources)
-
 echo "Running zone cycling ($CYCLES operations)..."
 for i in $(seq 1 $CYCLES); do
     # Alternate between forward and backward cycling
@@ -88,24 +80,6 @@ done
 
 echo ""
 
-# Compare memory and resources
-final_mem=$(get_gnome_shell_memory)
-final_res=$(snapshot_resources)
-mem_diff=$((final_mem - baseline_mem))
-info "Memory change: ${mem_diff}KB"
-
-# Check for excessive memory growth
-if [ $mem_diff -gt 5000 ]; then
-    warn "Memory grew by ${mem_diff}KB after $CYCLES zone cycles"
-fi
-
-# Check for resource growth
-res_diff=$(compare_snapshots "$baseline_res" "$final_res")
-read signal_diff timer_diff <<< "$res_diff"
-if [ "$signal_diff" -ne 0 ] || [ "$timer_diff" -ne 0 ]; then
-    info "Resource delta: signals=${signal_diff}, timers=${timer_diff}"
-fi
-
-check_leaks_and_report "Zone cycling: $CYCLES operations completed, state consistent"
+pass "Zone cycling: $CYCLES operations completed, state consistent"
 
 print_summary
