@@ -337,7 +337,7 @@ run_single_test() {
     # Run test with preset parameters, capturing output
     # Use printf to feed answers to the interactive script
     printf "%s\n%s\n%s\n\n" "$test_choice" "$test_duration" "$delay_ms" | \
-        "$SCRIPT_DIR/test-memory-monitored.sh" 2>&1 | tee "$TEMP_RESULT_FILE"
+        "$SCRIPT_DIR/test-mem-monitored.sh" 2>&1 | tee "$TEMP_RESULT_FILE"
     
     # Extract results from output - now focusing on actual final memory
     local start_mem_mb=$(grep "Baseline (pre-load):" "$TEMP_RESULT_FILE" | \
