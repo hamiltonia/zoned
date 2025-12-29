@@ -118,6 +118,78 @@ check_prerequisites() {
     echo -e "${GREEN}Prerequisites check passed${NC}"
 }
 
+# Send desktop notification (gracefully skips if notify-send unavailable)
+# Usage: send_notification STATUS TITLE MESSAGE
+#   STATUS: PASS, WARN, or FAIL
+#   TITLE: Notification title
+#   MESSAGE: Notification body
+send_notification() {
+    local status="$1"
+    local title="$2"
+    local message="$3"
+    
+    # Map status to urgency and icon
+    local urgency="normal"
+    local icon="dialog-information"
+    
+    case "$status" in
+        PASS)
+            urgency="normal"
+            icon="dialog-information"
+            ;;
+        WARN)
+            urgency="normal"
+            icon="dialog-warning"
+            ;;
+        FAIL)
+            urgency="critical"
+            icon="dialog-error"
+            ;;
+    esac
+    
+    # Detect if we're running in a VM
+    local in_vm=false
+    if command -v systemd-detect-virt &> /dev/null; then
+        if systemd-detect-virt -q 2>/dev/null; then
+            in_vm=true
+        fi
+    fi
+    
+    # If in VM, try to send notification to host
+    if [ "$in_vm" = true ]; then
+        # Get gateway IP (typically the host for libvirt VMs)
+        local gateway_ip=$(ip route | grep default | awk '{print $3}' | head -1)
+        
+        if [ -n "$gateway_ip" ]; then
+            # Try to send notification to host via SSH
+            # Use BatchMode to avoid password prompts, ConnectTimeout for quick failure
+            ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no "$gateway_ip" \
+                "DISPLAY=:0 notify-send -u '$urgency' -i '$icon' -a 'zoned-test (VM)' '$title' '$message'" \
+                2>/dev/null && return 0
+        fi
+        
+        # If SSH to host failed, fall through to local notification
+    fi
+    
+    # Send notification locally (either not in VM, or host notification failed)
+    if command -v notify-send &> /dev/null; then
+        notify-send -u "$urgency" -i "$icon" -a "zoned-test" "$title" "$message" 2>/dev/null || true
+    fi
+}
+
+# Force garbage collection via Looking Glass
+# Calls the standalone xdotool-force-gc.sh script
+force_gc() {
+    local script_path="$_SETUP_LIB_DIR/../xdotool-force-gc.sh"
+    
+    if [ ! -x "$script_path" ]; then
+        echo -e "${YELLOW}Warning: xdotool-force-gc.sh not found or not executable${NC}"
+        return 1
+    fi
+    
+    "$script_path" 1 || return 1
+}
+
 # Source helper libraries
 _SETUP_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_SETUP_LIB_DIR/dbus-helpers.sh"

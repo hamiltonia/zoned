@@ -19,6 +19,131 @@ import {createTemplateCard, createCustomLayoutCard} from './cardFactory.js';
 const logger = createLogger('SectionFactory');
 
 /**
+ * Bound method handlers for signal connections
+ * These avoid closure leaks from arrow functions
+ */
+
+/**
+ * Handle scroll events on section
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param {St.ScrollView} sectionScrollView - The scroll view reference
+ * @param {Clutter.Actor} actor - The section actor
+ * @param {Clutter.Event} event - The scroll event
+ */
+function handleSectionScroll(ctx, sectionScrollView, actor, event) {
+    if (!sectionScrollView) return Clutter.EVENT_PROPAGATE;
+
+    const direction = event.get_scroll_direction();
+
+    // Get adjustment
+    let adjustment = sectionScrollView.vadjustment;
+    if (!adjustment && typeof sectionScrollView.get_vscroll_bar === 'function') {
+        const vbar = sectionScrollView.get_vscroll_bar();
+        if (vbar) adjustment = vbar.get_adjustment();
+    }
+
+    if (!adjustment) return Clutter.EVENT_STOP;
+
+    const scrollAmount = ctx._cardHeight + ctx._ROW_GAP;
+    const maxScroll = adjustment.upper - adjustment.page_size;
+
+    if (direction === Clutter.ScrollDirection.UP) {
+        adjustment.value = Math.max(0, adjustment.value - scrollAmount);
+    } else if (direction === Clutter.ScrollDirection.DOWN) {
+        adjustment.value = Math.min(maxScroll, adjustment.value + scrollAmount);
+    } else if (direction === Clutter.ScrollDirection.SMOOTH) {
+        const [_dx, dy] = event.get_scroll_delta();
+        if (dy !== 0) {
+            const smoothAmount = dy * scrollAmount * 0.3;
+            adjustment.value = Math.max(0, Math.min(maxScroll, adjustment.value + smoothAmount));
+        }
+    }
+
+    return Clutter.EVENT_STOP;
+}
+
+/**
+ * Handle scroll view captured events
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param {St.ScrollView} scrollView - The scroll view
+ * @param {Clutter.Actor} actor - The scroll view actor
+ * @param {Clutter.Event} event - The captured event
+ */
+function handleScrollViewCaptured(ctx, scrollView, actor, event) {
+    if (event.type() === Clutter.EventType.SCROLL) {
+        const direction = event.get_scroll_direction();
+
+        // Get adjustment (try multiple methods for compatibility)
+        let adjustment = scrollView.vadjustment;
+        if (!adjustment && typeof scrollView.get_vscroll_bar === 'function') {
+            const vbar = scrollView.get_vscroll_bar();
+            if (vbar) adjustment = vbar.get_adjustment();
+        }
+
+        if (!adjustment) return Clutter.EVENT_PROPAGATE;
+
+        const scrollAmount = ctx._cardHeight + ctx._ROW_GAP;
+        const maxScroll = adjustment.upper - adjustment.page_size;
+
+        if (direction === Clutter.ScrollDirection.UP) {
+            adjustment.value = Math.max(0, adjustment.value - scrollAmount);
+            return Clutter.EVENT_STOP;
+        } else if (direction === Clutter.ScrollDirection.DOWN) {
+            adjustment.value = Math.min(maxScroll, adjustment.value + scrollAmount);
+            return Clutter.EVENT_STOP;
+        } else if (direction === Clutter.ScrollDirection.SMOOTH) {
+            const [_dx, dy] = event.get_scroll_delta();
+            if (dy !== 0) {
+                const smoothAmount = dy * scrollAmount * 0.5;
+                adjustment.value = Math.max(0, Math.min(maxScroll, adjustment.value + smoothAmount));
+                return Clutter.EVENT_STOP;
+            }
+        }
+    }
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Handle create button click
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ */
+function handleCreateButtonClick(ctx) {
+    ctx._onCreateNewLayoutClicked();
+}
+
+/**
+ * Handle create button hover enter
+ * @param {St.Button} button - The create button
+ * @param {number} verticalPadding - Vertical padding in pixels
+ * @param {number} horizontalPadding - Horizontal padding in pixels
+ * @param {string} accentHexHover - Hover accent color
+ * @param {number} cardRadius - Card border radius
+ * @param {number} buttonMargin - Top margin
+ */
+function handleCreateButtonEnter(button, verticalPadding, horizontalPadding, accentHexHover, cardRadius, buttonMargin) {
+    button.style = `padding: ${verticalPadding}px ${horizontalPadding}px; ` +
+                  `background-color: ${accentHexHover}; ` +
+                  `border-radius: ${cardRadius}px; ` +
+                  `margin-top: ${buttonMargin}px;`;
+}
+
+/**
+ * Handle create button hover leave
+ * @param {St.Button} button - The create button
+ * @param {number} verticalPadding - Vertical padding in pixels
+ * @param {number} horizontalPadding - Horizontal padding in pixels
+ * @param {string} accentHex - Normal accent color
+ * @param {number} cardRadius - Card border radius
+ * @param {number} buttonMargin - Top margin
+ */
+function handleCreateButtonLeave(button, verticalPadding, horizontalPadding, accentHex, cardRadius, buttonMargin) {
+    button.style = `padding: ${verticalPadding}px ${horizontalPadding}px; ` +
+                  `background-color: ${accentHex}; ` +
+                  `border-radius: ${cardRadius}px; ` +
+                  `margin-top: ${buttonMargin}px;`;
+}
+
+/**
  * Create templates section with visual depth
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @returns {St.BoxLayout} The templates section widget
@@ -59,7 +184,9 @@ export function createTemplatesSection(ctx) {
         vertical: false,
         x_expand: false,
         x_align: Clutter.ActorAlign.CENTER,  // Center the row
-        style: `spacing: ${ctx._CARD_GAP}px; padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`,
+        style: `spacing: ${ctx._CARD_GAP}px; ` +
+            `padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; ` +
+            `padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`,
     });
 
     templates.forEach((template) => {
@@ -106,37 +233,11 @@ export function createCustomLayoutsSection(ctx) {
 
     // Handle scroll events on the entire section (not just scrollView)
     // This catches scrolls over header and empty areas too
-    section.connect('scroll-event', (actor, event) => {
-        if (!sectionScrollView) return Clutter.EVENT_PROPAGATE;
-
-        const direction = event.get_scroll_direction();
-
-        // Get adjustment
-        let adjustment = sectionScrollView.vadjustment;
-        if (!adjustment && typeof sectionScrollView.get_vscroll_bar === 'function') {
-            const vbar = sectionScrollView.get_vscroll_bar();
-            if (vbar) adjustment = vbar.get_adjustment();
-        }
-
-        if (!adjustment) return Clutter.EVENT_STOP;
-
-        const scrollAmount = ctx._cardHeight + ctx._ROW_GAP;
-        const maxScroll = adjustment.upper - adjustment.page_size;
-
-        if (direction === Clutter.ScrollDirection.UP) {
-            adjustment.value = Math.max(0, adjustment.value - scrollAmount);
-        } else if (direction === Clutter.ScrollDirection.DOWN) {
-            adjustment.value = Math.min(maxScroll, adjustment.value + scrollAmount);
-        } else if (direction === Clutter.ScrollDirection.SMOOTH) {
-            const [_dx, dy] = event.get_scroll_delta();
-            if (dy !== 0) {
-                const smoothAmount = dy * scrollAmount * 0.3;
-                adjustment.value = Math.max(0, Math.min(maxScroll, adjustment.value + smoothAmount));
-            }
-        }
-
-        return Clutter.EVENT_STOP;
-    });
+    // Create bound handler for section scroll (sectionScrollView will be set below)
+    const boundSectionScroll = (actor, event) => {
+        return handleSectionScroll(ctx, sectionScrollView, actor, event);
+    };
+    ctx._signalTracker.connect(section, 'scroll-event', boundSectionScroll);
 
     // Section header (fixed, does not scroll) - uses configurable font size
     const header = new St.Label({
@@ -260,39 +361,9 @@ export function createCustomLayoutsSection(ctx) {
 
         // Handle scroll events manually using captured-event
         // This ensures mouse wheel works even when hovering over St.Button cards
-        scrollView.connect('captured-event', (actor, event) => {
-            if (event.type() === Clutter.EventType.SCROLL) {
-                const direction = event.get_scroll_direction();
-
-                // Get adjustment (try multiple methods for compatibility)
-                let adjustment = scrollView.vadjustment;
-                if (!adjustment && typeof scrollView.get_vscroll_bar === 'function') {
-                    const vbar = scrollView.get_vscroll_bar();
-                    if (vbar) adjustment = vbar.get_adjustment();
-                }
-
-                if (!adjustment) return Clutter.EVENT_PROPAGATE;
-
-                const scrollAmount = ctx._cardHeight + ctx._ROW_GAP;
-                const maxScroll = adjustment.upper - adjustment.page_size;
-
-                if (direction === Clutter.ScrollDirection.UP) {
-                    adjustment.value = Math.max(0, adjustment.value - scrollAmount);
-                    return Clutter.EVENT_STOP;
-                } else if (direction === Clutter.ScrollDirection.DOWN) {
-                    adjustment.value = Math.min(maxScroll, adjustment.value + scrollAmount);
-                    return Clutter.EVENT_STOP;
-                } else if (direction === Clutter.ScrollDirection.SMOOTH) {
-                    const [_dx, dy] = event.get_scroll_delta();
-                    if (dy !== 0) {
-                        const smoothAmount = dy * scrollAmount * 0.5;
-                        adjustment.value = Math.max(0, Math.min(maxScroll, adjustment.value + smoothAmount));
-                        return Clutter.EVENT_STOP;
-                    }
-                }
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
+        // Use bound method with captured scrollView reference
+        const boundCaptured = handleScrollViewCaptured.bind(null, ctx, scrollView);
+        ctx._signalTracker.connect(scrollView, 'captured-event', boundCaptured);
 
         // Grid of custom layouts
         const grid = createCustomLayoutGrid(ctx, customLayouts, currentLayout);
@@ -318,7 +389,10 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
     // Calculate fixed row width: 5 cards + 4 gaps
     const fixedRowWidth = (COLUMNS * ctx._cardWidth) + ((COLUMNS - 1) * ctx._CARD_GAP);
 
-    logger.debug(`[GRID] Creating grid with COLUMNS=${COLUMNS}, layouts=${layouts.length}, fixedRowWidth=${fixedRowWidth}`);
+    logger.debug(
+        `[GRID] Creating grid with COLUMNS=${COLUMNS}, layouts=${layouts.length}, ` +
+        `fixedRowWidth=${fixedRowWidth}`,
+    );
 
     // Container holds all rows, centered
     const container = new St.BoxLayout({
@@ -341,7 +415,9 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
             currentRow = new St.BoxLayout({
                 vertical: false,
                 x_expand: false,
-                style: `spacing: ${ctx._CARD_GAP}px; padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`,
+                style: `spacing: ${ctx._CARD_GAP}px; ` +
+                    `padding-top: ${ctx._GRID_ROW_PADDING_TOP}px; ` +
+                    `padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`,
             });
             ctx._addDebugRect(currentRow, 'row', `Custom Row ${rowNumber}`);
             rowNumber++;
@@ -424,24 +500,18 @@ export function createNewLayoutButton(ctx) {
     });
     button.set_child(label);
 
-    button.connect('clicked', () => {
-        ctx._onCreateNewLayoutClicked();
-    });
+    // Use bound methods with captured parameters
+    const boundClick = handleCreateButtonClick.bind(null, ctx);
+    const boundEnter = handleCreateButtonEnter.bind(
+        null, button, verticalPadding, horizontalPadding, accentHexHover, cardRadius, buttonMargin,
+    );
+    const boundLeave = handleCreateButtonLeave.bind(
+        null, button, verticalPadding, horizontalPadding, accentHex, cardRadius, buttonMargin,
+    );
 
-    // Hover effects - use same tier-based values
-    button.connect('enter-event', () => {
-        button.style = `padding: ${verticalPadding}px ${horizontalPadding}px; ` +
-                      `background-color: ${accentHexHover}; ` +
-                      `border-radius: ${cardRadius}px; ` +
-                      `margin-top: ${buttonMargin}px;`;
-    });
-
-    button.connect('leave-event', () => {
-        button.style = `padding: ${verticalPadding}px ${horizontalPadding}px; ` +
-                      `background-color: ${accentHex}; ` +
-                      `border-radius: ${cardRadius}px; ` +
-                      `margin-top: ${buttonMargin}px;`;
-    });
+    ctx._signalTracker.connect(button, 'clicked', boundClick);
+    ctx._signalTracker.connect(button, 'enter-event', boundEnter);
+    ctx._signalTracker.connect(button, 'leave-event', boundLeave);
 
     return button;
 }

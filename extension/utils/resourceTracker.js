@@ -27,6 +27,16 @@ let _settingsChangedId = null;
 const _allTrackers = new Set();
 
 /**
+ * Handler for debug-track-resources setting changes
+ * Separated to avoid arrow function closure
+ * @private
+ */
+function _onTrackingSettingChanged() {
+    _trackingEnabled = _settings.get_boolean('debug-track-resources');
+    logger.info(`Resource tracking ${_trackingEnabled ? 'enabled' : 'disabled'}`);
+}
+
+/**
  * Initialize resource tracking from GSettings
  * Called once when extension loads
  * @param {Gio.Settings} settings - Extension settings
@@ -37,14 +47,12 @@ export function initResourceTracking(settings) {
     // Read initial value
     _trackingEnabled = _settings.get_boolean('debug-track-resources');
 
-    // Watch for changes
+    // Watch for changes - use named function to avoid closure leak
     if (_settingsChangedId) {
         _settings.disconnect(_settingsChangedId);
+        _settingsChangedId = null;
     }
-    _settingsChangedId = _settings.connect('changed::debug-track-resources', () => {
-        _trackingEnabled = _settings.get_boolean('debug-track-resources');
-        logger.info(`Resource tracking ${_trackingEnabled ? 'enabled' : 'disabled'}`);
-    });
+    _settingsChangedId = _settings.connect('changed::debug-track-resources', _onTrackingSettingChanged);
 
     if (_trackingEnabled) {
         logger.info('Resource tracking enabled');

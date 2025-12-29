@@ -1,18 +1,20 @@
 #!/bin/bash
 #
-# run-all.sh - Run all stability tests
+# vm-test-func - Functional regression test suite
 #
-# This script runs the complete stability test suite for the Zoned extension.
+# This script runs the complete functional test suite for the Zoned extension.
 # Should be run inside the VM with a desktop session.
 #
 # Usage:
-#   ./run-all.sh [--quick]
-#   ./run-all.sh [--long-haul DURATION]
+#   ./vm-test-func                    # Interactive mode (prompts for config)
+#   ./vm-test-func --preset full      # Full regression suite
+#   ./vm-test-func --preset quick     # Quick verification
+#   ./vm-test-func --preset minimal   # Minimal smoke test
 #
 # Options:
-#   --quick              Run reduced iterations for quick verification
-#   --long-haul DURATION Run extended soak test for specified duration
-#                        DURATION format: 8h, 30m, etc (default: 8h)
+#   --preset full      Run full regression suite (default iterations)
+#   --preset quick     Run reduced iterations for quick verification
+#   --preset minimal   Run minimal iterations for fast smoke test
 #
 
 set -e
@@ -45,96 +47,101 @@ LONG_HAUL_CUMULATIVE_GROWTH=0
 LONG_HAUL_BASELINE_MEM=0
 LONG_HAUL_ABORTED=false
 
-# Parse arguments
-QUICK_MODE=false
-LONG_HAUL_MODE=false
-LONG_HAUL_DURATION_SECS=28800  # Default 8 hours
+# Parse arguments for preset mode
+PRESET_MODE=""
+if [ "$1" == "--preset" ]; then
+    PRESET_MODE="$2"
+fi
 
-# Parse duration string (e.g., "8h", "30m", "1h30m") to seconds
-parse_duration() {
-    local duration="$1"
-    local total_secs=0
-    
-    # Extract hours
-    if [[ "$duration" =~ ([0-9]+)h ]]; then
-        total_secs=$((total_secs + ${BASH_REMATCH[1]} * 3600))
-    fi
-    
-    # Extract minutes
-    if [[ "$duration" =~ ([0-9]+)m ]]; then
-        total_secs=$((total_secs + ${BASH_REMATCH[1]} * 60))
-    fi
-    
-    # If just a number, treat as hours
-    if [[ "$duration" =~ ^[0-9]+$ ]]; then
-        total_secs=$((duration * 3600))
-    fi
-    
-    echo "$total_secs"
-}
+# Define presets
+case "$PRESET_MODE" in
+    "full")
+        MODE_DESC="Full regression suite"
+        ;;
+    "quick")
+        MODE_DESC="Quick verification"
+        ;;
+    "minimal")
+        MODE_DESC="Minimal smoke test"
+        ;;
+    "")
+        # Interactive mode - will prompt
+        ;;
+    *)
+        echo "Unknown preset: $PRESET_MODE"
+        echo ""
+        echo "Available presets:"
+        echo "  full     - Full regression testing (default iterations)"
+        echo "  quick    - Quick verification (reduced iterations)"
+        echo "  minimal  - Minimal smoke test (very fast)"
+        echo ""
+        echo "Usage: $0 [--preset <preset>]"
+        exit 1
+        ;;
+esac
 
-# Format seconds as human-readable duration
-format_duration() {
-    local secs=$1
-    local hours=$((secs / 3600))
-    local mins=$(( (secs % 3600) / 60))
-    local s=$((secs % 60))
+# Interactive mode selection if no preset
+if [ -z "$PRESET_MODE" ]; then
+    clear
+    echo "========================================"
+    echo "  VM Functional Test Suite"
+    echo "========================================"
+    echo ""
+    echo "Select test mode:"
+    echo "  1) Full regression suite (~15-30 min)"
+    echo "  2) Quick verification (~3-5 min)"
+    echo "  3) Minimal smoke test (~1-2 min)"
+    echo ""
+    read -p "Choice [1-3]: " mode_choice
     
-    if [ $hours -gt 0 ]; then
-        printf "%dh %dm %ds" $hours $mins $s
-    elif [ $mins -gt 0 ]; then
-        printf "%dm %ds" $mins $s
-    else
-        printf "%ds" $s
-    fi
-}
-
-if [ "$1" == "--quick" ]; then
-    QUICK_MODE=true
-    echo "Running in quick mode..."
-elif [ "$1" == "--long-haul" ]; then
-    LONG_HAUL_MODE=true
-    if [ -n "$2" ]; then
-        LONG_HAUL_DURATION_SECS=$(parse_duration "$2")
-        if [ "$LONG_HAUL_DURATION_SECS" -eq 0 ]; then
-            echo "Invalid duration format: $2"
-            echo "Use format like: 8h, 30m, 1h30m"
+    case $mode_choice in
+        1) PRESET_MODE="full"; MODE_DESC="Full regression suite" ;;
+        2) PRESET_MODE="quick"; MODE_DESC="Quick verification" ;;
+        3) PRESET_MODE="minimal"; MODE_DESC="Minimal smoke test" ;;
+        *)
+            echo "Invalid choice"
             exit 1
-        fi
-    fi
-    echo "Running in long haul mode for $(format_duration $LONG_HAUL_DURATION_SECS)..."
+            ;;
+    esac
+    echo ""
 fi
 
 # Set iterations based on mode
-if [ "$QUICK_MODE" = true ]; then
-    ENABLE_DISABLE_CYCLES=10
-    UI_STRESS_ITERATIONS=20
-    ZONE_CYCLING_ITERATIONS=100
-    LAYOUT_SWITCH_CYCLES=3
-    COMBINED_STRESS_ITERATIONS=25
-    MULTI_MONITOR_ITERATIONS=10
-    WINDOW_MOVEMENT_PASSES=1
-    WINDOW_MOVEMENT_LAYOUTS=2  # Limit layouts for quick test
-elif [ "$LONG_HAUL_MODE" = true ]; then
-    # Long haul uses mini iterations per cycle (faster per-test runs)
-    ENABLE_DISABLE_CYCLES=10
-    UI_STRESS_ITERATIONS=15
-    ZONE_CYCLING_ITERATIONS=100
-    LAYOUT_SWITCH_CYCLES=3
-    COMBINED_STRESS_ITERATIONS=25
-    MULTI_MONITOR_ITERATIONS=10
-    WINDOW_MOVEMENT_PASSES=1
-    WINDOW_MOVEMENT_LAYOUTS=2
-else
-    ENABLE_DISABLE_CYCLES=50
-    UI_STRESS_ITERATIONS=50
-    ZONE_CYCLING_ITERATIONS=500
-    LAYOUT_SWITCH_CYCLES=10
-    COMBINED_STRESS_ITERATIONS=100
-    MULTI_MONITOR_ITERATIONS=25
-    WINDOW_MOVEMENT_PASSES=2
-    WINDOW_MOVEMENT_LAYOUTS=0  # 0 = all layouts
-fi
+case "$PRESET_MODE" in
+    "full")
+        ENABLE_DISABLE_CYCLES=50
+        UI_STRESS_ITERATIONS=50
+        ZONE_CYCLING_ITERATIONS=500
+        LAYOUT_SWITCH_CYCLES=10
+        COMBINED_STRESS_ITERATIONS=100
+        MULTI_MONITOR_ITERATIONS=25
+        WINDOW_MOVEMENT_PASSES=2
+        WINDOW_MOVEMENT_LAYOUTS=0  # 0 = all layouts
+        ;;
+    "quick")
+        ENABLE_DISABLE_CYCLES=10
+        UI_STRESS_ITERATIONS=20
+        ZONE_CYCLING_ITERATIONS=100
+        LAYOUT_SWITCH_CYCLES=3
+        COMBINED_STRESS_ITERATIONS=25
+        MULTI_MONITOR_ITERATIONS=10
+        WINDOW_MOVEMENT_PASSES=1
+        WINDOW_MOVEMENT_LAYOUTS=2  # Limit layouts for quick test
+        ;;
+    "minimal")
+        ENABLE_DISABLE_CYCLES=5
+        UI_STRESS_ITERATIONS=10
+        ZONE_CYCLING_ITERATIONS=50
+        LAYOUT_SWITCH_CYCLES=2
+        COMBINED_STRESS_ITERATIONS=15
+        MULTI_MONITOR_ITERATIONS=5
+        WINDOW_MOVEMENT_PASSES=1
+        WINDOW_MOVEMENT_LAYOUTS=1  # Just one layout
+        ;;
+esac
+
+echo "Running: $MODE_DESC"
+echo ""
 
 # =============================================================================
 # Memory Monitor Functions

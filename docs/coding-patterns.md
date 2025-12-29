@@ -514,6 +514,7 @@ actor.connect('enter-event', () => {
 ## Related Documentation
 
 - [architecture.md](architecture.md) - Component overview
+- [gjs-memory-guide.md](gjs-memory-guide.md) - GJS memory management reference
 - [GNOME Extension Guide](https://gjs.guide/extensions/) - Official guide
 - [GJS Guide](https://gjs.guide/) - JavaScript bindings reference
 - [GJS API Docs](https://gjs-docs.gnome.org/) - API reference

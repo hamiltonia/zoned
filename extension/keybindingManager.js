@@ -42,6 +42,24 @@ export class KeybindingManager {
             'quick-layout-4', 'quick-layout-5', 'quick-layout-6',
             'quick-layout-7', 'quick-layout-8', 'quick-layout-9'];
         this._settingsChangedId = null;
+        this._quickLayoutSettingsChangedId = null;
+
+        // Bound signal handlers (for proper cleanup)
+        this._boundOnEnhancedWindowManagementChanged = null;
+        this._boundOnQuickLayoutShortcutsChanged = null;
+
+        // Pre-bind ALL keybinding handler methods to prevent closure leaks
+        this._boundOnCycleZoneLeft = this._onCycleZoneLeft.bind(this);
+        this._boundOnCycleZoneRight = this._onCycleZoneRight.bind(this);
+        this._boundOnShowLayoutSwitcher = this._onShowLayoutSwitcher.bind(this);
+        this._boundOnMinimizeWindow = this._onMinimizeWindow.bind(this);
+        this._boundOnMaximizeWindow = this._onMaximizeWindow.bind(this);
+
+        // Pre-bind quick layout handlers (1-9) to prevent closure leaks in loop
+        this._boundQuickLayoutHandlers = [];
+        for (let i = 1; i <= 9; i++) {
+            this._boundQuickLayoutHandlers[i] = (() => this._onQuickLayout(i));
+        }
     }
 
     /**
@@ -50,22 +68,12 @@ export class KeybindingManager {
     registerKeybindings() {
         logger.info('Registering keybindings...');
 
-        // Zone cycling
-        this._registerKeybinding(
-            'cycle-zone-left',
-            this._onCycleZoneLeft.bind(this),
-        );
+        // Zone cycling - use pre-bound handlers
+        this._registerKeybinding('cycle-zone-left', this._boundOnCycleZoneLeft);
+        this._registerKeybinding('cycle-zone-right', this._boundOnCycleZoneRight);
 
-        this._registerKeybinding(
-            'cycle-zone-right',
-            this._onCycleZoneRight.bind(this),
-        );
-
-        // Layout picker
-        this._registerKeybinding(
-            'show-layout-picker',
-            this._onShowLayoutSwitcher.bind(this),
-        );
+        // Layout picker - use pre-bound handler
+        this._registerKeybinding('show-layout-picker', this._boundOnShowLayoutSwitcher);
 
         // Enhanced window management (optional)
         this._registerEnhancedWindowManagement();
@@ -74,15 +82,17 @@ export class KeybindingManager {
         this._registerQuickLayoutShortcuts();
 
         // Listen for settings changes to toggle enhanced window management
+        this._boundOnEnhancedWindowManagementChanged = this._onEnhancedWindowManagementChanged.bind(this);
         this._settingsChangedId = this._settings.connect(
             'changed::enhanced-window-management-enabled',
-            () => this._onEnhancedWindowManagementChanged(),
+            this._boundOnEnhancedWindowManagementChanged,
         );
 
         // Listen for settings changes to toggle quick layout shortcuts
+        this._boundOnQuickLayoutShortcutsChanged = this._onQuickLayoutShortcutsChanged.bind(this);
         this._quickLayoutSettingsChangedId = this._settings.connect(
             'changed::quick-layout-shortcuts-enabled',
-            () => this._onQuickLayoutShortcutsChanged(),
+            this._boundOnQuickLayoutShortcutsChanged,
         );
 
         logger.info(`Registered ${this._registeredKeys.length} keybindings`);
@@ -102,11 +112,9 @@ export class KeybindingManager {
 
         logger.info('Registering quick layout shortcuts...');
 
+        // Use pre-bound handlers to prevent closure leaks
         for (let i = 1; i <= 9; i++) {
-            this._registerKeybinding(
-                `quick-layout-${i}`,
-                () => this._onQuickLayout(i),
-            );
+            this._registerKeybinding(`quick-layout-${i}`, this._boundQuickLayoutHandlers[i]);
         }
     }
 
@@ -159,15 +167,9 @@ export class KeybindingManager {
 
         logger.info('Registering enhanced window management keybindings...');
 
-        this._registerKeybinding(
-            'minimize-window',
-            this._onMinimizeWindow.bind(this),
-        );
-
-        this._registerKeybinding(
-            'maximize-window',
-            this._onMaximizeWindow.bind(this),
-        );
+        // Use pre-bound handlers to prevent closure leaks
+        this._registerKeybinding('minimize-window', this._boundOnMinimizeWindow);
+        this._registerKeybinding('maximize-window', this._boundOnMaximizeWindow);
     }
 
     /**
@@ -493,6 +495,9 @@ export class KeybindingManager {
      * Clean up resources
      */
     destroy() {
+        // Unregister keybindings first
+        this.unregisterKeybindings();
+
         // Disconnect settings listeners
         if (this._settingsChangedId) {
             this._settings.disconnect(this._settingsChangedId);
@@ -504,6 +509,26 @@ export class KeybindingManager {
             this._quickLayoutSettingsChangedId = null;
         }
 
-        this.unregisterKeybindings();
+        // Release ALL bound function references to prevent memory leaks
+        this._boundOnEnhancedWindowManagementChanged = null;
+        this._boundOnQuickLayoutShortcutsChanged = null;
+        this._boundOnCycleZoneLeft = null;
+        this._boundOnCycleZoneRight = null;
+        this._boundOnShowLayoutSwitcher = null;
+        this._boundOnMinimizeWindow = null;
+        this._boundOnMaximizeWindow = null;
+        this._boundQuickLayoutHandlers = null;
+
+        // Release ALL component references to break reference cycles
+        this._settings = null;
+        this._layoutManager = null;
+        this._windowManager = null;
+        this._notificationManager = null;
+        this._layoutSwitcher = null;
+        this._zoneOverlay = null;
+        this._notificationService = null;
+        this._registeredKeys = null;
+        this._enhancedWindowManagementKeys = null;
+        this._quickLayoutKeys = null;
     }
 }

@@ -127,6 +127,53 @@ nohup ~/auto-log-watcher.sh > /dev/null 2>&1 &
 tail -f ~/GitHub/zoned/zoned-extension.log
 ```
 
+## Memory Analysis Tool
+
+#### `analyze-memory.py`
+**Purpose:** Generate interactive visualizations from memory monitoring data  
+**When to use:** After running long-haul or stability tests  
+**What it does:**
+- Parses `memory-*.csv` files from test runs
+- Creates interactive HTML report with:
+  - Timeline charts showing memory usage over time
+  - Test phase highlighting (colored backgrounds)
+  - GJS memory breakdown (RSS/VM/Shared/Data)
+  - ResourceTracker leak detection
+  - Per-test memory growth analysis
+- Identifies which tests leak memory
+- Highlights ResourceTracker warnings
+
+**Requirements:**
+```bash
+pip install plotly pandas
+```
+
+**Usage:**
+```bash
+# Analyze latest memory data
+./scripts/analyze-memory.py results/memory-2025-12-18-133203.csv
+
+# Specify output file
+./scripts/analyze-memory.py results/memory-*.csv --output my-report.html
+
+# With longhaul data (future feature)
+./scripts/analyze-memory.py results/memory-*.csv --longhaul results/longhaul-*.csv
+```
+
+**Output:** 
+Opens interactive HTML report in your browser showing:
+- **Timeline**: Memory usage over time with zoomable charts
+- **Per-Test Analysis**: Bar charts showing which tests leak most
+- **Resource Leaks**: Signals/timers that weren't cleaned up
+- **Summary Table**: Key metrics and recommendations
+
+**Workflow:**
+1. Run tests: `make vm-long-haul DURATION=2m`
+2. Analyze data: `./scripts/analyze-memory.py results/memory-*.csv`
+3. Open generated `memory-analysis-*.html` in browser
+4. Identify leaking tests (always-positive memory delta)
+5. Focus debugging on those specific test/code paths
+
 ## Configuration File
 
 All scripts read from: `~/.config/zoned-dev/config`

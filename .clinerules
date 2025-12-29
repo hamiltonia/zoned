@@ -18,6 +18,13 @@
 - Use descriptive filenames and directory structure
 - Comment shell scripts and configurations clearly
 
+## Code Attribution Policy
+- **NEVER** include "Created by Cline" or "Modified by Cline" in source code files
+- Code attribution belongs in git commit messages, not in code comments
+- **Rationale**: 99.99% of this code is written by Cline; inline attribution is redundant and clutters the codebase
+- **Exception**: Documentation files (*.md) may reference Cline when contextually appropriate
+- **Git history is the source of truth**: All attribution is preserved in commit messages where it belongs
+
 ## Git Workflow and Attribution
 - **CRITICAL**: Do NOT stage files (`git add`) without explicit user request
 - **CRITICAL**: Do NOT ask about committing until user explicitly requests a commit

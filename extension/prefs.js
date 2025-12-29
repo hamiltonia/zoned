@@ -27,10 +27,9 @@ function isDebugEnabled() {
         try {
             const settings = new Gio.Settings({schema_id: 'org.gnome.shell.extensions.zoned'});
             _debugLoggingEnabled = settings.get_boolean('debug-logging');
-            // Watch for changes
-            settings.connect('changed::debug-logging', () => {
-                _debugLoggingEnabled = settings.get_boolean('debug-logging');
-            });
+            // Watch for changes (Wave 4: bound method)
+            const boundHandler = handleDebugLoggingChanged.bind(null, settings);
+            settings.connect('changed::debug-logging', boundHandler);
         } catch {
             _debugLoggingEnabled = false;
         }
@@ -42,6 +41,204 @@ function log(msg) {
     if (isDebugEnabled()) {
         console.log(`[Zoned Prefs] ${msg}`);
     }
+}
+
+/**
+ * Module-level signal handlers (Wave 4: avoid arrow function closures)
+ */
+
+// Handler for debug-logging setting change
+function handleDebugLoggingChanged(settings) {
+    _debugLoggingEnabled = settings.get_boolean('debug-logging');
+}
+
+// ShortcutCaptureRow signal handlers
+function handleWarningButtonClicked(row) {
+    row._showConflictDialog();
+}
+
+function handleResetButtonClicked(row) {
+    log(`Reset clicked for ${row._settingsKey}`);
+    row._resetToDefault();
+}
+
+function handleModifierToggled(row) {
+    row._onModifierChanged();
+}
+
+function handleRecordButtonClicked(row) {
+    log(`Record clicked for ${row._settingsKey}`);
+    row._startCapture();
+}
+
+function handleKeyControllerKeyPressed(row, ctrl, keyval, keycode, state) {
+    log(`key-pressed event: keyval=${keyval}, keycode=${keycode}, state=${state}, capturing=${row._isCapturing}`);
+    if (!row._isCapturing) {
+        log('Not capturing, propagating event');
+        return false; // Gdk.EVENT_PROPAGATE
+    }
+    return row._onKeyPressed(keyval, keycode, state);
+}
+
+function handleFocusControllerLeave(row) {
+    log(`Focus LEAVE on record button for ${row._settingsKey}, capturing=${row._isCapturing}`);
+    if (row._isCapturing) {
+        row._stopCapture();
+    }
+}
+
+function handleSettingsChanged(row) {
+    log(`Settings changed for ${row._settingsKey}`);
+    row._loadFromSettings();
+}
+
+function handleConflictCountChanged(row) {
+    log(`Conflict count changed externally for ${row._settingsKey}, refreshing display`);
+    row._updateDisplay();
+}
+
+function handleDialogResponse(row, conflict, dlg, response) {
+    if (response === 'fix') {
+        row._fixConflict(conflict);
+    }
+}
+
+// _createQuickLayoutRow signal handlers
+function handleQuickLayoutResetClicked(row, shiftCheck, ctrlCheck, superCheck, altCheck, saveQuickLayoutShortcuts) {
+    row._loadingFromSettings = true;
+    shiftCheck.set_active(false);
+    ctrlCheck.set_active(true);
+    superCheck.set_active(true);
+    altCheck.set_active(true);
+    row._loadingFromSettings = false;
+    saveQuickLayoutShortcuts();
+}
+
+function handleQuickLayoutSettingsChanged(loadFromSettings) {
+    loadFromSettings();
+}
+
+// fillPreferencesWindow signal handlers
+function handleThemeRowSelected(prefs, themeMapping, themeRow, settings) {
+    const newTheme = themeMapping[themeRow.get_selected()];
+    settings.set_string('ui-theme', newTheme);
+    // Apply theme immediately to this preferences window
+    prefs._applyTheme(newTheme);
+}
+
+function handleTierRowSelected(tierRow, settings) {
+    const newTier = tierRow.get_selected();
+    settings.set_int('option-force-tier', newTier);
+}
+
+function handleDurationRowSelected(durationMapping, durationRow, settings) {
+    settings.set_int('notification-duration', durationMapping[durationRow.get_selected()]);
+}
+
+function handleSizeRowSelected(sizeMapping, sizeRow, settings) {
+    settings.set_string('center-notification-size', sizeMapping[sizeRow.get_selected()]);
+}
+
+function handleOpacityScaleChanged(opacityScale, settings) {
+    settings.set_int('center-notification-opacity', Math.round(opacityScale.get_value()));
+}
+
+function handlePreviewButtonClicked(settings) {
+    log('Preview button clicked - triggering center notification');
+    // Trigger preview via GSettings flag (extension will show notification)
+    settings.set_boolean('center-notification-preview', true);
+}
+
+function handleCategoryRowSelected(settingsKey, styleMapping, row, settings) {
+    settings.set_string(settingsKey, styleMapping[row.get_selected()]);
+}
+
+function handleGithubButtonClicked() {
+    Gtk.show_uri(null, 'https://github.com/hamiltonia/zoned', Gdk.CURRENT_TIME);
+}
+
+function handleCoffeeButtonClicked() {
+    Gtk.show_uri(null, 'https://buymeacoffee.com/hamiltonia', Gdk.CURRENT_TIME);
+}
+
+function handleResetDialogResponse(prefs, settings, window, dlg, response) {
+    if (response === 'reset') {
+        log('Resetting all settings to defaults');
+        prefs._resetAllSettings(settings);
+        // Close the preferences window after reset
+        window.close();
+    }
+}
+
+function handleResetDebugButtonClicked(settings, developerGroup) {
+    log('Resetting all debug settings to defaults');
+    // Reset all debug settings to their defaults
+    settings.reset('debug-logging');
+    settings.reset('memory-debug');
+    settings.reset('debug-layout-rects');
+    settings.reset('debug-layout-overlay');
+    settings.reset('option-force-tier');
+    // Hide the developer section
+    settings.set_boolean('developer-mode-revealed', false);
+    developerGroup.visible = false;
+}
+
+function handleDevKeyPressed(settings, developerGroup, ctrl, keyval, keycode, state) {
+    // Check for Ctrl+Shift+D
+    const ctrlPressed = (state & Gdk.ModifierType.CONTROL_MASK) !== 0;
+    const shiftPressed = (state & Gdk.ModifierType.SHIFT_MASK) !== 0;
+    const isDKey = keyval === Gdk.KEY_d || keyval === Gdk.KEY_D;
+
+    if (ctrlPressed && shiftPressed && isDKey) {
+        const isCurrentlyRevealed = settings.get_boolean('developer-mode-revealed');
+        if (isCurrentlyRevealed) {
+            // Hide developer section and reset all debug settings
+            // This prevents users from accidentally leaving debug features on
+            log('Developer mode hidden via Ctrl+Shift+D');
+            settings.reset('debug-logging');
+            settings.reset('debug-layout-rects');
+            settings.reset('debug-layout-overlay');
+            settings.set_boolean('developer-mode-revealed', false);
+            developerGroup.visible = false;
+        } else {
+            // Reveal developer section
+            log('Developer mode revealed via Ctrl+Shift+D');
+            settings.set_boolean('developer-mode-revealed', true);
+            developerGroup.visible = true;
+            // Scroll to the developer section
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                developerGroup.grab_focus();
+                return GLib.SOURCE_REMOVE;
+            });
+        }
+        return true; // Event handled
+    }
+    return false; // Propagate event
+}
+
+function handleScrollTargetChanged(scrollToSection, settings) {
+    const newTarget = settings.get_string('prefs-scroll-target');
+    if (newTarget) {
+        log(`Scroll target changed to: ${newTarget}`);
+        settings.set_string('prefs-scroll-target', '');
+        scrollToSection(newTarget);
+    }
+}
+
+function handleCloseRequestChanged(settings, window) {
+    if (settings.get_boolean('prefs-close-requested')) {
+        log('Close requested by extension, closing prefs window');
+        // Reset the flag
+        settings.set_boolean('prefs-close-requested', false);
+        // Close the window
+        window.close();
+    }
+}
+
+function handleWindowCloseRequest(settings, closeRequestSignal, scrollTargetSignal) {
+    settings.disconnect(closeRequestSignal);
+    settings.disconnect(scrollTargetSignal);
+    return false; // Allow window to close
 }
 
 /**
@@ -304,9 +501,10 @@ const ShortcutCaptureRow = GObject.registerClass({
         });
         this._warningButton.add_css_class('flat');
         this._warningButton.add_css_class('warning');
-        this._warningButton.connect('clicked', () => {
-            this._showConflictDialog();
-        });
+        // Wave 4: bound method
+        const boundWarningClick = handleWarningButtonClicked.bind(null, this);
+        this._warningButton.connect('clicked', boundWarningClick);
+        this._boundWarningClick = boundWarningClick;
         headerBox.append(this._warningButton);
 
         // Store conflict info for dialog
@@ -318,10 +516,10 @@ const ShortcutCaptureRow = GObject.registerClass({
             tooltip_text: 'Reset to default',
         });
         this._resetButton.add_css_class('flat');
-        this._resetButton.connect('clicked', () => {
-            log(`Reset clicked for ${this._settingsKey}`);
-            this._resetToDefault();
-        });
+        // Wave 4: bound method
+        const boundResetClick = handleResetButtonClicked.bind(null, this);
+        this._resetButton.connect('clicked', boundResetClick);
+        this._boundResetClick = boundResetClick;
         headerBox.append(this._resetButton);
 
         mainBox.append(headerBox);
@@ -338,11 +536,13 @@ const ShortcutCaptureRow = GObject.registerClass({
         this._superCheck = new Gtk.CheckButton({label: 'Super'});
         this._altCheck = new Gtk.CheckButton({label: 'Alt'});
 
-        // Connect checkbox changes to update accelerator
-        this._shiftCheck.connect('toggled', () => this._onModifierChanged());
-        this._ctrlCheck.connect('toggled', () => this._onModifierChanged());
-        this._superCheck.connect('toggled', () => this._onModifierChanged());
-        this._altCheck.connect('toggled', () => this._onModifierChanged());
+        // Connect checkbox changes to update accelerator (Wave 4: bound methods)
+        const boundModifierToggled = handleModifierToggled.bind(null, this);
+        this._shiftCheck.connect('toggled', boundModifierToggled);
+        this._ctrlCheck.connect('toggled', boundModifierToggled);
+        this._superCheck.connect('toggled', boundModifierToggled);
+        this._altCheck.connect('toggled', boundModifierToggled);
+        this._boundModifierToggled = boundModifierToggled;
 
         controlsBox.append(this._shiftCheck);
         controlsBox.append(this._ctrlCheck);
@@ -358,10 +558,10 @@ const ShortcutCaptureRow = GObject.registerClass({
             label: 'Record Key',
             tooltip_text: 'Click to record a key',
         });
-        this._recordButton.connect('clicked', () => {
-            log(`Record clicked for ${this._settingsKey}`);
-            this._startCapture();
-        });
+        // Wave 4: bound method
+        const boundRecordClick = handleRecordButtonClicked.bind(null, this);
+        this._recordButton.connect('clicked', boundRecordClick);
+        this._boundRecordClick = boundRecordClick;
         controlsBox.append(this._recordButton);
 
         mainBox.append(controlsBox);
@@ -427,42 +627,34 @@ const ShortcutCaptureRow = GObject.registerClass({
 
         // Event controller for key capture - attach to the record button
         this._keyController = new Gtk.EventControllerKey();
-        this._keyController.connect('key-pressed', (ctrl, keyval, keycode, state) => {
-            log(`key-pressed event: keyval=${keyval}, keycode=${keycode}, state=${state}, capturing=${this._isCapturing}`);
-            if (!this._isCapturing) {
-                log('Not capturing, propagating event');
-                return false; // Gdk.EVENT_PROPAGATE
-            }
-            return this._onKeyPressed(keyval, keycode, state);
-        });
+        // Wave 4: bound method
+        const boundKeyPress = handleKeyControllerKeyPressed.bind(null, this);
+        this._keyController.connect('key-pressed', boundKeyPress);
+        this._boundKeyPress = boundKeyPress;
         this._recordButton.add_controller(this._keyController);
 
         log(`Key controller attached to record button for ${settingsKey}`);
 
         // Focus controller to handle blur during capture
         this._focusController = new Gtk.EventControllerFocus();
-        this._focusController.connect('leave', () => {
-            log(`Focus LEAVE on record button for ${this._settingsKey}, capturing=${this._isCapturing}`);
-            if (this._isCapturing) {
-                this._stopCapture();
-            }
-        });
+        // Wave 4: bound method
+        const boundFocusLeave = handleFocusControllerLeave.bind(null, this);
+        this._focusController.connect('leave', boundFocusLeave);
+        this._boundFocusLeave = boundFocusLeave;
         this._recordButton.add_controller(this._focusController);
 
         // Initial update from settings
         this._loadFromSettings();
 
-        // Listen for settings changes
-        this._settingsChangedId = this._settings.connect(`changed::${this._settingsKey}`, () => {
-            log(`Settings changed for ${this._settingsKey}`);
-            this._loadFromSettings();
-        });
+        // Listen for settings changes (Wave 4: bound methods)
+        const boundSettingsChanged = handleSettingsChanged.bind(null, this);
+        this._settingsChangedId = this._settings.connect(`changed::${this._settingsKey}`, boundSettingsChanged);
+        this._boundSettingsChanged = boundSettingsChanged;
 
         // Listen for conflict count changes (reverse sync from panel menu "Fix All")
-        this._conflictCountChangedId = this._settings.connect('changed::keybinding-conflict-count', () => {
-            log(`Conflict count changed externally for ${this._settingsKey}, refreshing display`);
-            this._updateDisplay();
-        });
+        const boundConflictCountChanged = handleConflictCountChanged.bind(null, this);
+        this._conflictCountChangedId = this._settings.connect('changed::keybinding-conflict-count', boundConflictCountChanged);
+        this._boundConflictCountChanged = boundConflictCountChanged;
 
         log(`ShortcutCaptureRow initialized for ${settingsKey}`);
     }
@@ -775,7 +967,8 @@ const ShortcutCaptureRow = GObject.registerClass({
         // Create alert dialog
         const dialog = new Adw.AlertDialog({
             heading: 'Keyboard Shortcut Conflict',
-            body: `This shortcut conflicts with:\n\n<b>${conflict.name}</b>\n\nDisabling the GNOME shortcut will allow Zoned to use this key combination.`,
+            body: `This shortcut conflicts with:\n\n<b>${conflict.name}</b>\n\n` +
+                'Disabling the GNOME shortcut will allow Zoned to use this key combination.',
             body_use_markup: true,
         });
 
@@ -784,11 +977,9 @@ const ShortcutCaptureRow = GObject.registerClass({
         dialog.set_response_appearance('fix', Adw.ResponseAppearance.SUGGESTED);
         dialog.set_default_response('fix');
 
-        dialog.connect('response', (dlg, response) => {
-            if (response === 'fix') {
-                this._fixConflict(conflict);
-            }
-        });
+        // Wave 4: bound method
+        const boundDialogResponse = handleDialogResponse.bind(null, this, conflict);
+        dialog.connect('response', boundDialogResponse);
 
         dialog.present(root);
     }
@@ -862,6 +1053,15 @@ const ShortcutCaptureRow = GObject.registerClass({
             this._settings.disconnect(this._conflictCountChangedId);
             this._conflictCountChangedId = null;
         }
+        // Release bound function references (Wave 4)
+        this._boundWarningClick = null;
+        this._boundResetClick = null;
+        this._boundModifierToggled = null;
+        this._boundRecordClick = null;
+        this._boundKeyPress = null;
+        this._boundFocusLeave = null;
+        this._boundSettingsChanged = null;
+        this._boundConflictCountChanged = null;
         super.destroy();
     }
 });
@@ -1069,24 +1269,18 @@ export default class ZonedPreferences extends ExtensionPreferences {
         superCheck.connect('toggled', onModifierChanged);
         altCheck.connect('toggled', onModifierChanged);
 
-        // Reset button handler
-        resetButton.connect('clicked', () => {
-            row._loadingFromSettings = true;
-            shiftCheck.set_active(false);
-            ctrlCheck.set_active(true);
-            superCheck.set_active(true);
-            altCheck.set_active(true);
-            row._loadingFromSettings = false;
-            saveQuickLayoutShortcuts();
-        });
+        // Reset button handler (Wave 4: bound method)
+        const boundResetClick = handleQuickLayoutResetClicked.bind(
+            null, row, shiftCheck, ctrlCheck, superCheck, altCheck, saveQuickLayoutShortcuts,
+        );
+        resetButton.connect('clicked', boundResetClick);
 
         // Initial load
         loadFromSettings();
 
-        // Listen for external changes to quick-layout-1
-        settings.connect('changed::quick-layout-1', () => {
-            loadFromSettings();
-        });
+        // Listen for external changes to quick-layout-1 (Wave 4: bound method)
+        const boundSettingsChanged = handleQuickLayoutSettingsChanged.bind(null, loadFromSettings);
+        settings.connect('changed::quick-layout-1', boundSettingsChanged);
 
         return row;
     }
@@ -1144,6 +1338,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
             'notify-conflicts',
             // Debug
             'debug-logging',
+            'memory-debug',
             'debug-layout-rects',
             'debug-layout-overlay',
             'developer-mode-revealed',
@@ -1252,12 +1447,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
         const currentTheme = settings.get_string('ui-theme');
         themeRow.set_selected(themeMapping.indexOf(currentTheme));
 
-        themeRow.connect('notify::selected', () => {
-            const newTheme = themeMapping[themeRow.get_selected()];
-            settings.set_string('ui-theme', newTheme);
-            // Apply theme immediately to this preferences window
-            this._applyTheme(newTheme);
-        });
+        // Wave 4: bound method
+        const boundThemeSelected = handleThemeRowSelected.bind(null, this, themeMapping, themeRow, settings);
+        themeRow.connect('notify::selected', boundThemeSelected);
 
         appearanceGroup.add(themeRow);
 
@@ -1283,10 +1475,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
         const currentTier = settings.get_int('option-force-tier');
         tierRow.set_selected(currentTier);
 
-        tierRow.connect('notify::selected', () => {
-            const newTier = tierRow.get_selected();
-            settings.set_int('option-force-tier', newTier);
-        });
+        // Wave 4: bound method
+        const boundTierSelected = handleTierRowSelected.bind(null, tierRow, settings);
+        tierRow.connect('notify::selected', boundTierSelected);
 
         appearanceGroup.add(tierRow);
 
@@ -1322,9 +1513,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
         if (selectedDurationIdx === -1) selectedDurationIdx = 3;
         durationRow.set_selected(selectedDurationIdx);
 
-        durationRow.connect('notify::selected', () => {
-            settings.set_int('notification-duration', durationMapping[durationRow.get_selected()]);
-        });
+        // Wave 4: bound method
+        const boundDurationSelected = handleDurationRowSelected.bind(null, durationMapping, durationRow, settings);
+        durationRow.connect('notify::selected', boundDurationSelected);
         notifyGroup.add(durationRow);
 
         // Center notification size setting
@@ -1340,9 +1531,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
         const currentSize = settings.get_string('center-notification-size');
         sizeRow.set_selected(sizeMapping.indexOf(currentSize));
 
-        sizeRow.connect('notify::selected', () => {
-            settings.set_string('center-notification-size', sizeMapping[sizeRow.get_selected()]);
-        });
+        // Wave 4: bound method
+        const boundSizeSelected = handleSizeRowSelected.bind(null, sizeMapping, sizeRow, settings);
+        sizeRow.connect('notify::selected', boundSizeSelected);
         notifyGroup.add(sizeRow);
 
         // Center notification opacity setting
@@ -1369,9 +1560,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
         opacityScale.add_mark(75, Gtk.PositionType.BOTTOM, null);
         opacityScale.add_mark(100, Gtk.PositionType.BOTTOM, null);
 
-        opacityScale.connect('value-changed', () => {
-            settings.set_int('center-notification-opacity', Math.round(opacityScale.get_value()));
-        });
+        // Wave 4: bound method
+        const boundOpacityChanged = handleOpacityScaleChanged.bind(null, opacityScale, settings);
+        opacityScale.connect('value-changed', boundOpacityChanged);
         opacityRow.add_suffix(opacityScale);
         notifyGroup.add(opacityRow);
 
@@ -1386,11 +1577,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
             valign: Gtk.Align.CENTER,
         });
         previewButton.add_css_class('suggested-action');
-        previewButton.connect('clicked', () => {
-            log('Preview button clicked - triggering center notification');
-            // Trigger preview via GSettings flag (extension will show notification)
-            settings.set_boolean('center-notification-preview', true);
-        });
+        // Wave 4: bound method
+        const boundPreviewClicked = handlePreviewButtonClicked.bind(null, settings);
+        previewButton.connect('clicked', boundPreviewClicked);
         previewRow.add_suffix(previewButton);
         notifyGroup.add(previewRow);
 
@@ -1415,9 +1604,11 @@ export default class ZonedPreferences extends ExtensionPreferences {
             const currentStyle = settings.get_string(settingsKey);
             row.set_selected(styleMapping.indexOf(currentStyle));
 
-            row.connect('notify::selected', () => {
-                settings.set_string(settingsKey, styleMapping[row.get_selected()]);
-            });
+            // Wave 4: bound method
+            const boundCategorySelected = handleCategoryRowSelected.bind(
+                null, settingsKey, styleMapping, row, settings,
+            );
+            row.connect('notify::selected', boundCategorySelected);
 
             return row;
         };
@@ -1471,7 +1662,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // "Apply globally" ON = per-workspace OFF, "Apply globally" OFF = per-workspace ON
         const applyGloballyRow = new Adw.SwitchRow({
             title: 'Apply one layout to all spaces',
-            subtitle: 'When enabled, layouts apply to all monitors and workspaces. When disabled, each workspace can have its own layout.',
+            subtitle: 'When enabled, layouts apply to all monitors and workspaces. ' +
+                'When disabled, each workspace can have its own layout.',
         });
 
         // Use INVERT_BOOLEAN flag so the UI switch is inverted
@@ -1617,9 +1809,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
         }
         githubButton.set_child(githubIcon);
         githubButton.add_css_class('flat');
-        githubButton.connect('clicked', () => {
-            Gtk.show_uri(null, 'https://github.com/hamiltonia/zoned', Gdk.CURRENT_TIME);
-        });
+        // Wave 4: bound method
+        const boundGithubClicked = handleGithubButtonClicked.bind(null);
+        githubButton.connect('clicked', boundGithubClicked);
         githubRow.add_suffix(githubButton);
         aboutGroup.add(githubRow);
 
@@ -1646,9 +1838,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
         }
         coffeeButton.set_child(coffeeIcon);
         coffeeButton.add_css_class('flat');
-        coffeeButton.connect('clicked', () => {
-            Gtk.show_uri(null, 'https://buymeacoffee.com/hamiltonia', Gdk.CURRENT_TIME);
-        });
+        // Wave 4: bound method
+        const boundCoffeeClicked = handleCoffeeButtonClicked.bind(null);
+        coffeeButton.connect('clicked', boundCoffeeClicked);
         coffeeRow.add_suffix(coffeeButton);
         aboutGroup.add(coffeeRow);
 
@@ -1669,6 +1861,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
             valign: Gtk.Align.CENTER,
         });
         resetButton.add_css_class('destructive-action');
+        // Wave 4: bound method
         resetButton.connect('clicked', () => {
             // Show confirmation dialog
             const dialog = new Adw.AlertDialog({
@@ -1681,14 +1874,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
             dialog.set_response_appearance('reset', Adw.ResponseAppearance.DESTRUCTIVE);
             dialog.set_default_response('cancel');
 
-            dialog.connect('response', (dlg, response) => {
-                if (response === 'reset') {
-                    log('Resetting all settings to defaults');
-                    this._resetAllSettings(settings);
-                    // Close the preferences window after reset
-                    window.close();
-                }
-            });
+            // Wave 4: bound method
+            const boundDialogResponse = handleResetDialogResponse.bind(null, this, settings, window);
+            dialog.connect('response', boundDialogResponse);
 
             dialog.present(window);
         });
@@ -1713,6 +1901,14 @@ export default class ZonedPreferences extends ExtensionPreferences {
         });
         settings.bind('debug-logging', debugLoggingRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         developerGroup.add(debugLoggingRow);
+
+        // Memory Debug Logging toggle
+        const memoryDebugRow = new Adw.SwitchRow({
+            title: 'Memory Debug Logging',
+            subtitle: 'Extremely verbose memory lifecycle logging (for leak debugging only)',
+        });
+        settings.bind('memory-debug', memoryDebugRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        developerGroup.add(memoryDebugRow);
 
         // Debug Layout Rectangles toggle
         const debugRectsRow = new Adw.SwitchRow({
@@ -1742,17 +1938,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
             label: 'Reset Debug Settings & Hide Section',
         });
         resetDebugButton.add_css_class('destructive-action');
-        resetDebugButton.connect('clicked', () => {
-            log('Resetting all debug settings to defaults');
-            // Reset all debug settings to their defaults
-            settings.reset('debug-logging');
-            settings.reset('debug-layout-rects');
-            settings.reset('debug-layout-overlay');
-            settings.reset('option-force-tier');
-            // Hide the developer section
-            settings.set_boolean('developer-mode-revealed', false);
-            developerGroup.visible = false;
-        });
+        // Wave 4: bound method
+        const boundResetDebugClicked = handleResetDebugButtonClicked.bind(null, settings, developerGroup);
+        resetDebugButton.connect('clicked', boundResetDebugClicked);
         resetDebugBox.append(resetDebugButton);
 
         const resetDebugRow = new Adw.PreferencesRow();
@@ -1763,38 +1951,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // Ctrl+Shift+D Handler to Toggle Developer Section
         // ========================================
         const devKeyController = new Gtk.EventControllerKey();
-        devKeyController.connect('key-pressed', (ctrl, keyval, keycode, state) => {
-            // Check for Ctrl+Shift+D
-            const ctrlPressed = (state & Gdk.ModifierType.CONTROL_MASK) !== 0;
-            const shiftPressed = (state & Gdk.ModifierType.SHIFT_MASK) !== 0;
-            const isDKey = keyval === Gdk.KEY_d || keyval === Gdk.KEY_D;
-
-            if (ctrlPressed && shiftPressed && isDKey) {
-                const isCurrentlyRevealed = settings.get_boolean('developer-mode-revealed');
-                if (isCurrentlyRevealed) {
-                    // Hide developer section and reset all debug settings
-                    // This prevents users from accidentally leaving debug features on
-                    log('Developer mode hidden via Ctrl+Shift+D');
-                    settings.reset('debug-logging');
-                    settings.reset('debug-layout-rects');
-                    settings.reset('debug-layout-overlay');
-                    settings.set_boolean('developer-mode-revealed', false);
-                    developerGroup.visible = false;
-                } else {
-                    // Reveal developer section
-                    log('Developer mode revealed via Ctrl+Shift+D');
-                    settings.set_boolean('developer-mode-revealed', true);
-                    developerGroup.visible = true;
-                    // Scroll to the developer section
-                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-                        developerGroup.grab_focus();
-                        return GLib.SOURCE_REMOVE;
-                    });
-                }
-                return true; // Event handled
-            }
-            return false; // Propagate event
-        });
+        // Wave 4: bound method
+        const boundDevKeyPressed = handleDevKeyPressed.bind(null, settings, developerGroup);
+        devKeyController.connect('key-pressed', boundDevKeyPressed);
         window.add_controller(devKeyController);
 
         // Helper function to scroll to a section
@@ -1825,32 +1984,21 @@ export default class ZonedPreferences extends ExtensionPreferences {
         }
 
         // Watch for scroll target changes (handles case when prefs is already open)
-        const scrollTargetSignal = settings.connect('changed::prefs-scroll-target', () => {
-            const newTarget = settings.get_string('prefs-scroll-target');
-            if (newTarget) {
-                log(`Scroll target changed to: ${newTarget}`);
-                settings.set_string('prefs-scroll-target', '');
-                scrollToSection(newTarget);
-            }
-        });
+        // Wave 4: bound method
+        const boundScrollTargetChanged = handleScrollTargetChanged.bind(null, scrollToSection, settings);
+        const scrollTargetSignal = settings.connect('changed::prefs-scroll-target', boundScrollTargetChanged);
 
         // Watch for close request from extension (when "Fix All" is used from panel menu)
-        const closeRequestSignal = settings.connect('changed::prefs-close-requested', () => {
-            if (settings.get_boolean('prefs-close-requested')) {
-                log('Close requested by extension, closing prefs window');
-                // Reset the flag
-                settings.set_boolean('prefs-close-requested', false);
-                // Close the window
-                window.close();
-            }
-        });
+        // Wave 4: bound method
+        const boundCloseRequestChanged = handleCloseRequestChanged.bind(null, settings, window);
+        const closeRequestSignal = settings.connect('changed::prefs-close-requested', boundCloseRequestChanged);
 
         // Clean up signal handlers when window closes
-        window.connect('close-request', () => {
-            settings.disconnect(closeRequestSignal);
-            settings.disconnect(scrollTargetSignal);
-            return false; // Allow window to close
-        });
+        // Wave 4: bound method
+        const boundWindowCloseRequest = handleWindowCloseRequest.bind(
+            null, settings, closeRequestSignal, scrollTargetSignal,
+        );
+        window.connect('close-request', boundWindowCloseRequest);
 
         log('=== fillPreferencesWindow complete ===');
     }

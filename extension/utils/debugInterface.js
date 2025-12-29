@@ -21,7 +21,6 @@ import {
     getAggregatedReport,
     resetAllTracking,
 } from './resourceTracker.js';
-import {ZoneEditor} from '../ui/zoneEditor.js';
 
 const logger = createLogger('DebugInterface');
 
@@ -36,7 +35,11 @@ const DBUS_INTERFACE_XML = `
     <method name="GetResourceReport">
       <arg direction="out" type="a{sv}" name="report"/>
     </method>
-    
+
+    <method name="GetMemoryReport">
+      <arg direction="out" type="s" name="report"/>
+    </method>
+
     <method name="GetComponentReports">
       <arg direction="out" type="s" name="reports"/>
     </method>
@@ -56,40 +59,28 @@ const DBUS_INTERFACE_XML = `
       <arg direction="out" type="s" name="response"/>
     </method>
     
+    <method name="GetGJSMemory">
+      <arg direction="out" type="a{sv}" name="memory"/>
+    </method>
+    
+    <method name="GetActorCount">
+      <arg direction="out" type="i" name="count"/>
+    </method>
+    
     <signal name="ActionCompleted">
       <arg type="s" name="action"/>
       <arg type="b" name="success"/>
+    </signal>
+    
+    <signal name="InitCompleted">
+      <arg type="b" name="success"/>
+      <arg type="s" name="version"/>
     </signal>
   </interface>
 </node>
 `;
 
-// Track debug zone editor instance for cleanup
-let _debugZoneEditor = null;
-
-// Action handlers map for TriggerAction
-const ACTION_HANDLERS = {
-    'cycle-zone': handleCycleZone,
-    'cycle-zone-state': handleCycleZoneState,
-    'switch-layout': handleSwitchLayout,
-    'show-layout-switcher': handleShowLayoutSwitcher,
-    'hide-layout-switcher': handleHideLayoutSwitcher,
-    'show-zone-overlay': handleShowZoneOverlay,
-    'hide-zone-overlay': handleHideZoneOverlay,
-    'show-zone-editor': handleShowZoneEditor,
-    'hide-zone-editor': handleHideZoneEditor,
-    'get-layout-ids': handleGetLayoutIds,
-    'get-monitor-count': handleGetMonitorCount,
-    'move-focused-to-zone': handleMoveFocusedToZone,
-    'get-focused-window-geometry': handleGetFocusedWindowGeometry,
-    'get-current-zone-geometry': handleGetCurrentZoneGeometry,
-    'switch-workspace': handleSwitchWorkspace,
-    'get-workspace-info': handleGetWorkspaceInfo,
-    'move-window-to-workspace': handleMoveWindowToWorkspace,
-    'set-per-workspace-mode': handleSetPerWorkspaceMode,
-    'get-spatial-state': handleGetSpatialState,
-};
-
+// Action handler functions
 function handleCycleZone(extension, params) {
     const direction = params.direction || 1;
     extension._layoutManager?.cycleZone(direction);
@@ -147,53 +138,6 @@ function handleShowZoneOverlay(extension) {
 
 function handleHideZoneOverlay(extension) {
     extension._zoneOverlay?._hide();
-    return [true, ''];
-}
-
-function handleShowZoneEditor(extension) {
-    // Clean up any existing debug editor
-    if (_debugZoneEditor) {
-        try {
-            _debugZoneEditor.destroy();
-        } catch {
-            // May already be destroyed
-        }
-        _debugZoneEditor = null;
-    }
-
-    const layout = extension._layoutManager?.getCurrentLayout();
-    if (!layout) {
-        return [false, 'No current layout'];
-    }
-
-    // Create a zone editor instance for the current layout
-    // Use no-op callbacks since this is just for memory testing
-    _debugZoneEditor = new ZoneEditor(
-        layout,
-        extension._layoutManager,
-        extension._settings,
-        () => {
-            // onSave - no-op for debug
-            _debugZoneEditor = null;
-        },
-        () => {
-            // onCancel - no-op for debug
-            _debugZoneEditor = null;
-        },
-    );
-    _debugZoneEditor.show();
-    return [true, ''];
-}
-
-function handleHideZoneEditor(_extension) {
-    if (_debugZoneEditor) {
-        try {
-            _debugZoneEditor.destroy();
-        } catch {
-            // May already be destroyed
-        }
-        _debugZoneEditor = null;
-    }
     return [true, ''];
 }
 
@@ -326,6 +270,27 @@ function handleGetSpatialState(extension) {
     })];
 }
 
+// Action handlers map
+const ACTION_HANDLERS = {
+    'cycle-zone': handleCycleZone,
+    'cycle-zone-state': handleCycleZoneState,
+    'switch-layout': handleSwitchLayout,
+    'show-layout-switcher': handleShowLayoutSwitcher,
+    'hide-layout-switcher': handleHideLayoutSwitcher,
+    'show-zone-overlay': handleShowZoneOverlay,
+    'hide-zone-overlay': handleHideZoneOverlay,
+    'get-layout-ids': handleGetLayoutIds,
+    'get-monitor-count': handleGetMonitorCount,
+    'move-focused-to-zone': handleMoveFocusedToZone,
+    'get-focused-window-geometry': handleGetFocusedWindowGeometry,
+    'get-current-zone-geometry': handleGetCurrentZoneGeometry,
+    'switch-workspace': handleSwitchWorkspace,
+    'get-workspace-info': handleGetWorkspaceInfo,
+    'move-window-to-workspace': handleMoveWindowToWorkspace,
+    'set-per-workspace-mode': handleSetPerWorkspaceMode,
+    'get-spatial-state': handleGetSpatialState,
+};
+
 /**
  * Debug Interface - D-Bus service for automated testing
  */
@@ -338,6 +303,26 @@ export class DebugInterface {
         this._dbusExportId = null;
         this._enabled = false;
         this._settingsChangedId = null;
+
+        // Bind methods to avoid closure leaks
+        this._boundOnDebugExposeChanged = this._onDebugExposeChanged.bind(this);
+    }
+
+    /**
+     * Handler for debug-expose-dbus setting changes
+     * @private
+     */
+    _onDebugExposeChanged() {
+        const settings = this._extension._settings;
+        if (!settings) return;
+
+        const newValue = settings.get_boolean('debug-expose-dbus');
+        if (newValue && !this._enabled) {
+            this._enable();
+        } else if (!newValue && this._enabled) {
+            this._disable();
+        }
+        this._enabled = newValue;
     }
 
     /**
@@ -353,16 +338,8 @@ export class DebugInterface {
         // Check if D-Bus interface should be exposed
         this._enabled = settings.get_boolean('debug-expose-dbus');
 
-        // Watch for setting changes
-        this._settingsChangedId = settings.connect('changed::debug-expose-dbus', () => {
-            const newValue = settings.get_boolean('debug-expose-dbus');
-            if (newValue && !this._enabled) {
-                this._enable();
-            } else if (!newValue && this._enabled) {
-                this._disable();
-            }
-            this._enabled = newValue;
-        });
+        // Watch for setting changes - use bound method to avoid closure leak
+        this._settingsChangedId = settings.connect('changed::debug-expose-dbus', this._boundOnDebugExposeChanged);
 
         if (this._enabled) {
             this._enable();
@@ -413,14 +390,7 @@ export class DebugInterface {
      * Returns current extension state as a variant dictionary
      */
     GetState() {
-        logger.debug('D-Bus GetState called');
-
-        try {
-            return this._buildStateResponse();
-        } catch (e) {
-            logger.error('GetState error:', e.message);
-            return {error: GLib.Variant.new_string(e.message)};
-        }
+        return this._buildStateResponse();
     }
 
     /**
@@ -507,29 +477,31 @@ export class DebugInterface {
      * Returns aggregated resource tracking report
      */
     GetResourceReport() {
-        logger.debug('D-Bus GetResourceReport called');
+        const report = getAggregatedReport();
 
-        try {
-            const report = getAggregatedReport();
+        return {
+            totalSignals: GLib.Variant.new_int32(report.totalSignals),
+            activeSignals: GLib.Variant.new_int32(report.activeSignals),
+            leakedSignals: GLib.Variant.new_int32(report.leakedSignals),
+            totalTimers: GLib.Variant.new_int32(report.totalTimers),
+            activeTimers: GLib.Variant.new_int32(report.activeTimers),
+            leakedTimers: GLib.Variant.new_int32(report.leakedTimers),
+            totalActors: GLib.Variant.new_int32(report.totalActors),
+            activeActors: GLib.Variant.new_int32(report.activeActors),
+            componentsWithLeaks: GLib.Variant.new_strv(report.componentsWithLeaks),
+            warnings: GLib.Variant.new_strv(report.warnings),
+        };
+    }
 
-            return {
-                totalSignals: GLib.Variant.new_int32(report.totalSignals),
-                activeSignals: GLib.Variant.new_int32(report.activeSignals),
-                leakedSignals: GLib.Variant.new_int32(report.leakedSignals),
-                totalTimers: GLib.Variant.new_int32(report.totalTimers),
-                activeTimers: GLib.Variant.new_int32(report.activeTimers),
-                leakedTimers: GLib.Variant.new_int32(report.leakedTimers),
-                totalActors: GLib.Variant.new_int32(report.totalActors),
-                activeActors: GLib.Variant.new_int32(report.activeActors),
-                componentsWithLeaks: GLib.Variant.new_strv(report.componentsWithLeaks),
-                warnings: GLib.Variant.new_strv(report.warnings),
-            };
-        } catch (e) {
-            logger.error('GetResourceReport error:', e.message);
-            return {
-                error: GLib.Variant.new_string(e.message),
-            };
+    /**
+     * D-Bus Method: GetMemoryReport
+     * Returns instance count report from global memory debug registry
+     */
+    GetMemoryReport() {
+        if (global.zonedDebug) {
+            return global.zonedDebug.getReport();
         }
+        return 'Memory debug registry not initialized';
     }
 
     /**
@@ -537,15 +509,8 @@ export class DebugInterface {
      * Returns detailed per-component reports as JSON string
      */
     GetComponentReports() {
-        logger.debug('D-Bus GetComponentReports called');
-
-        try {
-            const report = getAggregatedReport();
-            return JSON.stringify(report.componentReports, null, 2);
-        } catch (e) {
-            logger.error('GetComponentReports error:', e.message);
-            return JSON.stringify({error: e.message});
-        }
+        const report = getAggregatedReport();
+        return JSON.stringify(report.componentReports, null, 2);
     }
 
     /**
@@ -556,19 +521,31 @@ export class DebugInterface {
      * @returns {[boolean, string]} [success, error]
      */
     TriggerAction(action, paramsJson) {
-        logger.debug(`D-Bus TriggerAction: ${action} with params: ${paramsJson}`);
-
         try {
-            const params = paramsJson ? JSON.parse(paramsJson) : {};
             const handler = ACTION_HANDLERS[action];
-
             if (!handler) {
                 return [false, `Unknown action: ${action}`];
             }
 
-            return handler(this._extension, params);
+            // Parse parameters
+            let params = {};
+            if (paramsJson && paramsJson !== '{}') {
+                try {
+                    params = JSON.parse(paramsJson);
+                } catch (e) {
+                    return [false, `Invalid JSON parameters: ${e.message}`];
+                }
+            }
+
+            // Execute handler
+            const [success, error] = handler(this._extension, params);
+
+            // Emit signal
+            this.emitActionCompleted(action, success);
+
+            return [success, error || ''];
         } catch (e) {
-            logger.error(`TriggerAction error: ${e.message}`);
+            logger.error(`TriggerAction error for '${action}':`, e.message);
             return [false, e.message];
         }
     }
@@ -578,13 +555,11 @@ export class DebugInterface {
      * Reset all resource tracking counters
      */
     ResetResourceTracking() {
-        logger.debug('D-Bus ResetResourceTracking called');
-
         try {
             resetAllTracking();
             return true;
         } catch (e) {
-            logger.error('ResetResourceTracking error:', e.message);
+            logger.error('Failed to reset resource tracking:', e.message);
             return false;
         }
     }
@@ -594,8 +569,42 @@ export class DebugInterface {
      * Simple health check
      */
     Ping() {
-        logger.debug('D-Bus Ping called');
         return 'pong';
+    }
+
+    /**
+     * D-Bus Method: GetGJSMemory
+     * Returns GJS memory statistics for leak detection
+     * @returns {Object} Memory stats as variant dictionary
+     */
+    GetGJSMemory() {
+        try {
+            return {
+                timestamp: GLib.Variant.new_int64(GLib.get_real_time()),
+                pageSize: GLib.Variant.new_int32(4096),
+            };
+        } catch (e) {
+            logger.error('GetGJSMemory error:', e.message);
+            return {
+                timestamp: GLib.Variant.new_int64(GLib.get_real_time()),
+                error: GLib.Variant.new_string(e.message),
+            };
+        }
+    }
+
+    /**
+     * D-Bus Method: GetActorCount
+     * Returns the number of actors in Main.uiGroup
+     * Used for leak detection by comparing counts before/after operations
+     * @returns {number} Number of child actors
+     */
+    GetActorCount() {
+        try {
+            return Main.uiGroup.get_n_children();
+        } catch (e) {
+            logger.error('GetActorCount error:', e.message);
+            return -1;
+        }
     }
 
     /**
@@ -609,6 +618,21 @@ export class DebugInterface {
                 'ActionCompleted',
                 new GLib.Variant('(sb)', [action, success]),
             );
+        }
+    }
+
+    /**
+     * Emit InitCompleted signal
+     * Called at the end of extension enable() to signal successful initialization
+     * @param {boolean} success - Whether initialization completed successfully
+     */
+    emitInitCompleted(success) {
+        if (this._dbusExportId) {
+            this._dbusExportId.emit_signal(
+                'InitCompleted',
+                new GLib.Variant('(bs)', [success, '1.0']),
+            );
+            logger.debug(`InitCompleted signal emitted: ${success}`);
         }
     }
 

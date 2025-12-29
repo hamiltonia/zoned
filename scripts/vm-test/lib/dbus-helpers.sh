@@ -249,31 +249,49 @@ is_multi_monitor() {
 }
 
 # =============================================================================
-# Zone Editor (for memory footprint testing)
+# GJS Memory Introspection
 # =============================================================================
 
-# Open zone editor for current layout
-# Returns: 0 on success, 1 on failure
-dbus_show_zone_editor() {
-    local result
-    result=$(dbus_trigger "show-zone-editor" "{}" 2>/dev/null)
-    if echo "$result" | grep -q "true"; then
-        return 0
-    else
+# Get GJS/GNOME Shell memory stats via D-Bus
+# Returns: "rss_kb vm_kb shared_kb data_kb" or empty on failure
+dbus_get_gjs_memory() {
+    local raw
+    raw=$(dbus_call "GetGJSMemory" 2>/dev/null)
+    
+    if [ -z "$raw" ]; then
+        echo ""
         return 1
     fi
+    
+    local rss_kb vm_kb shared_kb data_kb
+    rss_kb=$(extract_variant "rssKb" "$raw" 2>/dev/null || echo "0")
+    vm_kb=$(extract_variant "vmSizeKb" "$raw" 2>/dev/null || echo "0")
+    shared_kb=$(extract_variant "sharedKb" "$raw" 2>/dev/null || echo "0")
+    data_kb=$(extract_variant "dataKb" "$raw" 2>/dev/null || echo "0")
+    
+    echo "${rss_kb:-0} ${vm_kb:-0} ${shared_kb:-0} ${data_kb:-0}"
 }
 
-# Close zone editor
-# Returns: 0 on success, 1 on failure
-dbus_hide_zone_editor() {
-    local result
-    result=$(dbus_trigger "hide-zone-editor" "{}" 2>/dev/null)
-    if echo "$result" | grep -q "true"; then
-        return 0
-    else
+# Get detailed memory info as key=value pairs
+get_memory_details() {
+    local raw
+    raw=$(dbus_call "GetGJSMemory" 2>/dev/null)
+    
+    if [ -z "$raw" ]; then
+        echo "error=failed_to_get_memory"
         return 1
     fi
+    
+    local rss_kb vm_kb shared_kb data_kb
+    rss_kb=$(extract_variant "rssKb" "$raw" 2>/dev/null || echo "0")
+    vm_kb=$(extract_variant "vmSizeKb" "$raw" 2>/dev/null || echo "0")
+    shared_kb=$(extract_variant "sharedKb" "$raw" 2>/dev/null || echo "0")
+    data_kb=$(extract_variant "dataKb" "$raw" 2>/dev/null || echo "0")
+    
+    echo "rss_kb=${rss_kb:-0}"
+    echo "vm_kb=${vm_kb:-0}"
+    echo "shared_kb=${shared_kb:-0}"
+    echo "data_kb=${data_kb:-0}"
 }
 
 # =============================================================================
@@ -295,6 +313,97 @@ force_gc() {
         sleep 1
         return 0
     else
+        return 1
+    fi
+}
+
+# =============================================================================
+# Extension Initialization Verification
+# =============================================================================
+
+# Wait for InitCompleted D-Bus signal with timeout
+# This verifies the extension loaded successfully before running tests
+# Returns: 0 if signal received, 1 on timeout
+wait_for_init_signal() {
+    local timeout=${1:-10}  # Default 10 second timeout
+    local signal_received=0
+    
+    echo "Waiting for extension InitCompleted signal (timeout: ${timeout}s)..."
+    
+    # Start gdbus monitor in background, capture output to temp file
+    local temp_file=$(mktemp)
+    local monitor_pid
+    
+    # Monitor for the InitCompleted signal
+    gdbus monitor --session \
+        --dest org.gnome.Shell \
+        --object-path "$DBUS_PATH" 2>/dev/null > "$temp_file" &
+    monitor_pid=$!
+    
+    # Wait for signal or timeout
+    local elapsed=0
+    while [ $elapsed -lt $timeout ]; do
+        # Check if signal was received
+        if grep -q "InitCompleted" "$temp_file" 2>/dev/null; then
+            # Extract success status from signal
+            local success_status
+            success_status=$(grep "InitCompleted" "$temp_file" | grep -oP "true|false" | head -1)
+            
+            if [ "$success_status" = "true" ]; then
+                echo "✓ Extension initialized successfully"
+                signal_received=1
+                break
+            else
+                echo "✗ Extension initialization failed (signal received but success=false)"
+                break
+            fi
+        fi
+        
+        sleep 0.5
+        elapsed=$((elapsed + 1))
+    done
+    
+    # Clean up
+    kill $monitor_pid 2>/dev/null
+    wait $monitor_pid 2>/dev/null
+    rm -f "$temp_file"
+    
+    if [ $signal_received -eq 1 ]; then
+        return 0
+    else
+        echo "✗ Timeout waiting for InitCompleted signal after ${timeout}s"
+        echo "  Extension may have failed to load - check logs with:"
+        echo "  journalctl -f /usr/bin/gnome-shell"
+        return 1
+    fi
+}
+
+# Verify extension is initialized and ready
+# Combines signal wait + D-Bus availability check
+verify_extension_ready() {
+    local timeout=${1:-10}
+    
+    echo "=== Extension Initialization Check ==="
+    
+    # Wait for init signal
+    if ! wait_for_init_signal "$timeout"; then
+        return 1
+    fi
+    
+    # Verify D-Bus interface is responsive
+    if ! dbus_interface_available; then
+        echo "✗ D-Bus interface not responsive after init"
+        return 1
+    fi
+    
+    # Try a ping to confirm everything works
+    local ping_result
+    ping_result=$(dbus_ping 2>/dev/null)
+    if [ "$ping_result" = "('pong',)" ]; then
+        echo "✓ Extension D-Bus interface verified"
+        return 0
+    else
+        echo "✗ D-Bus ping failed"
         return 1
     fi
 }

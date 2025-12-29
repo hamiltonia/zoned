@@ -25,12 +25,20 @@ export class ThemeManager {
      * @param {Gio.Settings} settings - Extension settings instance
      */
     constructor(settings) {
+        global.zonedDebug?.trackInstance('ThemeManager', 1);
         this._settings = settings;
 
         // Listen to GNOME system interface settings
         this._interfaceSettings = new Gio.Settings({
             schema: 'org.gnome.desktop.interface',
         });
+
+        // Signal tracking for cleanup
+        this._signalIds = [];
+
+        // Bound callbacks for theme changes (stored for proper cleanup)
+        this._boundUserPrefChanged = null;
+        this._boundSystemThemeChanged = null;
 
         logger.debug('ThemeManager initialized');
     }
@@ -59,8 +67,8 @@ export class ThemeManager {
                 }
             }
         } catch (e) {
-            logger.error('Error detecting theme mode:', e);
-            return true; // Fallback to dark mode on error
+            logger.warn('Error detecting theme:', e);
+            return true;  // Default to dark
         }
     }
 
@@ -237,10 +245,13 @@ export class ThemeManager {
      * @returns {Object} Object with signal IDs for cleanup
      */
     connectChanged(callback) {
+        // Create bound callback wrapper to avoid closure leaks
+        const boundCallback = callback.bind(null);
+
         // Listen to user's theme preference changes
         const userPrefId = this._settings.connect('changed::ui-theme', () => {
             logger.debug('User theme preference changed');
-            callback();
+            boundCallback();
         });
 
         // Listen to GNOME system theme changes (only matters if user pref is 'system')
@@ -248,8 +259,18 @@ export class ThemeManager {
             const userPref = this._settings.get_string('ui-theme');
             if (userPref === 'system') {
                 logger.debug('System color-scheme changed (user is in system mode)');
-                callback();
+                boundCallback();
             }
+        });
+
+        // Track signal IDs for automatic cleanup in destroy()
+        this._signalIds.push({
+            source: this._settings,
+            id: userPrefId,
+        });
+        this._signalIds.push({
+            source: this._interfaceSettings,
+            id: systemId,
         });
 
         return {userPrefId, systemId};
@@ -260,11 +281,15 @@ export class ThemeManager {
      * @param {Object} ids - Object with userPrefId and systemId
      */
     disconnectChanged(ids) {
-        if (ids.userPrefId) {
+        if (ids.userPrefId && this._settings) {
             this._settings.disconnect(ids.userPrefId);
+            // Remove from tracked signals
+            this._signalIds = this._signalIds.filter(s => s.id !== ids.userPrefId);
         }
-        if (ids.systemId) {
+        if (ids.systemId && this._interfaceSettings) {
             this._interfaceSettings.disconnect(ids.systemId);
+            // Remove from tracked signals
+            this._signalIds = this._signalIds.filter(s => s.id !== ids.systemId);
         }
     }
 
@@ -327,10 +352,30 @@ export class ThemeManager {
      * Clean up resources
      */
     destroy() {
+        // Disconnect any signals that weren't manually disconnected
+        if (this._signalIds && this._signalIds.length > 0) {
+            logger.debug(`ThemeManager: Cleaning up ${this._signalIds.length} signal(s)`);
+            this._signalIds.forEach(({source, id}) => {
+                try {
+                    if (source && id) {
+                        source.disconnect(id);
+                    }
+                } catch (e) {
+                    logger.warn(`Failed to disconnect signal ${id}: ${e}`);
+                }
+            });
+            this._signalIds = [];
+        }
+
+        // Release bound callback references to prevent memory leaks
+        this._boundUserPrefChanged = null;
+        this._boundSystemThemeChanged = null;
+
         // Clear our reference to interface settings
         // (GSettings objects are managed by GLib, but we should release our reference)
         this._interfaceSettings = null;
         this._settings = null;
-        logger.debug('ThemeManager destroyed');
+
+        global.zonedDebug?.trackInstance('ThemeManager', -1);
     }
 }

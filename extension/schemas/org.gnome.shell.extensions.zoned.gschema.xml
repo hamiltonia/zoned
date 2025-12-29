@@ -403,6 +403,17 @@
       </description>
     </key>
     
+    <key name="memory-debug" type="b">
+      <default>false</default>
+      <summary>Enable memory debug logging</summary>
+      <description>
+        Enables extremely verbose memory lifecycle and cleanup logging for debugging memory leaks.
+        Only use when actively investigating memory issues - very verbose output.
+        Requires developer-mode-revealed to be enabled.
+        View logs with: journalctl -f /usr/bin/gnome-shell | grep MEMDEBUG
+      </description>
+    </key>
+    
     <key name="developer-mode-revealed" type="b">
       <default>false</default>
       <summary>Developer section visibility state</summary>

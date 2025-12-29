@@ -16,8 +16,39 @@ import St from 'gi://St';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import {createLogger} from '../utils/debug.js';
 import {ThemeManager} from '../utils/theme.js';
+import {SignalTracker} from '../utils/signalTracker.js';
 
 const logger = createLogger('ConfirmDialog');
+
+/**
+ * Handle enter-event on destructive confirm button for hover styling
+ * Module-level handler (Wave 3: avoid arrow function closure)
+ * @param {St.Button} button - The confirm button
+ * @returns {boolean} Clutter.EVENT_PROPAGATE
+ */
+function handleConfirmButtonEnter(button) {
+    button.style = `
+        background-color: #a01720;
+        color: white;
+        border: none;
+    `;
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Handle leave-event on destructive confirm button to restore styling
+ * Module-level handler (Wave 3: avoid arrow function closure)
+ * @param {St.Button} button - The confirm button
+ * @returns {boolean} Clutter.EVENT_PROPAGATE
+ */
+function handleConfirmButtonLeave(button) {
+    button.style = `
+        background-color: #c01c28;
+        color: white;
+        border: none;
+    `;
+    return Clutter.EVENT_PROPAGATE;
+}
 
 /**
  * ConfirmDialog - Simple yes/no confirmation
@@ -61,6 +92,9 @@ export const ConfirmDialog = GObject.registerClass(
 
             // Create ThemeManager if settings provided
             this._themeManager = options.settings ? new ThemeManager(options.settings) : null;
+
+            // Initialize signal tracker for proper cleanup
+            this._signalTracker = new SignalTracker('ConfirmDialog');
 
             this._buildUI();
 
@@ -177,35 +211,31 @@ export const ConfirmDialog = GObject.registerClass(
                     color: white;
                     border: none;
                 `;
-                    // Also style on hover
-                    confirmButton.connect('enter-event', () => {
-                        confirmButton.style = `
-                        background-color: #a01720;
-                        color: white;
-                        border: none;
-                    `;
-                        return Clutter.EVENT_PROPAGATE;
-                    });
-                    confirmButton.connect('leave-event', () => {
-                        confirmButton.style = `
-                        background-color: #c01c28;
-                        color: white;
-                        border: none;
-                    `;
-                        return Clutter.EVENT_PROPAGATE;
-                    });
+                    // Also style on hover (Wave 3: bound methods)
+                    const boundEnter = handleConfirmButtonEnter.bind(null, confirmButton);
+                    const boundLeave = handleConfirmButtonLeave.bind(null, confirmButton);
+                    this._signalTracker.connect(confirmButton, 'enter-event', boundEnter);
+                    this._signalTracker.connect(confirmButton, 'leave-event', boundLeave);
                 }
             }
         }
 
         /**
-         * Override destroy to clean up ThemeManager
+         * Override destroy to clean up resources
          */
         destroy() {
+            // Disconnect all signals
+            if (this._signalTracker) {
+                this._signalTracker.disconnectAll();
+                this._signalTracker = null;
+            }
+
+            // Clean up ThemeManager
             if (this._themeManager) {
                 this._themeManager.destroy();
                 this._themeManager = null;
             }
+
             super.destroy();
         }
     });

@@ -6,7 +6,7 @@
    version="1.1"
    id="svg21"
    sodipodi:docname="github-banner.svg"
-   inkscape:export-filename="../../GitHub/zoned/zoned-assets/github/github-social.png"
+   inkscape:export-filename="github-social.png"
    inkscape:export-xdpi="153.60001"
    inkscape:export-ydpi="153.60001"
    inkscape:version="1.4.2 (ebf0e940d0, 2025-05-08)"
@@ -24,9 +24,9 @@
      inkscape:pageopacity="0"
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#505050"
-     inkscape:zoom="1.4775"
-     inkscape:cx="599.66159"
-     inkscape:cy="200"
+     inkscape:zoom="1.0447503"
+     inkscape:cx="501.55527"
+     inkscape:cy="126.82457"
      inkscape:window-width="1920"
      inkscape:window-height="948"
      inkscape:window-x="0"
@@ -313,8 +313,8 @@
      style="fill:url(#linearGradient21)">oned</text>
   <!-- Tagline - positioned below text -->
   <text
-     x="760.20984"
-     y="192.45178"
+     x="567.81934"
+     y="232.65277"
      font-family="Inter, 'SF Pro Display', '-apple-system', system-ui, sans-serif"
      font-size="18px"
      font-weight="400"

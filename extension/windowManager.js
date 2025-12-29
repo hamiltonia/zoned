@@ -151,10 +151,10 @@ export class WindowManager {
     }
 
     /**
-     * Clean up resources (currently no cleanup needed)
+     * Clean up resources
      */
     destroy() {
-        // No resources to clean up currently
-        // Placeholder for future use
+        // Clear display reference to prevent memory leaks
+        this._display = null;
     }
 }

@@ -15,16 +15,39 @@ import Gio from 'gi://Gio';
  * Log levels
  */
 export const LogLevel = {
-    ERROR: 0,   // Always logged
-    WARN: 1,    // Always logged
-    INFO: 2,    // Conditional (requires debug-logging)
-    DEBUG: 3,   // Conditional (requires debug-logging)
+    ERROR: 0,     // Always logged
+    WARN: 1,      // Always logged
+    INFO: 2,      // Conditional (requires debug-logging)
+    DEBUG: 3,     // Conditional (requires debug-logging)
+    MEMDEBUG: 4,  // Conditional (requires memory-debug)
 };
 
 // Cached settings reference and debug state
 let _settings = null;
 let _debugEnabled = false;
+let _memDebugEnabled = false;
 let _settingsChangedId = null;
+let _memDebugChangedId = null;
+
+/**
+ * Handler for debug-logging setting changes
+ * Separated to avoid arrow function closure leak
+ * @private
+ */
+function _onDebugLoggingChanged() {
+    _debugEnabled = _settings.get_boolean('debug-logging');
+    console.log(`[Zoned] Debug logging ${_debugEnabled ? 'enabled' : 'disabled'}`);
+}
+
+/**
+ * Handler for memory-debug setting changes
+ * Separated to avoid arrow function closure leak
+ * @private
+ */
+function _onMemoryDebugChanged() {
+    _memDebugEnabled = _settings.get_boolean('memory-debug');
+    console.log(`[Zoned] Memory debug logging ${_memDebugEnabled ? 'enabled' : 'disabled'}`);
+}
 
 /**
  * Initialize debug settings from GSettings
@@ -45,17 +68,22 @@ export function initDebugSettings(settings = null) {
         }
     }
 
-    // Read initial value
+    // Read initial values
     _debugEnabled = _settings.get_boolean('debug-logging');
+    _memDebugEnabled = _settings.get_boolean('memory-debug');
 
-    // Watch for changes
+    // Watch for changes - use named functions to avoid closure leaks
     if (_settingsChangedId) {
         _settings.disconnect(_settingsChangedId);
+        _settingsChangedId = null;
     }
-    _settingsChangedId = _settings.connect('changed::debug-logging', () => {
-        _debugEnabled = _settings.get_boolean('debug-logging');
-        console.log(`[Zoned] Debug logging ${_debugEnabled ? 'enabled' : 'disabled'}`);
-    });
+    _settingsChangedId = _settings.connect('changed::debug-logging', _onDebugLoggingChanged);
+
+    if (_memDebugChangedId) {
+        _settings.disconnect(_memDebugChangedId);
+        _memDebugChangedId = null;
+    }
+    _memDebugChangedId = _settings.connect('changed::memory-debug', _onMemoryDebugChanged);
 }
 
 /**
@@ -66,8 +94,13 @@ export function destroyDebugSettings() {
         _settings.disconnect(_settingsChangedId);
         _settingsChangedId = null;
     }
+    if (_settings && _memDebugChangedId) {
+        _settings.disconnect(_memDebugChangedId);
+        _memDebugChangedId = null;
+    }
     _settings = null;
     _debugEnabled = false;
+    _memDebugEnabled = false;
 }
 
 /**
@@ -76,6 +109,14 @@ export function destroyDebugSettings() {
  */
 export function isDebugEnabled() {
     return _debugEnabled;
+}
+
+/**
+ * Check if memory debug logging is enabled
+ * @returns {boolean} True if memory debug logging is enabled
+ */
+export function isMemDebugEnabled() {
+    return _memDebugEnabled;
 }
 
 /**
@@ -120,10 +161,27 @@ export class Logger {
     }
 
     /**
+     * Log memory debug - only when memory-debug enabled
+     * Extremely verbose memory lifecycle and cleanup logging
+     */
+    memdebug(message, ...args) {
+        if (_memDebugEnabled) {
+            console.log(`${this._prefix} [MEMDEBUG] ${message}`, ...args);
+        }
+    }
+
+    /**
      * Check if debug mode is enabled
      */
     isDebugEnabled() {
         return _debugEnabled;
+    }
+
+    /**
+     * Check if memory debug mode is enabled
+     */
+    isMemDebugEnabled() {
+        return _memDebugEnabled;
     }
 }
 

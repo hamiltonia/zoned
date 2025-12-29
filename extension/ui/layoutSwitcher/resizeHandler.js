@@ -18,6 +18,78 @@ import {createLogger} from '../../utils/debug.js';
 const logger = createLogger('ResizeHandler');
 
 /**
+ * Bound method handlers for resize signal connections
+ * These avoid closure leaks from arrow functions
+ */
+
+/**
+ * Handle resize handle hover enter
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param {St.Widget} handle - The resize handle
+ * @param {number} handleSize - Size of the handle
+ */
+function handleResizeHandleEnter(ctx, handle, handleSize) {
+    handle.style = `width: ${handleSize}px; height: ${handleSize}px; ` +
+                  'background-color: rgba(255, 165, 0, 0.6); ' +
+                  'border-radius: 4px;';
+    global.display.set_cursor(Meta.Cursor.SE_RESIZE);
+}
+
+/**
+ * Handle resize handle hover leave
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param {St.Widget} handle - The resize handle
+ * @param {number} handleSize - Size of the handle
+ */
+function handleResizeHandleLeave(ctx, handle, handleSize) {
+    if (!ctx._isResizing) {
+        handle.style = `width: ${handleSize}px; height: ${handleSize}px; ` +
+                      `background-color: ${ctx._debugMode ? 'rgba(255, 0, 0, 0.5)' : 'transparent'}; ` +
+                      'border-radius: 4px;';
+        global.display.set_cursor(Meta.Cursor.DEFAULT);
+    }
+}
+
+/**
+ * Handle resize handle button press
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param {string} corner - Which corner ('nw', 'ne', 'sw', 'se')
+ * @param {Clutter.Actor} actor - The handle actor
+ * @param {Clutter.Event} event - The button press event
+ */
+function handleResizeHandlePress(ctx, corner, actor, event) {
+    if (event.get_button() === 1) { // Left click
+        startResize(ctx, corner, event);
+        return Clutter.EVENT_STOP;
+    }
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Handle stage motion event during resize
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param {Clutter.Actor} actor - The stage actor
+ * @param {Clutter.Event} event - The motion event
+ */
+function handleResizeMotion(ctx, actor, event) {
+    return onResizeMotion(ctx, event);
+}
+
+/**
+ * Handle stage button release event during resize
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param {Clutter.Actor} actor - The stage actor
+ * @param {Clutter.Event} event - The button release event
+ */
+function handleResizeRelease(ctx, actor, event) {
+    if (event.get_button() === 1) {
+        endResize(ctx);
+        return Clutter.EVENT_STOP;
+    }
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
  * Add resize handles to the dialog corners
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
  * @param {St.Widget} wrapper - Wrapper widget for resize handles
@@ -57,31 +129,14 @@ export function addResizeHandles(ctx, wrapper) {
                 break;
         }
 
-        // Cursor change on hover
-        handle.connect('enter-event', () => {
-            handle.style = `width: ${handleSize}px; height: ${handleSize}px; ` +
-                          'background-color: rgba(255, 165, 0, 0.6); ' +
-                          'border-radius: 4px;';
-            global.display.set_cursor(Meta.Cursor.SE_RESIZE);
-        });
+        // Cursor change on hover - use bound methods with captured parameters
+        const boundEnter = handleResizeHandleEnter.bind(null, ctx, handle, handleSize);
+        const boundLeave = handleResizeHandleLeave.bind(null, ctx, handle, handleSize);
+        const boundPress = handleResizeHandlePress.bind(null, ctx, corner);
 
-        handle.connect('leave-event', () => {
-            if (!ctx._isResizing) {
-                handle.style = `width: ${handleSize}px; height: ${handleSize}px; ` +
-                              `background-color: ${ctx._debugMode ? 'rgba(255, 0, 0, 0.5)' : 'transparent'}; ` +
-                              'border-radius: 4px;';
-                global.display.set_cursor(Meta.Cursor.DEFAULT);
-            }
-        });
-
-        // Start resize on mouse press
-        handle.connect('button-press-event', (actor, event) => {
-            if (event.get_button() === 1) { // Left click
-                startResize(ctx, corner, event);
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
+        ctx._signalTracker.connect(handle, 'enter-event', boundEnter);
+        ctx._signalTracker.connect(handle, 'leave-event', boundLeave);
+        ctx._signalTracker.connect(handle, 'button-press-event', boundPress);
 
         ctx._resizeHandles[corner] = handle;
         wrapper.add_child(handle);
@@ -106,18 +161,12 @@ export function startResize(ctx, corner, event) {
 
     logger.info(`Starting resize from ${corner} corner, size: ${ctx._resizeStartWidth}×${ctx._resizeStartHeight}`);
 
-    // Connect global mouse events for tracking
-    ctx._resizeMotionId = global.stage.connect('motion-event', (actor, event) => {
-        return onResizeMotion(ctx, event);
-    });
+    // Connect global mouse events for tracking - use bound methods
+    const boundMotion = handleResizeMotion.bind(null, ctx);
+    const boundRelease = handleResizeRelease.bind(null, ctx);
 
-    ctx._resizeButtonReleaseId = global.stage.connect('button-release-event', (actor, event) => {
-        if (event.get_button() === 1) {
-            endResize(ctx);
-            return Clutter.EVENT_STOP;
-        }
-        return Clutter.EVENT_PROPAGATE;
-    });
+    ctx._resizeMotionId = ctx._signalTracker.connect(global.stage, 'motion-event', boundMotion);
+    ctx._resizeButtonReleaseId = ctx._signalTracker.connect(global.stage, 'button-release-event', boundRelease);
 }
 
 /**
@@ -187,11 +236,11 @@ export function endResize(ctx) {
 
     // Disconnect motion events
     if (ctx._resizeMotionId) {
-        global.stage.disconnect(ctx._resizeMotionId);
+        ctx._signalTracker.disconnect(ctx._resizeMotionId);
         ctx._resizeMotionId = null;
     }
     if (ctx._resizeButtonReleaseId) {
-        global.stage.disconnect(ctx._resizeButtonReleaseId);
+        ctx._signalTracker.disconnect(ctx._resizeButtonReleaseId);
         ctx._resizeButtonReleaseId = null;
     }
 

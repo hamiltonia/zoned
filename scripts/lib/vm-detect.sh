@@ -1,7 +1,6 @@
 #!/bin/bash
 #
 # vm-detect.sh - Shared VM detection and setup functions
-# Created by Cline
 #
 # This library provides functions for auto-detecting running VMs
 # and setting up SSH access. Used by vm-install, vm-logs, etc.
@@ -49,6 +48,8 @@ VM_DOMAIN=${VM_DOMAIN}
 VM_IP=${VM_IP}
 VM_USER=${VM_USER}
 VM_MOUNT_PATH=${VM_MOUNT_PATH}
+VM_SHARE_TYPE=${VM_SHARE_TYPE:-spice}
+VM_LIBVIRT_NAME=${VM_LIBVIRT_NAME:-$VM_DOMAIN}
 VM_CACHE_TIME=$(date +%s)
 EOF
     vm_print_success "Cache saved: $cache_file"
@@ -440,59 +441,137 @@ vm_install_dependencies() {
 }
 
 # ============================================
-#  SHARED FOLDER DETECTION
+#  FILE SHARING SELECTION
 # ============================================
 
-# Detect and return the shared folder mount path in VM
-# Returns: Sets VM_MOUNT_PATH variable
-vm_detect_mount() {
-    local domain="$VM_DOMAIN"
-    
-    vm_print_step "Checking shared folder mount..."
-    
-    # Check legacy SPICE mount path first
-    local spice_mount="/run/user/1000/spice-client-folder"
-    if ssh "$domain" "test -d $spice_mount" 2>/dev/null; then
-        VM_MOUNT_PATH="$spice_mount"
-        vm_print_success "Found at: $spice_mount"
-        return 0
-    fi
-    
-    # Check GVFS mount (newer method)
-    local gvfs_mount
-    gvfs_mount=$(ssh "$domain" "find /run/user/1000/gvfs -maxdepth 1 -name 'dav*:*' -type d 2>/dev/null | head -n1" || echo "")
-    
-    if [[ -n "$gvfs_mount" ]]; then
-        # Check if there's a 'zoned' subdirectory
-        if ssh "$domain" "test -d $gvfs_mount/zoned" 2>/dev/null; then
-            VM_MOUNT_PATH="$gvfs_mount/zoned"
-        else
-            VM_MOUNT_PATH="$gvfs_mount"
-        fi
-        vm_print_success "Found at: $VM_MOUNT_PATH"
-        return 0
-    fi
-    
-    # Not mounted
-    VM_MOUNT_PATH=""
-    vm_print_error "Shared folder not mounted in VM"
+# Prompt user to select file sharing method
+# Returns: Sets VM_SHARE_TYPE variable ("virtiofs" or "spice")
+vm_select_share_type() {
     echo ""
-    echo "The project folder needs to be shared with the VM."
+    echo -e "${CYAN}Select file sharing method:${NC}"
     echo ""
-    echo "To set up shared folder:"
-    echo "  1. In GNOME Boxes: Right-click VM → Properties → Devices & Shares"
-    echo "  2. Click '+' under 'Shared Folders'"
-    echo "  3. Select this project folder: $(pwd)"
-    echo "  4. Name it: zoned"
+    echo "  1) virtiofs (recommended)"
+    echo "     - Faster, kernel-level file sharing"
+    echo "     - Better for longhaul testing"
+    echo "     - Requires one-time VM restart"
     echo ""
-    echo "Then in the VM:"
-    echo "  1. Open the file manager (Nautilus)"
-    echo "  2. Click 'Other Locations' in the sidebar"
-    echo "  3. Under 'Networks', click 'Spice client folder'"
-    echo "  4. This mounts the shared folder"
+    echo "  2) SPICE WebDAV"
+    echo "     - Works with GNOME Boxes out of the box"
+    echo "     - Slower, uses GVFS mount"
+    echo "     - Requires display client connection"
     echo ""
-    echo "After mounting, run 'make vm-dev' again."
+    
+    read -p "Choose [1/2]: " choice
+    
+    case "$choice" in
+        1|virtiofs)
+            VM_SHARE_TYPE="virtiofs"
+            ;;
+        2|spice)
+            VM_SHARE_TYPE="spice"
+            ;;
+        *)
+            vm_print_warning "Invalid choice, defaulting to virtiofs"
+            VM_SHARE_TYPE="virtiofs"
+            ;;
+    esac
+    
+    vm_print_info "Selected: $VM_SHARE_TYPE"
+}
+
+# Quick check if sharing is already working (called after reading cache)
+# Returns: 0 if working, 1 if needs setup
+vm_check_existing_mount() {
+    local domain="${1:-$VM_DOMAIN}"
+    local share_type="${2:-$VM_SHARE_TYPE}"
+    
+    case "$share_type" in
+        virtiofs)
+            if ssh "$domain" "mountpoint -q /mnt/zoned && test -f /mnt/zoned/extension/metadata.json" 2>/dev/null; then
+                VM_MOUNT_PATH="/mnt/zoned"
+                return 0
+            fi
+            ;;
+        spice)
+            local spice_mount
+            spice_mount=$(ssh "$domain" "find /run/user/1000/gvfs -maxdepth 2 -name 'metadata.json' -path '*extension*' 2>/dev/null | head -1" 2>/dev/null || echo "")
+            if [[ -n "$spice_mount" ]]; then
+                # Extract base path (remove /extension/metadata.json)
+                VM_MOUNT_PATH="${spice_mount%/extension/metadata.json}"
+                return 0
+            fi
+            ;;
+    esac
+    
     return 1
+}
+
+# Setup file sharing based on selected type
+# Calls the appropriate setup script
+# Returns: 0 = success, 1 = failed, 2 = needs action (reboot, etc)
+vm_setup_sharing() {
+    local domain="${1:-$VM_DOMAIN}"
+    local share_type="${2:-$VM_SHARE_TYPE}"
+    
+    # Source the appropriate setup script
+    local lib_dir
+    lib_dir="$(dirname "${BASH_SOURCE[0]}")"
+    
+    case "$share_type" in
+        virtiofs)
+            source "$lib_dir/vm-virtiofs-setup.sh"
+            vm_virtiofs_setup "$domain"
+            return $?
+            ;;
+        spice)
+            source "$lib_dir/vm-spice-setup.sh"
+            vm_spice_setup "$domain"
+            return $?
+            ;;
+        *)
+            vm_print_error "Unknown share type: $share_type"
+            return 1
+            ;;
+    esac
+}
+
+# ============================================
+#  VIRTIOFS PERMISSIONS
+# ============================================
+
+# Ensure virtiofs shared directory has correct permissions
+# virtiofs passthrough mode preserves host UIDs/GIDs, causing permission issues
+# This function makes files readable by all users to avoid permission denied errors
+vm_ensure_virtiofs_permissions() {
+    vm_print_step "Checking virtiofs permissions..."
+    
+    local share_path="$PROJECT_DIR"
+    
+    echo ""
+    echo "virtiofs uses passthrough mode which preserves host UIDs/GIDs."
+    echo "Making shared files readable by all users to avoid permission issues."
+    echo ""
+    
+    vm_print_info "Setting permissions on: $share_path"
+    
+    # Use chmod to make everything readable
+    # a+rX: add read for all users, and execute for directories (for traversal)
+    if chmod -R a+rX "$share_path" 2>/dev/null; then
+        vm_print_success "Permissions updated successfully"
+    else
+        vm_print_warning "Could not update some permissions (may need sudo)"
+        read -p "Run with sudo to fix remaining permissions? [Y/n]: " response
+        
+        if [[ "${response,,}" != "n" ]]; then
+            sudo chmod -R a+rX "$share_path"
+            vm_print_success "Permissions updated with sudo"
+        else
+            vm_print_warning "Some files may not be accessible in VM"
+            echo "  You can fix this manually later with:"
+            echo "    chmod -R a+rX $share_path"
+        fi
+    fi
+    echo ""
 }
 
 # ============================================

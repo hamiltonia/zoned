@@ -37,6 +37,7 @@ import St from 'gi://St';
 import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from '../utils/debug.js';
+import {SignalTracker} from '../utils/signalTracker.js';
 import {ThemeManager} from '../utils/theme.js';
 import {ZoneEditor} from './zoneEditor.js';
 import {TemplateManager} from '../templateManager.js';
@@ -97,6 +98,19 @@ export class LayoutSettingsDialog {
         this._visible = false;
         this._closing = false;  // Re-entrance guard
 
+        // Signal tracking for cleanup
+        this._signalTracker = new SignalTracker('LayoutSettingsDialog');
+
+        // Bind methods to avoid closure leaks
+        this._boundHandleContainerClick = this._handleContainerClick.bind(this);
+        this._boundHandleKeyPress = this._handleKeyPress.bind(this);
+        this._boundHandleDialogCardClick = () => Clutter.EVENT_STOP;
+        this._boundUpdateSaveButton = this._updateSaveButton.bind(this);
+        this._boundTogglePaddingCheckbox = this._onTogglePaddingCheckbox.bind(this);
+        this._boundHandleDeleteCancelClick = this._hideDeleteConfirmation.bind(this);
+        this._boundHandleDeleteConfirmClick = this._onDeleteConfirmClick.bind(this);
+        this._boundHandleDeleteWrapperClick = this._handleDeleteWrapperClick.bind(this);
+
         logger.debug(`LayoutSettingsDialog created (${this._isNewLayout ? 'CREATE' : 'EDIT'} mode, template: ${this._isTemplate})`);
     }
 
@@ -124,26 +138,10 @@ export class LayoutSettingsDialog {
             style: 'background-color: transparent;',
         });
 
-        // Click on container (outside dialog) dismisses
-        // Use coordinate check since event.get_source() isn't reliable with modal
-        this._container.connect('button-press-event', (actor, event) => {
-            const [clickX, clickY] = event.get_coords();
-            const cardAlloc = this._dialogCard ? this._dialogCard.get_transformed_extents() : null;
-
-            if (cardAlloc) {
-                // Check if click is outside the dialog card bounds
-                const isOutside = clickX < cardAlloc.origin.x ||
-                                  clickX > cardAlloc.origin.x + cardAlloc.size.width ||
-                                  clickY < cardAlloc.origin.y ||
-                                  clickY > cardAlloc.origin.y + cardAlloc.size.height;
-
-                if (isOutside) {
-                    this._onCancel();
-                    return Clutter.EVENT_STOP;
-                }
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
+        // Click on container (outside dialog) dismisses - use bound method
+        this._signalTracker.connect(
+            this._container, 'button-press-event', this._boundHandleContainerClick,
+        );
 
         // Build the dialog card
         this._buildDialogCard(colors);
@@ -164,15 +162,8 @@ export class LayoutSettingsDialog {
             actionMode: 1,  // Shell.ActionMode.NORMAL
         });
 
-        // Connect key handler for ESC
-        this._keyPressId = this._container.connect('key-press-event', (actor, event) => {
-            const symbol = event.get_key_symbol();
-            if (symbol === Clutter.KEY_Escape) {
-                this._onCancel();
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
+        // Connect key handler for ESC - use bound method
+        this._keyPressId = this._container.connect('key-press-event', this._boundHandleKeyPress);
 
         this._visible = true;
 
@@ -219,6 +210,19 @@ export class LayoutSettingsDialog {
             this._container.disconnect(this._keyPressId);
             this._keyPressId = null;
         }
+
+        // Disconnect all tracked signals
+        this._signalTracker.disconnectAll();
+
+        // Release bound function references
+        this._boundHandleContainerClick = null;
+        this._boundHandleKeyPress = null;
+        this._boundHandleDialogCardClick = null;
+        this._boundUpdateSaveButton = null;
+        this._boundTogglePaddingCheckbox = null;
+        this._boundHandleDeleteCancelClick = null;
+        this._boundHandleDeleteConfirmClick = null;
+        this._boundHandleDeleteWrapperClick = null;
 
         // Destroy container
         if (this._container) {
@@ -326,7 +330,9 @@ export class LayoutSettingsDialog {
         });
 
         if (!this._isTemplate) {
-            this._nameEntry.clutter_text.connect('text-changed', () => this._updateSaveButton());
+            this._signalTracker.connect(
+                this._nameEntry.clutter_text, 'text-changed', this._boundUpdateSaveButton,
+            );
         }
         nameRow.add_child(this._nameEntry);
         return nameRow;
@@ -350,14 +356,9 @@ export class LayoutSettingsDialog {
 
         // Only allow interaction for custom layouts (not templates)
         if (!this._isTemplate) {
-            this._paddingCheckbox.connect('clicked', () => {
-                this._toggleCheckbox(this._paddingCheckbox, colors);
-                const isEnabled = this._paddingCheckbox._checked;
-                if (this._paddingSpinner) {
-                    this._paddingSpinner.reactive = isEnabled;
-                    this._paddingSpinner.opacity = isEnabled ? 255 : 128;
-                }
-            });
+            this._signalTracker.connect(
+                this._paddingCheckbox, 'clicked', this._boundTogglePaddingCheckbox,
+            );
         } else {
             // Disable checkbox for templates (no save button to persist changes)
             this._paddingCheckbox.reactive = false;
@@ -468,7 +469,9 @@ export class LayoutSettingsDialog {
                    'padding: 24px; min-width: 420px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);',
         });
 
-        this._dialogCard.connect('button-press-event', () => Clutter.EVENT_STOP);
+        this._signalTracker.connect(
+            this._dialogCard, 'button-press-event', this._boundHandleDialogCardClick,
+        );
 
         // Header
         this._dialogCard.add_child(this._buildHeaderRow(colors));
@@ -1508,6 +1511,9 @@ export class LayoutSettingsDialog {
             x_align: Clutter.ActorAlign.END,
         });
 
+        // Store confirmBox for later use
+        this._confirmBox = confirmBox;
+
         // Cancel button
         const cancelBtn = new St.Button({
             label: 'Cancel',
@@ -1519,9 +1525,9 @@ export class LayoutSettingsDialog {
             reactive: true,
             track_hover: true,
         });
-        cancelBtn.connect('clicked', () => {
-            this._hideDeleteConfirmation();
-        });
+        this._signalTracker.connect(
+            cancelBtn, 'clicked', this._boundHandleDeleteCancelClick,
+        );
         buttonBox.add_child(cancelBtn);
 
         // Delete button (destructive red)
@@ -1535,23 +1541,9 @@ export class LayoutSettingsDialog {
             reactive: true,
             track_hover: true,
         });
-        deleteBtn.connect('clicked', () => {
-            this._hideDeleteConfirmation();
-
-            // Perform delete
-            const success = this._layoutManager.deleteLayout(this._layout.id);
-
-            if (success) {
-                logger.info(`Layout deleted: ${this._layout.name}`);
-                this.close();
-
-                if (this._onSaveCallback) {
-                    this._onSaveCallback(null); // Signal deletion
-                }
-            } else {
-                logger.error(`Failed to delete layout: ${this._layout.name}`);
-            }
-        });
+        this._signalTracker.connect(
+            deleteBtn, 'clicked', this._boundHandleDeleteConfirmClick,
+        );
         buttonBox.add_child(deleteBtn);
 
         confirmBox.add_child(buttonBox);
@@ -1566,22 +1558,10 @@ export class LayoutSettingsDialog {
             height: this._container.height,
         });
 
-        // Click on backdrop (outside confirm box) to cancel
-        wrapper.connect('button-press-event', (actor, event) => {
-            const [clickX, clickY] = event.get_coords();
-            const boxAlloc = confirmBox.get_transformed_extents();
-
-            const isOutside = clickX < boxAlloc.origin.x ||
-                              clickX > boxAlloc.origin.x + boxAlloc.size.width ||
-                              clickY < boxAlloc.origin.y ||
-                              clickY > boxAlloc.origin.y + boxAlloc.size.height;
-
-            if (isOutside) {
-                this._hideDeleteConfirmation();
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_STOP;  // Always stop propagation on confirm overlay
-        });
+        // Click on backdrop (outside confirm box) to cancel - use bound method
+        this._signalTracker.connect(
+            wrapper, 'button-press-event', this._boundHandleDeleteWrapperClick,
+        );
 
         // Add confirmBox to wrapper
         wrapper.add_child(confirmBox);
@@ -1609,6 +1589,112 @@ export class LayoutSettingsDialog {
     }
 
     /**
+     * Handle container click to check if clicking outside dialog card
+     * @param {Clutter.Actor} actor - The container actor
+     * @param {Clutter.Event} event - The click event
+     * @returns {number} Clutter.EVENT_STOP or Clutter.EVENT_PROPAGATE
+     * @private
+     */
+    _handleContainerClick(actor, event) {
+        const [clickX, clickY] = event.get_coords();
+        const cardAlloc = this._dialogCard ? this._dialogCard.get_transformed_extents() : null;
+
+        if (cardAlloc) {
+            // Check if click is outside the dialog card bounds
+            const isOutside = clickX < cardAlloc.origin.x ||
+                              clickX > cardAlloc.origin.x + cardAlloc.size.width ||
+                              clickY < cardAlloc.origin.y ||
+                              clickY > cardAlloc.origin.y + cardAlloc.size.height;
+
+            if (isOutside) {
+                this._onCancel();
+                return Clutter.EVENT_STOP;
+            }
+        }
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    /**
+     * Handle key press events
+     * @param {Clutter.Actor} actor - The container actor
+     * @param {Clutter.Event} event - The key press event
+     * @returns {number} Clutter.EVENT_STOP or Clutter.EVENT_PROPAGATE
+     * @private
+     */
+    _handleKeyPress(actor, event) {
+        const symbol = event.get_key_symbol();
+        if (symbol === Clutter.KEY_Escape) {
+            this._onCancel();
+            return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    /**
+     * Handle padding checkbox toggle
+     * @private
+     */
+    _onTogglePaddingCheckbox() {
+        const colors = this._themeManager.getColors();
+        this._toggleCheckbox(this._paddingCheckbox, colors);
+        const isEnabled = this._paddingCheckbox._checked;
+        if (this._paddingSpinner) {
+            this._paddingSpinner.reactive = isEnabled;
+            this._paddingSpinner.opacity = isEnabled ? 255 : 128;
+        }
+    }
+
+    /**
+     * Handle delete confirm button click
+     * @private
+     */
+    _onDeleteConfirmClick() {
+        this._hideDeleteConfirmation();
+
+        // Perform delete
+        const success = this._layoutManager.deleteLayout(this._layout.id);
+
+        if (success) {
+            logger.info(`Layout deleted: ${this._layout.name}`);
+            this.close();
+
+            if (this._onSaveCallback) {
+                this._onSaveCallback(null); // Signal deletion
+            }
+        } else {
+            logger.error(`Failed to delete layout: ${this._layout.name}`);
+        }
+    }
+
+    /**
+     * Handle delete wrapper click to check if clicking outside confirmation box
+     * @param {Clutter.Actor} actor - The wrapper actor
+     * @param {Clutter.Event} event - The click event
+     * @returns {number} Clutter.EVENT_STOP
+     * @private
+     */
+    _handleDeleteWrapperClick(actor, event) {
+        const [clickX, clickY] = event.get_coords();
+        const confirmBox = this._confirmBox;
+
+        if (!confirmBox) {
+            return Clutter.EVENT_STOP;
+        }
+
+        const boxAlloc = confirmBox.get_transformed_extents();
+        const isOutside = clickX < boxAlloc.origin.x ||
+                          clickX > boxAlloc.origin.x + boxAlloc.size.width ||
+                          clickY < boxAlloc.origin.y ||
+                          clickY > boxAlloc.origin.y + boxAlloc.size.height;
+
+        if (isOutside) {
+            this._hideDeleteConfirmation();
+        }
+
+        return Clutter.EVENT_STOP;
+    }
+
+    /**
      * Hide the delete confirmation overlay
      * @private
      */
@@ -1618,6 +1704,8 @@ export class LayoutSettingsDialog {
             this._confirmOverlay = null;
             logger.debug('Delete confirmation overlay hidden');
         }
+
+        this._confirmBox = null;
 
         // Return focus to dialog
         if (this._dialogCard) {

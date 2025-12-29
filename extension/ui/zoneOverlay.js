@@ -200,5 +200,9 @@ export class ZoneOverlay {
      */
     destroy() {
         this._hide();
+
+        // Clear references to prevent memory leaks
+        this._extension = null;
+        this._settings = null;
     }
 }
