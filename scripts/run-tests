@@ -214,7 +214,8 @@ case "$TEST_TYPE" in
             printf "\n"
             printf "${COLOR_SUCCESS}Executing functional tests on VM...${COLOR_RESET}\n"
             printf "\n"
-            # Run tests directly on VM
+            # Run tests directly on VM with Ctrl+C handling
+            trap 'kill $SSH_PID 2>/dev/null; exit 130' INT TERM
             ssh -t "$VM_DOMAIN" "cd $REMOTE_PROJECT_DIR && bash -c '
 failed=0
 total=0
@@ -237,8 +238,12 @@ else
     printf \"Functional Tests Summary: %d of %d tests failed\n\" \"\$failed\" \"\$total\"
     exit 1
 fi
-'"
-            exit $?
+'" &
+            SSH_PID=$!
+            wait $SSH_PID
+            EXIT_CODE=$?
+            trap - INT TERM
+            exit $EXIT_CODE
         fi
         ;;
     release|release-test)
@@ -334,13 +339,14 @@ fi
                 exit 1
             fi
         else
-            # VM execution with summary
+            # VM execution with summary and Ctrl+C handling
             detect_vm_for_test
             printf "\n"
             printf "${COLOR_SUCCESS}Executing $SUITE_NAME suite on VM...${COLOR_RESET}\n"
             printf "\n"
             
-            ssh -t "$VM_DOMAIN" << EOF
+            trap 'kill $SSH_PID 2>/dev/null; exit 130' INT TERM
+            ssh -t "$VM_DOMAIN" << EOF &
 cd $REMOTE_PROJECT_DIR
 MEM_EXIT=0
 FUNC_EXIT=0
@@ -406,7 +412,11 @@ else
     exit 1
 fi
 EOF
-            exit $?
+            SSH_PID=$!
+            wait $SSH_PID
+            EXIT_CODE=$?
+            trap - INT TERM
+            exit $EXIT_CODE
         fi
         ;;
     help|--help|-h)
@@ -438,9 +448,15 @@ else
         CMD="$CMD $(printf '%q' "$arg")"
     done
     
-    # Execute on VM with TTY for interactive prompts
+    # Execute on VM with TTY for interactive prompts and Ctrl+C handling
     printf "\n"
     printf "${COLOR_SUCCESS}Executing test on VM...${COLOR_RESET}\n"
     printf "\n"
-    ssh -t "$VM_DOMAIN" "$CMD"
+    trap 'kill $SSH_PID 2>/dev/null; exit 130' INT TERM
+    ssh -t "$VM_DOMAIN" "$CMD" &
+    SSH_PID=$!
+    wait $SSH_PID
+    EXIT_CODE=$?
+    trap - INT TERM
+    exit $EXIT_CODE
 fi
