@@ -19,6 +19,20 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/setup.sh"
 
+# Cleanup handler for Ctrl+C
+cleanup() {
+    echo ""
+    echo "Test interrupted - cleaning up..."
+    # Clean up temp files
+    rm -f "$TEMP_RESULT_FILE" 2>/dev/null || true
+    # Kill any background processes
+    pkill -P $$ 2>/dev/null || true
+    echo "Cleanup complete. Exiting."
+    exit 130
+}
+
+trap cleanup INT TERM
+
 # Parse command line arguments for preset mode
 PRESET_MODE=""
 if [ "$1" == "--preset" ]; then
