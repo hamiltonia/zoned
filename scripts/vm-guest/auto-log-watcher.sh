@@ -24,14 +24,14 @@
 #   EOF
 #
 
-# Shared folder mount point (standard GNOME Boxes SPICE location)
-SPICE_MOUNT="/run/user/1000/spice-client-folder"
-LOG_FILE="$SPICE_MOUNT/zoned-extension.log"
+# Shared folder mount point (virtiofs standard location)
+VIRTIOFS_MOUNT="/mnt/zoned"
+LOG_FILE="$VIRTIOFS_MOUNT/zoned-extension.log"
 
 # Check if shared folder exists
-if [ ! -d "$SPICE_MOUNT" ]; then
-    echo "Error: Shared folder not mounted at $SPICE_MOUNT"
-    echo "Make sure GNOME Boxes shared folder is configured."
+if [ ! -d "$VIRTIOFS_MOUNT" ]; then
+    echo "Error: Shared folder not mounted at $VIRTIOFS_MOUNT"
+    echo "Make sure virtiofs is configured and mounted."
     exit 1
 fi
 

@@ -457,21 +457,6 @@ echo $XDG_SESSION_TYPE
 
 ---
 
-## Advanced: File Sharing Comparison
-
-| Feature | virtiofs (Recommended) | SPICE WebDAV |
-|---------|------------------------|--------------|
-| **Speed** | Near-native (kernel-level) | Slower (userspace) |
-| **Setup** | `make vm-virtiofs-migrate` | GNOME Boxes UI |
-| **Headless** | ✓ Works | ✗ Needs display client |
-| **Memory** | Lower overhead | Higher (gvfs daemon) |
-| **Permissions** | Auto-handled by scripts | Works out of box |
-| **Best for** | Development, testing | Quick prototyping |
-
-**We recommend virtiofs** for all development workflows. The automated permission handling makes it just as easy as SPICE, but much faster.
-
----
-
 ## Advanced: Headless VM Mode
 
 For extended testing (memory leak detection, stability testing), run VM without display client to save ~500MB memory.

@@ -89,6 +89,8 @@ test_window_available() {
 
 if ! test_window_available; then
     echo -e "${RED}Error: Test window D-Bus interface not available${NC}"
+    fail "Test window D-Bus interface not available"
+    print_summary
     exit 1
 fi
 
@@ -211,14 +213,6 @@ layout_count=${#LAYOUT_IDS[@]}
 
 info "Testing layouts: $layout_count (${LAYOUT_IDS[*]})"
 echo ""
-
-# Reset resource tracking
-dbus_reset_tracking >/dev/null 2>&1
-print_resource_baseline "Initial"
-
-# Record baseline
-baseline_mem=$(get_gnome_shell_memory)
-baseline_res=$(snapshot_resources)
 
 # Focus the test window initially
 info "Focusing test window..."
@@ -373,22 +367,6 @@ fi
 info "Total zones tested: $total_zones_tested across $layout_count layouts ($PASSES passes)"
 echo ""
 
-# Compare memory and resources
-final_mem=$(get_gnome_shell_memory)
-final_res=$(snapshot_resources)
-mem_diff=$((final_mem - baseline_mem))
-info "Memory change: ${mem_diff}KB"
-
-if [ $mem_diff -gt 5000 ]; then
-    warn "Memory grew by ${mem_diff}KB during window movement tests"
-fi
-
-res_diff=$(compare_snapshots "$baseline_res" "$final_res")
-read signal_diff timer_diff <<< "$res_diff"
-if [ "$signal_diff" -ne 0 ] || [ "$timer_diff" -ne 0 ]; then
-    info "Resource delta: signals=${signal_diff}, timers=${timer_diff}"
-fi
-
 # Clean up test window
 info "Cleaning up test window..."
 cleanup_test_window
@@ -397,7 +375,6 @@ TEST_WINDOW_PID=""  # Prevent double cleanup
 # Restore initial layout
 dbus_trigger "switch-layout" "{\"layoutId\": \"$initial_layout\"}" >/dev/null 2>&1
 
-# Final leak check
-check_leaks_and_report "Window movement: $total_zones_tested zones tested across $layout_count layouts"
+pass "Window movement: $total_zones_tested zones tested across $layout_count layouts"
 
 print_summary

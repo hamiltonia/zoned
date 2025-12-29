@@ -56,14 +56,6 @@ info "Available layouts: ${layouts[*]}"
 info "Layout count: $layout_count"
 echo ""
 
-# Reset resource tracking and show baseline
-dbus_reset_tracking >/dev/null 2>&1
-print_resource_baseline "Initial"
-
-# Record baseline memory and resources
-baseline_mem=$(get_gnome_shell_memory)
-baseline_res=$(snapshot_resources)
-
 echo "Running layout switching ($CYCLES full cycles through $layout_count layouts)..."
 total_switches=$((CYCLES * layout_count))
 current_switch=0
@@ -91,26 +83,8 @@ for cycle in $(seq 1 $CYCLES); do
 done
 
 echo ""
-
-# Compare memory and resources
-final_mem=$(get_gnome_shell_memory)
-final_res=$(snapshot_resources)
-mem_diff=$((final_mem - baseline_mem))
 info "Total layout switches: $total_switches"
-info "Memory change: ${mem_diff}KB"
 
-# Check for excessive memory growth
-if [ $mem_diff -gt 10000 ]; then
-    warn "Memory grew by ${mem_diff}KB after $total_switches layout switches"
-fi
-
-# Check for resource growth
-res_diff=$(compare_snapshots "$baseline_res" "$final_res")
-read signal_diff timer_diff <<< "$res_diff"
-if [ "$signal_diff" -ne 0 ] || [ "$timer_diff" -ne 0 ]; then
-    info "Resource delta: signals=${signal_diff}, timers=${timer_diff}"
-fi
-
-check_leaks_and_report "Layout switching: $total_switches switches completed, all layouts accessible"
+pass "Layout switching: $total_switches switches completed, all layouts accessible"
 
 print_summary

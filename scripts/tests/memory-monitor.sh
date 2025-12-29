@@ -64,7 +64,7 @@ if [ -z "$OUTPUT_FILE" ]; then
     OUTPUT_FILE="$RESULTS_DIR/memory-${TIMESTAMP}.csv"
 fi
 
-# Temp file for local writes (WebDAV doesn't support append)
+# Temp file for local writes (remote filesystems may not support append reliably)
 TMP_FILE="/tmp/zoned-memory-$(date +%s).csv"
 
 # Colors for output

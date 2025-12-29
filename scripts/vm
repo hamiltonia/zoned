@@ -7,6 +7,9 @@ set -e
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Source the shared VM detection library
+source "$SCRIPT_DIR/lib/vm-detect.sh"
+
 # Color codes
 COLOR_RESET='\033[0m'
 COLOR_INFO='\033[36m'
@@ -31,20 +34,17 @@ show_help() {
     printf "  ${COLOR_INFO}headless${COLOR_RESET} <action>  - Headless mode operations (start, stop, status, display)\n"
     printf "  ${COLOR_INFO}start${COLOR_RESET} [vmname]     - Start VM with display\n"
     printf "\n"
-    printf "${COLOR_SUCCESS}Testing:${COLOR_RESET}\n"
-    printf "  ${COLOR_INFO}test${COLOR_RESET} func [preset] - Run functional tests (full, quick, minimal)\n"
-    printf "  ${COLOR_INFO}test${COLOR_RESET} mem [preset]  - Run memory tests (standard, quick, deep)\n"
-    printf "\n"
     printf "${COLOR_SUCCESS}Utilities:${COLOR_RESET}\n"
     printf "  ${COLOR_INFO}network${COLOR_RESET}           - Configure host networking\n"
-    printf "  ${COLOR_INFO}restart-spice${COLOR_RESET}     - Fix SPICE display issues\n"
     printf "  ${COLOR_INFO}virtiofs${COLOR_RESET}          - Migrate VM to virtiofs\n"
     printf "\n"
     printf "${COLOR_SUCCESS}Examples:${COLOR_RESET}\n"
     printf "  vm setup              - Run initial VM setup\n"
     printf "  vm profile list       - List all VM profiles\n"
     printf "  vm logs               - Watch VM logs\n"
-    printf "  vm test func quick    - Run quick functional tests\n"
+    printf "  vm headless start     - Start VM without display\n"
+    printf "\n"
+    printf "${COLOR_INFO}For testing, use:${COLOR_RESET} ./scripts/run-tests mem --preset quick\n"
     printf "\n"
     printf "${COLOR_INFO}Tip:${COLOR_RESET} Use 'direnv' or add an alias in .zshrc:\n"
     printf "  alias vm='./scripts/vm'\n"
@@ -85,33 +85,10 @@ case "$COMMAND" in
         exit 1
         ;;
     
-    # Testing
-    test)
-        TEST_TYPE="${1:-}"
-        shift 2>/dev/null || true
-        
-        case "$TEST_TYPE" in
-            func|functional)
-                exec "$SCRIPT_DIR/vm-test/vm-test-func" "$@"
-                ;;
-            mem|memory)
-                exec "$SCRIPT_DIR/vm-test/vm-test-mem" "$@"
-                ;;
-            *)
-                printf "${COLOR_ERROR}Unknown test type: $TEST_TYPE${COLOR_RESET}\n"
-                printf "Available: func, mem\n"
-                exit 1
-                ;;
-        esac
-        ;;
     
     # Utilities
     network)
         exec "$SCRIPT_DIR/util/vm-network-setup" "$@"
-        ;;
-    
-    restart-spice)
-        exec "$SCRIPT_DIR/util/vm-restart-spice" "$@"
         ;;
     
     virtiofs)

@@ -6,7 +6,8 @@ This directory contains all scripts for VM development, testing, and utilities.
 
 ```
 scripts/
-├── vm                    # Main dispatcher - use this for all VM operations
+├── vm                    # VM management dispatcher
+├── run-tests             # Unified test runner for memory and functional tests
 ├── user/                 # User-facing commands (called via ./scripts/vm dispatcher or directly)
 │   ├── vm-setup          # Initial VM configuration
 │   ├── vm-install        # Deploy to VM during development
@@ -15,44 +16,49 @@ scripts/
 │   └── vm-headless       # Headless VM operations
 ├── util/                 # Utilities (rarely called directly)
 │   ├── vm-network-setup
-│   ├── vm-restart-spice
 │   ├── vm-virtiofs-migrate
 │   └── analyze-memory.py
 ├── lib/                  # Shared libraries
 ├── vm-guest/             # Scripts that run inside the VM
-└── vm-test/              # Test infrastructure
+└── tests/                # Test infrastructure (memory + functional tests)
 ```
 
 ## Quick Start
 
-### Option 1: Using `./scripts/vm` directly
+### Option 1: Direct Script Usage
 
 ```bash
-./scripts/vm --help          # Show all commands
+./scripts/vm --help          # Show VM management commands
 ./scripts/vm setup           # Setup a VM
 ./scripts/vm logs            # Watch VM logs
 ./scripts/vm profile list    # List VM profiles
-./scripts/vm test func       # Run functional tests
+
+./scripts/run-tests mem --preset quick    # Run memory tests
+./scripts/run-tests func                  # Run functional tests
+./scripts/run-tests release               # Full test suite
 ```
 
 ### Option 2: With direnv (Recommended)
 
 1. Install [direnv](https://direnv.net/)
 2. Run `direnv allow` in the project root
-3. Now just use `vm`:
+3. Now just use short commands:
 
 ```bash
 vm setup
 vm logs
 vm profile list
-vm test func quick
+
+run-tests mem --preset quick
+run-tests func
 ```
 
-### Option 3: Set up an alias
+### Option 3: Set up aliases
 
 Add to `~/.zshrc` or `~/.bashrc`:
 ```bash
 alias vm='/path/to/zoned/scripts/vm'
+alias run-tests='/path/to/zoned/scripts/run-tests'
 ```
 
 ## Common Commands
@@ -76,14 +82,15 @@ alias vm='/path/to/zoned/scripts/vm'
 - `vm headless display` - Attach display to running VM
 
 ### Testing
-- `vm test func` - Interactive functional test menu
-- `vm test func quick` - Quick smoke tests (~3-5 min)
-- `vm test mem` - Interactive memory test menu
-- `vm test mem standard` - Standard memory tests
+- `./scripts/run-tests mem --preset quick` - Quick memory test (~6 min)
+- `./scripts/run-tests mem --preset standard` - Standard memory test (~10-15 min)
+- `./scripts/run-tests mem --preset deep` - Deep memory analysis (~30 min)
+- `./scripts/run-tests func` - All functional tests
+- `./scripts/run-tests release` - Full suite (for release prep)
+- `./scripts/run-tests mem --local --preset quick` - Local execution
 
 ### Utilities
 - `vm network` - Configure host networking
-- `vm restart-spice` - Fix SPICE display issues
 - `vm virtiofs` - Migrate to virtiofs file sharing
 
 ## User vs Util Scripts
@@ -98,23 +105,12 @@ alias vm='/path/to/zoned/scripts/vm'
 - Rarely needed
 - Can be called directly if needed: `./scripts/util/vm-network-setup`
 
-## Migrating from Old Commands
-
-| Old Command | New Command |
-|-------------|-------------|
-| `make vm-setup` | `vm setup` |
-| `./scripts/vm logs` | `vm logs` |
-| `make vm-test-func` | `vm test func` |
-| `make vm-test-mem` | `vm test mem` |
-| `scripts/vm-profile list` | `vm profile list` |
-| `make vm-install` | `make vm-install` (still works!) |
-
 ## Documentation
 
 - **VM Setup Guide**: `docs/vm-setup-guide.md`
 - **VM Profiles**: `docs/vm-profiles.md`
 - **Testing Strategy**: `docs/testing-strategy.md`
-- **VM Test README**: `scripts/vm-test/README.md`
+- **Test Suite README**: `scripts/tests/README.md`
 
 ## Contributing
 

@@ -1,15 +1,12 @@
 #!/bin/bash
 #
-# test-memory-monitored.sh - Single memory test run with live monitoring
+# longhaul-interactive.sh - Interactive long-running test suite
 #
-# Menu-driven interface for running a single memory leak test.
-# Tests run for a specified duration with live 30-second monitoring updates.
-#
-# Can be called interactively or non-interactively (by vm-test-mem).
+# Menu-driven interface for running extended memory leak tests.
+# Tests run for a specified duration with live monitoring.
 #
 # Usage:
-#   ./test-memory-monitored.sh              # Interactive mode
-#   echo "1\n10\n100\n" | ./test-memory-monitored.sh  # Non-interactive
+#   ./longhaul-interactive.sh
 #
 
 set -e

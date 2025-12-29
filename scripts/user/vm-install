@@ -20,9 +20,6 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # Source the shared VM detection library
 source "$SCRIPT_DIR/../lib/vm-detect.sh"
 
-# Override cache file location with proper path
-VM_CACHE_FILE="$PROJECT_DIR/.vm-cache"
-
 # Extension details
 EXTENSION_UUID="zoned@hamiltonia.me"
 
@@ -34,9 +31,9 @@ main() {
     echo -e "${CYAN}▶ VM Deploy${NC}"
     echo ""
     
-    # Step 1: Load cache
-    if ! vm_read_cache "$VM_CACHE_FILE"; then
-        vm_print_error "No VM cache found"
+    # Step 1: Load profile
+    if ! vm_profile_read_active; then
+        vm_print_error "No VM profile found"
         echo ""
         echo "Run 'make vm-setup' first to configure your VM."
         exit 1
