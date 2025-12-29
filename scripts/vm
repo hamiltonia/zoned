@@ -7,12 +7,109 @@ set -e
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Source the shared VM detection library
+source "$SCRIPT_DIR/lib/vm-detect.sh"
+
 # Color codes
 COLOR_RESET='\033[0m'
 COLOR_INFO='\033[36m'
 COLOR_SUCCESS='\033[32m'
 COLOR_ERROR='\033[31m'
 COLOR_WARN='\033[33m'
+
+# Detect VM for test execution
+detect_vm_for_test() {
+    # Try to use active profile first
+    if vm_profile_read_active 2>/dev/null; then
+        # Check if the cached VM is still running
+        if vm_cache_is_valid 2>/dev/null; then
+            # Active profile VM is running - use it
+            printf "${COLOR_INFO}Using active profile: $VM_DOMAIN${COLOR_RESET}\n"
+        else
+            # Cached VM not running - need to detect
+            unset VM_DOMAIN
+        fi
+    fi
+    
+    # If no valid cached VM, detect running VMs
+    if [[ -z "$VM_DOMAIN" ]]; then
+        local running_vms
+        running_vms=$(vm_get_running)
+        
+        if [[ -z "$running_vms" ]]; then
+            printf "${COLOR_ERROR}No VMs are currently running${COLOR_RESET}\n"
+            printf "\n"
+            printf "Start a VM first with: vm headless start\n"
+            exit 1
+        fi
+        
+        # Count running VMs
+        local count
+        count=$(echo "$running_vms" | wc -l)
+        
+        if [[ $count -eq 1 ]]; then
+            VM_DOMAIN="$running_vms"
+        else
+            # Multiple VMs - prompt to select
+            printf "${COLOR_INFO}Multiple VMs are running:${COLOR_RESET}\n"
+            printf "\n"
+            
+            local vms=()
+            local i=1
+            while IFS= read -r vm; do
+                [[ -z "$vm" ]] && continue
+                local title=$(vm_get_title "$vm")
+                printf "  %d) %s - \"%s\"\n" "$i" "$vm" "$title"
+                vms+=("$vm")
+                ((i++))
+            done <<< "$running_vms"
+            
+            printf "\n"
+            read -p "Select VM [1-${#vms[@]}]: " selection
+            
+            if [[ ! "$selection" =~ ^[0-9]+$ ]] || [[ $selection -lt 1 ]] || [[ $selection -gt ${#vms[@]} ]]; then
+                printf "${COLOR_ERROR}Invalid selection${COLOR_RESET}\n"
+                exit 1
+            fi
+            
+            VM_DOMAIN="${vms[$((selection-1))]}"
+        fi
+    fi
+    
+    # Test SSH connection
+    printf "${COLOR_INFO}Testing SSH connection to %s...${COLOR_RESET}\n" "$VM_DOMAIN"
+    if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "$VM_DOMAIN" "exit" 2>/dev/null; then
+        printf "${COLOR_ERROR}Cannot connect to VM: %s${COLOR_RESET}\n" "$VM_DOMAIN"
+        printf "\n"
+        printf "Run 'vm setup' first to configure SSH access.\n"
+        exit 1
+    fi
+    
+    # Use VM_MOUNT_PATH from profile (set by vm_profile_read_active)
+    REMOTE_PROJECT_DIR="$VM_MOUNT_PATH"
+    
+    # Verify the mount is accessible
+    if [[ -z "$REMOTE_PROJECT_DIR" ]]; then
+        printf "${COLOR_ERROR}VM_MOUNT_PATH not set in profile${COLOR_RESET}\n"
+        printf "\n"
+        printf "Run 'vm setup' to configure the VM mount.\n"
+        exit 1
+    fi
+    
+    printf "${COLOR_INFO}Verifying project files at %s...${COLOR_RESET}\n" "$REMOTE_PROJECT_DIR"
+    if ! ssh "$VM_DOMAIN" "test -f '$REMOTE_PROJECT_DIR/extension/metadata.json'" 2>/dev/null; then
+        printf "${COLOR_ERROR}Project files not accessible at %s${COLOR_RESET}\n" "$REMOTE_PROJECT_DIR"
+        printf "\n"
+        printf "Troubleshooting:\n"
+        printf "  1. Run 'vm setup' to reconfigure virtiofs mount\n"
+        printf "  2. Ensure virtiofs is mounted: ssh %s 'mountpoint /mnt/zoned'\n" "$VM_DOMAIN"
+        printf "  3. Check VM is running: virsh list\n"
+        exit 1
+    fi
+    
+    printf "${COLOR_SUCCESS}✓ Connected to VM: %s${COLOR_RESET}\n" "$VM_DOMAIN"
+    printf "${COLOR_INFO}Project directory: %s${COLOR_RESET}\n" "$REMOTE_PROJECT_DIR"
+}
 
 show_help() {
     printf "${COLOR_INFO}VM Management Commands${COLOR_RESET}\n"
@@ -37,7 +134,6 @@ show_help() {
     printf "\n"
     printf "${COLOR_SUCCESS}Utilities:${COLOR_RESET}\n"
     printf "  ${COLOR_INFO}network${COLOR_RESET}           - Configure host networking\n"
-    printf "  ${COLOR_INFO}restart-spice${COLOR_RESET}     - Fix SPICE display issues\n"
     printf "  ${COLOR_INFO}virtiofs${COLOR_RESET}          - Migrate VM to virtiofs\n"
     printf "\n"
     printf "${COLOR_SUCCESS}Examples:${COLOR_RESET}\n"
@@ -90,12 +186,17 @@ case "$COMMAND" in
         TEST_TYPE="${1:-}"
         shift 2>/dev/null || true
         
+        # Detect VM and establish connection
+        detect_vm_for_test
+        
+        # Determine test script path
+        TEST_SCRIPT=""
         case "$TEST_TYPE" in
             func|functional)
-                exec "$SCRIPT_DIR/vm-test/vm-test-func" "$@"
+                TEST_SCRIPT="./scripts/vm-test/vm-test-func"
                 ;;
             mem|memory)
-                exec "$SCRIPT_DIR/vm-test/vm-test-mem" "$@"
+                TEST_SCRIPT="./scripts/vm-test/vm-test-mem"
                 ;;
             *)
                 printf "${COLOR_ERROR}Unknown test type: $TEST_TYPE${COLOR_RESET}\n"
@@ -103,15 +204,23 @@ case "$COMMAND" in
                 exit 1
                 ;;
         esac
+        
+        # Build command with all args properly escaped
+        CMD="cd $REMOTE_PROJECT_DIR && $TEST_SCRIPT"
+        for arg in "$@"; do
+            CMD="$CMD $(printf '%q' "$arg")"
+        done
+        
+        # Execute on VM with TTY for interactive prompts
+        printf "\n"
+        printf "${COLOR_SUCCESS}Executing test on VM...${COLOR_RESET}\n"
+        printf "\n"
+        ssh -t "$VM_DOMAIN" "$CMD"
         ;;
     
     # Utilities
     network)
         exec "$SCRIPT_DIR/util/vm-network-setup" "$@"
-        ;;
-    
-    restart-spice)
-        exec "$SCRIPT_DIR/util/vm-restart-spice" "$@"
         ;;
     
     virtiofs)

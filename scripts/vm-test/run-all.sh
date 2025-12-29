@@ -206,7 +206,7 @@ clear_test_marker() {
 }
 
 # Long haul CSV file for raw data export
-# We write to /tmp/ (append works locally) and sync to results/ (full copy works on WebDAV)
+# We write to /tmp/ (append works locally) and sync to results/ (full copy works on shared filesystems)
 LONG_HAUL_TIMESTAMP=$(date +%Y-%m-%d-%H%M%S)
 LONG_HAUL_TMP_FILE="/tmp/longhaul-${LONG_HAUL_TIMESTAMP}.csv"
 LONG_HAUL_RESULTS_DIR="$SCRIPT_DIR/../../results"

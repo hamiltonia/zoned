@@ -66,9 +66,7 @@ vm_virtiofs_setup() {
         if [[ $migrate_result -ne 0 ]]; then
             vm_print_error "virtiofs migration failed"
             echo ""
-            echo "You can:"
-            echo "  1. Try again: scripts/vm-virtiofs-migrate"
-            echo "  2. Use SPICE instead: Re-run vm-setup and choose option 2"
+            echo "Try again: scripts/vm-virtiofs-migrate"
             return 1
         fi
         
@@ -120,16 +118,12 @@ vm_virtiofs_setup() {
                 vm_print_error "virtiofs module loaded but not in /proc/filesystems"
                 echo ""
                 vm_virtiofs_diagnose "$domain"
-                echo ""
-                echo "Suggestion: Use SPICE file sharing instead (option 2 in vm-setup)"
                 return 1
             fi
         else
             vm_print_error "virtiofs kernel module not available"
             echo ""
             vm_virtiofs_diagnose "$domain"
-            echo ""
-            echo "Suggestion: Use SPICE file sharing instead (option 2 in vm-setup)"
             return 1
         fi
     else
@@ -394,9 +388,7 @@ vm_virtiofs_diagnose() {
         echo "  ⚠ virtiofs requires Linux kernel 5.4 or newer"
         echo "  Your kernel ($kernel_version) is too old"
         echo ""
-        echo "Solutions:"
-        echo "  1. Update your VM's kernel"
-        echo "  2. Use SPICE file sharing instead (choose option 2 during setup)"
+        echo "Solution: Update your VM's kernel to 5.4 or newer"
         return
     fi
     
@@ -413,9 +405,7 @@ vm_virtiofs_diagnose() {
         echo "  1. Kernel built without virtiofs support (CONFIG_VIRTIO_FS not set)"
         echo "  2. Distribution doesn't include virtiofs module"
         echo ""
-        echo "Solutions:"
-        echo "  1. Install a newer kernel with virtiofs support"
-        echo "  2. Use SPICE file sharing instead (choose option 2 during setup)"
+        echo "Solution: Install a newer kernel with virtiofs support"
         return
     fi
     

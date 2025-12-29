@@ -15,7 +15,6 @@ scripts/
 │   └── vm-headless       # Headless VM operations
 ├── util/                 # Utilities (rarely called directly)
 │   ├── vm-network-setup
-│   ├── vm-restart-spice
 │   ├── vm-virtiofs-migrate
 │   └── analyze-memory.py
 ├── lib/                  # Shared libraries
@@ -83,7 +82,6 @@ alias vm='/path/to/zoned/scripts/vm'
 
 ### Utilities
 - `vm network` - Configure host networking
-- `vm restart-spice` - Fix SPICE display issues
 - `vm virtiofs` - Migrate to virtiofs file sharing
 
 ## User vs Util Scripts

@@ -8,8 +8,7 @@ Profiles store all the information needed to connect to and work with a VM:
 - VM domain name (libvirt identifier)
 - IP address
 - SSH configuration
-- File sharing type (virtiofs or SPICE)
-- Mount path
+- Mount path (virtiofs: /mnt/zoned)
 
 ## Usage
 

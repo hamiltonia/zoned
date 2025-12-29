@@ -105,7 +105,6 @@ VM_DOMAIN=${VM_DOMAIN}
 VM_IP=${VM_IP}
 VM_USER=${VM_USER}
 VM_MOUNT_PATH=${VM_MOUNT_PATH}
-VM_SHARE_TYPE=${VM_SHARE_TYPE:-spice}
 VM_LIBVIRT_NAME=${VM_LIBVIRT_NAME:-$VM_DOMAIN}
 VM_TITLE="${VM_TITLE:-}"
 VM_PROFILE_TIME=$(date +%s)
@@ -192,7 +191,7 @@ vm_profile_switch() {
     echo ""
     echo -e "  VM: ${CYAN}$VM_DOMAIN${NC}"
     echo -e "  IP: $VM_IP"
-    echo -e "  Share: $VM_SHARE_TYPE ($VM_MOUNT_PATH)"
+    echo -e "  Mount: $VM_MOUNT_PATH"
     echo ""
     
     return 0
@@ -642,139 +641,49 @@ vm_install_dependencies() {
     return 0
 }
 
-# ============================================
-#  FILE SHARING SELECTION
-# ============================================
 
-# Prompt user to select file sharing method
-# Returns: Sets VM_SHARE_TYPE variable ("virtiofs" or "spice")
-vm_select_share_type() {
-    echo ""
-    echo -e "${CYAN}Select file sharing method:${NC}"
-    echo ""
-    echo "  1) virtiofs (recommended)"
-    echo "     - Faster, kernel-level file sharing"
-    echo "     - Better for longhaul testing"
-    echo "     - Requires one-time VM restart"
-    echo ""
-    echo "  2) SPICE WebDAV"
-    echo "     - Works with GNOME Boxes out of the box"
-    echo "     - Slower, uses GVFS mount"
-    echo "     - Requires display client connection"
-    echo ""
-    
-    read -p "Choose [1/2]: " choice
-    
-    case "$choice" in
-        1|virtiofs)
-            VM_SHARE_TYPE="virtiofs"
-            ;;
-        2|spice)
-            VM_SHARE_TYPE="spice"
-            ;;
-        *)
-            vm_print_warning "Invalid choice, defaulting to virtiofs"
-            VM_SHARE_TYPE="virtiofs"
-            ;;
-    esac
-    
-    vm_print_info "Selected: $VM_SHARE_TYPE"
-}
-
-# Smart mount re-discovery for existing VMs
+# Check if virtiofs mount is active
 # Returns: 0 if working, 1 if needs setup
 vm_check_existing_mount() {
     local domain="${1:-$VM_DOMAIN}"
-    local share_type="${2:-$VM_SHARE_TYPE}"
     
-    case "$share_type" in
-        virtiofs)
-            # Check if already mounted
-            if ssh "$domain" "mountpoint -q /mnt/zoned && test -f /mnt/zoned/extension/metadata.json" 2>/dev/null; then
+    # Check if already mounted
+    if ssh "$domain" "mountpoint -q /mnt/zoned && test -f /mnt/zoned/extension/metadata.json" 2>/dev/null; then
+        VM_MOUNT_PATH="/mnt/zoned"
+        vm_print_success "virtiofs mount is active: /mnt/zoned"
+        return 0
+    fi
+    
+    # Check if it's in fstab but not mounted (e.g., after reboot without automount)
+    if ssh "$domain" "grep -q '^zoned[[:space:]]' /etc/fstab" 2>/dev/null; then
+        vm_print_warning "virtiofs in fstab but not mounted"
+        vm_print_step "Attempting to mount..."
+        
+        if ssh "$domain" "sudo mount /mnt/zoned" 2>/dev/null; then
+            if ssh "$domain" "test -f /mnt/zoned/extension/metadata.json" 2>/dev/null; then
                 VM_MOUNT_PATH="/mnt/zoned"
-                vm_print_success "virtiofs mount is active: /mnt/zoned"
+                vm_print_success "virtiofs re-mounted successfully"
                 return 0
             fi
-            
-            # Check if it's in fstab but not mounted (e.g., after reboot without automount)
-            if ssh "$domain" "grep -q '^zoned[[:space:]]' /etc/fstab" 2>/dev/null; then
-                vm_print_warning "virtiofs in fstab but not mounted"
-                vm_print_step "Attempting to mount..."
-                
-                if ssh "$domain" "sudo mount /mnt/zoned" 2>/dev/null; then
-                    if ssh "$domain" "test -f /mnt/zoned/extension/metadata.json" 2>/dev/null; then
-                        VM_MOUNT_PATH="/mnt/zoned"
-                        vm_print_success "virtiofs re-mounted successfully"
-                        return 0
-                    fi
-                fi
-                vm_print_warning "Auto-mount failed, will need manual setup"
-            fi
-            ;;
-        spice)
-            # SPICE mounts have dynamic paths - always re-discover
-            vm_print_step "Scanning for SPICE mount..."
-            local spice_mount
-            
-            # Search for metadata.json in GVFS mounts
-            spice_mount=$(ssh "$domain" "find /run/user/\$(id -u)/gvfs -maxdepth 3 -name 'metadata.json' -path '*extension*' 2>/dev/null | head -1" 2>/dev/null || echo "")
-            
-            if [[ -n "$spice_mount" ]]; then
-                # Extract base path (remove /extension/metadata.json)
-                VM_MOUNT_PATH="${spice_mount%/extension/metadata.json}"
-                vm_print_success "SPICE mount found: $VM_MOUNT_PATH"
-                return 0
-            fi
-            
-            # Check legacy mount path
-            local legacy_path="/run/user/\$(id -u)/spice-client-folder"
-            if ssh "$domain" "test -f $legacy_path/extension/metadata.json" 2>/dev/null; then
-                VM_MOUNT_PATH=$(ssh "$domain" "echo $legacy_path" 2>/dev/null)
-                vm_print_success "SPICE mount found (legacy): $VM_MOUNT_PATH"
-                return 0
-            fi
-            
-            vm_print_warning "SPICE mount not found"
-            echo ""
-            echo "The SPICE shared folder is not currently mounted."
-            echo ""
-            echo "To mount it:"
-            echo "  1. Open file manager in the VM"
-            echo "  2. Click 'Other Locations' → 'Spice client folder'"
-            echo ""
-            ;;
-    esac
+        fi
+        vm_print_warning "Auto-mount failed, will need manual setup"
+    fi
     
     return 1
 }
 
-# Setup file sharing based on selected type
-# Calls the appropriate setup script
+# Setup virtiofs file sharing
 # Returns: 0 = success, 1 = failed, 2 = needs action (reboot, etc)
 vm_setup_sharing() {
     local domain="${1:-$VM_DOMAIN}"
-    local share_type="${2:-$VM_SHARE_TYPE}"
     
-    # Source the appropriate setup script
+    # Source the virtiofs setup script
     local lib_dir
     lib_dir="$(dirname "${BASH_SOURCE[0]}")"
     
-    case "$share_type" in
-        virtiofs)
-            source "$lib_dir/vm-virtiofs-setup.sh"
-            vm_virtiofs_setup "$domain"
-            return $?
-            ;;
-        spice)
-            source "$lib_dir/vm-spice-setup.sh"
-            vm_spice_setup "$domain"
-            return $?
-            ;;
-        *)
-            vm_print_error "Unknown share type: $share_type"
-            return 1
-            ;;
-    esac
+    source "$lib_dir/vm-virtiofs-setup.sh"
+    vm_virtiofs_setup "$domain"
+    return $?
 }
 
 # ============================================
@@ -814,63 +723,4 @@ vm_ensure_virtiofs_permissions() {
         fi
     fi
     echo ""
-}
-
-# ============================================
-#  SPICE PACKAGE CHECK
-# ============================================
-
-# Check and optionally install SPICE packages for shared folders
-vm_ensure_spice() {
-    local domain="$VM_DOMAIN"
-    
-    vm_print_step "Checking SPICE shared folder support..."
-    
-    # Check if spice-webdavd is installed
-    if ssh "$domain" "command -v /usr/sbin/spice-webdavd || command -v spice-webdavd" &>/dev/null; then
-        vm_print_success "SPICE packages installed"
-        return 0
-    fi
-    
-    vm_print_warning "SPICE shared folder packages not installed"
-    echo ""
-    echo "These packages enable shared folders between host and VM."
-    echo ""
-    
-    read -p "Install SPICE packages now? [Y/n]: " confirm
-    if [[ "${confirm,,}" == "n" ]]; then
-        return 1
-    fi
-    
-    # Detect distro and install
-    local distro
-    distro=$(ssh "$domain" ". /etc/os-release 2>/dev/null; echo \$ID" || echo "unknown")
-    
-    case "$distro" in
-        ubuntu|debian|pop)
-            vm_print_step "Installing SPICE packages (Ubuntu/Debian)..."
-            ssh -t "$domain" "sudo apt update && sudo apt install -y spice-vdagent spice-webdavd gvfs-backends"
-            ;;
-        fedora)
-            vm_print_step "Installing SPICE packages (Fedora)..."
-            ssh -t "$domain" "sudo dnf install -y spice-vdagent spice-webdavd"
-            ;;
-        arch|endeavouros|manjaro)
-            vm_print_step "Installing SPICE packages (Arch)..."
-            ssh -t "$domain" "sudo pacman -S --noconfirm spice-vdagent"
-            ;;
-        *)
-            vm_print_warning "Unknown distro. Install spice-vdagent and spice-webdavd manually."
-            return 1
-            ;;
-    esac
-    
-    # Enable service
-    ssh "$domain" "systemctl --user enable spice-webdavd 2>/dev/null; systemctl --user start spice-webdavd 2>/dev/null" || true
-    
-    vm_print_success "SPICE packages installed"
-    echo ""
-    vm_print_warning "VM REBOOT REQUIRED for shared folders to work"
-    echo "Please reboot the VM, then run 'make vm-install' again."
-    return 2  # Special return code indicating reboot needed
 }
