@@ -39,6 +39,12 @@
 - **CRITICAL**: Do NOT stage files (`git add`) without explicit user request
 - **CRITICAL**: Do NOT ask about committing until user explicitly requests a commit
 - **CRITICAL**: Do NOT push without explicit user request
+- **CRITICAL**: After completing a commit, RESET to default state - wait for explicit user request before any subsequent commits
+- **Multi-Commit Tasks**: If a task involves multiple commits:
+  - Each commit requires separate explicit user approval
+  - After commit #1, do NOT automatically proceed to commit #2
+  - Continue working if requested, but wait for user to request the next commit
+  - The workflow is: work → user requests commit → commit → work → user requests commit → commit (repeat)
 - **Rationale**: User prefers to stage files manually to watch incremental diffs during development
 - **When User Requests a Commit**:
   1. Stage ALL modified/new/deleted files with `git add -A`
@@ -58,6 +64,34 @@
   
   Modified by Cline
   ```
+
+## Pull Request Workflow
+- **Branch Naming**: PRs must be created from properly named branches
+  - **Format**: `<type>/<description>` where type is one of:
+    - `fix/` - Bug fixes
+    - `feature/` - New features
+    - `infra/` - Infrastructure/tooling changes
+    - `docs/` - Documentation updates
+    - `refactor/` - Code refactoring
+  - **Example**: `feature/add-zone-templates`, `fix/memory-leak-overlay`
+- **When User Requests a PR**:
+  1. **Verify/Create branch**: Check current branch follows naming convention
+     - If on `main` or incorrectly named branch, create a properly named branch automatically
+     - Use context from the work done to generate appropriate branch name
+  2. **Ensure clean commit**: Follow the standard commit workflow rules
+     - Wait for user to request the commit (don't auto-commit just because PR was requested)
+     - User must explicitly request commit before PR can be created
+  3. **Push to remote**: After commit is made and user confirms, push with `git push -u origin <branch-name>`
+  4. **Prepare PR using `gh` CLI**:
+     - Generate a descriptive PR title from the commit message(s)
+     - Generate PR body that includes:
+       - Summary of changes
+       - Testing done (if applicable)
+       - Any breaking changes or special notes
+     - Present the proposed `gh pr create` command to user for approval
+     - Only execute after user approves
+- **CRITICAL**: Do NOT push or create PR without explicit user approval
+- **Rationale**: Main branch is protected and requires PR workflow; proper branch naming maintains repository organization
 
 ## Testing and Deployment
 - **CRITICAL**: NEVER execute `make install`, `make compile-schema`, or any deployment commands without explicit user permission
