@@ -120,18 +120,22 @@ show_help() {
     printf "${COLOR_SUCCESS}Usage:${COLOR_RESET} ./scripts/test <type> [--local] [args...]\n"
     printf "\n"
     printf "${COLOR_SUCCESS}Test Types:${COLOR_RESET}\n"
-    printf "  ${COLOR_INFO}mem${COLOR_RESET}  - Memory leak testing with statistical analysis\n"
-    printf "  ${COLOR_INFO}func${COLOR_RESET} - Functional regression testing (future)\n"
+    printf "  ${COLOR_INFO}mem${COLOR_RESET}     - Memory leak testing with statistical analysis\n"
+    printf "  ${COLOR_INFO}func${COLOR_RESET}    - Functional correctness testing\n"
+    printf "  ${COLOR_INFO}release${COLOR_RESET} - Full suite (mem deep + all functional tests)\n"
     printf "\n"
     printf "${COLOR_SUCCESS}Execution Mode:${COLOR_RESET}\n"
     printf "  ${COLOR_INFO}Default${COLOR_RESET}  - Run in VM via SSH (recommended)\n"
     printf "  ${COLOR_INFO}--local${COLOR_RESET} - Run on current machine\n"
     printf "\n"
-    printf "${COLOR_SUCCESS}Memory Testing Examples:${COLOR_RESET}\n"
-    printf "  ./scripts/test mem --preset quick     # Quick test in VM (1-3 min, ~6 min)\n"
-    printf "  ./scripts/test mem --preset standard  # Standard test (1-10 min)\n"
-    printf "  ./scripts/test mem --preset deep      # Deep analysis (1-20 min)\n"
-    printf "  ./scripts/test mem --local --preset quick  # Local testing\n"
+    printf "${COLOR_SUCCESS}Examples:${COLOR_RESET}\n"
+    printf "  ${COLOR_INFO}Quick verification (feature work):${COLOR_RESET}\n"
+    printf "    ./scripts/test mem --preset quick    # Memory test (1-3 min, ~6 min)\n"
+    printf "    ./scripts/test func                  # All functional tests\n"
+    printf "\n"
+    printf "  ${COLOR_INFO}Release preparation:${COLOR_RESET}\n"
+    printf "    ./scripts/test release               # Full suite (mem deep + func)\n"
+    printf "    ./scripts/test mem --preset deep     # Just memory (1-20 min)\n"
     printf "\n"
     printf "${COLOR_INFO}Note:${COLOR_RESET} Most testing happens in VM. Use --local for quick local verification.\n"
     printf "\n"
@@ -152,15 +156,162 @@ if [[ "$1" == "--local" ]]; then
     shift
 fi
 
+# Run functional tests helper
+run_functional_tests() {
+    local test_dir="$1"
+    local failed=0
+    local total=0
+    
+    # List of functional test scripts
+    local func_tests=(
+        "test-func-edge-cases.sh"
+        "test-func-layout-switching.sh"
+        "test-func-multi-monitor.sh"
+        "test-func-window-movement.sh"
+        "test-func-workspace.sh"
+        "test-func-zone-cycling.sh"
+    )
+    
+    printf "${COLOR_INFO}Running %d functional tests...${COLOR_RESET}\n" "${#func_tests[@]}"
+    printf "\n"
+    
+    for test in "${func_tests[@]}"; do
+        ((total++))
+        printf "${COLOR_INFO}[%d/%d]${COLOR_RESET} %s\n" "$total" "${#func_tests[@]}" "$test"
+        if "$test_dir/$test"; then
+            printf "${COLOR_SUCCESS}✓ PASS${COLOR_RESET}\n\n"
+        else
+            printf "${COLOR_ERROR}✗ FAIL${COLOR_RESET}\n\n"
+            ((failed++))
+        fi
+    done
+    
+    printf "${COLOR_INFO}Functional Tests Summary:${COLOR_RESET}\n"
+    if [ $failed -eq 0 ]; then
+        printf "${COLOR_SUCCESS}All %d tests passed${COLOR_RESET}\n" "$total"
+        return 0
+    else
+        printf "${COLOR_ERROR}%d of %d tests failed${COLOR_RESET}\n" "$failed" "$total"
+        return 1
+    fi
+}
+
 # Validate test type
 case "$TEST_TYPE" in
     mem|memory)
-        TEST_SCRIPT="./scripts/tests/test-mem"
+        TEST_SCRIPT="./scripts/tests/test-mem-with-restarts"
         ;;
     func|functional)
-        printf "${COLOR_ERROR}Functional tests not yet implemented${COLOR_RESET}\n"
-        printf "${COLOR_INFO}Functional tests will use xdotool for real keyboard automation${COLOR_RESET}\n"
-        exit 1
+        # Run all functional tests
+        if [ "$RUN_LOCAL" = true ]; then
+            run_functional_tests "$SCRIPT_DIR/tests"
+            exit $?
+        else
+            detect_vm_for_test
+            printf "\n"
+            printf "${COLOR_SUCCESS}Executing functional tests on VM...${COLOR_RESET}\n"
+            printf "\n"
+            # Pass the function to VM and execute
+            ssh -t "$VM_DOMAIN" "cd $REMOTE_PROJECT_DIR && bash -s" << 'EOF'
+run_functional_tests() {
+    local test_dir="./scripts/tests"
+    local failed=0
+    local total=0
+    local func_tests=(
+        "test-func-edge-cases.sh"
+        "test-func-layout-switching.sh"
+        "test-func-multi-monitor.sh"
+        "test-func-window-movement.sh"
+        "test-func-workspace.sh"
+        "test-func-zone-cycling.sh"
+    )
+    
+    for test in "${func_tests[@]}"; do
+        ((total++))
+        printf "[%d/%d] %s\n" "$total" "${#func_tests[@]}" "$test"
+        if "$test_dir/$test"; then
+            printf "✓ PASS\n\n"
+        else
+            printf "✗ FAIL\n\n"
+            ((failed++))
+        fi
+    done
+    
+    printf "Functional Tests Summary:\n"
+    if [ $failed -eq 0 ]; then
+        printf "All %d tests passed\n" "$total"
+        return 0
+    else
+        printf "%d of %d tests failed\n" "$failed" "$total"
+        return 1
+    fi
+}
+run_functional_tests
+EOF
+            exit $?
+        fi
+        ;;
+    release)
+        # Run comprehensive test suite: mem deep + all functional tests
+        printf "${COLOR_INFO}Running release test suite...${COLOR_RESET}\n"
+        printf "${COLOR_INFO}  1. Memory tests (deep preset: 1-20 min)${COLOR_RESET}\n"
+        printf "${COLOR_INFO}  2. All functional tests${COLOR_RESET}\n"
+        printf "\n"
+        
+        if [ "$RUN_LOCAL" = true ]; then
+            # Local execution
+            printf "${COLOR_INFO}=== Phase 1: Memory Tests ===${COLOR_RESET}\n"
+            if ! ./scripts/tests/test-mem-with-restarts --preset deep; then
+                printf "${COLOR_ERROR}Memory tests failed${COLOR_RESET}\n"
+                exit 1
+            fi
+            printf "\n"
+            printf "${COLOR_INFO}=== Phase 2: Functional Tests ===${COLOR_RESET}\n"
+            if ! run_functional_tests "$SCRIPT_DIR/tests"; then
+                printf "${COLOR_ERROR}Functional tests failed${COLOR_RESET}\n"
+                exit 1
+            fi
+            printf "\n"
+            printf "${COLOR_SUCCESS}✓ Release test suite completed successfully${COLOR_RESET}\n"
+            exit 0
+        else
+            # VM execution
+            detect_vm_for_test
+            printf "\n"
+            printf "${COLOR_SUCCESS}Executing release suite on VM...${COLOR_RESET}\n"
+            printf "\n"
+            ssh -t "$VM_DOMAIN" << EOF
+cd $REMOTE_PROJECT_DIR
+echo "=== Phase 1: Memory Tests ==="
+if ! ./scripts/tests/test-mem-with-restarts --preset deep; then
+    echo "Memory tests failed"
+    exit 1
+fi
+echo ""
+echo "=== Phase 2: Functional Tests ==="
+failed=0
+total=0
+for test in scripts/tests/test-func-*.sh; do
+    ((total++))
+    test_name=\$(basename "\$test")
+    printf "[%d/6] %s\n" "\$total" "\$test_name"
+    if "\$test"; then
+        printf "✓ PASS\n\n"
+    else
+        printf "✗ FAIL\n\n"
+        ((failed++))
+    fi
+done
+if [ \$failed -eq 0 ]; then
+    echo "✓ Release test suite completed successfully"
+    exit 0
+else
+    echo "✗ \$failed of \$total functional tests failed"
+    exit 1
+fi
+EOF
+            exit $?
+        fi
         ;;
     help|--help|-h)
         show_help
@@ -168,14 +319,14 @@ case "$TEST_TYPE" in
         ;;
     *)
         printf "${COLOR_ERROR}Unknown test type: $TEST_TYPE${COLOR_RESET}\n"
-        printf "Available types: mem, func (future)\n"
+        printf "Available types: mem, func, release\n"
         printf "\n"
         show_help
         exit 1
         ;;
 esac
 
-# Execute test
+# Execute test (only for mem type now)
 if [ "$RUN_LOCAL" = true ]; then
     # Local execution
     printf "${COLOR_INFO}Running tests locally...${COLOR_RESET}\n"
