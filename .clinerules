@@ -18,6 +18,16 @@
 - Use descriptive filenames and directory structure
 - Comment shell scripts and configurations clearly
 
+## VM Script Output Standards
+- **CRITICAL**: Any command running via SSH on the VM MUST be visually distinguished
+- **Visual Indicators Required**:
+  - Use colored output (e.g., YELLOW for VM operations)
+  - Prefix output with `[VM]` tag
+  - Example: `echo -e "${YELLOW}  [VM]${NC} Checking source files..."`
+- **Rationale**: Makes it immediately clear where operations are executing (host vs VM)
+- **Apply to**: All scripts in `scripts/vm-*`, `scripts/user/vm-*`, `scripts/util/vm-*`
+- **Existing Pattern**: Already used in `vm-install` - use as reference
+
 ## Code Attribution Policy
 - **NEVER** include "Created by Cline" or "Modified by Cline" in source code files
 - Code attribution belongs in git commit messages, not in code comments

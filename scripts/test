@@ -1,6 +1,9 @@
 #!/bin/bash
-# VM Management Dispatcher - Main entry point for all VM operations
-# Usage: vm <command> [args...]
+# Unified Test Runner - Handles both local and VM testing
+# Usage: test <type> [--local] [args...]
+#   Types: mem, func (future)
+#   Default: Run in VM via SSH (most common workflow)
+#   --local: Run on current machine
 
 set -e
 
@@ -39,7 +42,7 @@ detect_vm_for_test() {
         if [[ -z "$running_vms" ]]; then
             printf "${COLOR_ERROR}No VMs are currently running${COLOR_RESET}\n"
             printf "\n"
-            printf "Start a VM first with: vm headless start\n"
+            printf "Start a VM first with: ./scripts/vm headless start\n"
             exit 1
         fi
         
@@ -81,7 +84,7 @@ detect_vm_for_test() {
     if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "$VM_DOMAIN" "exit" 2>/dev/null; then
         printf "${COLOR_ERROR}Cannot connect to VM: %s${COLOR_RESET}\n" "$VM_DOMAIN"
         printf "\n"
-        printf "Run 'vm setup' first to configure SSH access.\n"
+        printf "Run './scripts/vm setup' first to configure SSH access.\n"
         exit 1
     fi
     
@@ -92,7 +95,7 @@ detect_vm_for_test() {
     if [[ -z "$REMOTE_PROJECT_DIR" ]]; then
         printf "${COLOR_ERROR}VM_MOUNT_PATH not set in profile${COLOR_RESET}\n"
         printf "\n"
-        printf "Run 'vm setup' to configure the VM mount.\n"
+        printf "Run './scripts/vm setup' to configure the VM mount.\n"
         exit 1
     fi
     
@@ -101,7 +104,7 @@ detect_vm_for_test() {
         printf "${COLOR_ERROR}Project files not accessible at %s${COLOR_RESET}\n" "$REMOTE_PROJECT_DIR"
         printf "\n"
         printf "Troubleshooting:\n"
-        printf "  1. Run 'vm setup' to reconfigure virtiofs mount\n"
+        printf "  1. Run './scripts/vm setup' to reconfigure virtiofs mount\n"
         printf "  2. Ensure virtiofs is mounted: ssh %s 'mountpoint /mnt/zoned'\n" "$VM_DOMAIN"
         printf "  3. Check VM is running: virsh list\n"
         exit 1
@@ -112,93 +115,85 @@ detect_vm_for_test() {
 }
 
 show_help() {
-    printf "${COLOR_INFO}VM Management Commands${COLOR_RESET}\n"
+    printf "${COLOR_INFO}Unified Test Runner${COLOR_RESET}\n"
     printf "\n"
-    printf "${COLOR_SUCCESS}Usage:${COLOR_RESET} vm <command> [args...]\n"
+    printf "${COLOR_SUCCESS}Usage:${COLOR_RESET} ./scripts/test <type> [--local] [args...]\n"
     printf "\n"
-    printf "${COLOR_SUCCESS}Setup & Configuration:${COLOR_RESET}\n"
-    printf "  ${COLOR_INFO}setup${COLOR_RESET} [options]     - Initial VM setup and configuration\n"
-    printf "  ${COLOR_INFO}profile${COLOR_RESET} <action>    - Manage VM profiles (list, switch, info, delete)\n"
+    printf "${COLOR_SUCCESS}Test Types:${COLOR_RESET}\n"
+    printf "  ${COLOR_INFO}mem${COLOR_RESET}  - Memory leak testing with statistical analysis\n"
+    printf "  ${COLOR_INFO}func${COLOR_RESET} - Functional regression testing (future)\n"
     printf "\n"
-    printf "${COLOR_SUCCESS}Development:${COLOR_RESET}\n"
-    printf "  ${COLOR_INFO}dev${COLOR_RESET}               - Deploy extension to VM (lint + compile + reload)\n"
-    printf "  ${COLOR_INFO}logs${COLOR_RESET}              - Watch extension logs from VM\n"
+    printf "${COLOR_SUCCESS}Execution Mode:${COLOR_RESET}\n"
+    printf "  ${COLOR_INFO}Default${COLOR_RESET}  - Run in VM via SSH (recommended)\n"
+    printf "  ${COLOR_INFO}--local${COLOR_RESET} - Run on current machine\n"
     printf "\n"
-    printf "${COLOR_SUCCESS}VM Control:${COLOR_RESET}\n"
-    printf "  ${COLOR_INFO}headless${COLOR_RESET} <action>  - Headless mode operations (start, stop, status, display)\n"
-    printf "  ${COLOR_INFO}start${COLOR_RESET} [vmname]     - Start VM with display\n"
+    printf "${COLOR_SUCCESS}Memory Testing Examples:${COLOR_RESET}\n"
+    printf "  ./scripts/test mem --preset quick     # Quick test in VM (1-3 min, ~6 min)\n"
+    printf "  ./scripts/test mem --preset standard  # Standard test (1-10 min)\n"
+    printf "  ./scripts/test mem --preset deep      # Deep analysis (1-20 min)\n"
+    printf "  ./scripts/test mem --local --preset quick  # Local testing\n"
     printf "\n"
-    printf "${COLOR_SUCCESS}Utilities:${COLOR_RESET}\n"
-    printf "  ${COLOR_INFO}network${COLOR_RESET}           - Configure host networking\n"
-    printf "  ${COLOR_INFO}virtiofs${COLOR_RESET}          - Migrate VM to virtiofs\n"
-    printf "\n"
-    printf "${COLOR_SUCCESS}Examples:${COLOR_RESET}\n"
-    printf "  vm setup              - Run initial VM setup\n"
-    printf "  vm profile list       - List all VM profiles\n"
-    printf "  vm logs               - Watch VM logs\n"
-    printf "  vm headless start     - Start VM without display\n"
-    printf "\n"
-    printf "${COLOR_INFO}For testing, use:${COLOR_RESET} ./scripts/test mem --preset quick\n"
-    printf "\n"
-    printf "${COLOR_INFO}Tip:${COLOR_RESET} Use 'direnv' or add an alias in .zshrc:\n"
-    printf "  alias vm='./scripts/vm'\n"
+    printf "${COLOR_INFO}Note:${COLOR_RESET} Most testing happens in VM. Use --local for quick local verification.\n"
     printf "\n"
 }
 
 # Parse command
-COMMAND="${1:-}"
-shift 2>/dev/null || true
+TEST_TYPE="${1:-}"
+if [[ -z "$TEST_TYPE" ]]; then
+    show_help
+    exit 1
+fi
+shift
 
-case "$COMMAND" in
-    # Setup & Configuration
-    setup)
-        exec "$SCRIPT_DIR/user/vm-setup" "$@"
+# Check for --local flag
+RUN_LOCAL=false
+if [[ "$1" == "--local" ]]; then
+    RUN_LOCAL=true
+    shift
+fi
+
+# Validate test type
+case "$TEST_TYPE" in
+    mem|memory)
+        TEST_SCRIPT="./scripts/tests/test-mem"
         ;;
-    
-    profile)
-        exec "$SCRIPT_DIR/user/vm-profile" "$@"
-        ;;
-    
-    # Install dev build
-    install)
-        exec "$SCRIPT_DIR/user/vm-install" "$@"
-        ;;
-    
-    logs)
-        exec "$SCRIPT_DIR/user/vm-logs" "$@"
-        ;;
-    
-    # VM Control
-    headless)
-        exec "$SCRIPT_DIR/user/vm-headless" "$@"
-        ;;
-    
-    start)
-        # This would need to be implemented or use headless start
-        printf "${COLOR_WARN}Use 'vm headless start' or run via Make: make vm-start${COLOR_RESET}\n"
+    func|functional)
+        printf "${COLOR_ERROR}Functional tests not yet implemented${COLOR_RESET}\n"
+        printf "${COLOR_INFO}Functional tests will use xdotool for real keyboard automation${COLOR_RESET}\n"
         exit 1
         ;;
-    
-    
-    # Utilities
-    network)
-        exec "$SCRIPT_DIR/util/vm-network-setup" "$@"
-        ;;
-    
-    virtiofs)
-        exec "$SCRIPT_DIR/util/vm-virtiofs-migrate" "$@"
-        ;;
-    
-    # Help
-    help|--help|-h|"")
+    help|--help|-h)
         show_help
         exit 0
         ;;
-    
-    # Unknown command
     *)
-        printf "${COLOR_ERROR}Unknown command: $COMMAND${COLOR_RESET}\n\n"
+        printf "${COLOR_ERROR}Unknown test type: $TEST_TYPE${COLOR_RESET}\n"
+        printf "Available types: mem, func (future)\n"
+        printf "\n"
         show_help
         exit 1
         ;;
 esac
+
+# Execute test
+if [ "$RUN_LOCAL" = true ]; then
+    # Local execution
+    printf "${COLOR_INFO}Running tests locally...${COLOR_RESET}\n"
+    printf "\n"
+    exec "$TEST_SCRIPT" "$@"
+else
+    # VM execution (default)
+    detect_vm_for_test
+    
+    # Build command with all args properly escaped
+    CMD="cd $REMOTE_PROJECT_DIR && $TEST_SCRIPT"
+    for arg in "$@"; do
+        CMD="$CMD $(printf '%q' "$arg")"
+    done
+    
+    # Execute on VM with TTY for interactive prompts
+    printf "\n"
+    printf "${COLOR_SUCCESS}Executing test on VM...${COLOR_RESET}\n"
+    printf "\n"
+    ssh -t "$VM_DOMAIN" "$CMD"
+fi

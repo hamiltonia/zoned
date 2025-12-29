@@ -36,6 +36,25 @@ echo "  Extension Initialization Verification"
 echo "========================================"
 echo ""
 
+# Step 0: Ensure D-Bus debugging is enabled (required for signal monitoring)
+info "Step 0: Checking D-Bus debugging..."
+DBUS_ENABLED=$(gsettings get org.gnome.shell.extensions.zoned debug-expose-dbus 2>/dev/null || echo "false")
+if [ "$DBUS_ENABLED" != "true" ]; then
+    info "D-Bus debugging not enabled, enabling automatically..."
+    gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true
+    echo "✓ D-Bus debugging enabled"
+    # Need to restart shell for this to take effect
+    info "Restarting GNOME Shell to apply D-Bus settings..."
+    if ! "$SCRIPT_DIR/xdotool-restart-gnome.sh" 3 5; then
+        error "GNOME Shell restart failed"
+        exit 1
+    fi
+    echo "✓ GNOME Shell restarted"
+else
+    echo "✓ D-Bus debugging already enabled"
+fi
+echo ""
+
 # Step 1: Disable extension
 info "Step 1: Disabling extension..."
 gnome-extensions disable "$EXTENSION_UUID" 2>/dev/null || true

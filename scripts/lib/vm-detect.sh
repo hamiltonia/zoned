@@ -15,9 +15,6 @@ DEFAULT_USER="${USER}"
 VM_PROFILES_DIR="${SCRIPT_DIR:-$(dirname "$0")/..}/../.vm-profiles"
 VM_ACTIVE_PROFILE_LINK="$VM_PROFILES_DIR/active"
 
-# Legacy cache file location (for migration)
-VM_CACHE_FILE="${SCRIPT_DIR:-$(dirname "$0")/..}/../.vm-cache"
-
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -145,16 +142,6 @@ vm_profile_read_active() {
     vm_profiles_init
     
     if [[ ! -L "$VM_ACTIVE_PROFILE_LINK" ]]; then
-        # Try legacy cache file for migration
-        if [[ -f "$VM_CACHE_FILE" ]]; then
-            vm_print_info "Migrating legacy cache to profile system..."
-            source "$VM_CACHE_FILE"
-            if [[ -n "$VM_DOMAIN" ]]; then
-                local profile_name=$(vm_profile_name_for_domain "$VM_DOMAIN")
-                vm_profile_write "$profile_name"
-                return 0
-            fi
-        fi
         return 1
     fi
     
@@ -197,18 +184,7 @@ vm_profile_switch() {
     return 0
 }
 
-# Legacy cache functions (for backward compatibility)
-vm_write_cache() {
-    # Now just calls profile write
-    vm_profile_write
-}
-
-vm_read_cache() {
-    # Now just calls profile read active
-    vm_profile_read_active
-}
-
-# Check if cache is valid (VM is running and SSH works)
+# Check if profile is valid (VM is running and SSH works)
 # Returns: 0 if valid, 1 if invalid
 vm_cache_is_valid() {
     # Check if cached VM is running
