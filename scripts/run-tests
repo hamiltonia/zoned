@@ -120,9 +120,10 @@ show_help() {
     printf "${COLOR_SUCCESS}Usage:${COLOR_RESET} ./scripts/test <type> [--local] [args...]\n"
     printf "\n"
     printf "${COLOR_SUCCESS}Test Types:${COLOR_RESET}\n"
-    printf "  ${COLOR_INFO}mem${COLOR_RESET}     - Memory leak testing with statistical analysis\n"
-    printf "  ${COLOR_INFO}func${COLOR_RESET}    - Functional correctness testing\n"
-    printf "  ${COLOR_INFO}release${COLOR_RESET} - Full suite (mem deep + all functional tests)\n"
+    printf "  ${COLOR_INFO}mem${COLOR_RESET}          - Memory leak testing with statistical analysis\n"
+    printf "  ${COLOR_INFO}func${COLOR_RESET}         - Functional correctness testing\n"
+    printf "  ${COLOR_INFO}release${COLOR_RESET}      - Full suite (mem deep + all functional tests)\n"
+    printf "  ${COLOR_INFO}release-test${COLOR_RESET} - Quick release validation (mem 2min + func)\n"
     printf "\n"
     printf "${COLOR_SUCCESS}Execution Mode:${COLOR_RESET}\n"
     printf "  ${COLOR_INFO}Default${COLOR_RESET}  - Run in VM via SSH (recommended)\n"
@@ -132,6 +133,7 @@ show_help() {
     printf "  ${COLOR_INFO}Quick verification (feature work):${COLOR_RESET}\n"
     printf "    ./scripts/test mem --preset quick    # Memory test (1-3 min, ~6 min)\n"
     printf "    ./scripts/test func                  # All functional tests\n"
+    printf "    ./scripts/test release-test          # Quick release check (~5-10 min)\n"
     printf "\n"
     printf "  ${COLOR_INFO}Release preparation:${COLOR_RESET}\n"
     printf "    ./scripts/test release               # Full suite (mem deep + func)\n"
@@ -165,6 +167,7 @@ run_functional_tests() {
     # List of functional test scripts
     local func_tests=(
         "test-func-edge-cases.sh"
+        "test-func-gsettings.sh"
         "test-func-layout-switching.sh"
         "test-func-multi-monitor.sh"
         "test-func-window-movement.sh"
@@ -238,62 +241,168 @@ fi
             exit $?
         fi
         ;;
-    release)
-        # Run comprehensive test suite: mem deep + all functional tests
-        printf "${COLOR_INFO}Running release test suite...${COLOR_RESET}\n"
-        printf "${COLOR_INFO}  1. Memory tests (deep preset: 1-20 min)${COLOR_RESET}\n"
-        printf "${COLOR_INFO}  2. All functional tests${COLOR_RESET}\n"
+    release|release-test)
+        # Determine preset based on test type
+        if [ "$TEST_TYPE" = "release-test" ]; then
+            MEM_PRESET="test"
+            SUITE_NAME="release-test"
+            printf "${COLOR_INFO}Running quick release validation suite...${COLOR_RESET}\n"
+            printf "${COLOR_INFO}  1. Memory tests (2-minute max)${COLOR_RESET}\n"
+            printf "${COLOR_INFO}  2. All functional tests${COLOR_RESET}\n"
+        else
+            MEM_PRESET="deep"
+            SUITE_NAME="release"
+            printf "${COLOR_INFO}Running full release test suite...${COLOR_RESET}\n"
+            printf "${COLOR_INFO}  1. Memory tests (deep preset: 1-20 min)${COLOR_RESET}\n"
+            printf "${COLOR_INFO}  2. All functional tests${COLOR_RESET}\n"
+        fi
         printf "\n"
         
         if [ "$RUN_LOCAL" = true ]; then
             # Local execution
+            MEM_EXIT=0
+            FUNC_EXIT=0
+            MEM_OUTPUT=$(mktemp)
+            
             printf "${COLOR_INFO}=== Phase 1: Memory Tests ===${COLOR_RESET}\n"
-            if ! ./scripts/tests/test-mem-with-restarts --preset deep; then
-                printf "${COLOR_ERROR}Memory tests failed${COLOR_RESET}\n"
-                exit 1
+            if ./scripts/tests/test-mem-with-restarts --preset "$MEM_PRESET" 2>&1 | tee "$MEM_OUTPUT"; then
+                MEM_STATUS="PASS"
+            else
+                MEM_STATUS="FAIL"
+                MEM_EXIT=1
             fi
+            
+            # Extract memory test summary info
+            MEM_R2=$(grep -oP 'R²=\K[0-9.]+' "$MEM_OUTPUT" | tail -1 || echo "N/A")
+            MEM_RANGE=$(grep -oP 'variance.*\K[0-9.]+(?= MB)' "$MEM_OUTPUT" | tail -1 || echo "N/A")
+            rm -f "$MEM_OUTPUT"
+            
             printf "\n"
             printf "${COLOR_INFO}=== Phase 2: Functional Tests ===${COLOR_RESET}\n"
-            if ! run_functional_tests "$SCRIPT_DIR/tests"; then
-                printf "${COLOR_ERROR}Functional tests failed${COLOR_RESET}\n"
-                exit 1
+            FUNC_PASSED=0
+            FUNC_FAILED=0
+            FUNC_TOTAL=0
+            
+            # Run functional tests and capture results
+            local func_tests=(
+                "test-func-edge-cases.sh"
+                "test-func-gsettings.sh"
+                "test-func-layout-switching.sh"
+                "test-func-multi-monitor.sh"
+                "test-func-window-movement.sh"
+                "test-func-workspace.sh"
+                "test-func-zone-cycling.sh"
+            )
+            
+            for test in "${func_tests[@]}"; do
+                ((FUNC_TOTAL++))
+                printf "${COLOR_INFO}[%d/%d]${COLOR_RESET} %s\n" "$FUNC_TOTAL" "${#func_tests[@]}" "$test"
+                if "$SCRIPT_DIR/tests/$test"; then
+                    printf "${COLOR_SUCCESS}✓ PASS${COLOR_RESET}\n\n"
+                    ((FUNC_PASSED++))
+                else
+                    printf "${COLOR_ERROR}✗ FAIL${COLOR_RESET}\n\n"
+                    ((FUNC_FAILED++))
+                    FUNC_EXIT=1
+                fi
+            done
+            
+            # Display summary
+            printf "\n"
+            printf "========================================\n"
+            printf "  %s SUITE SUMMARY\n" "$(echo $SUITE_NAME | tr '[:lower:]' '[:upper:]')"
+            printf "========================================\n"
+            if [ "$MEM_R2" != "N/A" ]; then
+                printf "  Memory Tests:     %s (R²=%s, range=%s MB)\n" "$MEM_STATUS" "$MEM_R2" "$MEM_RANGE"
+            else
+                printf "  Memory Tests:     %s\n" "$MEM_STATUS"
+            fi
+            printf "  Functional Tests: %d/%d PASS" "$FUNC_PASSED" "$FUNC_TOTAL"
+            if [ $FUNC_FAILED -gt 0 ]; then
+                printf ", %d/%d FAIL\n" "$FUNC_FAILED" "$FUNC_TOTAL"
+            else
+                printf "\n"
             fi
             printf "\n"
-            printf "${COLOR_SUCCESS}✓ Release test suite completed successfully${COLOR_RESET}\n"
-            exit 0
+            if [ $MEM_EXIT -eq 0 ] && [ $FUNC_EXIT -eq 0 ]; then
+                printf "  Overall Result:   ${COLOR_SUCCESS}PASS${COLOR_RESET}\n"
+                printf "========================================\n"
+                exit 0
+            else
+                printf "  Overall Result:   ${COLOR_ERROR}FAIL${COLOR_RESET}\n"
+                printf "========================================\n"
+                exit 1
+            fi
         else
-            # VM execution
+            # VM execution with summary
             detect_vm_for_test
             printf "\n"
-            printf "${COLOR_SUCCESS}Executing release suite on VM...${COLOR_RESET}\n"
+            printf "${COLOR_SUCCESS}Executing $SUITE_NAME suite on VM...${COLOR_RESET}\n"
             printf "\n"
+            
             ssh -t "$VM_DOMAIN" << EOF
 cd $REMOTE_PROJECT_DIR
+MEM_EXIT=0
+FUNC_EXIT=0
+MEM_OUTPUT=\$(mktemp)
+
 echo "=== Phase 1: Memory Tests ==="
-if ! ./scripts/tests/test-mem-with-restarts --preset deep; then
-    echo "Memory tests failed"
-    exit 1
+if ./scripts/tests/test-mem-with-restarts --preset "$MEM_PRESET" 2>&1 | tee "\$MEM_OUTPUT"; then
+    MEM_STATUS="PASS"
+else
+    MEM_STATUS="FAIL"
+    MEM_EXIT=1
 fi
+
+# Extract memory test summary
+MEM_R2=\$(grep -oP "R²=\K[0-9.]+" "\$MEM_OUTPUT" | tail -1 || echo "N/A")
+MEM_RANGE=\$(grep -oP "variance.*\K[0-9.]+(?= MB)" "\$MEM_OUTPUT" | tail -1 || echo "N/A")
+rm -f "\$MEM_OUTPUT"
+
 echo ""
 echo "=== Phase 2: Functional Tests ==="
-failed=0
-total=0
+FUNC_PASSED=0
+FUNC_FAILED=0
+FUNC_TOTAL=0
+
 for test in scripts/tests/test-func-*.sh; do
-    ((total++))
+    ((FUNC_TOTAL++))
     test_name=\$(basename "\$test")
-    printf "[%d/6] %s\n" "\$total" "\$test_name"
+    printf "[%d/7] %s\n" "\$FUNC_TOTAL" "\$test_name"
     if "\$test"; then
         printf "✓ PASS\n\n"
+        ((FUNC_PASSED++))
     else
         printf "✗ FAIL\n\n"
-        ((failed++))
+        ((FUNC_FAILED++))
+        FUNC_EXIT=1
     fi
 done
-if [ \$failed -eq 0 ]; then
-    echo "✓ Release test suite completed successfully"
+
+# Display summary
+echo ""
+echo "========================================"
+echo "  $SUITE_NAME SUITE SUMMARY" | tr "[:lower:]" "[:upper:]"
+echo "========================================"
+if [ "\$MEM_R2" != "N/A" ]; then
+    printf "  Memory Tests:     %s (R²=%s, range=%s MB)\n" "\$MEM_STATUS" "\$MEM_R2" "\$MEM_RANGE"
+else
+    printf "  Memory Tests:     %s\n" "\$MEM_STATUS"
+fi
+printf "  Functional Tests: %d/%d PASS" "\$FUNC_PASSED" "\$FUNC_TOTAL"
+if [ \$FUNC_FAILED -gt 0 ]; then
+    printf ", %d/%d FAIL\n" "\$FUNC_FAILED" "\$FUNC_TOTAL"
+else
+    printf "\n"
+fi
+echo ""
+if [ \$MEM_EXIT -eq 0 ] && [ \$FUNC_EXIT -eq 0 ]; then
+    echo "  Overall Result:   PASS"
+    echo "========================================"
     exit 0
 else
-    echo "✗ \$failed of \$total functional tests failed"
+    echo "  Overall Result:   FAIL"
+    echo "========================================"
     exit 1
 fi
 EOF

@@ -41,6 +41,13 @@ case "$PRESET_MODE" in
         PRESET_DELAY=100
         PRESET_VARIABLE=true
         ;;
+    "test")
+        # All 3 tests, variable 1-2 minutes, 100ms delay (for release-test)
+        PRESET_TESTS=("1" "2" "3")
+        PRESET_MAX_DURATION=2
+        PRESET_DELAY=100
+        PRESET_VARIABLE=true
+        ;;
     "deep")
         # All 3 tests, variable 1-20 minutes, 50ms delay
         PRESET_TESTS=("1" "2" "3")
@@ -56,7 +63,8 @@ case "$PRESET_MODE" in
         echo ""
         echo "Available presets:"
         echo "  standard  - All tests, variable 1-10min (default memory test)"
-        echo "  quick     - LayoutSwitcher, variable 1-4min (fast verification)"
+        echo "  quick     - LayoutSwitcher, variable 1-3min (fast verification)"
+        echo "  test      - All tests, variable 1-2min (for release-test suite)"
         echo "  deep      - All tests, variable 1-20min (thorough analysis)"
         echo ""
         echo "Usage: $0 [--preset <preset>]"
