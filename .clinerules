@@ -36,34 +36,47 @@
 - **Git history is the source of truth**: All attribution is preserved in commit messages where it belongs
 
 ## Git Workflow and Attribution
-- **CRITICAL**: Do NOT stage files (`git add`) without explicit user request
 - **CRITICAL**: Do NOT ask about committing until user explicitly requests a commit
 - **CRITICAL**: Do NOT push without explicit user request
-- **CRITICAL**: After completing a commit, RESET to default state - wait for explicit user request before any subsequent commits
-- **Multi-Commit Tasks**: If a task involves multiple commits:
-  - Each commit requires separate explicit user approval
-  - After commit #1, do NOT automatically proceed to commit #2
-  - Continue working if requested, but wait for user to request the next commit
-  - The workflow is: work → user requests commit → commit → work → user requests commit → commit (repeat)
-- **Rationale**: User prefers to stage files manually to watch incremental diffs during development
-- **When User Requests a Commit**:
-  1. Stage ALL modified/new/deleted files with `git add -A`
-  2. **Determine what needs inspection**:
-     - For files I worked on in this session: Use existing context from the conversation (no re-inspection needed)
-     - For files I don't have context about: Inspect those files to understand the changes
-  3. Prepare a comprehensive commit message covering ALL staged changes
-  4. Include "Created by Cline" or "Modified by Cline" attribution in commit BODY
-  5. Present the staged changes and proposed commit message to user
-  6. Use `ask_followup_question` to explicitly request approval to commit
-  7. Only execute `git commit` after receiving explicit user approval
-- **Efficiency Note**: Skip redundant file inspection when context is already known from the current session
-- **Attribution Format**: Include "Created by Cline" or "Modified by Cline" in commit message BODY, not in the title
-- **Example**:
-  ```
-  Add Debian support for shell scripts
-  
-  Modified by Cline
-  ```
+- **CRITICAL**: After completing a commit, STOP and RESET to default state - wait for explicit user request before any subsequent commits
+- **CRITICAL**: NEVER use `requires_approval=true` for git commit - ALWAYS use `ask_followup_question` workflow
+
+### When User Requests a Commit:
+1. **Stage ALL modified/new/deleted files** with `git add -A`
+2. **Determine what needs inspection**:
+   - For files I worked on in this session: Use existing context from the conversation (no re-inspection needed)
+   - For files I don't have context about: Inspect those files to understand the changes
+3. **Prepare comprehensive commit message** covering ALL staged changes
+   - Include "Created by Cline" or "Modified by Cline" attribution in commit BODY (not title)
+4. **Use `ask_followup_question`** (NOT `requires_approval=true`) to:
+   - Present the staged changes
+   - Present the proposed commit message
+   - Explicitly request approval to commit
+5. **Wait for user approval** - Do not proceed until user explicitly approves
+6. **Execute `git commit`** ONLY after receiving approval
+7. **STOP and RESET** - Return to default state, do not proceed with any further work
+
+### Multi-Commit Tasks:
+- After commit #1 completes: **STOP immediately**
+- Wait for user to explicitly request next piece of work
+- User may continue the same task context and request commit #2
+- Each commit requires the same approval workflow (steps 1-7 above)
+- **Never auto-proceed** to next commit or next piece of work
+- The workflow is: work → user requests commit → commit → **STOP** → user requests more work → work → user requests commit → commit → **STOP** (repeat)
+
+### Rationale:
+- User controls the commit workflow to review changes before they're committed
+- After each commit, user may want to test, review, or change direction
+- Continuing work without explicit request can lead to unwanted commits
+
+### Example Commit Message Format:
+```
+Add Debian support for shell scripts
+
+Modified by Cline
+```
+
+**Efficiency Note**: Skip redundant file inspection when context is already known from the current session
 
 ## Pull Request Workflow
 - **Branch Naming**: PRs must be created from properly named branches
