@@ -158,47 +158,6 @@ if [[ "$1" == "--local" ]]; then
     shift
 fi
 
-# Run functional tests helper
-run_functional_tests() {
-    local test_dir="$1"
-    local failed=0
-    local total=0
-    
-    # List of functional test scripts
-    local func_tests=(
-        "test-func-edge-cases.sh"
-        "test-func-gsettings.sh"
-        "test-func-layout-switching.sh"
-        "test-func-multi-monitor.sh"
-        "test-func-window-movement.sh"
-        "test-func-workspace.sh"
-        "test-func-zone-cycling.sh"
-    )
-    
-    printf "${COLOR_INFO}Running %d functional tests...${COLOR_RESET}\n" "${#func_tests[@]}"
-    printf "\n"
-    
-    for test in "${func_tests[@]}"; do
-        ((total++))
-        printf "${COLOR_INFO}[%d/%d]${COLOR_RESET} %s\n" "$total" "${#func_tests[@]}" "$test"
-        if "$test_dir/$test"; then
-            printf "${COLOR_SUCCESS}✓ PASS${COLOR_RESET}\n\n"
-        else
-            printf "${COLOR_ERROR}✗ FAIL${COLOR_RESET}\n\n"
-            ((failed++))
-        fi
-    done
-    
-    printf "${COLOR_INFO}Functional Tests Summary:${COLOR_RESET}\n"
-    if [ $failed -eq 0 ]; then
-        printf "${COLOR_SUCCESS}All %d tests passed${COLOR_RESET}\n" "$total"
-        return 0
-    else
-        printf "${COLOR_ERROR}%d of %d tests failed${COLOR_RESET}\n" "$failed" "$total"
-        return 1
-    fi
-}
-
 # Validate test type
 case "$TEST_TYPE" in
     mem|memory)
@@ -207,37 +166,21 @@ case "$TEST_TYPE" in
     func|functional)
         # Run all functional tests
         if [ "$RUN_LOCAL" = true ]; then
-            run_functional_tests "$SCRIPT_DIR/tests"
-            exit $?
+            printf "${COLOR_INFO}Running functional tests locally...${COLOR_RESET}\n"
+            printf "\n"
+            exec "$SCRIPT_DIR/tests/test-func-runner.sh" "$@"
         else
             detect_vm_for_test
             printf "\n"
             printf "${COLOR_SUCCESS}Executing functional tests on VM...${COLOR_RESET}\n"
             printf "\n"
-            # Run tests directly on VM
-            ssh -t "$VM_DOMAIN" "cd $REMOTE_PROJECT_DIR && bash -c '
-failed=0
-total=0
-for test in scripts/tests/test-func-*.sh; do
-    total=\$((total + 1))
-    test_name=\$(basename \"\$test\")
-    printf \"[%d/6] %s\n\" \"\$total\" \"\$test_name\"
-    if \"\$test\"; then
-        printf \"✓ PASS\n\n\"
-    else
-        printf \"✗ FAIL\n\n\"
-        failed=\$((failed + 1))
-    fi
-done
-
-if [ \$failed -eq 0 ]; then
-    printf \"Functional Tests Summary: All %d tests passed\n\" \"\$total\"
-    exit 0
-else
-    printf \"Functional Tests Summary: %d of %d tests failed\n\" \"\$failed\" \"\$total\"
-    exit 1
-fi
-'"
+            # Run test runner on VM with all arguments
+            # Build command with all args properly escaped
+            CMD="cd $REMOTE_PROJECT_DIR && ./scripts/tests/test-func-runner.sh"
+            for arg in "$@"; do
+                CMD="$CMD $(printf '%q' "$arg")"
+            done
+            ssh -t "$VM_DOMAIN" "$CMD"
             exit $?
         fi
         ;;
@@ -279,33 +222,28 @@ fi
             
             printf "\n"
             printf "${COLOR_INFO}=== Phase 2: Functional Tests ===${COLOR_RESET}\n"
-            FUNC_PASSED=0
-            FUNC_FAILED=0
-            FUNC_TOTAL=0
             
-            # Run functional tests and capture results
-            local func_tests=(
-                "test-func-edge-cases.sh"
-                "test-func-gsettings.sh"
-                "test-func-layout-switching.sh"
-                "test-func-multi-monitor.sh"
-                "test-func-window-movement.sh"
-                "test-func-workspace.sh"
-                "test-func-zone-cycling.sh"
-            )
+            # Run functional test runner and capture output
+            FUNC_OUTPUT=$(mktemp)
+            if "$SCRIPT_DIR/tests/test-func-runner.sh" 2>&1 | tee "$FUNC_OUTPUT"; then
+                FUNC_EXIT=0
+            else
+                FUNC_EXIT=1
+            fi
             
-            for test in "${func_tests[@]}"; do
-                ((FUNC_TOTAL++))
-                printf "${COLOR_INFO}[%d/%d]${COLOR_RESET} %s\n" "$FUNC_TOTAL" "${#func_tests[@]}" "$test"
-                if "$SCRIPT_DIR/tests/$test"; then
-                    printf "${COLOR_SUCCESS}✓ PASS${COLOR_RESET}\n\n"
-                    ((FUNC_PASSED++))
-                else
-                    printf "${COLOR_ERROR}✗ FAIL${COLOR_RESET}\n\n"
-                    ((FUNC_FAILED++))
-                    FUNC_EXIT=1
-                fi
-            done
+            # Parse results from runner output
+            FUNC_PASSED=$(grep -oP '(\d+) of \d+ tests (passed|failed)' "$FUNC_OUTPUT" | head -1 | grep -oP '^\d+' || echo "0")
+            FUNC_FAILED=$(grep -oP '\d+ of (\d+) tests failed' "$FUNC_OUTPUT" | grep -oP '\d+ of \K\d+' || echo "0")
+            FUNC_TOTAL=$((FUNC_PASSED + FUNC_FAILED))
+            
+            # If parsing failed, get total from "All X tests passed"
+            if [ "$FUNC_TOTAL" -eq 0 ]; then
+                FUNC_TOTAL=$(grep -oP 'All \K\d+(?= tests passed)' "$FUNC_OUTPUT" || echo "7")
+                FUNC_PASSED=$FUNC_TOTAL
+                FUNC_FAILED=0
+            fi
+            
+            rm -f "$FUNC_OUTPUT"
             
             # Display summary
             printf "\n"
@@ -361,23 +299,28 @@ rm -f "\$MEM_OUTPUT"
 
 echo ""
 echo "=== Phase 2: Functional Tests ==="
-FUNC_PASSED=0
-FUNC_FAILED=0
-FUNC_TOTAL=0
 
-for test in scripts/tests/test-func-*.sh; do
-    ((FUNC_TOTAL++))
-    test_name=\$(basename "\$test")
-    printf "[%d/7] %s\n" "\$FUNC_TOTAL" "\$test_name"
-    if "\$test"; then
-        printf "✓ PASS\n\n"
-        ((FUNC_PASSED++))
-    else
-        printf "✗ FAIL\n\n"
-        ((FUNC_FAILED++))
-        FUNC_EXIT=1
-    fi
-done
+# Run functional test runner and capture output
+FUNC_OUTPUT=\$(mktemp)
+if ./scripts/tests/test-func-runner.sh 2>&1 | tee "\$FUNC_OUTPUT"; then
+    FUNC_EXIT=0
+else
+    FUNC_EXIT=1
+fi
+
+# Parse results from runner output
+FUNC_PASSED=\$(grep -oP '(\d+) of \d+ tests (passed|failed)' "\$FUNC_OUTPUT" | head -1 | grep -oP '^\d+' || echo "0")
+FUNC_FAILED=\$(grep -oP '\d+ of (\d+) tests failed' "\$FUNC_OUTPUT" | grep -oP '\d+ of \K\d+' || echo "0")
+FUNC_TOTAL=\$((FUNC_PASSED + FUNC_FAILED))
+
+# If parsing failed, get total from "All X tests passed"
+if [ "\$FUNC_TOTAL" -eq 0 ]; then
+    FUNC_TOTAL=\$(grep -oP 'All \K\d+(?= tests passed)' "\$FUNC_OUTPUT" || echo "7")
+    FUNC_PASSED=\$FUNC_TOTAL
+    FUNC_FAILED=0
+fi
+
+rm -f "\$FUNC_OUTPUT"
 
 # Display summary
 echo ""
