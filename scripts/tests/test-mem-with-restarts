@@ -55,10 +55,17 @@ case "$PRESET_MODE" in
         PRESET_DELAY=100
         PRESET_VARIABLE=true
         ;;
-    "test")
-        # All 3 tests, variable 1-2 minutes, 100ms delay (for release-test)
-        PRESET_TESTS=("1" "2" "3")
+    "fast")
+        # LayoutSwitcher only, variable 1-2 minutes, 100ms delay (fastest option)
+        PRESET_TESTS=("2")
         PRESET_MAX_DURATION=2
+        PRESET_DELAY=100
+        PRESET_VARIABLE=true
+        ;;
+    "test")
+        # All 3 tests, variable 1-3 minutes, 100ms delay (for release-test)
+        PRESET_TESTS=("1" "2" "3")
+        PRESET_MAX_DURATION=3
         PRESET_DELAY=100
         PRESET_VARIABLE=true
         ;;
@@ -78,7 +85,8 @@ case "$PRESET_MODE" in
         echo "Available presets:"
         echo "  standard  - All tests, variable 1-10min (default memory test)"
         echo "  quick     - LayoutSwitcher, variable 1-3min (fast verification)"
-        echo "  test      - All tests, variable 1-2min (for release-test suite)"
+        echo "  fast      - LayoutSwitcher, variable 1-2min (fastest option)"
+        echo "  test      - All tests, variable 1-3min (for release-test suite)"
         echo "  deep      - All tests, variable 1-20min (thorough analysis)"
         echo ""
         echo "Usage: $0 [--preset <preset>]"
@@ -103,6 +111,12 @@ declare -a RESULTS_START_MEM
 declare -a RESULTS_FINAL_MEM
 declare -a RESULTS_DEVIATION
 TEMP_RESULT_FILE="/tmp/zoned-test-result-$$"
+
+# Batch results storage (for multiple tests)
+declare -a BATCH_TEST_NAMES
+declare -a BATCH_AVG_INIT_COSTS
+declare -a BATCH_FINAL_RANGES
+declare -a BATCH_R_SQUARED
 
 # Display header
 if [ -z "$PRESET_MODE" ]; then
@@ -530,14 +544,187 @@ for test_choice in "${TEST_CHOICES[@]}"; do
         done
         echo "========================================"
         
+        # Capture batch statistics for this test
+        BATCH_TEST_NAMES+=("$TEST_NAME")
+        
+        # Calculate and store average init cost
+        if [ ${#NUMERIC_INIT_COSTS[@]} -gt 0 ]; then
+            sum_init=0
+            for val in "${NUMERIC_INIT_COSTS[@]}"; do
+                sum_init=$(echo "$sum_init + $val" | bc)
+            done
+            batch_avg_init=$(echo "scale=1; $sum_init / ${#NUMERIC_INIT_COSTS[@]}" | bc)
+            BATCH_AVG_INIT_COSTS+=("$batch_avg_init")
+        else
+            BATCH_AVG_INIT_COSTS+=("N/A")
+        fi
+        
+        # Calculate and store final range
+        if [ ${#NUMERIC_FINAL_MEM[@]} -gt 1 ]; then
+            min_final=${NUMERIC_FINAL_MEM[0]}
+            max_final=${NUMERIC_FINAL_MEM[0]}
+            for val in "${NUMERIC_FINAL_MEM[@]}"; do
+                if (( $(echo "$val < $min_final" | bc -l) )); then
+                    min_final=$val
+                fi
+                if (( $(echo "$val > $max_final" | bc -l) )); then
+                    max_final=$val
+                fi
+            done
+            batch_final_range=$(echo "scale=1; $max_final - $min_final" | bc)
+            BATCH_FINAL_RANGES+=("$batch_final_range")
+        else
+            BATCH_FINAL_RANGES+=("N/A")
+        fi
+        
+        # Calculate and store R² if available
+        if [ -n "$r_squared" ]; then
+            BATCH_R_SQUARED+=("$r_squared")
+        else
+            BATCH_R_SQUARED+=("N/A")
+        fi
+        
         # Reset results for next test
         RESULTS_MB=()
         RESULTS_CYCLES=()
         RESULTS_START_MEM=()
         RESULTS_FINAL_MEM=()
         RESULTS_DEVIATION=()
+        
+        # Clear numeric arrays and r_squared for next test
+        NUMERIC_INIT_COSTS=()
+        NUMERIC_FINAL_MEM=()
+        NUMERIC_START_MEM=()
+        NUMERIC_CYCLES=()
+        NUMERIC_DEVIATION=()
+        r_squared=""
     fi
 done
+
+# Populate BATCH arrays for single-test runs (needed for JSON output)
+if [ ${#TEST_CHOICES[@]} -eq 1 ] && [ ${#BATCH_TEST_NAMES[@]} -eq 0 ]; then
+    # This is a single test run - populate BATCH arrays from RESULTS arrays
+    BATCH_TEST_NAMES+=("$TEST_NAME")
+    
+    # Build NUMERIC arrays first (same as in multi-test path)
+    NUMERIC_INIT_COSTS=()
+    NUMERIC_FINAL_MEM=()
+    NUMERIC_START_MEM=()
+    NUMERIC_CYCLES=()
+    NUMERIC_DEVIATION=()
+    
+    for i in $(seq 0 $((num_runs - 1))); do
+        if [[ "${RESULTS_MB[$i]}" =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then
+            NUMERIC_INIT_COSTS+=("${RESULTS_MB[$i]}")
+        fi
+        if [[ "${RESULTS_FINAL_MEM[$i]}" =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then
+            NUMERIC_FINAL_MEM+=("${RESULTS_FINAL_MEM[$i]}")
+        fi
+        if [[ "${RESULTS_START_MEM[$i]}" =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then
+            NUMERIC_START_MEM+=("${RESULTS_START_MEM[$i]}")
+        fi
+        if [[ "${RESULTS_CYCLES[$i]}" =~ ^[0-9]+$ ]]; then
+            NUMERIC_CYCLES+=("${RESULTS_CYCLES[$i]}")
+        fi
+        if [[ "${RESULTS_DEVIATION[$i]}" =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then
+            NUMERIC_DEVIATION+=("${RESULTS_DEVIATION[$i]}")
+        fi
+    done
+    
+    # Calculate and store average init cost
+    if [ ${#NUMERIC_INIT_COSTS[@]} -gt 0 ]; then
+        sum_init=0
+        for val in "${NUMERIC_INIT_COSTS[@]}"; do
+            sum_init=$(echo "$sum_init + $val" | bc)
+        done
+        batch_avg_init=$(echo "scale=1; $sum_init / ${#NUMERIC_INIT_COSTS[@]}" | bc)
+        BATCH_AVG_INIT_COSTS+=("$batch_avg_init")
+    else
+        BATCH_AVG_INIT_COSTS+=("N/A")
+    fi
+    
+    # Calculate and store final range
+    if [ ${#NUMERIC_FINAL_MEM[@]} -gt 1 ]; then
+        min_final=${NUMERIC_FINAL_MEM[0]}
+        max_final=${NUMERIC_FINAL_MEM[0]}
+        for val in "${NUMERIC_FINAL_MEM[@]}"; do
+            if (( $(echo "$val < $min_final" | bc -l) )); then
+                min_final=$val
+            fi
+            if (( $(echo "$val > $max_final" | bc -l) )); then
+                max_final=$val
+            fi
+        done
+        batch_final_range=$(echo "scale=1; $max_final - $min_final" | bc)
+        BATCH_FINAL_RANGES+=("$batch_final_range")
+    else
+        BATCH_FINAL_RANGES+=("N/A")
+    fi
+    
+    # Calculate R² for single test if we have enough data
+    if [ ${#NUMERIC_CYCLES[@]} -eq ${#NUMERIC_DEVIATION[@]} ] && [ ${#NUMERIC_CYCLES[@]} -gt 2 ] && $VARIABLE_DURATION; then
+        # Calculate R² using same logic as in final report section
+        sum_x=0
+        sum_y=0
+        sum_xy=0
+        sum_x2=0
+        n=${#NUMERIC_CYCLES[@]}
+        
+        for i in $(seq 0 $((n - 1))); do
+            x=${NUMERIC_CYCLES[$i]}
+            y=$(echo "${NUMERIC_DEVIATION[$i]}" | sed 's/^+//')
+            sum_x=$(echo "$sum_x + $x" | bc -l)
+            sum_y=$(echo "$sum_y + $y" | bc -l)
+            xy=$(echo "$x * $y" | bc -l)
+            sum_xy=$(echo "$sum_xy + $xy" | bc -l)
+            x2=$(echo "$x * $x" | bc -l)
+            sum_x2=$(echo "$sum_x2 + $x2" | bc -l)
+        done
+        
+        n_sum_xy=$(echo "$n * $sum_xy" | bc -l)
+        sum_x_sum_y=$(echo "$sum_x * $sum_y" | bc -l)
+        numerator=$(echo "$n_sum_xy - $sum_x_sum_y" | bc -l)
+        
+        n_sum_x2=$(echo "$n * $sum_x2" | bc -l)
+        sum_x_squared=$(echo "$sum_x * $sum_x" | bc -l)
+        denominator=$(echo "$n_sum_x2 - $sum_x_squared" | bc -l)
+        
+        if (( $(echo "$denominator != 0" | bc -l) )); then
+            slope=$(echo "scale=6; $numerator / $denominator" | bc -l)
+            avg_y=$(echo "scale=3; $sum_y / $n" | bc -l)
+            avg_x=$(echo "scale=3; $sum_x / $n" | bc -l)
+            slope_avg_x=$(echo "$slope * $avg_x" | bc -l)
+            intercept=$(echo "scale=3; $avg_y - $slope_avg_x" | bc -l)
+            
+            ss_tot=0
+            ss_res=0
+            for i in $(seq 0 $((n - 1))); do
+                x=${NUMERIC_CYCLES[$i]}
+                y=$(echo "${NUMERIC_DEVIATION[$i]}" | sed 's/^+//')
+                slope_x=$(echo "$slope * $x" | bc -l)
+                y_pred=$(echo "scale=3; $intercept + $slope_x" | bc -l)
+                y_diff=$(echo "$y - $avg_y" | bc -l)
+                y_diff_sq=$(echo "$y_diff * $y_diff" | bc -l)
+                ss_tot=$(echo "$ss_tot + $y_diff_sq" | bc -l)
+                res=$(echo "$y - $y_pred" | bc -l)
+                res_sq=$(echo "$res * $res" | bc -l)
+                ss_res=$(echo "$ss_res + $res_sq" | bc -l)
+            done
+            
+            if (( $(echo "$ss_tot != 0" | bc -l) )); then
+                ss_ratio=$(echo "scale=6; $ss_res / $ss_tot" | bc -l)
+                r_squared=$(echo "scale=3; 1 - $ss_ratio" | bc -l)
+                BATCH_R_SQUARED+=("$r_squared")
+            else
+                BATCH_R_SQUARED+=("0")
+            fi
+        else
+            BATCH_R_SQUARED+=("N/A")
+        fi
+    else
+        BATCH_R_SQUARED+=("N/A")
+    fi
+fi
 
 # Clean up temp file
 rm -f "$TEMP_RESULT_FILE"
@@ -549,6 +736,48 @@ echo "========================================"
 echo "  FINAL REPORT"
 echo "========================================"
 echo ""
+
+# Write JSON output if JSON_OUTPUT is set
+if [ -n "$JSON_OUTPUT" ]; then
+    {
+        echo "{"
+        echo "  \"schema_version\": \"1.0\","
+        echo "  \"timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\","
+        echo "  \"preset\": \"${PRESET_MODE:-custom}\","
+        echo "  \"tests\": ["
+        
+        # Write each test
+        for i in $(seq 0 $((${#BATCH_TEST_NAMES[@]} - 1))); do
+            test_name="${BATCH_TEST_NAMES[$i]}"
+            avg_init="${BATCH_AVG_INIT_COSTS[$i]}"
+            final_range="${BATCH_FINAL_RANGES[$i]}"
+            r2="${BATCH_R_SQUARED[$i]}"
+            
+            # Convert N/A to null for JSON (numeric fields cannot have unquoted N/A)
+            avg_init_json=$([ "$avg_init" = "N/A" ] && echo "null" || echo "$avg_init")
+            final_range_json=$([ "$final_range" = "N/A" ] && echo "null" || echo "$final_range")
+            r2_json=$([ "$r2" = "N/A" ] && echo "null" || echo "$r2")
+            
+            [ $i -gt 0 ] && echo ","
+            echo "    {"
+            echo "      \"name\": \"$test_name\","
+            echo "      \"runs\": $num_runs,"
+            echo "      \"variable_duration\": $([ "$VARIABLE_DURATION" = "true" ] && echo "true" || echo "false"),"
+            echo "      \"duration_values\": [$(echo ${DURATIONS[@]} | tr ' ' ',')],"
+            echo "      \"statistics\": {"
+            echo "        \"avg_init_cost_mb\": ${avg_init_json},"
+            echo "        \"final_range_mb\": ${final_range_json},"
+            echo "        \"r_squared\": ${r2_json},"
+            echo "        \"status\": \"PASS\""
+            echo "      }"
+            echo -n "    }"
+        done
+        
+        echo ""
+        echo "  ]"
+        echo "}"
+    } > "$JSON_OUTPUT"
+fi
 echo "Test: $TEST_NAME"
 if $VARIABLE_DURATION; then
     echo "Duration: Variable (${DURATIONS[*]} minutes)"
@@ -745,23 +974,46 @@ if [ ${#NUMERIC_FINAL_MEM[@]} -gt 1 ]; then
         # High spread detected - check if it's correlated (R² > 0.8)
         if [ -n "$r_squared" ] && (( $(echo "$r_squared > 0.8" | bc -l) )); then
             echo -e "${RED}FAIL: Memory leak detected (spread ${final_range} MB, R²=${r_squared})${NC}"
-            send_notification "FAIL" "Test with Restarts FAILED" "$num_runs runs: Leak confirmed (R²=${r_squared})"
         else
             # High spread but low correlation = measurement noise
             echo -e "${YELLOW}WARN: High memory variance but no correlation (spread ${final_range} MB, R²=${r_squared:-N/A})${NC}"
             echo -e "${YELLOW}This indicates measurement noise, not a systematic leak${NC}"
-            send_notification "WARN" "Test with Restarts Warning" "$num_runs runs: Noisy variance (${final_range} MB)"
         fi
     elif (( $(echo "$final_range > 10.0" | bc -l) )); then
         echo -e "${YELLOW}WARN: Moderate memory variability (${final_range} MB spread)${NC}"
         if [ -n "$r_squared" ]; then
             echo -e "${YELLOW}R²=${r_squared} suggests $([ $(echo "$r_squared > 0.8" | bc -l) -eq 1 ] && echo "correlation" || echo "no correlation")${NC}"
         fi
-        send_notification "WARN" "Test with Restarts Warning" "$num_runs runs: Moderate variance"
     else
         echo -e "${GREEN}PASS: Memory stable across runs (${final_range} MB variance)${NC}"
-        send_notification "PASS" "Test with Restarts Complete" "$num_runs runs: Memory stable"
     fi
+fi
+
+# Output batch summary if multiple tests were run
+if [ ${#BATCH_TEST_NAMES[@]} -gt 0 ]; then
+    echo ""
+    echo ""
+    echo "========================================"
+    echo "  BATCH SUMMARY (All Tests)"
+    echo "========================================"
+    echo ""
+    
+    # Display aggregate statistics
+    for i in $(seq 0 $((${#BATCH_TEST_NAMES[@]} - 1))); do
+        test_name="${BATCH_TEST_NAMES[$i]}"
+        avg_init="${BATCH_AVG_INIT_COSTS[$i]}"
+        final_range="${BATCH_FINAL_RANGES[$i]}"
+        r2="${BATCH_R_SQUARED[$i]}"
+        
+        echo "Test: $test_name"
+        printf "  Average init cost:   %s MB\n" "$avg_init"
+        printf "  Final memory range:  %s MB spread" "$final_range"
+        if [ "$r2" != "N/A" ]; then
+            printf " (R²=%s)" "$r2"
+        fi
+        printf "\n"
+        echo ""
+    done
 fi
 
 echo "========================================"

@@ -13,6 +13,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Source the shared VM detection library
 source "$SCRIPT_DIR/lib/vm-detect.sh"
 
+# Source test setup library for send_notification function
+source "$SCRIPT_DIR/tests/lib/setup.sh"
+
 # Color codes
 COLOR_RESET='\033[0m'
 COLOR_INFO='\033[36m'
@@ -151,12 +154,25 @@ if [[ -z "$TEST_TYPE" ]]; then
 fi
 shift
 
-# Check for --local flag
+# Check for --local and --no-cleanup flags
 RUN_LOCAL=false
-if [[ "$1" == "--local" ]]; then
-    RUN_LOCAL=true
-    shift
-fi
+NO_CLEANUP=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --local)
+            RUN_LOCAL=true
+            shift
+            ;;
+        --no-cleanup)
+            NO_CLEANUP=true
+            shift
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
 
 # Validate test type
 case "$TEST_TYPE" in
@@ -201,155 +217,166 @@ case "$TEST_TYPE" in
         fi
         printf "\n"
         
+        # Show early confirmation if --no-cleanup is set
+        if [ "$NO_CLEANUP" = "true" ]; then
+            printf "${COLOR_INFO}📌 Data will not be cleaned up after tests${COLOR_RESET}\n"
+            printf "\n"
+        fi
+        
         if [ "$RUN_LOCAL" = true ]; then
             # Local execution
             MEM_EXIT=0
             FUNC_EXIT=0
             MEM_OUTPUT=$(mktemp)
+            FUNC_OUTPUT=$(mktemp)
+            MEM_JSON=$(mktemp --suffix=.json)
+            FUNC_JSON=$(mktemp --suffix=.json)
             
             printf "${COLOR_INFO}=== Phase 1: Memory Tests ===${COLOR_RESET}\n"
-            if ./scripts/tests/test-mem-with-restarts --preset "$MEM_PRESET" 2>&1 | tee "$MEM_OUTPUT"; then
+            if JSON_OUTPUT="$MEM_JSON" ./scripts/tests/test-mem-with-restarts --preset "$MEM_PRESET" 2>&1 | tee "$MEM_OUTPUT"; then
                 MEM_STATUS="PASS"
+                MEM_EXIT=0
             else
-                MEM_STATUS="FAIL"
-                MEM_EXIT=1
+                MEM_EXIT=$?
+                if grep -q "WARN:" "$MEM_OUTPUT"; then
+                    MEM_STATUS="WARN"
+                else
+                    MEM_STATUS="FAIL"
+                fi
             fi
-            
-            # Extract memory test summary info
-            MEM_R2=$(grep -oP 'R²=\K[0-9.]+' "$MEM_OUTPUT" | tail -1 || echo "N/A")
-            MEM_RANGE=$(grep -oP 'variance.*\K[0-9.]+(?= MB)' "$MEM_OUTPUT" | tail -1 || echo "N/A")
-            rm -f "$MEM_OUTPUT"
             
             printf "\n"
             printf "${COLOR_INFO}=== Phase 2: Functional Tests ===${COLOR_RESET}\n"
             
-            # Run functional test runner and capture output
-            FUNC_OUTPUT=$(mktemp)
-            if "$SCRIPT_DIR/tests/test-func-runner.sh" 2>&1 | tee "$FUNC_OUTPUT"; then
+            # Run functional test runner with JSON output
+            if JSON_OUTPUT="$FUNC_JSON" "$SCRIPT_DIR/tests/test-func-runner.sh" 2>&1 | tee "$FUNC_OUTPUT"; then
                 FUNC_EXIT=0
             else
                 FUNC_EXIT=1
             fi
             
-            # Parse results from runner output
-            FUNC_PASSED=$(grep -oP '(\d+) of \d+ tests (passed|failed)' "$FUNC_OUTPUT" | head -1 | grep -oP '^\d+' || echo "0")
-            FUNC_FAILED=$(grep -oP '\d+ of (\d+) tests failed' "$FUNC_OUTPUT" | grep -oP '\d+ of \K\d+' || echo "0")
-            FUNC_TOTAL=$((FUNC_PASSED + FUNC_FAILED))
+            # Use JSON-based formatter with named parameters
+            "$SCRIPT_DIR/tests/lib/format-release-summary-json.sh" --mem "$MEM_JSON" --func "$FUNC_JSON" --suite "$SUITE_NAME"
+            SUMMARY_EXIT=$?
             
-            # If parsing failed, get total from "All X tests passed"
-            if [ "$FUNC_TOTAL" -eq 0 ]; then
-                FUNC_TOTAL=$(grep -oP 'All \K\d+(?= tests passed)' "$FUNC_OUTPUT" || echo "7")
-                FUNC_PASSED=$FUNC_TOTAL
-                FUNC_FAILED=0
-            fi
-            
-            rm -f "$FUNC_OUTPUT"
-            
-            # Display summary
-            printf "\n"
-            printf "========================================\n"
-            printf "  %s SUITE SUMMARY\n" "$(echo $SUITE_NAME | tr '[:lower:]' '[:upper:]')"
-            printf "========================================\n"
-            if [ "$MEM_R2" != "N/A" ]; then
-                printf "  Memory Tests:     %s (R²=%s, range=%s MB)\n" "$MEM_STATUS" "$MEM_R2" "$MEM_RANGE"
+            # Send notification based on test results
+            if [ $SUMMARY_EXIT -eq 0 ]; then
+                send_notification "PASS" "$(echo $SUITE_NAME | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g') Complete" "All tests passed"
             else
-                printf "  Memory Tests:     %s\n" "$MEM_STATUS"
+                send_notification "FAIL" "$(echo $SUITE_NAME | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g') Failed" "One or more tests failed"
             fi
-            printf "  Functional Tests: %d/%d PASS" "$FUNC_PASSED" "$FUNC_TOTAL"
-            if [ $FUNC_FAILED -gt 0 ]; then
-                printf ", %d/%d FAIL\n" "$FUNC_FAILED" "$FUNC_TOTAL"
+            
+            # Clean up temp files (unless --no-cleanup)
+            if [ "$NO_CLEANUP" != "true" ]; then
+                rm -f "$MEM_OUTPUT" "$FUNC_OUTPUT" "$MEM_JSON" "$FUNC_JSON"
             else
                 printf "\n"
+                printf "${COLOR_INFO}Test outputs saved:${COLOR_RESET}\n"
+                printf "  Memory (text): %s\n" "$MEM_OUTPUT"
+                printf "  Memory (JSON): %s\n" "$MEM_JSON"
+                printf "  Func (text):   %s\n" "$FUNC_OUTPUT"
+                printf "  Func (JSON):   %s\n" "$FUNC_JSON"
             fi
-            printf "\n"
-            if [ $MEM_EXIT -eq 0 ] && [ $FUNC_EXIT -eq 0 ]; then
-                printf "  Overall Result:   ${COLOR_SUCCESS}PASS${COLOR_RESET}\n"
-                printf "========================================\n"
-                exit 0
-            else
-                printf "  Overall Result:   ${COLOR_ERROR}FAIL${COLOR_RESET}\n"
-                printf "========================================\n"
-                exit 1
-            fi
+            
+            exit $SUMMARY_EXIT
         else
-            # VM execution with summary
+            # VM execution with enhanced summary
             detect_vm_for_test
             printf "\n"
             printf "${COLOR_SUCCESS}Executing $SUITE_NAME suite on VM...${COLOR_RESET}\n"
             printf "\n"
             
-            ssh -t "$VM_DOMAIN" << EOF
+            # Capture SSH output to parse file paths
+            SSH_OUTPUT=$(mktemp)
+            ssh -t "$VM_DOMAIN" << EOSSH 2>&1 | tee "$SSH_OUTPUT"
 cd $REMOTE_PROJECT_DIR
+
+# Set NO_CLEANUP from host
+NO_CLEANUP=$NO_CLEANUP
+
 MEM_EXIT=0
 FUNC_EXIT=0
 MEM_OUTPUT=\$(mktemp)
+FUNC_OUTPUT=\$(mktemp)
+MEM_JSON=\$(mktemp --suffix=.json)
+FUNC_JSON=\$(mktemp --suffix=.json)
 
 echo "=== Phase 1: Memory Tests ==="
-if ./scripts/tests/test-mem-with-restarts --preset "$MEM_PRESET" 2>&1 | tee "\$MEM_OUTPUT"; then
-    MEM_STATUS="PASS"
-else
-    MEM_STATUS="FAIL"
-    MEM_EXIT=1
-fi
-
-# Extract memory test summary
-MEM_R2=\$(grep -oP "R²=\K[0-9.]+" "\$MEM_OUTPUT" | tail -1 || echo "N/A")
-MEM_RANGE=\$(grep -oP "variance.*\K[0-9.]+(?= MB)" "\$MEM_OUTPUT" | tail -1 || echo "N/A")
-rm -f "\$MEM_OUTPUT"
+JSON_OUTPUT="\$MEM_JSON" ./scripts/tests/test-mem-with-restarts --preset $MEM_PRESET 2>&1 | tee "\$MEM_OUTPUT"
+MEM_EXIT=\${PIPESTATUS[0]}
 
 echo ""
 echo "=== Phase 2: Functional Tests ==="
 
-# Run functional test runner and capture output
-FUNC_OUTPUT=\$(mktemp)
-if ./scripts/tests/test-func-runner.sh 2>&1 | tee "\$FUNC_OUTPUT"; then
-    FUNC_EXIT=0
+# Run functional test runner with JSON output
+JSON_OUTPUT="\$FUNC_JSON" ./scripts/tests/test-func-runner.sh 2>&1 | tee "\$FUNC_OUTPUT"
+FUNC_EXIT=\${PIPESTATUS[0]}
+
+# Use JSON-based formatter with named parameters
+./scripts/tests/lib/format-release-summary-json.sh --mem "\$MEM_JSON" --func "\$FUNC_JSON" --suite "$SUITE_NAME"
+SUMMARY_EXIT=\$?
+
+# Send notification based on test results
+if [ \$SUMMARY_EXIT -eq 0 ]; then
+    send_notification "PASS" "$(echo $SUITE_NAME | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g') Complete" "All tests passed"
 else
-    FUNC_EXIT=1
+    send_notification "FAIL" "$(echo $SUITE_NAME | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g') Failed" "One or more tests failed"
 fi
 
-# Parse results from runner output
-FUNC_PASSED=\$(grep -oP '(\d+) of \d+ tests (passed|failed)' "\$FUNC_OUTPUT" | head -1 | grep -oP '^\d+' || echo "0")
-FUNC_FAILED=\$(grep -oP '\d+ of (\d+) tests failed' "\$FUNC_OUTPUT" | grep -oP '\d+ of \K\d+' || echo "0")
-FUNC_TOTAL=\$((FUNC_PASSED + FUNC_FAILED))
-
-# If parsing failed, get total from "All X tests passed"
-if [ "\$FUNC_TOTAL" -eq 0 ]; then
-    FUNC_TOTAL=\$(grep -oP 'All \K\d+(?= tests passed)' "\$FUNC_OUTPUT" || echo "7")
-    FUNC_PASSED=\$FUNC_TOTAL
-    FUNC_FAILED=0
-fi
-
-rm -f "\$FUNC_OUTPUT"
-
-# Display summary
-echo ""
-echo "========================================"
-echo "  $SUITE_NAME SUITE SUMMARY" | tr "[:lower:]" "[:upper:]"
-echo "========================================"
-if [ "\$MEM_R2" != "N/A" ]; then
-    printf "  Memory Tests:     %s (R²=%s, range=%s MB)\n" "\$MEM_STATUS" "\$MEM_R2" "\$MEM_RANGE"
+# Clean up or save files
+if [ "\$NO_CLEANUP" != "true" ]; then
+    rm -f "\$MEM_OUTPUT" "\$FUNC_OUTPUT" "\$MEM_JSON" "\$FUNC_JSON"
 else
-    printf "  Memory Tests:     %s\n" "\$MEM_STATUS"
+    echo ""
+    echo "Test outputs saved on VM:"
+    echo "  Memory (text): \$MEM_OUTPUT"
+    echo "  Memory (JSON): \$MEM_JSON"
+    echo "  Func (text):   \$FUNC_OUTPUT"
+    echo "  Func (JSON):   \$FUNC_JSON"
+    echo "##FILE_PATHS##\$MEM_OUTPUT|\$FUNC_OUTPUT|\$MEM_JSON|\$FUNC_JSON"
 fi
-printf "  Functional Tests: %d/%d PASS" "\$FUNC_PASSED" "\$FUNC_TOTAL"
-if [ \$FUNC_FAILED -gt 0 ]; then
-    printf ", %d/%d FAIL\n" "\$FUNC_FAILED" "\$FUNC_TOTAL"
-else
-    printf "\n"
-fi
-echo ""
-if [ \$MEM_EXIT -eq 0 ] && [ \$FUNC_EXIT -eq 0 ]; then
-    echo "  Overall Result:   PASS"
-    echo "========================================"
-    exit 0
-else
-    echo "  Overall Result:   FAIL"
-    echo "========================================"
-    exit 1
-fi
-EOF
-            exit $?
+
+exit \$SUMMARY_EXIT
+EOSSH
+            SSH_EXIT=$?
+            
+            # If --no-cleanup was used, parse file paths and copy to local machine
+            if [ "$NO_CLEANUP" = "true" ]; then
+                FILE_PATHS=$(grep "^##FILE_PATHS##" "$SSH_OUTPUT" | sed 's/^##FILE_PATHS##//' || echo "")
+                
+                if [ -n "$FILE_PATHS" ]; then
+                    VM_MEM_TXT=$(echo "$FILE_PATHS" | cut -d'|' -f1)
+                    VM_FUNC_TXT=$(echo "$FILE_PATHS" | cut -d'|' -f2)
+                    VM_MEM_JSON=$(echo "$FILE_PATHS" | cut -d'|' -f3)
+                    VM_FUNC_JSON=$(echo "$FILE_PATHS" | cut -d'|' -f4)
+                    
+                    printf "\n"
+                    printf "${COLOR_INFO}Copying test outputs to local machine...${COLOR_RESET}\n"
+                    
+                    # Copy all files from VM to local machine
+                    if scp "$VM_DOMAIN:$VM_MEM_TXT" /tmp/mem-output.txt 2>/dev/null && \
+                       scp "$VM_DOMAIN:$VM_FUNC_TXT" /tmp/func-output.txt 2>/dev/null && \
+                       scp "$VM_DOMAIN:$VM_MEM_JSON" /tmp/mem-results.json 2>/dev/null && \
+                       scp "$VM_DOMAIN:$VM_FUNC_JSON" /tmp/func-results.json 2>/dev/null; then
+                        printf "\n"
+                        printf "${COLOR_SUCCESS}Files copied to local machine:${COLOR_RESET}\n"
+                        printf "  Memory (text): /tmp/mem-output.txt\n"
+                        printf "  Memory (JSON): /tmp/mem-results.json\n"
+                        printf "  Func (text):   /tmp/func-output.txt\n"
+                        printf "  Func (JSON):   /tmp/func-results.json\n"
+                        printf "\n"
+                        printf "${COLOR_INFO}You can reformat with:${COLOR_RESET}\n"
+                        printf "  ./scripts/tests/lib/format-release-summary-json.sh /tmp/mem-results.json /tmp/func-results.json $SUITE_NAME\n"
+                    else
+                        printf "${COLOR_WARN}Warning: Could not copy files from VM${COLOR_RESET}\n"
+                    fi
+                fi
+            fi
+            
+            # Clean up temp file
+            rm -f "$SSH_OUTPUT"
+            
+            exit $SSH_EXIT
         fi
         ;;
     help|--help|-h)

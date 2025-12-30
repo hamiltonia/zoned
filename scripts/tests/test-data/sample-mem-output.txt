@@ -1,0 +1,929 @@
+========================================
+  VM Memory Leak Testing
+========================================
+
+  Running preset: test
+
+This script runs memory tests with GNOME Shell
+restarts between runs for clean state and
+statistical correlation analysis.
+
+
+  Configuration:
+    Test: unknown
+    Runs: 3
+    Duration: Variable (1 2 3 minutes)
+    Delay: 100ms
+
+**************************************
+  TIME ESTIMATE
+**************************************
+
+  Start time:        09:34 AM
+  Est. completion:   ~09:41 AM
+  Total duration:    ~6 minutes
+
+  Breakdown:
+    • Test runs                = 6 min
+    • Shell restarts           ~ 0 min
+
+**************************************
+  PRE-FLIGHT CHECKLIST
+**************************************
+
+Before starting the test, ensure:
+  1. You have deployed latest code: make vm-install
+
+The script will automatically restart GNOME Shell before testing.
+
+
+========================================
+  PRE-FLIGHT VERIFICATION
+========================================
+  Testing extension initialization...
+
+========================================
+  Extension Initialization Verification
+========================================
+
+  Step 0: Checking D-Bus debugging...
+✓ D-Bus debugging already enabled
+
+  Step 1: Disabling extension...
+✓ Extension disabled
+
+  Step 2: Restarting GNOME Shell...
+[1;33mSSH session detected, using DISPLAY=:0[0m
+[0;32mRestarting GNOME Shell...[0m
+Waiting 3s for GNOME Shell to stabilize...
+Waiting additional 5s for full stabilization...
+[0;32m✓ GNOME Shell restart complete[0m
+✓ GNOME Shell restarted
+
+  Step 3: Starting signal monitor and enabling extension...
+✓ Extension enabled, monitoring for signal...
+
+  Step 4: Waiting for InitCompleted signal (timeout: 10s)...
+
+✓ Extension initialized successfully
+Verifying D-Bus interface...
+✓ D-Bus interface verified (attempt 1)
+
+========================================
+  [0;32mVERIFICATION PASSED[0m
+========================================
+
+Extension initialized successfully and is ready for testing.
+
+
+  ✓ Pre-flight verification passed
+========================================
+
+========================================
+  INITIAL RESTART FOR RUN 1
+========================================
+  Restarting GNOME Shell to ensure consistent state...
+  All runs will use: restart → auto-enable → test
+
+[1;33mSSH session detected, using DISPLAY=:0[0m
+[0;32mRestarting GNOME Shell...[0m
+Waiting 3s for GNOME Shell to stabilize...
+Waiting additional 5s for full stabilization...
+[0;32m✓ GNOME Shell restart complete[0m
+  ✓ GNOME Shell restarted successfully
+  ✓ Extension loaded
+  Forcing garbage collection to stabilize memory...
+  ✓ Garbage collection complete
+  ✓ Memory stabilized, ready for testing
+========================================
+
+
+========================================
+  STARTING TEST: Enable/Disable
+========================================
+
+
+=========================================
+  PROGRESS: Starting Run 1 of 3 (1 min)
+=========================================
+  Completed: 0/3 (0%) | Current: 09:35 AM | ETA: ~09:41 AM
+=========================================
+
+  Resetting resource tracking...
+  ✓ Tracking reset
+========================================
+  Zoned Long-Running Test Suite
+========================================
+
+Select test:
+  1) Enable/Disable Cycles
+  2) LayoutSwitcher (Show/Hide)
+  3) Zone Overlay (Show/Hide)
+
+
+
+  Test: Enable/Disable
+  Duration: 1 minutes
+  Delay: 100ms
+
+  Baseline memory: 399384 KB
+  Resource tracking enabled
+
+  Running warmup phase (1 cycle to load modules)...
+
+
+  Resource tracking reset
+  Warmup complete.
+  Initialization cost: 18584 KB (18.1 MB)
+
+  Starting enable/disable test...
+  Duration: 1 minutes, Delay: 100ms
+
+[00:32] Memory: +40720 KB | Cycles:    98 | Signals: 0 | Timers: 0
+[01:02] Memory: +45332 KB | Cycles:   195 | Signals: 0 | Timers: 0
+
+
+========================================
+  Final Report
+========================================
+Duration:      1m 3s
+Total cycles:  195
+
+Memory Results:
+  Baseline (pre-load):      390.0 MB
+  Init cost (one-time):      18.1 MB
+  Expected final:           408.1 MB (baseline + init)
+  Actual final:             452.4 MB
+  Deviation:                +44.2 MB
+
+Resource Tracking:
+  Leaked signals: 0
+  Leaked timers:  0
+
+[1;33mWARN: Memory deviation >15 MB from expected[0m
+[1;33mNote: Some variance is normal due to GC timing and background processes[0m
+========================================
+
+----------------------------------------
+  Run 1 (1 min) Result: 195 cycles [Final: 452.4 MB]
+----------------------------------------
+
+
+=========================================
+  GNOME SHELL RESTART (between runs)
+=========================================
+  Completed: Run 1
+  Restarting GNOME Shell before Run 2...
+  This ensures clean state for next test
+
+[1;33mSSH session detected, using DISPLAY=:0[0m
+[0;32mRestarting GNOME Shell...[0m
+Waiting 3s for GNOME Shell to stabilize...
+Waiting additional 5s for full stabilization...
+[0;32m✓ GNOME Shell restart complete[0m
+  ✓ GNOME Shell restarted successfully
+
+  Verifying D-Bus debugging status...
+  ✓ D-Bus debugging already enabled
+  ✓ Extension loaded, ready for Run 2
+=========================================
+
+
+=========================================
+  PROGRESS: Starting Run 2 of 3 (2 min)
+=========================================
+  Completed: 1/3 (33%) | Current: 09:36 AM | ETA: ~09:39 AM
+=========================================
+
+  Resetting resource tracking...
+  ✓ Tracking reset
+========================================
+  Zoned Long-Running Test Suite
+========================================
+
+Select test:
+  1) Enable/Disable Cycles
+  2) LayoutSwitcher (Show/Hide)
+  3) Zone Overlay (Show/Hide)
+
+
+
+  Test: Enable/Disable
+  Duration: 2 minutes
+  Delay: 100ms
+
+  Baseline memory: 401344 KB
+  Resource tracking enabled
+
+  Running warmup phase (1 cycle to load modules)...
+
+
+  Resource tracking reset
+  Warmup complete.
+  Initialization cost: 16028 KB (15.6 MB)
+
+  Starting enable/disable test...
+  Duration: 2 minutes, Delay: 100ms
+
+[00:31] Memory: +36432 KB | Cycles:    94 | Signals: 0 | Timers: 0
+[01:01] Memory: +47128 KB | Cycles:   190 | Signals: 0 | Timers: 0
+[01:31] Memory: +45992 KB | Cycles:   283 | Signals: 0 | Timers: 0
+[02:01] Memory: +46272 KB | Cycles:   377 | Signals: 0 | Timers: 0
+
+
+========================================
+  Final Report
+========================================
+Duration:      2m 2s
+Total cycles:  377
+
+Memory Results:
+  Baseline (pre-load):      391.9 MB
+  Init cost (one-time):      15.6 MB
+  Expected final:           407.5 MB (baseline + init)
+  Actual final:             452.7 MB
+  Deviation:                +45.1 MB
+
+Resource Tracking:
+  Leaked signals: 0
+  Leaked timers:  0
+
+[1;33mWARN: Memory deviation >15 MB from expected[0m
+[1;33mNote: Some variance is normal due to GC timing and background processes[0m
+========================================
+
+----------------------------------------
+  Run 2 (2 min) Result: 377 cycles [Final: 452.7 MB]
+----------------------------------------
+
+
+=========================================
+  GNOME SHELL RESTART (between runs)
+=========================================
+  Completed: Run 2
+  Restarting GNOME Shell before Run 3...
+  This ensures clean state for next test
+
+[1;33mSSH session detected, using DISPLAY=:0[0m
+[0;32mRestarting GNOME Shell...[0m
+Waiting 3s for GNOME Shell to stabilize...
+Waiting additional 5s for full stabilization...
+[0;32m✓ GNOME Shell restart complete[0m
+  ✓ GNOME Shell restarted successfully
+
+  Verifying D-Bus debugging status...
+  ✓ D-Bus debugging already enabled
+  ✓ Extension loaded, ready for Run 3
+=========================================
+
+
+=========================================
+  PROGRESS: Starting Run 3 of 3 (3 min)
+=========================================
+  Completed: 2/3 (66%) | Current: 09:38 AM | ETA: ~09:40 AM
+=========================================
+
+  Resetting resource tracking...
+  ✓ Tracking reset
+========================================
+  Zoned Long-Running Test Suite
+========================================
+
+Select test:
+  1) Enable/Disable Cycles
+  2) LayoutSwitcher (Show/Hide)
+  3) Zone Overlay (Show/Hide)
+
+
+
+  Test: Enable/Disable
+  Duration: 3 minutes
+  Delay: 100ms
+
+  Baseline memory: 399896 KB
+  Resource tracking enabled
+
+  Running warmup phase (1 cycle to load modules)...
+
+
+  Resource tracking reset
+  Warmup complete.
+  Initialization cost: 15868 KB (15.4 MB)
+
+  Starting enable/disable test...
+  Duration: 3 minutes, Delay: 100ms
+
+[00:31] Memory: +39116 KB | Cycles:    96 | Signals: 0 | Timers: 0
+[01:01] Memory: +41620 KB | Cycles:   192 | Signals: 0 | Timers: 0
+[01:31] Memory: +43224 KB | Cycles:   287 | Signals: 0 | Timers: 0
+[02:01] Memory: +46448 KB | Cycles:   381 | Signals: 0 | Timers: 0
+[02:31] Memory: +46816 KB | Cycles:   473 | Signals: 0 | Timers: 0
+[03:01] Memory: +47512 KB | Cycles:   566 | Signals: 0 | Timers: 0
+
+
+========================================
+  Final Report
+========================================
+Duration:      3m 2s
+Total cycles:  566
+
+Memory Results:
+  Baseline (pre-load):      390.5 MB
+  Init cost (one-time):      15.4 MB
+  Expected final:           406.0 MB (baseline + init)
+  Actual final:             452.4 MB
+  Deviation:                +46.4 MB
+
+Resource Tracking:
+  Leaked signals: 0
+  Leaked timers:  0
+
+[1;33mWARN: Memory deviation >15 MB from expected[0m
+[1;33mNote: Some variance is normal due to GC timing and background processes[0m
+========================================
+
+----------------------------------------
+  Run 3 (3 min) Result: 566 cycles [Final: 452.4 MB]
+----------------------------------------
+
+
+========================================
+  FINAL REPORT: Enable/Disable
+========================================
+
+Test: Enable/Disable
+Duration: Variable (1 2 3 minutes)
+Delay: 100ms per operation
+Runs: 3
+
+Results (start → final memory across runs):
+----------------------------------------
+  Run 1 (1 min): Start 390.0 MB → Final 452.4 MB  [Init cost: 18.1 MB, 195 cycles]
+  Run 2 (2 min): Start 391.9 MB → Final 452.7 MB  [Init cost: 15.6 MB, 377 cycles]
+  Run 3 (3 min): Start 390.5 MB → Final 452.4 MB  [Init cost: 15.4 MB, 566 cycles]
+========================================
+
+
+========================================
+  STARTING TEST: LayoutSwitcher
+========================================
+
+
+=========================================
+  PROGRESS: Starting Run 1 of 3 (1 min)
+=========================================
+  Completed: 0/3 (0%) | Current: 09:41 AM | ETA: ~09:41 AM
+=========================================
+
+  Resetting resource tracking...
+  ✓ Tracking reset
+========================================
+  Zoned Long-Running Test Suite
+========================================
+
+Select test:
+  1) Enable/Disable Cycles
+  2) LayoutSwitcher (Show/Hide)
+  3) Zone Overlay (Show/Hide)
+
+
+
+  Test: LayoutSwitcher
+  Duration: 1 minutes
+  Delay: 100ms
+
+  Baseline memory: 463292 KB
+  Resource tracking enabled
+
+  Running warmup phase (1 cycle to load modules)...
+
+
+  Resource tracking reset
+  Warmup complete.
+  Initialization cost: 8988 KB (8.7 MB)
+
+  Starting LayoutSwitcher test...
+  Duration: 1 minutes, Delay: 100ms
+
+[00:31] Memory: +76392 KB | Cycles:   156 | Signals: 0 | Timers: 0
+[01:01] Memory: +80640 KB | Cycles:   317 | Signals: 0 | Timers: 0
+
+
+========================================
+  Final Report
+========================================
+Duration:      1m 2s
+Total cycles:  317
+
+Memory Results:
+  Baseline (pre-load):      452.4 MB
+  Init cost (one-time):       8.7 MB
+  Expected final:           461.2 MB (baseline + init)
+  Actual final:             539.5 MB
+  Deviation:                +78.3 MB
+
+Resource Tracking:
+  Leaked signals: 0
+  Leaked timers:  0
+
+[1;33mWARN: Memory deviation >15 MB from expected[0m
+[1;33mNote: Some variance is normal due to GC timing and background processes[0m
+========================================
+
+----------------------------------------
+  Run 1 (1 min) Result: 317 cycles [Final: 539.5 MB]
+----------------------------------------
+
+
+=========================================
+  GNOME SHELL RESTART (between runs)
+=========================================
+  Completed: Run 1
+  Restarting GNOME Shell before Run 2...
+  This ensures clean state for next test
+
+[1;33mSSH session detected, using DISPLAY=:0[0m
+[0;32mRestarting GNOME Shell...[0m
+Waiting 3s for GNOME Shell to stabilize...
+Waiting additional 5s for full stabilization...
+[0;32m✓ GNOME Shell restart complete[0m
+  ✓ GNOME Shell restarted successfully
+
+  Verifying D-Bus debugging status...
+  ✓ D-Bus debugging already enabled
+  ✓ Extension loaded, ready for Run 2
+=========================================
+
+
+=========================================
+  PROGRESS: Starting Run 2 of 3 (2 min)
+=========================================
+  Completed: 1/3 (33%) | Current: 09:42 AM | ETA: ~09:59 AM
+=========================================
+
+  Resetting resource tracking...
+  ✓ Tracking reset
+========================================
+  Zoned Long-Running Test Suite
+========================================
+
+Select test:
+  1) Enable/Disable Cycles
+  2) LayoutSwitcher (Show/Hide)
+  3) Zone Overlay (Show/Hide)
+
+
+
+  Test: LayoutSwitcher
+  Duration: 2 minutes
+  Delay: 100ms
+
+  Baseline memory: 400072 KB
+  Resource tracking enabled
+
+  Running warmup phase (1 cycle to load modules)...
+
+
+  Resource tracking reset
+  Warmup complete.
+  Initialization cost: 18612 KB (18.1 MB)
+
+  Starting LayoutSwitcher test...
+  Duration: 2 minutes, Delay: 100ms
+
+[00:32] Memory: +87768 KB | Cycles:   163 | Signals: 0 | Timers: 0
+[01:02] Memory: +87752 KB | Cycles:   327 | Signals: 0 | Timers: 0
+[01:32] Memory: +92952 KB | Cycles:   491 | Signals: 0 | Timers: 0
+[02:02] Memory: +92964 KB | Cycles:   655 | Signals: 0 | Timers: 0
+
+
+========================================
+  Final Report
+========================================
+Duration:      2m 3s
+Total cycles:  655
+
+Memory Results:
+  Baseline (pre-load):      390.6 MB
+  Init cost (one-time):      18.1 MB
+  Expected final:           408.8 MB (baseline + init)
+  Actual final:             499.6 MB
+  Deviation:                +90.7 MB
+
+Resource Tracking:
+  Leaked signals: 0
+  Leaked timers:  0
+
+[1;33mWARN: Memory deviation >15 MB from expected[0m
+[1;33mNote: Some variance is normal due to GC timing and background processes[0m
+========================================
+
+----------------------------------------
+  Run 2 (2 min) Result: 655 cycles [Final: 499.6 MB]
+----------------------------------------
+
+
+=========================================
+  GNOME SHELL RESTART (between runs)
+=========================================
+  Completed: Run 2
+  Restarting GNOME Shell before Run 3...
+  This ensures clean state for next test
+
+[1;33mSSH session detected, using DISPLAY=:0[0m
+[0;32mRestarting GNOME Shell...[0m
+Waiting 3s for GNOME Shell to stabilize...
+Waiting additional 5s for full stabilization...
+[0;32m✓ GNOME Shell restart complete[0m
+  ✓ GNOME Shell restarted successfully
+
+  Verifying D-Bus debugging status...
+  ✓ D-Bus debugging already enabled
+  ✓ Extension loaded, ready for Run 3
+=========================================
+
+
+=========================================
+  PROGRESS: Starting Run 3 of 3 (3 min)
+=========================================
+  Completed: 2/3 (66%) | Current: 09:45 AM | ETA: ~09:50 AM
+=========================================
+
+  Resetting resource tracking...
+  ✓ Tracking reset
+========================================
+  Zoned Long-Running Test Suite
+========================================
+
+Select test:
+  1) Enable/Disable Cycles
+  2) LayoutSwitcher (Show/Hide)
+  3) Zone Overlay (Show/Hide)
+
+
+
+  Test: LayoutSwitcher
+  Duration: 3 minutes
+  Delay: 100ms
+
+  Baseline memory: 400044 KB
+  Resource tracking enabled
+
+  Running warmup phase (1 cycle to load modules)...
+
+
+  Resource tracking reset
+  Warmup complete.
+  Initialization cost: 18664 KB (18.2 MB)
+
+  Starting LayoutSwitcher test...
+  Duration: 3 minutes, Delay: 100ms
+
+[00:32] Memory: +82160 KB | Cycles:   163 | Signals: 0 | Timers: 0
+[01:02] Memory: +89308 KB | Cycles:   327 | Signals: 0 | Timers: 0
+[01:32] Memory: +91672 KB | Cycles:   491 | Signals: 0 | Timers: 0
+[02:02] Memory: +90620 KB | Cycles:   654 | Signals: 0 | Timers: 0
+[02:32] Memory: +92632 KB | Cycles:   818 | Signals: 0 | Timers: 0
+[03:02] Memory: +79760 KB | Cycles:   982 | Signals: 0 | Timers: 0
+
+
+========================================
+  Final Report
+========================================
+Duration:      3m 3s
+Total cycles:  982
+
+Memory Results:
+  Baseline (pre-load):      390.6 MB
+  Init cost (one-time):      18.2 MB
+  Expected final:           408.8 MB (baseline + init)
+  Actual final:             486.7 MB
+  Deviation:                +77.8 MB
+
+Resource Tracking:
+  Leaked signals: 0
+  Leaked timers:  0
+
+[1;33mWARN: Memory deviation >15 MB from expected[0m
+[1;33mNote: Some variance is normal due to GC timing and background processes[0m
+========================================
+
+----------------------------------------
+  Run 3 (3 min) Result: 982 cycles [Final: 486.7 MB]
+----------------------------------------
+
+
+========================================
+  FINAL REPORT: LayoutSwitcher
+========================================
+
+Test: LayoutSwitcher
+Duration: Variable (1 2 3 minutes)
+Delay: 100ms per operation
+Runs: 3
+
+Results (start → final memory across runs):
+----------------------------------------
+  Run 1 (1 min): Start 452.4 MB → Final 539.5 MB  [Init cost: 8.7 MB, 317 cycles]
+  Run 2 (2 min): Start 390.6 MB → Final 499.6 MB  [Init cost: 18.1 MB, 655 cycles]
+  Run 3 (3 min): Start 390.6 MB → Final 486.7 MB  [Init cost: 18.2 MB, 982 cycles]
+========================================
+
+
+========================================
+  STARTING TEST: Zone Overlay
+========================================
+
+
+=========================================
+  PROGRESS: Starting Run 1 of 3 (1 min)
+=========================================
+  Completed: 0/3 (0%) | Current: 09:48 AM | ETA: ~09:41 AM
+=========================================
+
+  Resetting resource tracking...
+  ✓ Tracking reset
+========================================
+  Zoned Long-Running Test Suite
+========================================
+
+Select test:
+  1) Enable/Disable Cycles
+  2) LayoutSwitcher (Show/Hide)
+  3) Zone Overlay (Show/Hide)
+
+
+
+  Test: Zone Overlay
+  Duration: 1 minutes
+  Delay: 100ms
+
+  Baseline memory: 498472 KB
+  Resource tracking enabled
+
+  Running warmup phase (1 cycle to load modules)...
+
+
+  Resource tracking reset
+  Warmup complete.
+  Initialization cost: 2360 KB (2.3 MB)
+
+  Starting Zone Overlay test...
+  Duration: 1 minutes, Delay: 100ms
+
+[00:31] Memory:  -9576 KB | Cycles:   175 | Signals: 0 | Timers: 0
+[01:01] Memory: -11316 KB | Cycles:   352 | Signals: 0 | Timers: 0
+
+
+========================================
+  Final Report
+========================================
+Duration:      1m 2s
+Total cycles:  352
+
+Memory Results:
+  Baseline (pre-load):      486.7 MB
+  Init cost (one-time):       2.3 MB
+  Expected final:           489.0 MB (baseline + init)
+  Actual final:             478.0 MB
+  Deviation:                -11.0 MB
+
+Resource Tracking:
+  Leaked signals: 0
+  Leaked timers:  0
+
+[0;32mPASS: Memory stable (deviation within normal range)[0m
+========================================
+
+----------------------------------------
+  Run 1 (1 min) Result: 352 cycles [Final: 478.0 MB]
+----------------------------------------
+
+
+=========================================
+  GNOME SHELL RESTART (between runs)
+=========================================
+  Completed: Run 1
+  Restarting GNOME Shell before Run 2...
+  This ensures clean state for next test
+
+[1;33mSSH session detected, using DISPLAY=:0[0m
+[0;32mRestarting GNOME Shell...[0m
+Waiting 3s for GNOME Shell to stabilize...
+Waiting additional 5s for full stabilization...
+[0;32m✓ GNOME Shell restart complete[0m
+  ✓ GNOME Shell restarted successfully
+
+  Verifying D-Bus debugging status...
+  ✓ D-Bus debugging already enabled
+  ✓ Extension loaded, ready for Run 2
+=========================================
+
+
+=========================================
+  PROGRESS: Starting Run 2 of 3 (2 min)
+=========================================
+  Completed: 1/3 (33%) | Current: 09:49 AM | ETA: ~10:18 AM
+=========================================
+
+  Resetting resource tracking...
+  ✓ Tracking reset
+========================================
+  Zoned Long-Running Test Suite
+========================================
+
+Select test:
+  1) Enable/Disable Cycles
+  2) LayoutSwitcher (Show/Hide)
+  3) Zone Overlay (Show/Hide)
+
+
+
+  Test: Zone Overlay
+  Duration: 2 minutes
+  Delay: 100ms
+
+  Baseline memory: 399912 KB
+  Resource tracking enabled
+
+  Running warmup phase (1 cycle to load modules)...
+
+
+  Resource tracking reset
+  Warmup complete.
+  Initialization cost: 1732 KB (1.6 MB)
+
+  Starting Zone Overlay test...
+  Duration: 2 minutes, Delay: 100ms
+
+[00:32] Memory:  -4564 KB | Cycles:   176 | Signals: 0 | Timers: 0
+[01:02] Memory:  -6644 KB | Cycles:   353 | Signals: 0 | Timers: 0
+[01:32] Memory:  -5948 KB | Cycles:   531 | Signals: 0 | Timers: 0
+[02:02] Memory:  -5896 KB | Cycles:   709 | Signals: 0 | Timers: 0
+
+
+========================================
+  Final Report
+========================================
+Duration:      2m 3s
+Total cycles:  709
+
+Memory Results:
+  Baseline (pre-load):      390.5 MB
+  Init cost (one-time):       1.6 MB
+  Expected final:           392.2 MB (baseline + init)
+  Actual final:             386.4 MB
+  Deviation:                 -5.7 MB
+
+Resource Tracking:
+  Leaked signals: 0
+  Leaked timers:  0
+
+[0;32mPASS: Memory stable (deviation within normal range)[0m
+========================================
+
+----------------------------------------
+  Run 2 (2 min) Result: 709 cycles [Final: 386.4 MB]
+----------------------------------------
+
+
+=========================================
+  GNOME SHELL RESTART (between runs)
+=========================================
+  Completed: Run 2
+  Restarting GNOME Shell before Run 3...
+  This ensures clean state for next test
+
+[1;33mSSH session detected, using DISPLAY=:0[0m
+[0;32mRestarting GNOME Shell...[0m
+Waiting 3s for GNOME Shell to stabilize...
+Waiting additional 5s for full stabilization...
+[0;32m✓ GNOME Shell restart complete[0m
+  ✓ GNOME Shell restarted successfully
+
+  Verifying D-Bus debugging status...
+  ✓ D-Bus debugging already enabled
+  ✓ Extension loaded, ready for Run 3
+=========================================
+
+
+=========================================
+  PROGRESS: Starting Run 3 of 3 (3 min)
+=========================================
+  Completed: 2/3 (66%) | Current: 09:51 AM | ETA: ~10:00 AM
+=========================================
+
+  Resetting resource tracking...
+  ✓ Tracking reset
+========================================
+  Zoned Long-Running Test Suite
+========================================
+
+Select test:
+  1) Enable/Disable Cycles
+  2) LayoutSwitcher (Show/Hide)
+  3) Zone Overlay (Show/Hide)
+
+
+
+  Test: Zone Overlay
+  Duration: 3 minutes
+  Delay: 100ms
+
+  Baseline memory: 400400 KB
+  Resource tracking enabled
+
+  Running warmup phase (1 cycle to load modules)...
+
+
+  Resource tracking reset
+  Warmup complete.
+  Initialization cost: 3004 KB (2.9 MB)
+
+  Starting Zone Overlay test...
+  Duration: 3 minutes, Delay: 100ms
+
+[00:32] Memory:  -4056 KB | Cycles:   177 | Signals: 0 | Timers: 0
+[01:02] Memory:  -6080 KB | Cycles:   354 | Signals: 0 | Timers: 0
+[01:32] Memory:  -5316 KB | Cycles:   532 | Signals: 0 | Timers: 0
+[02:02] Memory:  -5272 KB | Cycles:   709 | Signals: 0 | Timers: 0
+[02:32] Memory:  -4252 KB | Cycles:   887 | Signals: 0 | Timers: 0
+[03:02] Memory:  -4200 KB | Cycles:  1064 | Signals: 0 | Timers: 0
+
+
+========================================
+  Final Report
+========================================
+Duration:      3m 3s
+Total cycles:  1064
+
+Memory Results:
+  Baseline (pre-load):      391.0 MB
+  Init cost (one-time):       2.9 MB
+  Expected final:           393.9 MB (baseline + init)
+  Actual final:             389.8 MB
+  Deviation:                 -4.0 MB
+
+Resource Tracking:
+  Leaked signals: 0
+  Leaked timers:  0
+
+[0;32mPASS: Memory stable (deviation within normal range)[0m
+========================================
+
+----------------------------------------
+  Run 3 (3 min) Result: 1064 cycles [Final: 389.8 MB]
+----------------------------------------
+
+
+========================================
+  FINAL REPORT: Zone Overlay
+========================================
+
+Test: Zone Overlay
+Duration: Variable (1 2 3 minutes)
+Delay: 100ms per operation
+Runs: 3
+
+Results (start → final memory across runs):
+----------------------------------------
+  Run 1 (1 min): Start 486.7 MB → Final 478.0 MB  [Init cost: 2.3 MB, 352 cycles]
+  Run 2 (2 min): Start 390.5 MB → Final 386.4 MB  [Init cost: 1.6 MB, 709 cycles]
+  Run 3 (3 min): Start 391.0 MB → Final 389.8 MB  [Init cost: 2.9 MB, 1064 cycles]
+========================================
+
+
+========================================
+  FINAL REPORT
+========================================
+
+Test: Zone Overlay
+Duration: Variable (1 2 3 minutes)
+Delay: 100ms per operation
+Runs: 3
+
+Results (start → final memory across runs):
+----------------------------------------
+  Run 1 (1 min): Start  MB → Final  MB  [Init cost:  MB,  cycles]
+  Run 2 (2 min): Start  MB → Final  MB  [Init cost:  MB,  cycles]
+  Run 3 (3 min): Start  MB → Final  MB  [Init cost:  MB,  cycles]
+
+
+========================================
+  BATCH SUMMARY (All Tests)
+========================================
+
+Test: Enable/Disable
+  Average init cost:   N/A MB
+  Final memory range:  N/A MB spread
+
+Test: LayoutSwitcher
+  Average init cost:   N/A MB
+  Final memory range:  N/A MB spread
+
+Test: Zone Overlay
+  Average init cost:   N/A MB
+  Final memory range:  N/A MB spread
+
+========================================
+

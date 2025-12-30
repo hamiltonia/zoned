@@ -1,0 +1,272 @@
+
+Configuration:
+  Tests: 7 test(s) selected
+
+
+========================================
+  PRE-FLIGHT VERIFICATION
+========================================
+  Testing extension initialization...
+
+========================================
+  Extension Initialization Verification
+========================================
+
+  Step 0: Checking D-Bus debugging...
+✓ D-Bus debugging already enabled
+
+  Step 1: Disabling extension...
+✓ Extension disabled
+
+  Step 2: Restarting GNOME Shell...
+[1;33mSSH session detected, using DISPLAY=:0[0m
+[0;32mRestarting GNOME Shell...[0m
+Waiting 3s for GNOME Shell to stabilize...
+Waiting additional 5s for full stabilization...
+[0;32m✓ GNOME Shell restart complete[0m
+✓ GNOME Shell restarted
+
+  Step 3: Starting signal monitor and enabling extension...
+✓ Extension enabled, monitoring for signal...
+
+  Step 4: Waiting for InitCompleted signal (timeout: 10s)...
+
+✓ Extension initialized successfully
+Verifying D-Bus interface...
+✓ D-Bus interface verified (attempt 1)
+
+========================================
+  [0;32mVERIFICATION PASSED[0m
+========================================
+
+Extension initialized successfully and is ready for testing.
+
+  ✓ Pre-flight verification passed
+========================================
+
+Running 7 functional tests...
+
+[1/7] test-func-edge-cases.sh
+========================================
+  Edge Case Tests
+========================================
+
+  Initial layout: template-split
+
+
+Test 1: Invalid layout ID handling...
+[0;32m✓ PASS:[0m Invalid layout IDs rejected correctly
+
+Test 2: Zone cycling at boundaries...
+[0;32m✓ PASS:[0m Zone cycling wraps correctly at boundaries
+
+Test 3: Rapid toggle operations...
+[0;32m✓ PASS:[0m Extension responsive after rapid toggle operations
+
+Test 4: Window-related actions graceful handling...
+[0;32m✓ PASS:[0m get-focused-window-geometry returned expected response
+[0;32m✓ PASS:[0m D-Bus interface stable after window geometry query
+[0;32m✓ PASS:[0m get-current-zone-geometry handled gracefully
+
+Test 5: Double show/hide operations...
+[0;32m✓ PASS:[0m Double show/hide operations handled correctly
+
+Test 6: Invalid D-Bus action parameters...
+[0;32m✓ PASS:[0m Invalid parameters handled gracefully
+
+Test 7: Extreme direction values...
+[0;32m✓ PASS:[0m Extreme direction values handled correctly
+
+Test 8: Concurrent-like rapid operations...
+[0;32m✓ PASS:[0m Concurrent operations handled without crash
+
+Final state validation...
+[0;32m✓ PASS:[0m Edge cases: All boundary conditions handled gracefully
+[0;31m⚠ MEMORY LEAK: +39MB exceeds fail threshold[0m
+
+========================================
+  Test Summary
+========================================
+  Passed:   11
+  Failed:   1
+  Warnings: 0
+  Memory:   [0;31m+40596KB[0m
+========================================
+  [0;31mTESTS FAILED[0m
+✗ FAIL (memory leak detected)
+  Note: Memory leak detected but continuing with remaining tests
+
+[2/7] test-func-gsettings.sh
+========================================
+  GSettings State Test
+========================================
+
+  Test 1: Reading current settings...
+[0;32m✓ PASS:[0m Successfully read current settings
+
+  Test 2: Setting persistence...
+[0;32m✓ PASS:[0m Setting persisted correctly
+
+  Test 3: Default values...
+[0;32m✓ PASS:[0m Default values restored correctly
+
+  Test 4: Persistence across extension restart...
+[0;32m✓ PASS:[0m Settings persisted across extension restart
+
+  Restoring original settings...
+No such key “show-indicator”
+✗ FAIL
+
+[3/7] test-func-layout-switching.sh
+========================================
+  Layout Switching Test
+========================================
+  Full cycles: 10
+
+  Available layouts: split triple wide quarters triple_stack template-split
+  Layout count: 6
+
+Running layout switching (10 full cycles through 6 layouts)...
+  Progress: 1/10 (10%)  Progress: 2/10 (20%)  Progress: 3/10 (30%)  Progress: 4/10 (40%)  Progress: 5/10 (50%)  Progress: 6/10 (60%)  Progress: 7/10 (70%)  Progress: 8/10 (80%)  Progress: 9/10 (90%)  Progress: 10/10 (100%)
+
+  Total layout switches: 60
+[0;32m✓ PASS:[0m Layout switching: 60 switches completed, all layouts accessible
+
+========================================
+  Test Summary
+========================================
+  Passed:   1
+  Failed:   0
+  Warnings: 0
+  Memory:   [0;32m-360KB[0m
+========================================
+  [0;32mALL TESTS PASSED[0m
+✓ PASS
+
+[4/7] test-func-multi-monitor.sh
+========================================
+  Multi-Monitor Test
+========================================
+
+  Detected monitors: 1
+
+[0;32mSKIP[0m: Multi-monitor test requires 2+ monitors
+  Only 1 monitor(s) detected.
+  This is not a failure - test is not applicable to this configuration.
+
+[0;32mTest result: SKIP (single monitor)[0m
+✓ PASS
+
+[5/7] test-func-window-movement.sh
+========================================
+  Window Movement Test (Multi-Layout)
+========================================
+  Passes: 2
+
+  Starting test window...
+[0;31mError: Test window D-Bus interface not available[0m
+[0;31m✗ FAIL:[0m Test window D-Bus interface not available
+✗ FAIL
+
+[6/7] test-func-workspace.sh
+========================================
+  Per-Workspace Layout Tests
+========================================
+
+  Initial layout: template-split
+  Initial per-workspace mode: true
+
+  Workspace count: 2
+  Current workspace: 0
+  Test layouts: split, triple
+
+
+Test 1: Per-workspace mode toggle...
+[0;32m✓ PASS:[0m Per-workspace mode enabled successfully
+[0;32m✓ PASS:[0m Per-workspace mode disabled successfully
+
+Test 2: Independent workspace layouts...
+[1;33m⚠ WARN:[0m Layout state may not be independent: ws0=template-split, ws1=triple
+[0;32m✓ PASS:[0m Independent layouts test completed (verify per-workspace is working)
+
+Test 3: Workspace switching preserves layout state...
+[0;32m✓ PASS:[0m Zone state preserved across workspace switch
+
+Test 4: Spatial state query...
+[0;32m✓ PASS:[0m Spatial state query returns expected structure
+  Current space key: monitor-0:0
+
+Test 5: Rapid workspace cycling...
+[0;32m✓ PASS:[0m Survived 20 rapid workspace switches
+
+Test 6: Invalid workspace handling...
+[0;32m✓ PASS:[0m Invalid workspace index rejected correctly
+[0;32m✓ PASS:[0m Negative workspace index handled gracefully
+[0;32m✓ PASS:[0m Missing workspace index parameter rejected
+
+Test 7: Window movement across workspaces...
+  Starting test window...
+[1;33m⚠ WARN:[0m Test window failed to start, skipping window movement test
+[0;32m✓ PASS:[0m Skipped (test window unavailable)
+
+Final state validation...
+[0;32m✓ PASS:[0m Workspace tests: Per-workspace layout functionality verified
+
+========================================
+  Test Summary
+========================================
+  Passed:   11
+  Failed:   0
+  Warnings: 2
+  Memory:   +408KB
+========================================
+  [0;32mALL TESTS PASSED[0m
+✓ PASS
+
+[7/7] test-func-zone-cycling.sh
+========================================
+  Zone Cycling Test
+========================================
+  Cycles: 500
+
+  Initial layout: template-split
+  Zone count: 2
+
+Running zone cycling (500 operations)...
+  Progress: 100/500 (20%)  Progress: 200/500 (40%)  Progress: 300/500 (60%)  Progress: 400/500 (80%)  Progress: 500/500 (100%)
+
+[0;32m✓ PASS:[0m Zone cycling: 500 operations completed, state consistent
+
+========================================
+  Test Summary
+========================================
+  Passed:   1
+  Failed:   0
+  Warnings: 0
+  Memory:   [0;32m-2648KB[0m
+========================================
+  [0;32mALL TESTS PASSED[0m
+✓ PASS
+
+========================================
+  Functional Tests Summary
+========================================
+
+Total tests run: 7
+Passed: 4
+Failed: 3
+
+Passed tests:
+  [0;32m✓ layout-switching[0m
+  [0;32m✓ multi-monitor[0m
+  [0;32m✓ workspace[0m
+  [0;32m✓ zone-cycling[0m
+
+Failed tests:
+  [38;5;214m✗ edge-cases (memory leak)[0m
+  [0;31m✗ gsettings[0m
+  [0;31m✗ window-movement[0m
+
+========================================
+  [0;31m3 OF 7 TESTS FAILED[0m
+========================================

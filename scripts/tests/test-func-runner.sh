@@ -34,6 +34,7 @@ NC='\033[0m' # No Color
 
 # Results file for rollup (shared with other test scripts)
 TEST_RESULTS_FILE="${TEST_RESULTS_FILE:-}"
+JSON_OUTPUT="${JSON_OUTPUT:-}"
 START_TIME=$(date +%s)
 
 # Cleanup handler for Ctrl+C
@@ -215,6 +216,86 @@ if [ ${#FAILED_TESTS[@]} -gt 0 ]; then
 fi
 
 echo "========================================"
+
+# Write JSON results (if JSON_OUTPUT is set)
+if [ -n "$JSON_OUTPUT" ]; then
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    
+    # Build JSON
+    cat > "$JSON_OUTPUT" << EOF
+{
+  "schema_version": "1.0",
+  "timestamp": "$TIMESTAMP",
+  "tests": [
+EOF
+    
+    # Write passed tests
+    FIRST=true
+    for test_name in "${PASSED_TESTS[@]}"; do
+        if [ "$FIRST" = false ]; then
+            echo "," >> "$JSON_OUTPUT"
+        fi
+        FIRST=false
+        cat >> "$JSON_OUTPUT" << EOF
+    {
+      "name": "$test_name",
+      "status": "PASS",
+      "memory_leak": false,
+      "errors": []
+    }
+EOF
+    done
+    
+    # Write failed tests
+    for test_name in "${FAILED_TESTS[@]}"; do
+        if [ "$FIRST" = false ]; then
+            echo "," >> "$JSON_OUTPUT"
+        fi
+        FIRST=false
+        
+        if [[ "$test_name" == *"(memory leak)"* ]]; then
+            CLEAN_NAME="${test_name% (memory leak)}"
+            cat >> "$JSON_OUTPUT" << EOF
+    {
+      "name": "$CLEAN_NAME",
+      "status": "FAIL",
+      "memory_leak": true,
+      "errors": ["Memory leak detected"]
+    }
+EOF
+        else
+            cat >> "$JSON_OUTPUT" << EOF
+    {
+      "name": "$test_name",
+      "status": "FAIL",
+      "memory_leak": false,
+      "errors": ["Test failed"]
+    }
+EOF
+        fi
+    done
+    
+    # Count memory leaks
+    MEM_LEAK_COUNT=0
+    for test_name in "${FAILED_TESTS[@]}"; do
+        if [[ "$test_name" == *"(memory leak)"* ]]; then
+            MEM_LEAK_COUNT=$((MEM_LEAK_COUNT + 1))
+        fi
+    done
+    
+    # Write summary
+    cat >> "$JSON_OUTPUT" << EOF
+
+  ],
+  "summary": {
+    "total": $TOTAL,
+    "passed": ${#PASSED_TESTS[@]},
+    "failed": $FAILED,
+    "memory_leaks": $MEM_LEAK_COUNT
+  }
+}
+EOF
+fi
 
 # Write results to shared file for rollup reporting (if TEST_RESULTS_FILE is set)
 if [ -n "$TEST_RESULTS_FILE" ]; then
