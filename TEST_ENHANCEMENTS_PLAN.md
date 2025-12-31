@@ -85,7 +85,7 @@ Overall Result: FAIL
 
 ### 2. Refactor Test Output to Use Structured Data (JSON)
 
-**Status:** Not Started  
+**Status:** ✅ COMPLETED  
 **Complexity:** Medium  
 **Time Estimate:** 3-4 hours  
 **Priority:** HIGH (architectural improvement)
@@ -199,7 +199,7 @@ Separate data generation from presentation:
 
 ### 3. Fix Memory Test BATCH SUMMARY Output
 
-**Status:** ⚠️ BLOCKED - Needs Investigation  
+**Status:** ✅ COMPLETED  
 **Complexity:** Medium  
 **Time Estimate:** 2-3 hours (debug + fix)  
 **Priority:** HIGH (release summary depends on this)
@@ -322,7 +322,7 @@ The JSON output solution (#2 above) would completely avoid this issue by separat
 
 ### 4. Fix Test Window D-Bus Issue
 
-**Status:** Not Started  
+**Status:** ✅ COMPLETED  
 **Complexity:** Medium  
 **Time Estimate:** 1-2 hours (investigation + fix)
 
@@ -603,14 +603,17 @@ Real keyboard automation (xdotool for X11, ydotool for Wayland)
 
 ## Prioritization Summary
 
-### This PR (fix/vm-test-cleanup)
-1. ✅ Release suite summary rollup (COMPLETED)
-2. ⚠️ Test window D-Bus fix (IN PROGRESS)
+### This PR (fix/vm-test-cleanup) - ✅ COMPLETE
+1. ✅ Release suite summary rollup
+2. ✅ Refactor test output to JSON
+3. ✅ Fix memory test BATCH SUMMARY output
+4. ✅ Fix test window D-Bus issue
 
 ### Next PR (test-enhancements-1)
-4. Keyboard shortcut testing (after UI automation investigation)
-5. Keyboard conflict detection
-6. Test result artifacts
+5. Investigate functional test cycle counts
+6. Keyboard shortcut testing (after UI automation investigation)
+7. Keyboard conflict detection testing
+8. Test result artifacts
 
 ### Future PRs
 7. Menu memory test (after investigation)
@@ -624,8 +627,10 @@ Real keyboard automation (xdotool for X11, ydotool for Wayland)
 
 **For This PR:**
 - [x] Release suite shows enhanced combined summary with detailed metrics
-- [ ] Test window starts successfully in VM (or issue documented)
-- [ ] All tests continue to pass (except known issues)
+- [x] Test output refactored to use structured JSON data
+- [x] Memory test BATCH SUMMARY output fixed
+- [x] Test window D-Bus issue resolved
+- [x] All tests continue to pass (except known issues)
 
 **Overall Goals:**
 - Increase test coverage to catch integration bugs
