@@ -27,8 +27,7 @@ init_test "${TEST_NAME:-GSettings State}"
 # Test 1: Store original values and verify we can read them
 info "Test 1: Reading current settings..."
 ORIGINAL_DEBUG=$(gsettings get $SCHEMA debug-expose-dbus 2>/dev/null || echo "false")
-ORIGINAL_INDICATOR=$(gsettings get $SCHEMA show-indicator 2>/dev/null || echo "true")
-ORIGINAL_OVERLAY=$(gsettings get $SCHEMA show-zone-overlay-preview 2>/dev/null || echo "true")
+ORIGINAL_INDICATOR=$(gsettings get $SCHEMA show-panel-indicator 2>/dev/null || echo "true")
 
 if [ -z "$ORIGINAL_DEBUG" ]; then
     fail "Failed to read debug-expose-dbus setting"
@@ -91,8 +90,7 @@ echo ""
 # Test 5: Restore original values
 info "Restoring original settings..."
 gsettings set $SCHEMA debug-expose-dbus "$ORIGINAL_DEBUG"
-gsettings set $SCHEMA show-indicator "$ORIGINAL_INDICATOR"
-gsettings set $SCHEMA show-zone-overlay-preview "$ORIGINAL_OVERLAY"
+gsettings set $SCHEMA show-panel-indicator "$ORIGINAL_INDICATOR"
 
 pass "Original settings restored"
 echo ""

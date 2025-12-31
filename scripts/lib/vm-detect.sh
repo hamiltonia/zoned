@@ -574,6 +574,16 @@ vm_check_dependencies() {
         missing+=("gnome-extensions")
     fi
     
+    # python3 is required for test window
+    if ! ssh "$domain" "command -v python3" &>/dev/null; then
+        missing+=("python3")
+    fi
+    
+    # GTK4 Python bindings are required for test window
+    if ! ssh "$domain" "python3 -c 'import gi; gi.require_version(\"Gtk\", \"4.0\")' 2>/dev/null" &>/dev/null; then
+        missing+=("GTK4-python-bindings")
+    fi
+    
     if [[ ${#missing[@]} -eq 0 ]]; then
         vm_print_success "All dependencies present"
         return 0
@@ -596,19 +606,21 @@ vm_install_dependencies() {
     case "$distro" in
         ubuntu|debian|pop)
             vm_print_step "Installing dependencies (Ubuntu/Debian)..."
-            ssh -t "$domain" "sudo apt update && sudo apt install -y gnome-shell-extension-prefs"
+            ssh -t "$domain" "sudo apt update && sudo apt install -y gnome-shell-extension-prefs python3-gi gir1.2-gtk-4.0"
             ;;
         fedora)
             vm_print_step "Installing dependencies (Fedora)..."
-            ssh -t "$domain" "sudo dnf install -y gnome-extensions-app"
+            ssh -t "$domain" "sudo dnf install -y gnome-extensions-app python3-gobject gtk4"
             ;;
         arch|endeavouros|manjaro)
             vm_print_step "Installing dependencies (Arch)..."
-            ssh -t "$domain" "sudo pacman -S --noconfirm gnome-shell-extensions"
+            ssh -t "$domain" "sudo pacman -S --noconfirm gnome-shell-extensions python-gobject gtk4"
             ;;
         *)
             vm_print_warning "Unknown distro: $distro"
-            echo "Please install gnome-shell-extension-prefs manually"
+            echo "Please install these packages manually:"
+            echo "  - gnome-shell-extension-prefs"
+            echo "  - python3 GTK4 bindings"
             return 1
             ;;
     esac

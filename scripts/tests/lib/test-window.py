@@ -23,11 +23,25 @@ Usage:
         -m org.zoned.TestWindow.Close
 """
 
-import gi
-gi.require_version('Gtk', '4.0')
-gi.require_version('Gdk', '4.0')
-from gi.repository import Gtk, Gdk, GLib, Gio
 import sys
+
+# Check for GTK4 Python bindings before importing
+try:
+    import gi
+    gi.require_version('Gtk', '4.0')
+    gi.require_version('Gdk', '4.0')
+    from gi.repository import Gtk, Gdk, GLib, Gio
+except (ImportError, ValueError) as e:
+    print('[TestWindow] ERROR: GTK4 Python bindings not installed', file=sys.stderr)
+    print('[TestWindow]', file=sys.stderr)
+    print('[TestWindow] Install with:', file=sys.stderr)
+    print('[TestWindow]   Fedora:        sudo dnf install python3-gobject gtk4', file=sys.stderr)
+    print('[TestWindow]   Ubuntu/Debian: sudo apt install python3-gi gir1.2-gtk-4.0', file=sys.stderr)
+    print('[TestWindow]   Arch:          sudo pacman -S python-gobject gtk4', file=sys.stderr)
+    print('[TestWindow]', file=sys.stderr)
+    print('[TestWindow] Or run: make vm-setup (to install all dependencies)', file=sys.stderr)
+    sys.exit(1)
+
 import json
 
 # D-Bus interface XML
