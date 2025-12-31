@@ -74,14 +74,56 @@ Security issues in Zoned typically involve:
 - Issues in GNOME Shell itself (report to GNOME project)
 - Issues in third-party extensions (report to their maintainers)
 
+## Verifying Release Authenticity
+
+All GitHub releases include cryptographic verification to ensure the downloaded files are authentic and haven't been tampered with.
+
+### Quick Verification (SHA256 Checksum)
+
+Every release includes a `SHA256SUMS` file. To verify your download:
+
+```bash
+# Download both the zip and SHA256SUMS from the release
+cd ~/Downloads
+
+# Verify the checksum
+sha256sum -c SHA256SUMS
+```
+
+You should see: `zoned-X.Y.Z.zip: OK`
+
+### Full Verification (Build Provenance Attestation)
+
+GitHub attestations provide cryptographic proof that the release was built by our official GitHub Actions workflow:
+
+```bash
+# Install GitHub CLI if you haven't already
+# See: https://cli.github.com/
+
+# Verify the attestation
+gh attestation verify zoned-X.Y.Z.zip --owner hamiltonia
+```
+
+This verifies:
+- ✓ The file was built by the official GitHub workflow
+- ✓ The file hasn't been modified since it was built
+- ✓ The build is linked to a specific git commit
+
+### What This Protects Against
+
+- **Tampered downloads**: Ensures the file wasn't modified during download
+- **Compromised releases**: Proves the file was built by GitHub Actions, not an attacker
+- **Supply chain attacks**: Links the artifact to the exact source code commit
+
 ## Security Best Practices for Users
 
 To use Zoned securely:
 
 1. **Install from trusted sources**: Use GNOME Extensions (extensions.gnome.org) or official GitHub releases
-2. **Keep updated**: Enable automatic updates or check for new versions regularly
-3. **Review permissions**: Zoned only requires standard GNOME Shell extension permissions
-4. **Report issues**: If something seems suspicious, report it
+2. **Verify downloads**: Check SHA256 checksums for GitHub releases (see above)
+3. **Keep updated**: Enable automatic updates or check for new versions regularly
+4. **Review permissions**: Zoned only requires standard GNOME Shell extension permissions
+5. **Report issues**: If something seems suspicious, report it
 
 ## Security Best Practices for Contributors
 

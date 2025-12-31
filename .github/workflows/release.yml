@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write  # Required for build provenance attestations
+  attestations: write  # Required for build provenance attestations
 
 jobs:
   build-and-release:
@@ -34,6 +36,17 @@ jobs:
       - name: Rename package for release
         run: mv build/zoned@hamiltonia.me.zip build/zoned-${{ steps.version.outputs.VERSION }}.zip
       
+      - name: Generate SHA256 checksum
+        run: |
+          cd build
+          sha256sum zoned-${{ steps.version.outputs.VERSION }}.zip > SHA256SUMS
+          cat SHA256SUMS
+      
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: 'build/zoned-${{ steps.version.outputs.VERSION }}.zip'
+      
       - name: Extract release notes
         id: release_notes
         run: |
@@ -44,7 +57,9 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: build/zoned-${{ steps.version.outputs.VERSION }}.zip
+          files: |
+            build/zoned-${{ steps.version.outputs.VERSION }}.zip
+            build/SHA256SUMS
           body_path: release_notes.md
           draft: false
           prerelease: ${{ contains(github.ref, '-') || startsWith(steps.version.outputs.VERSION, '0.') }}
