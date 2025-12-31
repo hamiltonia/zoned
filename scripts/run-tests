@@ -366,7 +366,7 @@ EOSSH
                         printf "  Func (JSON):   /tmp/func-results.json\n"
                         printf "\n"
                         printf "${COLOR_INFO}You can reformat with:${COLOR_RESET}\n"
-                        printf "  ./scripts/tests/lib/format-release-summary-json.sh /tmp/mem-results.json /tmp/func-results.json $SUITE_NAME\n"
+                        printf "  ./scripts/tests/lib/format-release-summary-json.sh --mem /tmp/mem-results.json --func /tmp/func-results.json --suite $SUITE_NAME\n"
                     else
                         printf "${COLOR_WARN}Warning: Could not copy files from VM${COLOR_RESET}\n"
                     fi

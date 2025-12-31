@@ -125,8 +125,14 @@ if [ -n "$MEM_JSON" ]; then
     MEM_MAX_RANGE=$(jq -r '[.tests[].statistics.final_range_mb | select(. != null)] | if length > 0 then (max | . * 10 | round / 10) else null end' "$MEM_JSON") 
     MEM_AVG_R2=$(jq -r '[.tests[].statistics.r_squared | select(. != null)] | if length > 0 then (add / length | . * 1000 | round / 1000) else null end' "$MEM_JSON")
     
-    # Determine memory status (all tests must pass)
-    MEM_STATUS="PASS"
+    # Get overall status from JSON (PASS, WARN, or FAIL)
+    MEM_STATUS=$(jq -r '.status // "PASS"' "$MEM_JSON")
+    MEM_STATUS_MSG=$(jq -r '.status_message // "Memory stable"' "$MEM_JSON")
+    
+    # Set exit code based on status
+    if [ "$MEM_STATUS" = "FAIL" ]; then
+        MEM_EXIT=1
+    fi
 fi
 
 # Parse functional test data (if provided)
@@ -159,10 +165,67 @@ if [ -n "$MEM_JSON" ]; then
     printf "Memory Tests: "
     if [ "$MEM_STATUS" = "PASS" ]; then
         printf "${COLOR_SUCCESS}PASS${COLOR_RESET}\n"
+    elif [ "$MEM_STATUS" = "WARN" ]; then
+        printf "${COLOR_WARN}WARN${COLOR_RESET}\n"
     else
         printf "${COLOR_ERROR}FAIL${COLOR_RESET}\n"
     fi
     
+    # Detailed breakdown of each test
+    if [ "$MEM_TESTS" != "0" ]; then
+        echo ""
+        echo "Memory Test Details:"
+        
+        # Iterate through each test in JSON
+        for idx in $(seq 0 $((MEM_TESTS - 1))); do
+            test_name=$(jq -r ".tests[$idx].name" "$MEM_JSON")
+            test_status=$(jq -r ".tests[$idx].statistics.status // \"PASS\"" "$MEM_JSON")
+            test_msg=$(jq -r ".tests[$idx].statistics.status_message // \"Memory stable\"" "$MEM_JSON")
+            test_runs=$(jq -r ".tests[$idx].runs" "$MEM_JSON")
+            test_var_dur=$(jq -r ".tests[$idx].variable_duration" "$MEM_JSON")
+            test_durations=$(jq -r ".tests[$idx].duration_values | join(\",\")" "$MEM_JSON")
+            test_avg_init=$(jq -r ".tests[$idx].statistics.avg_init_cost_mb" "$MEM_JSON")
+            test_range=$(jq -r ".tests[$idx].statistics.final_range_mb" "$MEM_JSON")
+            test_r2=$(jq -r ".tests[$idx].statistics.r_squared" "$MEM_JSON")
+            
+            echo ""
+            printf "  ${COLOR_SUCCESS}%s:${COLOR_RESET}\n" "$test_name"
+            
+            # Status with color
+            printf "    Status: "
+            if [ "$test_status" = "PASS" ]; then
+                printf "${COLOR_SUCCESS}PASS${COLOR_RESET}"
+            elif [ "$test_status" = "WARN" ]; then
+                printf "${COLOR_WARN}WARN${COLOR_RESET}"
+            else
+                printf "${COLOR_ERROR}FAIL${COLOR_RESET}"
+            fi
+            printf " - %s\n" "$test_msg"
+            
+            # Configuration
+            if [ "$test_var_dur" = "true" ]; then
+                printf "    Runs: %s (variable: %s min)\n" "$test_runs" "$(echo $test_durations | tr ',' ' ')"
+            else
+                printf "    Runs: %s (%s min each)\n" "$test_runs" "$(echo $test_durations | cut -d',' -f1)"
+            fi
+            
+            # Statistics
+            printf "    Statistics:\n"
+            if [ "$test_avg_init" != "null" ]; then
+                printf "      - Avg init cost: %s MB\n" "$test_avg_init"
+            fi
+            if [ "$test_range" != "null" ]; then
+                printf "      - Final range: %s MB spread" "$test_range"
+                printf "\n"
+            fi
+            if [ "$test_r2" != "null" ]; then
+                printf "      - Correlation: R²=%s\n" "$test_r2"
+            fi
+        done
+    fi
+    
+    echo ""
+    echo "Memory Tests Summary:"
     if [ "$MEM_TESTS" != "0" ]; then
         printf "  Tests Run:    %s" "$MEM_TESTS"
         if [ "$MEM_TEST_NAMES" != "null" ] && [ -n "$MEM_TEST_NAMES" ]; then
@@ -184,7 +247,7 @@ if [ -n "$MEM_JSON" ]; then
     fi
     
     if [ "$MEM_MAX_RANGE" != "null" ] && [ "$MEM_MAX_RANGE" != "0" ]; then
-        printf "  Memory Range: %s MB spread" "$MEM_MAX_RANGE"
+        printf "  Max Range:    %s MB spread" "$MEM_MAX_RANGE"
         if [ "$MEM_AVG_R2" != "null" ] && [ "$MEM_AVG_R2" != "0" ]; then
             printf " (R²=%s)" "$MEM_AVG_R2"
         fi
@@ -234,33 +297,44 @@ fi
 printf "Overall Result: "
 if [ $MEM_EXIT -eq 0 ] && [ $FUNC_EXIT -eq 0 ]; then
     printf "${COLOR_SUCCESS}PASS${COLOR_RESET}\n"
-    if [ -n "$MEM_JSON" ]; then
-        printf "  - Memory tests: stable\n"
-    fi
-    if [ -n "$FUNC_JSON" ]; then
-        printf "  - All functional tests passed\n"
-    fi
-    echo ""
-    echo "========================================"
-    exit 0
 else
     printf "${COLOR_ERROR}FAIL${COLOR_RESET}\n"
-    if [ -n "$MEM_JSON" ]; then
-        if [ $MEM_EXIT -ne 0 ]; then
-            printf "  - Memory tests: ${COLOR_ERROR}FAILED${COLOR_RESET}\n"
+fi
+
+# Memory tests result line
+if [ -n "$MEM_JSON" ]; then
+    printf "  - Memory tests: "
+    if [ $MEM_EXIT -eq 0 ]; then
+        if [ "$MEM_STATUS" = "WARN" ]; then
+            printf "${COLOR_WARN}WARN${COLOR_RESET} (%s)\n" "$MEM_STATUS_MSG"
         else
-            printf "  - Memory tests: stable\n"
+            printf "${COLOR_SUCCESS}PASS${COLOR_RESET} (%s)\n" "$MEM_STATUS_MSG"
         fi
+    else
+        printf "${COLOR_ERROR}FAIL${COLOR_RESET} (%s)\n" "$MEM_STATUS_MSG"
     fi
-    
-    if [ -n "$FUNC_JSON" ] && [ $FUNC_EXIT -ne 0 ] && [ "$FUNC_FAILED" != "0" ]; then
+fi
+
+# Functional tests result line
+if [ -n "$FUNC_JSON" ]; then
+    printf "  - Functional tests: "
+    if [ $FUNC_EXIT -eq 0 ]; then
+        printf "${COLOR_SUCCESS}PASS${COLOR_RESET} (all %s tests passed)\n" "$FUNC_TOTAL"
+    else
         if [ "$FUNC_MEM_LEAKS" -gt 0 ]; then
-            printf "  - %s functional test(s) failed (%s with memory leak)\n" "$FUNC_FAILED" "$FUNC_MEM_LEAKS"
+            printf "${COLOR_ERROR}FAIL${COLOR_RESET} (%s of %s failed, %s with memory leak)\n" "$FUNC_FAILED" "$FUNC_TOTAL" "$FUNC_MEM_LEAKS"
         else
-            printf "  - %s functional test(s) failed\n" "$FUNC_FAILED"
+            printf "${COLOR_ERROR}FAIL${COLOR_RESET} (%s of %s failed)\n" "$FUNC_FAILED" "$FUNC_TOTAL"
         fi
     fi
-    echo ""
-    echo "========================================"
+fi
+
+echo ""
+echo "========================================"
+
+# Exit with appropriate code
+if [ $MEM_EXIT -eq 0 ] && [ $FUNC_EXIT -eq 0 ]; then
+    exit 0
+else
     exit 1
 fi

@@ -547,6 +547,31 @@ for test_choice in "${TEST_CHOICES[@]}"; do
         # Capture batch statistics for this test
         BATCH_TEST_NAMES+=("$TEST_NAME")
         
+        # Build NUMERIC arrays from RESULTS arrays
+        NUMERIC_INIT_COSTS=()
+        NUMERIC_FINAL_MEM=()
+        NUMERIC_START_MEM=()
+        NUMERIC_CYCLES=()
+        NUMERIC_DEVIATION=()
+        
+        for i in $(seq 0 $((num_runs - 1))); do
+            if [[ "${RESULTS_MB[$i]}" =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then
+                NUMERIC_INIT_COSTS+=("${RESULTS_MB[$i]}")
+            fi
+            if [[ "${RESULTS_FINAL_MEM[$i]}" =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then
+                NUMERIC_FINAL_MEM+=("${RESULTS_FINAL_MEM[$i]}")
+            fi
+            if [[ "${RESULTS_START_MEM[$i]}" =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then
+                NUMERIC_START_MEM+=("${RESULTS_START_MEM[$i]}")
+            fi
+            if [[ "${RESULTS_CYCLES[$i]}" =~ ^[0-9]+$ ]]; then
+                NUMERIC_CYCLES+=("${RESULTS_CYCLES[$i]}")
+            fi
+            if [[ "${RESULTS_DEVIATION[$i]}" =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then
+                NUMERIC_DEVIATION+=("${RESULTS_DEVIATION[$i]}")
+            fi
+        done
+        
         # Calculate and store average init cost
         if [ ${#NUMERIC_INIT_COSTS[@]} -gt 0 ]; then
             sum_init=0
@@ -577,9 +602,66 @@ for test_choice in "${TEST_CHOICES[@]}"; do
             BATCH_FINAL_RANGES+=("N/A")
         fi
         
-        # Calculate and store R² if available
-        if [ -n "$r_squared" ]; then
-            BATCH_R_SQUARED+=("$r_squared")
+        # Calculate and store R² for this test
+        if [ ${#NUMERIC_CYCLES[@]} -eq ${#NUMERIC_DEVIATION[@]} ] && [ ${#NUMERIC_CYCLES[@]} -gt 2 ] && $VARIABLE_DURATION; then
+            # Calculate R² using same logic as in final report section
+            sum_x=0
+            sum_y=0
+            sum_xy=0
+            sum_x2=0
+            n=${#NUMERIC_CYCLES[@]}
+            
+            for j in $(seq 0 $((n - 1))); do
+                x=${NUMERIC_CYCLES[$j]}
+                y=$(echo "${NUMERIC_DEVIATION[$j]}" | sed 's/^+//')
+                sum_x=$(echo "$sum_x + $x" | bc -l)
+                sum_y=$(echo "$sum_y + $y" | bc -l)
+                xy=$(echo "$x * $y" | bc -l)
+                sum_xy=$(echo "$sum_xy + $xy" | bc -l)
+                x2=$(echo "$x * $x" | bc -l)
+                sum_x2=$(echo "$sum_x2 + $x2" | bc -l)
+            done
+            
+            n_sum_xy=$(echo "$n * $sum_xy" | bc -l)
+            sum_x_sum_y=$(echo "$sum_x * $sum_y" | bc -l)
+            numerator=$(echo "$n_sum_xy - $sum_x_sum_y" | bc -l)
+            
+            n_sum_x2=$(echo "$n * $sum_x2" | bc -l)
+            sum_x_squared=$(echo "$sum_x * $sum_x" | bc -l)
+            denominator=$(echo "$n_sum_x2 - $sum_x_squared" | bc -l)
+            
+            if (( $(echo "$denominator != 0" | bc -l) )); then
+                slope=$(echo "scale=6; $numerator / $denominator" | bc -l)
+                avg_y=$(echo "scale=3; $sum_y / $n" | bc -l)
+                avg_x=$(echo "scale=3; $sum_x / $n" | bc -l)
+                slope_avg_x=$(echo "$slope * $avg_x" | bc -l)
+                intercept=$(echo "scale=3; $avg_y - $slope_avg_x" | bc -l)
+                
+                ss_tot=0
+                ss_res=0
+                for j in $(seq 0 $((n - 1))); do
+                    x=${NUMERIC_CYCLES[$j]}
+                    y=$(echo "${NUMERIC_DEVIATION[$j]}" | sed 's/^+//')
+                    slope_x=$(echo "$slope * $x" | bc -l)
+                    y_pred=$(echo "scale=3; $intercept + $slope_x" | bc -l)
+                    y_diff=$(echo "$y - $avg_y" | bc -l)
+                    y_diff_sq=$(echo "$y_diff * $y_diff" | bc -l)
+                    ss_tot=$(echo "$ss_tot + $y_diff_sq" | bc -l)
+                    res=$(echo "$y - $y_pred" | bc -l)
+                    res_sq=$(echo "$res * $res" | bc -l)
+                    ss_res=$(echo "$ss_res + $res_sq" | bc -l)
+                done
+                
+                if (( $(echo "$ss_tot != 0" | bc -l) )); then
+                    ss_ratio=$(echo "scale=6; $ss_res / $ss_tot" | bc -l)
+                    test_r_squared=$(echo "scale=3; 1 - $ss_ratio" | bc -l)
+                    BATCH_R_SQUARED+=("$test_r_squared")
+                else
+                    BATCH_R_SQUARED+=("0")
+                fi
+            else
+                BATCH_R_SQUARED+=("N/A")
+            fi
         else
             BATCH_R_SQUARED+=("N/A")
         fi
@@ -729,21 +811,15 @@ fi
 # Clean up temp file
 rm -f "$TEMP_RESULT_FILE"
 
-# Display final report
-echo ""
-echo ""
-echo "========================================"
-echo "  FINAL REPORT"
-echo "========================================"
-echo ""
-
-# Write JSON output if JSON_OUTPUT is set
+# Write JSON output if JSON_OUTPUT is set (must be after BATCH arrays are populated)
 if [ -n "$JSON_OUTPUT" ]; then
     {
         echo "{"
         echo "  \"schema_version\": \"1.0\","
         echo "  \"timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\","
         echo "  \"preset\": \"${PRESET_MODE:-custom}\","
+        echo "  \"status\": \"${TEST_VERDICT:-PASS}\","
+        echo "  \"status_message\": \"${TEST_VERDICT_MSG:-Memory tests completed}\","
         echo "  \"tests\": ["
         
         # Write each test
@@ -768,7 +844,8 @@ if [ -n "$JSON_OUTPUT" ]; then
             echo "        \"avg_init_cost_mb\": ${avg_init_json},"
             echo "        \"final_range_mb\": ${final_range_json},"
             echo "        \"r_squared\": ${r2_json},"
-            echo "        \"status\": \"PASS\""
+            echo "        \"status\": \"${TEST_VERDICT:-PASS}\","
+            echo "        \"status_message\": \"${TEST_VERDICT_MSG:-Memory stable}\""
             echo "      }"
             echo -n "    }"
         done
@@ -778,17 +855,26 @@ if [ -n "$JSON_OUTPUT" ]; then
         echo "}"
     } > "$JSON_OUTPUT"
 fi
-echo "Test: $TEST_NAME"
-if $VARIABLE_DURATION; then
-    echo "Duration: Variable (${DURATIONS[*]} minutes)"
-else
-    echo "Duration: ${DURATIONS[0]} minutes per run"
-fi
-echo "Delay: ${delay_ms}ms per operation"
-echo "Runs: $num_runs"
-echo ""
-echo "Results (start → final memory across runs):"
-echo "----------------------------------------"
+
+# Display final report (only for single-test mode; multi-test has per-test reports)
+if [ ${#TEST_CHOICES[@]} -eq 1 ]; then
+    echo ""
+    echo ""
+    echo "========================================"
+    echo "  FINAL REPORT"
+    echo "========================================"
+    echo ""
+    echo "Test: $TEST_NAME"
+    if $VARIABLE_DURATION; then
+        echo "Duration: Variable (${DURATIONS[*]} minutes)"
+    else
+        echo "Duration: ${DURATIONS[0]} minutes per run"
+    fi
+    echo "Delay: ${delay_ms}ms per operation"
+    echo "Runs: $num_runs"
+    echo ""
+    echo "Results (start → final memory across runs):"
+    echo "----------------------------------------"
 
 # Display individual results with start → final format
 for i in $(seq 0 $((num_runs - 1))); do
@@ -968,26 +1054,47 @@ if [ ${#NUMERIC_FINAL_MEM[@]} -gt 1 ]; then
     fi
     
     # Interpretation based on final memory stability AND correlation
-    # FAIL only if BOTH spread > 20 MB AND R² > 0.8 (statistically significant leak)
+    # FAIL only if: spread > 20 MB AND R² > 0.8 AND positive slope (actual leak)
+    # Capture the verdict in a variable for JSON output
+    TEST_VERDICT="PASS"
+    TEST_VERDICT_MSG="Memory stable"
+    
     echo ""
     if (( $(echo "$final_range > 20.0" | bc -l) )); then
-        # High spread detected - check if it's correlated (R² > 0.8)
-        if [ -n "$r_squared" ] && (( $(echo "$r_squared > 0.8" | bc -l) )); then
-            echo -e "${RED}FAIL: Memory leak detected (spread ${final_range} MB, R²=${r_squared})${NC}"
+        # High spread detected - check if it's correlated AND positive slope
+        if [ -n "$r_squared" ] && [ -n "$slope_per_100" ] && (( $(echo "$r_squared > 0.8" | bc -l) )); then
+            # Check if slope is positive (memory increasing = leak)
+            if (( $(echo "$slope_per_100 > 0.5" | bc -l) )); then
+                TEST_VERDICT="FAIL"
+                TEST_VERDICT_MSG="Memory leak detected (spread ${final_range} MB, R²=${r_squared}, slope=${slope_per_100} MB/100 cycles)"
+                echo -e "${RED}FAIL: ${TEST_VERDICT_MSG}${NC}"
+            else
+                # High spread + high correlation but negative/negligible slope = GC working
+                TEST_VERDICT="PASS"
+                TEST_VERDICT_MSG="High variance but negative slope indicates GC working (spread ${final_range} MB, R²=${r_squared}, slope=${slope_per_100} MB/100 cycles)"
+                echo -e "${GREEN}PASS: ${TEST_VERDICT_MSG}${NC}"
+            fi
         else
             # High spread but low correlation = measurement noise
-            echo -e "${YELLOW}WARN: High memory variance but no correlation (spread ${final_range} MB, R²=${r_squared:-N/A})${NC}"
+            TEST_VERDICT="WARN"
+            TEST_VERDICT_MSG="High memory variance but no correlation (spread ${final_range} MB, R²=${r_squared:-N/A})"
+            echo -e "${YELLOW}WARN: ${TEST_VERDICT_MSG}${NC}"
             echo -e "${YELLOW}This indicates measurement noise, not a systematic leak${NC}"
         fi
     elif (( $(echo "$final_range > 10.0" | bc -l) )); then
-        echo -e "${YELLOW}WARN: Moderate memory variability (${final_range} MB spread)${NC}"
+        TEST_VERDICT="WARN"
+        TEST_VERDICT_MSG="Moderate memory variability (${final_range} MB spread)"
+        echo -e "${YELLOW}WARN: ${TEST_VERDICT_MSG}${NC}"
         if [ -n "$r_squared" ]; then
             echo -e "${YELLOW}R²=${r_squared} suggests $([ $(echo "$r_squared > 0.8" | bc -l) -eq 1 ] && echo "correlation" || echo "no correlation")${NC}"
         fi
     else
-        echo -e "${GREEN}PASS: Memory stable across runs (${final_range} MB variance)${NC}"
+        TEST_VERDICT="PASS"
+        TEST_VERDICT_MSG="Memory stable across runs (${final_range} MB variance)"
+        echo -e "${GREEN}PASS: ${TEST_VERDICT_MSG}${NC}"
     fi
 fi
+fi  # End single-test mode detailed analysis
 
 # Output batch summary if multiple tests were run
 if [ ${#BATCH_TEST_NAMES[@]} -gt 0 ]; then
