@@ -25,6 +25,7 @@ import {LayoutSwitcher} from './ui/layoutSwitcher.js';
 import {ZoneOverlay} from './ui/zoneOverlay.js';
 import {ConflictDetector} from './ui/conflictDetector.js';
 import {PanelIndicator} from './ui/panelIndicator.js';
+import * as LayoutSettingsDialogModule from './ui/layoutSettingsDialog.js';
 import {createLogger, initDebugSettings, destroyDebugSettings} from './utils/debug.js';
 import {NotificationService, NotifyCategory} from './utils/notificationService.js';
 import {initResourceTracking, destroyResourceTracking} from './utils/resourceTracker.js';
@@ -185,6 +186,9 @@ export default class ZonedExtension extends Extension {
         // Initialize resource tracking (for stability testing)
         initResourceTracking(this._settings);
         logger.debug('Resource tracking initialized');
+
+        // Store LayoutSettingsDialog module for D-Bus testing
+        this._layoutSettingsDialogModule = LayoutSettingsDialogModule;
 
         // Initialize D-Bus debug interface
         this._debugInterface = createDebugInterface(this);

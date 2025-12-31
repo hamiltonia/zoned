@@ -27,7 +27,7 @@ import {LayoutPreviewBackground} from './layoutPreviewBackground.js';
 
 // Import split modules (UI construction delegated to these)
 import {createTemplatesSection, createCustomLayoutsSection, createNewLayoutButton} from './layoutSwitcher/sectionFactory.js';
-import {createTopBar, closeMonitorDropdown} from './layoutSwitcher/topBar.js';
+import {createTopBar, closeMonitorDropdown, updateWorkspaceThumbnailsDisabledState} from './layoutSwitcher/topBar.js';
 import {addResizeHandles, rebuildWithNewSize} from './layoutSwitcher/resizeHandler.js';
 import {selectTier, calculateDialogDimensions, validateDimensions, generateDebugText, TIER_NAMES} from './layoutSwitcher/tierConfig.js';
 
@@ -59,6 +59,9 @@ export class LayoutSwitcher {
         // Keyboard navigation state
         this._allCards = [];
         this._selectedCardIndex = -1;
+
+        // Active settings dialog reference (for lifecycle management and testing)
+        this._activeSettingsDialog = null;
 
         // Guard flag to prevent re-entrance during cleanup
         this._isHiding = false;
@@ -162,6 +165,16 @@ export class LayoutSwitcher {
         this._currentWorkspace = global.workspace_manager.get_active_workspace_index();
         this._workspaceMode = this._settings.get_boolean('use-per-workspace-layouts');
 
+        // Watch for external changes to per-workspace mode (e.g., from D-Bus triggers)
+        // This allows UI to react when settings change outside of manual checkbox clicks
+        // Only enabled when debugging to avoid overhead in production
+        const debugEnabled = this._settings.get_boolean('debug-expose-dbus');
+        if (debugEnabled) {
+            this._signalTracker.connect(this._settings, 'changed::use-per-workspace-layouts', () => {
+                this._onPerWorkspaceModeChanged();
+            });
+        }
+
         // Only set monitor selection on INITIAL open, not on refresh
         // Check if _selectedMonitorIndex is undefined OR invalid
         const monitors = Main.layoutManager.monitors;
@@ -188,6 +201,57 @@ export class LayoutSwitcher {
 
         this._overrideDialogWidth = null;
         this._overrideDialogHeight = null;
+    }
+
+    /**
+     * Handle external changes to per-workspace mode setting
+     * Called when use-per-workspace-layouts changes from D-Bus or preferences
+     * Updates UI to match the new setting without requiring manual checkbox click
+     * @private
+     */
+    _onPerWorkspaceModeChanged() {
+        if (!this._dialog || !this._applyGloballyCheckbox) {
+            // Dialog not active, ignore
+            return;
+        }
+
+        // Read new setting value
+        const perWorkspaceMode = this._settings.get_boolean('use-per-workspace-layouts');
+        const newApplyGlobally = !perWorkspaceMode;
+
+        // Only update if the value actually changed
+        if (this._applyGlobally === newApplyGlobally) {
+            return;
+        }
+
+        logger.info(`Per-workspace mode changed externally: ${perWorkspaceMode} (apply-globally: ${newApplyGlobally})`);
+
+        // Update internal state
+        this._applyGlobally = newApplyGlobally;
+        this._workspaceMode = perWorkspaceMode;
+
+        // Update checkbox visual state
+        const c = this._themeManager.getColors();
+        this._applyGloballyCheckbox.style = 'width: 18px; height: 18px; ' +
+               `border: 2px solid ${this._applyGlobally ? c.accentHex : c.textMuted}; ` +
+               'border-radius: 3px; ' +
+               `background-color: ${this._applyGlobally ? c.accentHex : 'transparent'};`;
+
+        if (this._applyGlobally) {
+            const checkmark = new St.Label({
+                text: '✓',
+                style: `color: ${c.isDark ? '#1a202c' : 'white'}; font-size: 12px; font-weight: bold;`,
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            this._applyGloballyCheckbox.set_child(checkmark);
+        } else {
+            this._applyGloballyCheckbox.set_child(null);
+        }
+
+        // Update workspace thumbnails disabled state and refresh Cairo previews
+        // This is what triggers the Cairo element recreation that we're testing
+        updateWorkspaceThumbnailsDisabledState(this);
     }
 
     /**
@@ -922,6 +986,148 @@ export class LayoutSwitcher {
             },
         );
         settingsDialog.open();
+    }
+
+    /**
+     * Open layout settings dialog (public method for D-Bus testing)
+     * Delegates to the appropriate internal handler based on layout type
+     * Stores reference in extension for test control
+     * @param {Object} layout - Layout to edit (template or custom)
+     */
+    openLayoutSettings(layout) {
+        if (!this._dialog) {
+            // Dialog not shown, can't open settings
+            logger.warn('Cannot open layout settings: LayoutSwitcher not active');
+            return;
+        }
+
+        // Check if it's a template or custom layout
+        const isTemplate = layout.id && !layout.id.startsWith('layout-');
+
+        if (isTemplate) {
+            this._onEditTemplateClickedForTest(layout);
+        } else {
+            this._onEditLayoutClickedForTest(layout);
+        }
+    }
+
+    /**
+     * Close the currently active layout settings dialog (public method for D-Bus testing)
+     * This is production code that supports the testing workflow
+     */
+    closeLayoutSettings() {
+        logger.info('[Test] closeLayoutSettings called');
+
+        if (!this._activeSettingsDialog) {
+            logger.warn('[Test] No active settings dialog to close');
+            return;
+        }
+
+        logger.info('[Test] Closing active settings dialog');
+        // Close the dialog - this will trigger the onCancel callback which clears the reference
+        this._activeSettingsDialog.close();
+        logger.info('[Test] Settings dialog close initiated');
+    }
+
+    /**
+     * Open layout settings for testing (stores dialog reference)
+     * @param {Object} layout - Layout to edit
+     * @private
+     */
+    _onEditLayoutClickedForTest(layout) {
+        logger.info(`[Test] Edit layout clicked: ${layout.name}`);
+
+        // Release modal but keep UI visible
+        this._releaseModalForSettings();
+
+        logger.info('[Test] Creating LayoutSettingsDialog with callbacks');
+        const settingsDialog = new LayoutSettingsDialog(
+            layout,
+            this._layoutManager,
+            this._settings,
+            () => {
+                logger.info('[Test] onSave callback triggered');
+                this._activeSettingsDialog = null;
+                this._refreshAfterSettings();
+            },
+            () => {
+                logger.info('[Test] onCancel callback triggered');
+                this._activeSettingsDialog = null;
+                this._reacquireModalAfterSettings();
+            },
+            () => {
+                if (this._container) {
+                    this._container.hide();
+                }
+                if (this._previewBackground) {
+                    this._previewBackground.setVisibility(false);
+                }
+            },
+            (editedLayout) => {
+                const hasZones = editedLayout?.zones?.length > 0;
+                this._pendingPreviewLayout = hasZones ? editedLayout : this._getCurrentLayout();
+            },
+        );
+
+        // Store reference for lifecycle management
+        this._activeSettingsDialog = settingsDialog;
+        logger.info('[Test] Stored settings dialog reference');
+
+        logger.info('[Test] Opening settings dialog');
+        settingsDialog.open();
+        logger.info('[Test] Settings dialog opened');
+    }
+
+    /**
+     * Open template settings for testing (stores dialog reference)
+     * @param {Object} template - Template to view
+     * @private
+     */
+    _onEditTemplateClickedForTest(template) {
+        logger.info(`[Test] Edit template clicked: ${template.name}`);
+
+        // Release modal but keep UI visible
+        this._releaseModalForSettings();
+
+        logger.info('[Test] Creating LayoutSettingsDialog with callbacks');
+        const settingsDialog = new LayoutSettingsDialog(
+            template,
+            this._layoutManager,
+            this._settings,
+            (newLayout) => {
+                logger.info('[Test] onSave callback triggered');
+                if (newLayout) {
+                    this._zoneOverlay.showMessage(`Created: ${newLayout.name}`);
+                }
+                this._activeSettingsDialog = null;
+                this._refreshAfterSettings();
+            },
+            () => {
+                logger.info('[Test] onCancel callback triggered');
+                this._activeSettingsDialog = null;
+                this._reacquireModalAfterSettings();
+            },
+            () => {
+                if (this._container) {
+                    this._container.hide();
+                }
+                if (this._previewBackground) {
+                    this._previewBackground.setVisibility(false);
+                }
+            },
+            (editedLayout) => {
+                const hasZones = editedLayout?.zones?.length > 0;
+                this._pendingPreviewLayout = hasZones ? editedLayout : this._getCurrentLayout();
+            },
+        );
+
+        // Store reference for lifecycle management
+        this._activeSettingsDialog = settingsDialog;
+        logger.info('[Test] Stored settings dialog reference');
+
+        logger.info('[Test] Opening settings dialog');
+        settingsDialog.open();
+        logger.info('[Test] Settings dialog opened');
     }
 
     /**

@@ -271,6 +271,100 @@ function handleGetSpatialState(extension) {
     })];
 }
 
+function handleSetGlobalMode(extension, params) {
+    // Set global/per-workspace mode explicitly
+    // params.global: true = apply to all spaces, false = per-workspace mode
+    const globalMode = params.global;
+    if (typeof globalMode !== 'boolean') {
+        return [false, 'Missing or invalid global parameter (expected boolean)'];
+    }
+
+    const settings = extension._settings;
+    if (!settings) {
+        return [false, 'Settings not available'];
+    }
+
+    // use-per-workspace-layouts is INVERTED from global mode
+    // global=true means per-workspace=false
+    const perWorkspaceMode = !globalMode;
+    settings.set_boolean('use-per-workspace-layouts', perWorkspaceMode);
+    Gio.Settings.sync();
+
+    return [true, ''];
+}
+
+function handleOpenLayoutSettings(extension, params) {
+    // Delegate to LayoutSwitcher to open layout settings dialog
+    // This simulates the actual user workflow through the UI
+    logger.info('[D-Bus] handleOpenLayoutSettings called');
+
+    const layoutSwitcher = extension._layoutSwitcher;
+    if (!layoutSwitcher) {
+        logger.error('[D-Bus] LayoutSwitcher not available');
+        return [false, 'LayoutSwitcher not available'];
+    }
+
+    // Check if a dialog is already open
+    const dialogExists = extension._testLayoutSettingsDialog != null;
+    logger.info(`[D-Bus] Dialog exists check: ${dialogExists}`);
+    if (dialogExists) {
+        logger.warn('[D-Bus] Layout settings dialog already open - rejecting open request');
+        return [false, 'Layout settings dialog already open'];
+    }
+
+    const layoutManager = extension._layoutManager;
+    if (!layoutManager) {
+        logger.error('[D-Bus] LayoutManager not available');
+        return [false, 'LayoutManager not available'];
+    }
+
+    let layout = null;
+    if (params.layoutId) {
+        const allLayouts = layoutManager.getAllLayouts() || [];
+        layout = allLayouts.find(l => l.id === params.layoutId);
+        if (!layout) {
+            logger.error(`[D-Bus] Layout not found: ${params.layoutId}`);
+            return [false, `Layout not found: ${params.layoutId}`];
+        }
+        logger.info(`[D-Bus] Using layout: ${layout.name} (${layout.id})`);
+    } else {
+        // Use first template as default
+        const allLayouts = layoutManager.getAllLayouts() || [];
+        const templates = allLayouts.filter(l => !l.id?.startsWith('layout-'));
+        if (templates.length === 0) {
+            logger.error('[D-Bus] No templates available');
+            return [false, 'No templates available'];
+        }
+        layout = templates[0];
+        logger.info(`[D-Bus] Using first template: ${layout.name} (${layout.id})`);
+    }
+
+    // Delegate to LayoutSwitcher
+    logger.info('[D-Bus] Delegating to layoutSwitcher.openLayoutSettings()');
+    layoutSwitcher.openLayoutSettings(layout);
+    logger.info('[D-Bus] openLayoutSettings() call completed');
+
+    return [true, ''];
+}
+
+function handleCloseLayoutSettings(extension) {
+    // Close the currently open layout settings dialog via LayoutSwitcher
+    logger.info('[D-Bus] handleCloseLayoutSettings called');
+
+    const layoutSwitcher = extension._layoutSwitcher;
+    if (!layoutSwitcher) {
+        logger.error('[D-Bus] LayoutSwitcher not available');
+        return [false, 'LayoutSwitcher not available'];
+    }
+
+    // Delegate to LayoutSwitcher which manages dialog lifecycle
+    logger.info('[D-Bus] Calling layoutSwitcher.closeLayoutSettings()');
+    layoutSwitcher.closeLayoutSettings();
+    logger.info('[D-Bus] closeLayoutSettings() call completed');
+
+    return [true, ''];
+}
+
 // Action handlers map
 const ACTION_HANDLERS = {
     'cycle-zone': handleCycleZone,
@@ -290,6 +384,9 @@ const ACTION_HANDLERS = {
     'move-window-to-workspace': handleMoveWindowToWorkspace,
     'set-per-workspace-mode': handleSetPerWorkspaceMode,
     'get-spatial-state': handleGetSpatialState,
+    'set-global-mode': handleSetGlobalMode,
+    'open-layout-settings': handleOpenLayoutSettings,
+    'close-layout-settings': handleCloseLayoutSettings,
 };
 
 /**
