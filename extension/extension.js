@@ -302,6 +302,18 @@ export default class ZonedExtension extends Extension {
         // Add panel indicator to top bar
         Main.panel.addToStatusArea('zoned-indicator', this._panelIndicator);
 
+        // Apply per-workspace layout for initial workspace if enabled
+        // This ensures the correct layout is shown on startup, not just when switching workspaces
+        if (this._settings.get_boolean('use-per-workspace-layouts')) {
+            const spaceKey = this._spatialStateManager.getCurrentSpaceKey();
+            const state = this._spatialStateManager.getState(spaceKey);
+            if (this._layoutManager.setLayout(state.layoutId)) {
+                logger.info(`Applied per-workspace layout for initial workspace: ${state.layoutId}`);
+            } else {
+                logger.warn(`Failed to apply per-workspace layout: ${state.layoutId}`);
+            }
+        }
+
         logger.info('Extension enabled successfully');
 
         // Signal successful initialization via D-Bus (for automated testing)

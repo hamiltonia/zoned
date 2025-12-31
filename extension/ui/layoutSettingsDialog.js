@@ -146,16 +146,32 @@ export class LayoutSettingsDialog {
         // Build the dialog card
         this._buildDialogCard(colors);
 
-        // Center the dialog card
-        const cardWidth = 420;
-        const cardHeight = this._dialogCard.get_preferred_height(cardWidth)[1] || 500;
-        this._dialogCard.set_position(
-            Math.floor((monitor.width - cardWidth) / 2),
-            Math.floor((monitor.height - cardHeight) / 2),
-        );
-
+        // Add dialog to container (but don't add to UI yet)
         this._container.add_child(this._dialogCard);
-        Main.uiGroup.add_child(this._container);
+
+        // Position and show dialog after layout is complete
+        // This ensures the dialog appears centered without any visible repositioning
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            if (!this._container || !this._dialogCard) {
+                return GLib.SOURCE_REMOVE;
+            }
+
+            // Position the dialog before making it visible
+            const actualHeight = this._dialogCard.get_height();
+            const actualWidth = this._dialogCard.get_width();
+            this._dialogCard.set_position(
+                Math.floor((monitor.width - actualWidth) / 2),
+                Math.floor((monitor.height - actualHeight) / 2),
+            );
+
+            // Make dialog visible
+            this._dialogCard.opacity = 255;
+
+            // Now add to UI (dialog is already positioned)
+            Main.uiGroup.add_child(this._container);
+
+            return GLib.SOURCE_REMOVE;
+        });
 
         // Push modal to capture input - use proper Shell.ActionMode constant
         // Defer modal acquisition to avoid conflict with LayoutSwitcher's modal release
@@ -188,20 +204,8 @@ export class LayoutSettingsDialog {
 
         this._visible = true;
 
-        // Re-center and focus after layout is complete
-        // get_preferred_height may return incorrect value before widget is laid out
+        // Focus the name entry after dialog is shown
         GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            // Re-center the dialog now that layout is complete
-            if (this._dialogCard && this._container) {
-                const actualHeight = this._dialogCard.get_height();
-                const actualWidth = this._dialogCard.get_width();
-                this._dialogCard.set_position(
-                    Math.floor((monitor.width - actualWidth) / 2),
-                    Math.floor((monitor.height - actualHeight) / 2),
-                );
-            }
-
-            // Focus the name entry
             if (this._nameEntry) {
                 this._nameEntry.grab_key_focus();
             }
@@ -486,7 +490,8 @@ export class LayoutSettingsDialog {
             vertical: true,
             reactive: true,
             style: `background-color: ${colors.containerBg}; border-radius: 16px; ` +
-                   'padding: 24px; min-width: 420px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);',
+                   'padding: 24px; min-width: 420px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); ' +
+                   'opacity: 0;',  // Start invisible, will be shown after positioning
         });
 
         // Header

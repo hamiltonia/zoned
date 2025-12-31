@@ -361,7 +361,21 @@ export class LayoutManager {
         }
 
         const state = this._spatialStateManager.getState(spaceKey);
-        const layout = this._layouts.find(l => l.id === state.layoutId);
+        let layout = this._layouts.find(l => l.id === state.layoutId);
+
+        // Handle template-prefixed layout IDs (e.g., "template-quarters")
+        // These are created when selecting templates but should map to actual layouts after restart
+        if (!layout && state.layoutId.startsWith('template-')) {
+            const baseId = state.layoutId.replace('template-', '');
+            layout = this._layouts.find(l => l.id === baseId);
+
+            if (layout) {
+                // Found the base layout, update spatial state to use correct ID
+                logger.info(`Remapped template layout '${state.layoutId}' to '${layout.id}' for space ${spaceKey}`);
+                this._spatialStateManager.setState(spaceKey, layout.id, state.zoneIndex);
+                return layout;
+            }
+        }
 
         if (!layout) {
             // Layout no longer exists (e.g., old template removed)

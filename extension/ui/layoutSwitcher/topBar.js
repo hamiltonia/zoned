@@ -507,6 +507,128 @@ export function createMonitorPill(ctx) {
 }
 
 /**
+ * Get the appropriate layout for a specific workspace
+ * Handles both per-workspace and global modes
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param {number} workspaceIndex - Workspace index
+ * @returns {Object|null} The layout object for this workspace
+ */
+function getWorkspaceLayout(ctx, workspaceIndex) {
+    const perSpaceEnabled = ctx._settings.get_boolean('use-per-workspace-layouts');
+
+    if (perSpaceEnabled) {
+        const spatialManager = ctx._layoutManager.getSpatialStateManager();
+        if (spatialManager) {
+            const spaceKey = spatialManager.makeKey(ctx._selectedMonitorIndex, workspaceIndex);
+            return ctx._layoutManager.getLayoutForSpace(spaceKey);
+        }
+    }
+
+    // Global mode or fallback
+    return ctx._getCurrentLayout();
+}
+
+/**
+ * Create a single workspace thumbnail with zone preview
+ * Extracted for reuse in both initial creation and refresh to ensure consistency
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param {number} workspaceIndex - Workspace index
+ * @param {boolean} isActive - Whether this workspace is selected
+ * @param {boolean} isDisabled - Whether thumbnails are disabled (applying globally)
+ * @returns {St.Button} The workspace thumbnail button
+ */
+function createWorkspaceThumbnail(ctx, workspaceIndex, isActive, isDisabled) {
+    const tier = ctx._currentTier;
+    const thumbW = tier.workspaceThumb.w;
+    const thumbH = tier.workspaceThumb.h;
+    const thumbRadius = Math.max(2, tier.cardRadius);
+
+    // Get layout for this specific workspace using helper function
+    const workspaceLayout = getWorkspaceLayout(ctx, workspaceIndex);
+
+    // Workspace thumbnail button
+    const thumb = new St.Button({
+        style_class: 'workspace-thumbnail',
+        style: getWorkspaceThumbnailStyle(ctx, isActive, isDisabled, thumbW, thumbH, thumbRadius),
+        reactive: !isDisabled,
+        track_hover: !isDisabled,
+        can_focus: !isDisabled,
+    });
+
+    // Container for layering (preview + badge)
+    const thumbContainer = new St.Widget({
+        layout_manager: new Clutter.BinLayout(),
+        width: thumbW,
+        height: thumbH,
+        clip_to_allocation: true,
+        style: `border-radius: ${thumbRadius}px;`,
+    });
+
+    // Zone preview layer
+    // Use CENTER alignment (matching cardFactory) to maintain 16:9 aspect ratio
+    // FILL alignment caused thumbnails to expand to monitor aspect ratio on relayout
+    const previewContainer = new St.Bin({
+        x_align: Clutter.ActorAlign.CENTER,
+        y_align: Clutter.ActorAlign.CENTER,
+        clip_to_allocation: true,
+        style: `border-radius: ${thumbRadius}px;`,
+    });
+
+    // Get zones for this workspace (per-space aware)
+    const zones = workspaceLayout?.zones || [];
+
+    const preview = createZonePreview(ctx, zones);
+    preview.set_size(thumbW, thumbH);
+    previewContainer.set_child(preview);
+    thumbContainer.add_child(previewContainer);
+
+    // Workspace number badge (overlaid in corner)
+    const badge = new St.Label({
+        text: `${workspaceIndex + 1}`,
+        style: 'font-size: 9px; ' +
+               'font-weight: 700; ' +
+               'color: white; ' +
+               'background-color: rgba(0, 0, 0, 0.6); ' +
+               'border-radius: 3px; ' +
+               'padding: 1px 4px; ' +
+               'margin: 2px;',
+        x_align: Clutter.ActorAlign.START,
+        y_align: Clutter.ActorAlign.START,
+    });
+    thumbContainer.add_child(badge);
+
+    // Disabled overlay (when applying globally)
+    if (isDisabled) {
+        const disabledOverlay = new St.Bin({
+            style: `background-color: rgba(0, 0, 0, 0.4); border-radius: ${thumbRadius}px;`,
+            x_expand: true,
+            y_expand: true,
+        });
+        thumbContainer.add_child(disabledOverlay);
+    }
+
+    thumb.set_child(thumbContainer);
+
+    // Store for later reference
+    thumb._workspaceIndex = workspaceIndex;
+    thumb._isDisabled = isDisabled;
+
+    if (!isDisabled) {
+        // Hover effects (only when not disabled) - use bound methods
+        // Create per-thumb bound handlers with thumb captured
+        const boundEnter = handleWorkspaceThumbnailEnter.bind(ctx, thumb);
+        const boundLeave = handleWorkspaceThumbnailLeave.bind(ctx, thumb);
+        const boundClick = handleWorkspaceThumbnailClick.bind(ctx, thumb);
+
+        ctx._signalTracker.connect(thumb, 'enter-event', boundEnter);
+        ctx._signalTracker.connect(thumb, 'leave-event', boundLeave);
+        ctx._signalTracker.connect(thumb, 'clicked', boundClick);
+    }
+
+    return thumb;
+}
+
+/**
  * Create workspace thumbnails with 16:9 zone previews
  * Shows the currently applied layout for each workspace
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
@@ -514,10 +636,7 @@ export function createMonitorPill(ctx) {
  */
 export function createWorkspaceThumbnails(ctx) {
     const tier = ctx._currentTier;
-    const thumbW = tier.workspaceThumb.w;
-    const thumbH = tier.workspaceThumb.h;
     const thumbGap = tier.workspaceThumbGap || 8;
-    const thumbRadius = Math.max(2, tier.cardRadius);
 
     // Determine if thumbnails should be disabled (when applying globally)
     const isDisabled = ctx._applyGlobally;
@@ -531,106 +650,11 @@ export function createWorkspaceThumbnails(ctx) {
     const nWorkspaces = global.workspace_manager.get_n_workspaces();
     ctx._workspaceButtons = [];
 
-    // Check if per-workspace mode is enabled
-    const perSpaceEnabled = ctx._settings.get_boolean('use-per-workspace-layouts');
-
     for (let i = 0; i < nWorkspaces; i++) {
         const isActive = i === ctx._currentWorkspace;
 
-        // Get layout for this specific workspace (per-space mode or global)
-        let workspaceLayout;
-        if (perSpaceEnabled) {
-            // Get layout for this workspace on selected monitor
-            const spatialManager = ctx._layoutManager.getSpatialStateManager();
-            if (spatialManager) {
-                const spaceKey = spatialManager.makeKey(ctx._selectedMonitorIndex, i);
-                workspaceLayout = ctx._layoutManager.getLayoutForSpace(spaceKey);
-            } else {
-                workspaceLayout = ctx._getCurrentLayout();
-            }
-        } else {
-            // Global mode: same layout for all
-            workspaceLayout = ctx._getCurrentLayout();
-        }
-
-        // Workspace thumbnail button
-        const thumb = new St.Button({
-            style_class: 'workspace-thumbnail',
-            style: getWorkspaceThumbnailStyle(ctx, isActive, isDisabled, thumbW, thumbH, thumbRadius),
-            reactive: !isDisabled,
-            track_hover: !isDisabled,
-            can_focus: !isDisabled,
-        });
-
-        // Container for layering (preview + badge)
-        const thumbContainer = new St.Widget({
-            layout_manager: new Clutter.BinLayout(),
-            width: thumbW,
-            height: thumbH,
-            clip_to_allocation: true,
-            style: `border-radius: ${thumbRadius}px;`,
-        });
-
-        // Zone preview layer
-        // Use CENTER alignment (matching cardFactory) to maintain 16:9 aspect ratio
-        // FILL alignment caused thumbnails to expand to monitor aspect ratio on relayout
-        const previewContainer = new St.Bin({
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER,
-            clip_to_allocation: true,
-            style: `border-radius: ${thumbRadius}px;`,
-        });
-
-        // Get zones for this workspace (per-space aware)
-        const zones = workspaceLayout?.zones || [];
-
-        const preview = createZonePreview(ctx, zones);
-        preview.set_size(thumbW, thumbH);
-        previewContainer.set_child(preview);
-        thumbContainer.add_child(previewContainer);
-
-        // Workspace number badge (overlaid in corner)
-        const badge = new St.Label({
-            text: `${i + 1}`,
-            style: 'font-size: 9px; ' +
-                   'font-weight: 700; ' +
-                   'color: white; ' +
-                   'background-color: rgba(0, 0, 0, 0.6); ' +
-                   'border-radius: 3px; ' +
-                   'padding: 1px 4px; ' +
-                   'margin: 2px;',
-            x_align: Clutter.ActorAlign.START,
-            y_align: Clutter.ActorAlign.START,
-        });
-        thumbContainer.add_child(badge);
-
-        // Disabled overlay (when applying globally)
-        if (isDisabled) {
-            const disabledOverlay = new St.Bin({
-                style: `background-color: rgba(0, 0, 0, 0.4); border-radius: ${thumbRadius}px;`,
-                x_expand: true,
-                y_expand: true,
-            });
-            thumbContainer.add_child(disabledOverlay);
-        }
-
-        thumb.set_child(thumbContainer);
-
-        // Store for later reference
-        thumb._workspaceIndex = i;
-        thumb._isDisabled = isDisabled;
-
-        if (!isDisabled) {
-            // Hover effects (only when not disabled) - use bound methods
-            // Create per-thumb bound handlers with thumb captured
-            const boundEnter = handleWorkspaceThumbnailEnter.bind(ctx, thumb);
-            const boundLeave = handleWorkspaceThumbnailLeave.bind(ctx, thumb);
-            const boundClick = handleWorkspaceThumbnailClick.bind(ctx, thumb);
-
-            ctx._signalTracker.connect(thumb, 'enter-event', boundEnter);
-            ctx._signalTracker.connect(thumb, 'leave-event', boundLeave);
-            ctx._signalTracker.connect(thumb, 'clicked', boundClick);
-        }
+        // Create thumbnail using helper function for consistency
+        const thumb = createWorkspaceThumbnail(ctx, i, isActive, isDisabled);
 
         ctx._workspaceButtons.push(thumb);
         container.add_child(thumb);
@@ -732,6 +756,42 @@ export function onWorkspaceThumbnailClicked(ctx, workspaceIndex) {
 }
 
 /**
+ * Refresh zone previews in workspace thumbnails
+ * Called when toggling between global and per-workspace modes
+ * Destroys and recreates each thumbnail using createWorkspaceThumbnail() to ensure consistency
+ * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ */
+export function refreshWorkspaceThumbnailPreviews(ctx) {
+    const isDisabled = ctx._applyGlobally;
+    const container = ctx._workspaceThumbnailsContainer;
+
+    if (!container) return;
+
+    // Destroy and recreate each thumbnail to ensure identical structure
+    ctx._workspaceButtons.forEach((oldThumb, i) => {
+        const isActive = i === ctx._currentWorkspace;
+
+        // Create new thumbnail using the same helper function as initial creation
+        const newThumb = createWorkspaceThumbnail(ctx, i, isActive, isDisabled);
+
+        // Replace old thumbnail in container
+        // Note: container.get_children() returns children in order, so index is reliable
+        const children = container.get_children();
+        if (children[i] === oldThumb) {
+            container.remove_child(oldThumb);
+            container.insert_child_at_index(newThumb, i);
+
+            // Destroy old thumbnail to prevent memory leaks
+            // SignalTracker automatically disconnects signals when widgets are destroyed
+            oldThumb.destroy();
+
+            // Update reference in array
+            ctx._workspaceButtons[i] = newThumb;
+        }
+    });
+}
+
+/**
  * Update workspace thumbnails disabled state
  * Called when "Apply to all workspaces" checkbox is toggled
  * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
@@ -774,6 +834,9 @@ export function updateWorkspaceThumbnailsDisabledState(ctx) {
             }
         }
     });
+
+    // Refresh zone previews to show correct layouts for new mode
+    refreshWorkspaceThumbnailPreviews(ctx);
 }
 
 // Keep old function name as alias for backwards compatibility
