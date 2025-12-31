@@ -76,6 +76,10 @@ fi
 
 # Start the test window
 info "Starting test window..."
+# Ensure DISPLAY is set for GTK (critical for SSH sessions)
+if [ -z "$DISPLAY" ]; then
+    export DISPLAY=:0
+fi
 nohup python3 "$SCRIPT_DIR/lib/test-window.py" >/dev/null 2>&1 &
 TEST_WINDOW_PID=$!
 sleep 2

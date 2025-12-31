@@ -19,7 +19,10 @@ For the reasoning behind these tests and how they work, see [docs/testing-strate
 # All functional tests
 ./scripts/run-tests func
 
-# Full release suite (memory + functional)
+# Quick release validation (~5-10 min)
+./scripts/run-tests release-test
+
+# Full release suite (memory deep + functional)
 ./scripts/run-tests release
 ```
 
@@ -81,11 +84,12 @@ Validates correctness of features using real GTK4 windows and D-Bus verification
 
 **Test suites:**
 1. **Edge Cases** - Error handling, invalid inputs, boundary conditions
-2. **Layout Switching** - Rapid layout changes, state consistency
-3. **Multi-Monitor** - Multi-display handling (skips gracefully if single monitor)
-4. **Window Movement** - Zone positioning accuracy with real GTK4 windows
-5. **Workspace** - Per-workspace layout persistence
-6. **Zone Cycling** - State consistency under rapid cycling
+2. **GSettings** - Settings persistence and default value verification
+3. **Layout Switching** - Rapid layout changes, state consistency
+4. **Multi-Monitor** - Multi-display handling (skips gracefully if single monitor)
+5. **Window Movement** - Zone positioning accuracy with real GTK4 windows
+6. **Workspace** - Per-workspace layout persistence
+7. **Zone Cycling** - State consistency under rapid cycling
 
 ### Release Testing
 
@@ -120,6 +124,18 @@ Complete test suite for release validation.
 - Invalid D-Bus parameters rejected properly
 
 **Why it's valuable:** Memory tests don't validate error handling paths.
+
+#### test-func-gsettings.sh
+**Purpose:** Validate GSettings persistence and defaults
+
+**What it tests:**
+- Reading current settings succeeds
+- Setting values persists correctly
+- Default values restore properly
+- Settings persist across extension disable/enable
+- Original values restored after test
+
+**Why it's valuable:** Ensures settings framework works correctly and data persists.
 
 #### test-func-layout-switching.sh
 **Purpose:** Validate layout state consistency

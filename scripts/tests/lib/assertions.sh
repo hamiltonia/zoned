@@ -319,10 +319,15 @@ print_summary() {
     fi
     echo "========================================"
     
-    if [ "$FAIL_COUNT" -gt 0 ]; then
+    # Determine exit code based on failure type
+    if [ "$mem_status" = "MEM_FAIL" ]; then
         echo -e "  ${RED:-\033[0;31m}TESTS FAILED${NC:-\033[0m}"
         status="FAIL"
-        exit_code=1
+        exit_code=2  # Exit code 2 for memory leak
+    elif [ "$FAIL_COUNT" -gt 0 ]; then
+        echo -e "  ${RED:-\033[0;31m}TESTS FAILED${NC:-\033[0m}"
+        status="FAIL"
+        exit_code=1  # Exit code 1 for functional failure
     else
         echo -e "  ${GREEN:-\033[0;32m}ALL TESTS PASSED${NC:-\033[0m}"
     fi
@@ -333,7 +338,7 @@ print_summary() {
         echo "${TEST_NAME}|${status}|${PASS_COUNT}|${FAIL_COUNT}|${WARN_COUNT}|${mem_diff}|${duration}|${mem_status}" >> "$TEST_RESULTS_FILE"
     fi
     
-    return $exit_code
+    exit $exit_code
 }
 
 # Mark test as skipped

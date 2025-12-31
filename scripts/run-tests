@@ -13,6 +13,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Source the shared VM detection library
 source "$SCRIPT_DIR/lib/vm-detect.sh"
 
+# Source test setup library for send_notification function
+source "$SCRIPT_DIR/tests/lib/setup.sh"
+
 # Color codes
 COLOR_RESET='\033[0m'
 COLOR_INFO='\033[36m'
@@ -120,9 +123,10 @@ show_help() {
     printf "${COLOR_SUCCESS}Usage:${COLOR_RESET} ./scripts/test <type> [--local] [args...]\n"
     printf "\n"
     printf "${COLOR_SUCCESS}Test Types:${COLOR_RESET}\n"
-    printf "  ${COLOR_INFO}mem${COLOR_RESET}     - Memory leak testing with statistical analysis\n"
-    printf "  ${COLOR_INFO}func${COLOR_RESET}    - Functional correctness testing\n"
-    printf "  ${COLOR_INFO}release${COLOR_RESET} - Full suite (mem deep + all functional tests)\n"
+    printf "  ${COLOR_INFO}mem${COLOR_RESET}          - Memory leak testing with statistical analysis\n"
+    printf "  ${COLOR_INFO}func${COLOR_RESET}         - Functional correctness testing\n"
+    printf "  ${COLOR_INFO}release${COLOR_RESET}      - Full suite (mem deep + all functional tests)\n"
+    printf "  ${COLOR_INFO}release-test${COLOR_RESET} - Quick release validation (mem 2min + func)\n"
     printf "\n"
     printf "${COLOR_SUCCESS}Execution Mode:${COLOR_RESET}\n"
     printf "  ${COLOR_INFO}Default${COLOR_RESET}  - Run in VM via SSH (recommended)\n"
@@ -132,6 +136,7 @@ show_help() {
     printf "  ${COLOR_INFO}Quick verification (feature work):${COLOR_RESET}\n"
     printf "    ./scripts/test mem --preset quick    # Memory test (1-3 min, ~6 min)\n"
     printf "    ./scripts/test func                  # All functional tests\n"
+    printf "    ./scripts/test release-test          # Quick release check (~5-10 min)\n"
     printf "\n"
     printf "  ${COLOR_INFO}Release preparation:${COLOR_RESET}\n"
     printf "    ./scripts/test release               # Full suite (mem deep + func)\n"
@@ -149,52 +154,25 @@ if [[ -z "$TEST_TYPE" ]]; then
 fi
 shift
 
-# Check for --local flag
+# Check for --local and --no-cleanup flags
 RUN_LOCAL=false
-if [[ "$1" == "--local" ]]; then
-    RUN_LOCAL=true
-    shift
-fi
+NO_CLEANUP=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --local)
+            RUN_LOCAL=true
+            shift
+            ;;
+        --no-cleanup)
+            NO_CLEANUP=true
+            shift
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
-# Run functional tests helper
-run_functional_tests() {
-    local test_dir="$1"
-    local failed=0
-    local total=0
-    
-    # List of functional test scripts
-    local func_tests=(
-        "test-func-edge-cases.sh"
-        "test-func-layout-switching.sh"
-        "test-func-multi-monitor.sh"
-        "test-func-window-movement.sh"
-        "test-func-workspace.sh"
-        "test-func-zone-cycling.sh"
-    )
-    
-    printf "${COLOR_INFO}Running %d functional tests...${COLOR_RESET}\n" "${#func_tests[@]}"
-    printf "\n"
-    
-    for test in "${func_tests[@]}"; do
-        ((total++))
-        printf "${COLOR_INFO}[%d/%d]${COLOR_RESET} %s\n" "$total" "${#func_tests[@]}" "$test"
-        if "$test_dir/$test"; then
-            printf "${COLOR_SUCCESS}✓ PASS${COLOR_RESET}\n\n"
-        else
-            printf "${COLOR_ERROR}✗ FAIL${COLOR_RESET}\n\n"
-            ((failed++))
-        fi
-    done
-    
-    printf "${COLOR_INFO}Functional Tests Summary:${COLOR_RESET}\n"
-    if [ $failed -eq 0 ]; then
-        printf "${COLOR_SUCCESS}All %d tests passed${COLOR_RESET}\n" "$total"
-        return 0
-    else
-        printf "${COLOR_ERROR}%d of %d tests failed${COLOR_RESET}\n" "$failed" "$total"
-        return 1
-    fi
-}
 
 # Validate test type
 case "$TEST_TYPE" in
@@ -204,100 +182,201 @@ case "$TEST_TYPE" in
     func|functional)
         # Run all functional tests
         if [ "$RUN_LOCAL" = true ]; then
-            run_functional_tests "$SCRIPT_DIR/tests"
-            exit $?
+            printf "${COLOR_INFO}Running functional tests locally...${COLOR_RESET}\n"
+            printf "\n"
+            exec "$SCRIPT_DIR/tests/test-func-runner.sh" "$@"
         else
             detect_vm_for_test
             printf "\n"
             printf "${COLOR_SUCCESS}Executing functional tests on VM...${COLOR_RESET}\n"
             printf "\n"
-            # Run tests directly on VM
-            ssh -t "$VM_DOMAIN" "cd $REMOTE_PROJECT_DIR && bash -c '
-failed=0
-total=0
-for test in scripts/tests/test-func-*.sh; do
-    total=\$((total + 1))
-    test_name=\$(basename \"\$test\")
-    printf \"[%d/6] %s\n\" \"\$total\" \"\$test_name\"
-    if \"\$test\"; then
-        printf \"✓ PASS\n\n\"
-    else
-        printf \"✗ FAIL\n\n\"
-        failed=\$((failed + 1))
-    fi
-done
-
-if [ \$failed -eq 0 ]; then
-    printf \"Functional Tests Summary: All %d tests passed\n\" \"\$total\"
-    exit 0
-else
-    printf \"Functional Tests Summary: %d of %d tests failed\n\" \"\$failed\" \"\$total\"
-    exit 1
-fi
-'"
+            # Run test runner on VM with all arguments
+            # Build command with all args properly escaped
+            CMD="cd $REMOTE_PROJECT_DIR && ./scripts/tests/test-func-runner.sh"
+            for arg in "$@"; do
+                CMD="$CMD $(printf '%q' "$arg")"
+            done
+            ssh -t "$VM_DOMAIN" "$CMD"
             exit $?
         fi
         ;;
-    release)
-        # Run comprehensive test suite: mem deep + all functional tests
-        printf "${COLOR_INFO}Running release test suite...${COLOR_RESET}\n"
-        printf "${COLOR_INFO}  1. Memory tests (deep preset: 1-20 min)${COLOR_RESET}\n"
-        printf "${COLOR_INFO}  2. All functional tests${COLOR_RESET}\n"
+    release|release-test)
+        # Determine preset based on test type
+        if [ "$TEST_TYPE" = "release-test" ]; then
+            MEM_PRESET="test"
+            SUITE_NAME="release-test"
+            printf "${COLOR_INFO}Running quick release validation suite...${COLOR_RESET}\n"
+            printf "${COLOR_INFO}  1. Memory tests (2-minute max)${COLOR_RESET}\n"
+            printf "${COLOR_INFO}  2. All functional tests${COLOR_RESET}\n"
+        else
+            MEM_PRESET="deep"
+            SUITE_NAME="release"
+            printf "${COLOR_INFO}Running full release test suite...${COLOR_RESET}\n"
+            printf "${COLOR_INFO}  1. Memory tests (deep preset: 1-20 min)${COLOR_RESET}\n"
+            printf "${COLOR_INFO}  2. All functional tests${COLOR_RESET}\n"
+        fi
         printf "\n"
+        
+        # Show early confirmation if --no-cleanup is set
+        if [ "$NO_CLEANUP" = "true" ]; then
+            printf "${COLOR_INFO}📌 Data will not be cleaned up after tests${COLOR_RESET}\n"
+            printf "\n"
+        fi
         
         if [ "$RUN_LOCAL" = true ]; then
             # Local execution
+            MEM_EXIT=0
+            FUNC_EXIT=0
+            MEM_OUTPUT=$(mktemp)
+            FUNC_OUTPUT=$(mktemp)
+            MEM_JSON=$(mktemp --suffix=.json)
+            FUNC_JSON=$(mktemp --suffix=.json)
+            
             printf "${COLOR_INFO}=== Phase 1: Memory Tests ===${COLOR_RESET}\n"
-            if ! ./scripts/tests/test-mem-with-restarts --preset deep; then
-                printf "${COLOR_ERROR}Memory tests failed${COLOR_RESET}\n"
-                exit 1
+            if JSON_OUTPUT="$MEM_JSON" ./scripts/tests/test-mem-with-restarts --preset "$MEM_PRESET" 2>&1 | tee "$MEM_OUTPUT"; then
+                MEM_STATUS="PASS"
+                MEM_EXIT=0
+            else
+                MEM_EXIT=$?
+                if grep -q "WARN:" "$MEM_OUTPUT"; then
+                    MEM_STATUS="WARN"
+                else
+                    MEM_STATUS="FAIL"
+                fi
             fi
+            
             printf "\n"
             printf "${COLOR_INFO}=== Phase 2: Functional Tests ===${COLOR_RESET}\n"
-            if ! run_functional_tests "$SCRIPT_DIR/tests"; then
-                printf "${COLOR_ERROR}Functional tests failed${COLOR_RESET}\n"
-                exit 1
+            
+            # Run functional test runner with JSON output
+            if JSON_OUTPUT="$FUNC_JSON" "$SCRIPT_DIR/tests/test-func-runner.sh" 2>&1 | tee "$FUNC_OUTPUT"; then
+                FUNC_EXIT=0
+            else
+                FUNC_EXIT=1
             fi
-            printf "\n"
-            printf "${COLOR_SUCCESS}✓ Release test suite completed successfully${COLOR_RESET}\n"
-            exit 0
+            
+            # Use JSON-based formatter with named parameters
+            "$SCRIPT_DIR/tests/lib/format-release-summary-json.sh" --mem "$MEM_JSON" --func "$FUNC_JSON" --suite "$SUITE_NAME"
+            SUMMARY_EXIT=$?
+            
+            # Send notification based on test results
+            if [ $SUMMARY_EXIT -eq 0 ]; then
+                send_notification "PASS" "$(echo $SUITE_NAME | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g') Complete" "All tests passed"
+            else
+                send_notification "FAIL" "$(echo $SUITE_NAME | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g') Failed" "One or more tests failed"
+            fi
+            
+            # Clean up temp files (unless --no-cleanup)
+            if [ "$NO_CLEANUP" != "true" ]; then
+                rm -f "$MEM_OUTPUT" "$FUNC_OUTPUT" "$MEM_JSON" "$FUNC_JSON"
+            else
+                printf "\n"
+                printf "${COLOR_INFO}Test outputs saved:${COLOR_RESET}\n"
+                printf "  Memory (text): %s\n" "$MEM_OUTPUT"
+                printf "  Memory (JSON): %s\n" "$MEM_JSON"
+                printf "  Func (text):   %s\n" "$FUNC_OUTPUT"
+                printf "  Func (JSON):   %s\n" "$FUNC_JSON"
+            fi
+            
+            exit $SUMMARY_EXIT
         else
-            # VM execution
+            # VM execution with enhanced summary
             detect_vm_for_test
             printf "\n"
-            printf "${COLOR_SUCCESS}Executing release suite on VM...${COLOR_RESET}\n"
+            printf "${COLOR_SUCCESS}Executing $SUITE_NAME suite on VM...${COLOR_RESET}\n"
             printf "\n"
-            ssh -t "$VM_DOMAIN" << EOF
+            
+            # Capture SSH output to parse file paths
+            SSH_OUTPUT=$(mktemp)
+            ssh -t "$VM_DOMAIN" << EOSSH 2>&1 | tee "$SSH_OUTPUT"
 cd $REMOTE_PROJECT_DIR
+
+# Set NO_CLEANUP from host
+NO_CLEANUP=$NO_CLEANUP
+
+MEM_EXIT=0
+FUNC_EXIT=0
+MEM_OUTPUT=\$(mktemp)
+FUNC_OUTPUT=\$(mktemp)
+MEM_JSON=\$(mktemp --suffix=.json)
+FUNC_JSON=\$(mktemp --suffix=.json)
+
 echo "=== Phase 1: Memory Tests ==="
-if ! ./scripts/tests/test-mem-with-restarts --preset deep; then
-    echo "Memory tests failed"
-    exit 1
-fi
+JSON_OUTPUT="\$MEM_JSON" ./scripts/tests/test-mem-with-restarts --preset $MEM_PRESET 2>&1 | tee "\$MEM_OUTPUT"
+MEM_EXIT=\${PIPESTATUS[0]}
+
 echo ""
 echo "=== Phase 2: Functional Tests ==="
-failed=0
-total=0
-for test in scripts/tests/test-func-*.sh; do
-    ((total++))
-    test_name=\$(basename "\$test")
-    printf "[%d/6] %s\n" "\$total" "\$test_name"
-    if "\$test"; then
-        printf "✓ PASS\n\n"
-    else
-        printf "✗ FAIL\n\n"
-        ((failed++))
-    fi
-done
-if [ \$failed -eq 0 ]; then
-    echo "✓ Release test suite completed successfully"
-    exit 0
+
+# Run functional test runner with JSON output
+JSON_OUTPUT="\$FUNC_JSON" ./scripts/tests/test-func-runner.sh 2>&1 | tee "\$FUNC_OUTPUT"
+FUNC_EXIT=\${PIPESTATUS[0]}
+
+# Use JSON-based formatter with named parameters
+./scripts/tests/lib/format-release-summary-json.sh --mem "\$MEM_JSON" --func "\$FUNC_JSON" --suite "$SUITE_NAME"
+SUMMARY_EXIT=\$?
+
+# Send notification based on test results
+if [ \$SUMMARY_EXIT -eq 0 ]; then
+    send_notification "PASS" "$(echo $SUITE_NAME | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g') Complete" "All tests passed"
 else
-    echo "✗ \$failed of \$total functional tests failed"
-    exit 1
+    send_notification "FAIL" "$(echo $SUITE_NAME | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g') Failed" "One or more tests failed"
 fi
-EOF
-            exit $?
+
+# Clean up or save files
+if [ "\$NO_CLEANUP" != "true" ]; then
+    rm -f "\$MEM_OUTPUT" "\$FUNC_OUTPUT" "\$MEM_JSON" "\$FUNC_JSON"
+else
+    echo ""
+    echo "Test outputs saved on VM:"
+    echo "  Memory (text): \$MEM_OUTPUT"
+    echo "  Memory (JSON): \$MEM_JSON"
+    echo "  Func (text):   \$FUNC_OUTPUT"
+    echo "  Func (JSON):   \$FUNC_JSON"
+    echo "##FILE_PATHS##\$MEM_OUTPUT|\$FUNC_OUTPUT|\$MEM_JSON|\$FUNC_JSON"
+fi
+
+exit \$SUMMARY_EXIT
+EOSSH
+            SSH_EXIT=$?
+            
+            # If --no-cleanup was used, parse file paths and copy to local machine
+            if [ "$NO_CLEANUP" = "true" ]; then
+                FILE_PATHS=$(grep "^##FILE_PATHS##" "$SSH_OUTPUT" | sed 's/^##FILE_PATHS##//' || echo "")
+                
+                if [ -n "$FILE_PATHS" ]; then
+                    VM_MEM_TXT=$(echo "$FILE_PATHS" | cut -d'|' -f1)
+                    VM_FUNC_TXT=$(echo "$FILE_PATHS" | cut -d'|' -f2)
+                    VM_MEM_JSON=$(echo "$FILE_PATHS" | cut -d'|' -f3)
+                    VM_FUNC_JSON=$(echo "$FILE_PATHS" | cut -d'|' -f4)
+                    
+                    printf "\n"
+                    printf "${COLOR_INFO}Copying test outputs to local machine...${COLOR_RESET}\n"
+                    
+                    # Copy all files from VM to local machine
+                    if scp "$VM_DOMAIN:$VM_MEM_TXT" /tmp/mem-output.txt 2>/dev/null && \
+                       scp "$VM_DOMAIN:$VM_FUNC_TXT" /tmp/func-output.txt 2>/dev/null && \
+                       scp "$VM_DOMAIN:$VM_MEM_JSON" /tmp/mem-results.json 2>/dev/null && \
+                       scp "$VM_DOMAIN:$VM_FUNC_JSON" /tmp/func-results.json 2>/dev/null; then
+                        printf "\n"
+                        printf "${COLOR_SUCCESS}Files copied to local machine:${COLOR_RESET}\n"
+                        printf "  Memory (text): /tmp/mem-output.txt\n"
+                        printf "  Memory (JSON): /tmp/mem-results.json\n"
+                        printf "  Func (text):   /tmp/func-output.txt\n"
+                        printf "  Func (JSON):   /tmp/func-results.json\n"
+                        printf "\n"
+                        printf "${COLOR_INFO}You can reformat with:${COLOR_RESET}\n"
+                        printf "  ./scripts/tests/lib/format-release-summary-json.sh --mem /tmp/mem-results.json --func /tmp/func-results.json --suite $SUITE_NAME\n"
+                    else
+                        printf "${COLOR_WARN}Warning: Could not copy files from VM${COLOR_RESET}\n"
+                    fi
+                fi
+            fi
+            
+            # Clean up temp file
+            rm -f "$SSH_OUTPUT"
+            
+            exit $SSH_EXIT
         fi
         ;;
     help|--help|-h)
