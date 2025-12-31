@@ -331,9 +331,9 @@ main() {
     # Step 10: Store libvirt domain name
     VM_LIBVIRT_NAME="$VM_DOMAIN"
     
-    # Step 11: Write cache
+    # Step 11: Write profile
     vm_print_step "Saving configuration..."
-    vm_write_cache "$VM_CACHE_FILE"
+    vm_profile_write
     echo ""
     
     # Step 12: Reload GNOME Shell
