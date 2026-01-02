@@ -90,11 +90,12 @@ function handleIconButtonHoverEnter(button, icon, hoverStyle) {
  * @param {St.Button} button - The button to update
  * @param {St.Icon} icon - The icon child to update
  * @param {string} normalStyle - The normal style for button
+ * @param {string} iconNormalColor - The normal color for icon
  * @returns {number} Clutter.EVENT_PROPAGATE
  */
-function handleIconButtonHoverLeave(button, icon, normalStyle) {
+function handleIconButtonHoverLeave(button, icon, normalStyle, iconNormalColor) {
     button.style = normalStyle;
-    icon.style = 'color: rgba(255, 255, 255, 0.8);';
+    icon.style = `color: ${iconNormalColor};`;
     return Clutter.EVENT_PROPAGATE;
 }
 
@@ -882,18 +883,11 @@ export class LayoutSettingsDialog {
         });
         button.set_child(icon);
 
-        // Hover effects
-        button.connect('enter-event', () => {
-            button.style = hoverStyle;
-            icon.style = 'color: white;';
-            return Clutter.EVENT_PROPAGATE;
-        });
-
-        button.connect('leave-event', () => {
-            button.style = idleStyle;
-            icon.style = 'color: rgba(255, 255, 255, 0.8);';
-            return Clutter.EVENT_PROPAGATE;
-        });
+        // Use module-level handlers to prevent closure leaks
+        const boundEnter = handleIconButtonHoverEnter.bind(null, button, icon, hoverStyle);
+        const boundLeave = handleIconButtonHoverLeave.bind(null, button, icon, idleStyle, 'rgba(255, 255, 255, 0.8)');
+        button.connect('enter-event', boundEnter);
+        button.connect('leave-event', boundLeave);
 
         // Click opens zone editor
         button.connect('clicked', () => {
@@ -1084,11 +1078,11 @@ export class LayoutSettingsDialog {
 
         // Use module-level handlers to prevent closure leaks
         const upHoverStyle = `padding: 2px 6px; background-color: ${colors.buttonBgHover}; border-radius: 0 6px 0 0;`;
-        const upNormalStyle = `padding: 2px 6px; background-color: transparent; border-radius: 0 6px 0 0;`;
+        const upNormalStyle = 'padding: 2px 6px; background-color: transparent; border-radius: 0 6px 0 0;';
         const boundUpClick = handleUpButtonClick.bind(null, container, valueLabel, options, undefined);
         const boundUpEnter = handleWidgetHoverEnter.bind(null, upButton, upHoverStyle);
         const boundUpLeave = handleWidgetHoverLeave.bind(null, upButton, upNormalStyle);
-        
+
         upButton.connect('clicked', boundUpClick);
         upButton.connect('enter-event', boundUpEnter);
         upButton.connect('leave-event', boundUpLeave);
@@ -1118,7 +1112,7 @@ export class LayoutSettingsDialog {
         const boundDownClick = handleDownButtonClick.bind(null, container, valueLabel, options, undefined);
         const boundDownEnter = handleWidgetHoverEnter.bind(null, downButton, downHoverStyle);
         const boundDownLeave = handleWidgetHoverLeave.bind(null, downButton, downNormalStyle);
-        
+
         downButton.connect('clicked', boundDownClick);
         downButton.connect('enter-event', boundDownEnter);
         downButton.connect('leave-event', boundDownLeave);
@@ -1413,11 +1407,11 @@ export class LayoutSettingsDialog {
 
         // Use module-level handlers to prevent closure leaks
         const upHoverStyle = `padding: 2px 6px; background-color: ${colors.buttonBgHover}; border-radius: 0 6px 0 0;`;
-        const upNormalStyle = `padding: 2px 6px; background-color: transparent; border-radius: 0 6px 0 0;`;
+        const upNormalStyle = 'padding: 2px 6px; background-color: transparent; border-radius: 0 6px 0 0;';
         const boundUpClick = handleUpButtonClick.bind(null, container, valueLabel, max, step);
         const boundUpEnter = handleWidgetHoverEnter.bind(null, upButton, upHoverStyle);
         const boundUpLeave = handleWidgetHoverLeave.bind(null, upButton, upNormalStyle);
-        
+
         upButton.connect('clicked', boundUpClick);
         upButton.connect('enter-event', boundUpEnter);
         upButton.connect('leave-event', boundUpLeave);
@@ -1447,7 +1441,7 @@ export class LayoutSettingsDialog {
         const boundDownClick = handleDownButtonClick.bind(null, container, valueLabel, min, step);
         const boundDownEnter = handleWidgetHoverEnter.bind(null, downButton, downHoverStyle);
         const boundDownLeave = handleWidgetHoverLeave.bind(null, downButton, downNormalStyle);
-        
+
         downButton.connect('clicked', boundDownClick);
         downButton.connect('enter-event', boundDownEnter);
         downButton.connect('leave-event', boundDownLeave);
