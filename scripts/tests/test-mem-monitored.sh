@@ -452,8 +452,8 @@ esac
 
 echo ""
 read -p "Duration (minutes): " duration_minutes
-read -p "Delay between operations (ms) [100]: " delay_ms
-delay_ms=${delay_ms:-100}
+read -p "Delay between operations (ms) [200]: " delay_ms
+delay_ms=${delay_ms:-200}
 
 echo ""
 info "Test: $TEST_NAME"

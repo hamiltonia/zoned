@@ -44,7 +44,7 @@ export class LayoutSwitcher {
      * @param {Gio.Settings} settings - GSettings instance
      */
     constructor(layoutManager, zoneOverlay, settings) {
-        global.zonedDebug?.trackInstance('LayoutSwitcher', 1);
+        global.zonedDebug?.trackInstance('LayoutSwitcher');
         this._layoutManager = layoutManager;
         this._zoneOverlay = zoneOverlay;
         this._settings = settings;
@@ -1986,12 +1986,8 @@ export class LayoutSwitcher {
             logger.info('    >>> Container shown');
         }
 
-        // Ensure dialog is on top of preview overlays
-        if (this._dialog) {
-            logger.info('    >>> Calling raise_top');
-            this._dialog.raise_top();
-            logger.info('    >>> raise_top complete');
-        }
+        // Note: No need to call raise_top() - dialog is already in Main.uiGroup
+        // and will be visible once the settings dialog removes its overlay
 
         // Note: Key events remain connected - we only release modal, not destroy dialog
         // Focus the dialog to ensure keyboard events route correctly
@@ -2226,6 +2222,6 @@ export class LayoutSwitcher {
             this._themeManager = null;
         }
 
-        global.zonedDebug?.trackInstance('LayoutSwitcher', -1);
+        global.zonedDebug?.trackInstance('LayoutSwitcher', false);
     }
 }

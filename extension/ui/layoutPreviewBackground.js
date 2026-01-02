@@ -49,7 +49,7 @@ export class LayoutPreviewBackground {
      * @param {Function} onBackgroundClick - Callback when background is clicked (to dismiss dialog)
      */
     constructor(settings, onBackgroundClick) {
-        global.zonedDebug?.trackInstance('LayoutPreviewBackground', 1);
+        global.zonedDebug?.trackInstance('LayoutPreviewBackground');
         this._settings = settings;
         this._themeManager = new ThemeManager(settings);
         this._onBackgroundClick = onBackgroundClick;
@@ -496,7 +496,7 @@ export class LayoutPreviewBackground {
                 this._themeManager = null;
             }
 
-            global.zonedDebug?.trackInstance('LayoutPreviewBackground', -1);
+            global.zonedDebug?.trackInstance('LayoutPreviewBackground', false);
         } finally {
             // Always reset the flag, even if an error occurred
             this._isDestroying = false;

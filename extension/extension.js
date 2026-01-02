@@ -95,7 +95,7 @@ export default class ZonedExtension extends Extension {
                 const newCount = current + (increment ? 1 : -1);
                 this.instances.set(className, newCount);
 
-                logger.memdebug(`${className} instance count: ${newCount} (${increment ? '+' : '-'}1)`);
+                logger.memdebug(`${className} instance count: ${newCount} (${increment ? '+1' : '-1'})`);
             },
 
             /**
