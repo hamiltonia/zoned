@@ -25,7 +25,7 @@ export class ThemeManager {
      * @param {Gio.Settings} settings - Extension settings instance
      */
     constructor(settings) {
-        global.zonedDebug?.trackInstance('ThemeManager', 1);
+        global.zonedDebug?.trackInstance('ThemeManager');
         this._settings = settings;
 
         // Listen to GNOME system interface settings
@@ -352,12 +352,16 @@ export class ThemeManager {
      * Clean up resources
      */
     destroy() {
+        logger.memdebug('>>> ThemeManager.destroy() ENTER');
+
         // Disconnect any signals that weren't manually disconnected
         if (this._signalIds && this._signalIds.length > 0) {
-            logger.debug(`ThemeManager: Cleaning up ${this._signalIds.length} signal(s)`);
+            logger.memdebug(`ThemeManager: Cleaning up ${this._signalIds.length} signal(s)`);
             this._signalIds.forEach(({source, id}) => {
                 try {
                     if (source && id) {
+                        const sourceName = source?.constructor?.name || 'Unknown';
+                        logger.memdebug(`  Disconnecting signal ${id} from ${sourceName}`);
                         source.disconnect(id);
                     }
                 } catch (e) {
@@ -365,17 +369,24 @@ export class ThemeManager {
                 }
             });
             this._signalIds = [];
+        } else {
+            logger.memdebug('ThemeManager: No signals to clean up');
         }
 
         // Release bound callback references to prevent memory leaks
+        logger.memdebug('ThemeManager: Releasing bound callbacks');
         this._boundUserPrefChanged = null;
         this._boundSystemThemeChanged = null;
 
         // Clear our reference to interface settings
         // (GSettings objects are managed by GLib, but we should release our reference)
+        logger.memdebug('ThemeManager: Clearing settings references');
         this._interfaceSettings = null;
         this._settings = null;
 
-        global.zonedDebug?.trackInstance('ThemeManager', -1);
+        logger.memdebug('ThemeManager: Calling trackInstance(false)');
+        global.zonedDebug?.trackInstance('ThemeManager', false);
+
+        logger.memdebug('<<< ThemeManager.destroy() EXIT');
     }
 }

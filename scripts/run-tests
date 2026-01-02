@@ -209,7 +209,17 @@ case "$TEST_TYPE" in
         if [ "$RUN_LOCAL" = true ]; then
             printf "${COLOR_INFO}Running functional tests locally...${COLOR_RESET}\n"
             printf "\n"
-            exec "$SCRIPT_DIR/tests/test-func-runner.sh" "$@"
+            "$SCRIPT_DIR/tests/test-func-runner.sh" "$@"
+            TEST_EXIT=$?
+            
+            # Send notification based on test results
+            if [ $TEST_EXIT -eq 0 ]; then
+                send_notification "PASS" "Functional Tests Complete" "All tests passed"
+            else
+                send_notification "FAIL" "Functional Tests Failed" "One or more tests failed"
+            fi
+            
+            exit $TEST_EXIT
         else
             detect_vm_for_test
             printf "\n"
@@ -222,7 +232,16 @@ case "$TEST_TYPE" in
                 CMD="$CMD $(printf '%q' "$arg")"
             done
             ssh -t "$VM_DOMAIN" "$CMD"
-            exit $?
+            TEST_EXIT=$?
+            
+            # Send notification from host based on VM test results
+            if [ $TEST_EXIT -eq 0 ]; then
+                send_notification "PASS" "Functional Tests Complete" "All tests passed"
+            else
+                send_notification "FAIL" "Functional Tests Failed" "One or more tests failed"
+            fi
+            
+            exit $TEST_EXIT
         fi
         ;;
     release|release-test)
@@ -422,7 +441,17 @@ if [ "$RUN_LOCAL" = true ]; then
     # Local execution
     printf "${COLOR_INFO}Running tests locally...${COLOR_RESET}\n"
     printf "\n"
-    exec "$TEST_SCRIPT" "$@"
+    "$TEST_SCRIPT" "$@"
+    TEST_EXIT=$?
+    
+    # Send notification based on test results
+    if [ $TEST_EXIT -eq 0 ]; then
+        send_notification "PASS" "Memory Test Complete" "Test passed"
+    else
+        send_notification "FAIL" "Memory Test Failed" "Test failed with exit code $TEST_EXIT"
+    fi
+    
+    exit $TEST_EXIT
 else
     # VM execution (default)
     detect_vm_for_test
@@ -438,4 +467,14 @@ else
     printf "${COLOR_SUCCESS}Executing test on VM...${COLOR_RESET}\n"
     printf "\n"
     ssh -t "$VM_DOMAIN" "$CMD"
+    TEST_EXIT=$?
+    
+    # Send notification from host based on VM test results
+    if [ $TEST_EXIT -eq 0 ]; then
+        send_notification "PASS" "Memory Test Complete" "Test passed"
+    else
+        send_notification "FAIL" "Memory Test Failed" "Test failed with exit code $TEST_EXIT"
+    fi
+    
+    exit $TEST_EXIT
 fi

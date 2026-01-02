@@ -102,6 +102,9 @@ export class LayoutSettingsDialog {
         // Signal tracking for cleanup
         this._signalTracker = new SignalTracker('LayoutSettingsDialog');
 
+        // Track GLib sources for cleanup (prevent memory leaks)
+        this._idleSourceIds = [];
+
         // Bind methods to avoid closure leaks
         this._boundHandleContainerClick = this._handleContainerClick.bind(this);
         this._boundHandleKeyPress = this._handleKeyPress.bind(this);
@@ -110,6 +113,11 @@ export class LayoutSettingsDialog {
         this._boundHandleDeleteCancelClick = this._hideDeleteConfirmation.bind(this);
         this._boundHandleDeleteConfirmClick = this._onDeleteConfirmClick.bind(this);
         this._boundHandleDeleteWrapperClick = this._handleDeleteWrapperClick.bind(this);
+        this._boundOpenZoneEditor = this._openZoneEditor.bind(this);
+        this._boundOnDuplicate = this._onDuplicate.bind(this);
+        this._boundOnDelete = this._onDelete.bind(this);
+        this._boundOnCancel = this._onCancel.bind(this);
+        this._boundOnSave = this._onSave.bind(this);
 
         logger.debug(`LayoutSettingsDialog created (${this._isNewLayout ? 'CREATE' : 'EDIT'} mode, template: ${this._isTemplate})`);
     }
@@ -151,8 +159,9 @@ export class LayoutSettingsDialog {
 
         // Position and show dialog after layout is complete
         // This ensures the dialog appears centered without any visible repositioning
-        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            if (!this._container || !this._dialogCard) {
+        const positionSourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            // Guard: verify dialog is still alive
+            if (this._closing || !this._visible || !this._container || !this._dialogCard) {
                 return GLib.SOURCE_REMOVE;
             }
 
@@ -172,11 +181,13 @@ export class LayoutSettingsDialog {
 
             return GLib.SOURCE_REMOVE;
         });
+        this._idleSourceIds.push(positionSourceId);
 
         // Push modal to capture input - use proper Shell.ActionMode constant
         // Defer modal acquisition to avoid conflict with LayoutSwitcher's modal release
-        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            if (!this._container) {
+        const modalSourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            // Guard: verify dialog is still alive
+            if (this._closing || !this._visible || !this._container) {
                 logger.warn('Container destroyed before modal acquisition');
                 return GLib.SOURCE_REMOVE;
             }
@@ -198,19 +209,26 @@ export class LayoutSettingsDialog {
 
             return GLib.SOURCE_REMOVE;
         });
+        this._idleSourceIds.push(modalSourceId);
 
-        // Connect key handler for ESC - use bound method
-        this._keyPressId = this._container.connect('key-press-event', this._boundHandleKeyPress);
+        // Connect key handler for ESC - use bound method via SignalTracker
+        this._signalTracker.connect(
+            this._container, 'key-press-event', this._boundHandleKeyPress,
+        );
 
         this._visible = true;
 
         // Focus the name entry after dialog is shown
-        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            if (this._nameEntry) {
-                this._nameEntry.grab_key_focus();
+        const focusSourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            // Guard: verify dialog is still alive
+            if (this._closing || !this._visible || !this._nameEntry) {
+                return GLib.SOURCE_REMOVE;
             }
+
+            this._nameEntry.grab_key_focus();
             return GLib.SOURCE_REMOVE;
         });
+        this._idleSourceIds.push(focusSourceId);
 
         logger.debug('LayoutSettingsDialog opened');
     }
@@ -224,22 +242,75 @@ export class LayoutSettingsDialog {
         }
         this._closing = true;
 
-        // Pop modal - pass the Clutter.Grab object returned by pushModal
+        this._cleanupIdleSources();
+        this._cleanupModal();
+        this._signalTracker.disconnectAll();
+        this._destroyWidgets();
+        this._releaseBoundFunctions();
+        this._destroyContainer();
+        this._cleanupThemeManager();
+
+        this._visible = false;
+        logger.debug('LayoutSettingsDialog closed');
+    }
+
+    /**
+     * Clean up all pending GLib idle sources
+     * @private
+     */
+    _cleanupIdleSources() {
+        logger.debug(`Removing ${this._idleSourceIds.length} idle sources`);
+        for (const sourceId of this._idleSourceIds) {
+            GLib.Source.remove(sourceId);
+        }
+        this._idleSourceIds = [];
+    }
+
+    /**
+     * Clean up modal state
+     * @private
+     */
+    _cleanupModal() {
         if (this._modal) {
             Main.popModal(this._modal);
             this._modal = null;
         }
+    }
 
-        // Disconnect key handler
-        if (this._keyPressId && this._container) {
-            this._container.disconnect(this._keyPressId);
-            this._keyPressId = null;
+    /**
+     * Destroy all widgets to break reference cycles
+     * @private
+     */
+    _destroyWidgets() {
+        // Destroy widgets in reverse order of creation
+        const widgets = [
+            '_saveButton',
+            '_deleteButton',
+            '_duplicateButton',
+            '_nameEntry',
+            '_paddingCheckbox',
+            '_paddingSpinner',
+            '_shortcutDropdown',
+            '_previewContainer',
+            '_dialogCard',
+        ];
+
+        for (const widgetName of widgets) {
+            if (this[widgetName]) {
+                this[widgetName].destroy();
+                this[widgetName] = null;
+            }
         }
 
-        // Disconnect all tracked signals
-        this._signalTracker.disconnectAll();
+        // Null the SignalTracker after disconnecting
+        this._signalTracker = null;
+    }
 
-        // Release bound function references
+    /**
+     * Release all bound function references
+     * @private
+     */
+    _releaseBoundFunctions() {
         this._boundHandleContainerClick = null;
         this._boundHandleKeyPress = null;
         this._boundUpdateSaveButton = null;
@@ -247,23 +318,34 @@ export class LayoutSettingsDialog {
         this._boundHandleDeleteCancelClick = null;
         this._boundHandleDeleteConfirmClick = null;
         this._boundHandleDeleteWrapperClick = null;
+        this._boundOpenZoneEditor = null;
+        this._boundOnDuplicate = null;
+        this._boundOnDelete = null;
+        this._boundOnCancel = null;
+        this._boundOnSave = null;
+    }
 
-        // Destroy container
+    /**
+     * Destroy the main container
+     * @private
+     */
+    _destroyContainer() {
         if (this._container) {
             Main.uiGroup.remove_child(this._container);
             this._container.destroy();
             this._container = null;
         }
+    }
 
-        this._visible = false;
-
-        // Clean up ThemeManager
+    /**
+     * Clean up ThemeManager
+     * @private
+     */
+    _cleanupThemeManager() {
         if (this._themeManager) {
             this._themeManager.destroy();
             this._themeManager = null;
         }
-
-        logger.debug('LayoutSettingsDialog closed');
     }
 
     /**
