@@ -46,6 +46,106 @@ import {TemplateManager} from '../templateManager.js';
 const logger = createLogger('LayoutSettingsDialog');
 
 /**
+ * Module-level handler functions to prevent closure leaks
+ * Following LayoutSwitcher's proven pattern - no arrow functions, no closures
+ */
+
+/**
+ * Generic hover enter handler for widgets with style changes
+ * @param {St.Widget} widget - The widget to update
+ * @param {string} hoverStyle - The hover style to apply
+ * @returns {number} Clutter.EVENT_PROPAGATE
+ */
+function handleWidgetHoverEnter(widget, hoverStyle) {
+    widget.style = hoverStyle;
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Generic hover leave handler for widgets with style changes
+ * @param {St.Widget} widget - The widget to update
+ * @param {string} normalStyle - The normal style to apply
+ * @returns {number} Clutter.EVENT_PROPAGATE
+ */
+function handleWidgetHoverLeave(widget, normalStyle) {
+    widget.style = normalStyle;
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Icon button hover enter handler (updates both button and icon)
+ * @param {St.Button} button - The button to update
+ * @param {St.Icon} icon - The icon child to update
+ * @param {string} hoverStyle - The hover style for button
+ * @returns {number} Clutter.EVENT_PROPAGATE
+ */
+function handleIconButtonHoverEnter(button, icon, hoverStyle) {
+    button.style = hoverStyle;
+    icon.style = 'color: white;';
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Icon button hover leave handler (updates both button and icon)
+ * @param {St.Button} button - The button to update
+ * @param {St.Icon} icon - The icon child to update
+ * @param {string} normalStyle - The normal style for button
+ * @returns {number} Clutter.EVENT_PROPAGATE
+ */
+function handleIconButtonHoverLeave(button, icon, normalStyle) {
+    button.style = normalStyle;
+    icon.style = 'color: rgba(255, 255, 255, 0.8);';
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Dropdown/Spinner up button handler
+ * @param {St.BoxLayout} container - The dropdown/spinner container
+ * @param {St.Label} valueLabel - The value display label
+ * @param {Array|number} optionsOrMax - Options array (dropdown) or max value (spinner)
+ * @param {number} [step] - Step value for spinner (undefined for dropdown)
+ * @returns {void}
+ */
+function handleUpButtonClick(container, valueLabel, optionsOrMax, step) {
+    if (Array.isArray(optionsOrMax)) {
+        // Dropdown: cycle forwards through options
+        container._selectedIndex = (container._selectedIndex + 1) % optionsOrMax.length;
+        valueLabel.text = optionsOrMax[container._selectedIndex];
+    } else {
+        // Spinner: increment value
+        const max = optionsOrMax;
+        if (container._value < max) {
+            container._value = Math.min(max, container._value + step);
+            valueLabel.text = String(container._value);
+        }
+    }
+}
+
+/**
+ * Dropdown/Spinner down button handler
+ * @param {St.BoxLayout} container - The dropdown/spinner container
+ * @param {St.Label} valueLabel - The value display label
+ * @param {Array|number} optionsOrMin - Options array (dropdown) or min value (spinner)
+ * @param {number} [step] - Step value for spinner (undefined for dropdown)
+ * @returns {void}
+ */
+function handleDownButtonClick(container, valueLabel, optionsOrMin, step) {
+    if (Array.isArray(optionsOrMin)) {
+        // Dropdown: cycle backwards through options
+        const options = optionsOrMin;
+        container._selectedIndex = (container._selectedIndex - 1 + options.length) % options.length;
+        valueLabel.text = options[container._selectedIndex];
+    } else {
+        // Spinner: decrement value
+        const min = optionsOrMin;
+        if (container._value > min) {
+            container._value = Math.max(min, container._value - step);
+            valueLabel.text = String(container._value);
+        }
+    }
+}
+
+/**
  * LayoutSettingsDialog - Gateway dialog for layout management
  *
  * Separates metadata editing (name, padding, shortcut) from geometry editing (zones).
@@ -282,7 +382,13 @@ export class LayoutSettingsDialog {
      * @private
      */
     _destroyWidgets() {
-        // Destroy widgets in reverse order of creation
+        // FIRST: Break circular references in composite widgets
+        this._clearSpinnerReferences();
+        this._clearDropdownReferences();
+        this._clearButtonStyles();
+        this._clearCheckboxReferences();
+
+        // THEN: Destroy widgets in reverse order of creation
         const widgets = [
             '_saveButton',
             '_deleteButton',
@@ -304,6 +410,60 @@ export class LayoutSettingsDialog {
 
         // Null the SignalTracker after disconnecting
         this._signalTracker = null;
+    }
+
+    /**
+     * Clear spinner internal references to break cycles
+     * @private
+     */
+    _clearSpinnerReferences() {
+        if (this._paddingSpinner) {
+            this._paddingSpinner._valueLabel = null;
+            this._paddingSpinner._value = null;
+            this._paddingSpinner._min = null;
+            this._paddingSpinner._max = null;
+            this._paddingSpinner._step = null;
+        }
+    }
+
+    /**
+     * Clear dropdown internal references to break cycles
+     * @private
+     */
+    _clearDropdownReferences() {
+        if (this._shortcutDropdown) {
+            this._shortcutDropdown._valueLabel = null;
+            this._shortcutDropdown._options = null;
+            this._shortcutDropdown._selectedIndex = null;
+        }
+    }
+
+    /**
+     * Clear button style references
+     * @private
+     */
+    _clearButtonStyles() {
+        const buttons = [this._saveButton, this._deleteButton, this._duplicateButton];
+        for (const button of buttons) {
+            if (button) {
+                button._normalStyle = null;
+                button._hoverStyle = null;
+            }
+        }
+    }
+
+    /**
+     * Clear checkbox references (destroy child label before nulling)
+     * @private
+     */
+    _clearCheckboxReferences() {
+        if (this._paddingCheckbox) {
+            const checkboxChild = this._paddingCheckbox.get_child();
+            if (checkboxChild) {
+                checkboxChild.destroy();
+            }
+            this._paddingCheckbox._checked = null;
+        }
     }
 
     /**
@@ -1189,6 +1349,12 @@ export class LayoutSettingsDialog {
      */
     _toggleCheckbox(checkbox, colors) {
         checkbox._checked = !checkbox._checked;
+
+        // Destroy old child before setting new one
+        const oldChild = checkbox.get_child();
+        if (oldChild) {
+            oldChild.destroy();
+        }
 
         checkbox.style = 'width: 18px; height: 18px; ' +
                `border: 2px solid ${checkbox._checked ? colors.accentHex : colors.textMuted}; ` +
