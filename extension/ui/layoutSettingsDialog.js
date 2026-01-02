@@ -956,17 +956,13 @@ export class LayoutSettingsDialog {
         });
         button.set_child(icon);
 
-        button.connect('clicked', onClick);
+        this._signalTracker.connect(button, 'clicked', onClick);
 
-        button.connect('enter-event', () => {
-            button.style = hoverStyle;
-            return Clutter.EVENT_PROPAGATE;
-        });
-
-        button.connect('leave-event', () => {
-            button.style = normalStyle;
-            return Clutter.EVENT_PROPAGATE;
-        });
+        // Use module-level handlers to prevent closure leaks
+        const boundEnter = handleWidgetHoverEnter.bind(null, button, hoverStyle);
+        const boundLeave = handleWidgetHoverLeave.bind(null, button, normalStyle);
+        this._signalTracker.connect(button, 'enter-event', boundEnter);
+        this._signalTracker.connect(button, 'leave-event', boundLeave);
 
         return button;
     }
@@ -1086,28 +1082,16 @@ export class LayoutSettingsDialog {
         });
         upButton.set_child(upIcon);
 
-        upButton.connect('clicked', () => {
-            // Cycle forwards through options (higher numbers)
-            container._selectedIndex = (container._selectedIndex + 1) % options.length;
-            valueLabel.text = options[container._selectedIndex];
-        });
-
-        upButton.connect('enter-event', () => {
-            upButton.style = `
-                padding: 2px 6px;
-                background-color: ${colors.buttonBgHover};
-                border-radius: 0 6px 0 0;
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
-        upButton.connect('leave-event', () => {
-            upButton.style = `
-                padding: 2px 6px;
-                background-color: transparent;
-                border-radius: 0 6px 0 0;
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
+        // Use module-level handlers to prevent closure leaks
+        const upHoverStyle = `padding: 2px 6px; background-color: ${colors.buttonBgHover}; border-radius: 0 6px 0 0;`;
+        const upNormalStyle = `padding: 2px 6px; background-color: transparent; border-radius: 0 6px 0 0;`;
+        const boundUpClick = handleUpButtonClick.bind(null, container, valueLabel, options, undefined);
+        const boundUpEnter = handleWidgetHoverEnter.bind(null, upButton, upHoverStyle);
+        const boundUpLeave = handleWidgetHoverLeave.bind(null, upButton, upNormalStyle);
+        
+        upButton.connect('clicked', boundUpClick);
+        upButton.connect('enter-event', boundUpEnter);
+        upButton.connect('leave-event', boundUpLeave);
 
         buttonsBox.add_child(upButton);
 
@@ -1128,30 +1112,16 @@ export class LayoutSettingsDialog {
         });
         downButton.set_child(downIcon);
 
-        downButton.connect('clicked', () => {
-            // Cycle backwards through options (lower numbers)
-            container._selectedIndex = (container._selectedIndex - 1 + options.length) % options.length;
-            valueLabel.text = options[container._selectedIndex];
-        });
-
-        downButton.connect('enter-event', () => {
-            downButton.style = `
-                padding: 2px 6px;
-                background-color: ${colors.buttonBgHover};
-                border-radius: 0 0 6px 0;
-                border-top: 1px solid ${colors.inputBorder};
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
-        downButton.connect('leave-event', () => {
-            downButton.style = `
-                padding: 2px 6px;
-                background-color: transparent;
-                border-radius: 0 0 6px 0;
-                border-top: 1px solid ${colors.inputBorder};
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
+        // Use module-level handlers to prevent closure leaks
+        const downHoverStyle = `padding: 2px 6px; background-color: ${colors.buttonBgHover}; border-radius: 0 0 6px 0; border-top: 1px solid ${colors.inputBorder};`;
+        const downNormalStyle = `padding: 2px 6px; background-color: transparent; border-radius: 0 0 6px 0; border-top: 1px solid ${colors.inputBorder};`;
+        const boundDownClick = handleDownButtonClick.bind(null, container, valueLabel, options, undefined);
+        const boundDownEnter = handleWidgetHoverEnter.bind(null, downButton, downHoverStyle);
+        const boundDownLeave = handleWidgetHoverLeave.bind(null, downButton, downNormalStyle);
+        
+        downButton.connect('clicked', boundDownClick);
+        downButton.connect('enter-event', boundDownEnter);
+        downButton.connect('leave-event', boundDownLeave);
 
         buttonsBox.add_child(downButton);
         container.add_child(buttonsBox);
@@ -1441,29 +1411,16 @@ export class LayoutSettingsDialog {
         });
         upButton.set_child(upIcon);
 
-        upButton.connect('clicked', () => {
-            if (container._value < max) {
-                container._value = Math.min(max, container._value + step);
-                valueLabel.text = String(container._value);
-            }
-        });
-
-        upButton.connect('enter-event', () => {
-            upButton.style = `
-                padding: 2px 6px;
-                background-color: ${colors.buttonBgHover};
-                border-radius: 0 6px 0 0;
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
-        upButton.connect('leave-event', () => {
-            upButton.style = `
-                padding: 2px 6px;
-                background-color: transparent;
-                border-radius: 0 6px 0 0;
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
+        // Use module-level handlers to prevent closure leaks
+        const upHoverStyle = `padding: 2px 6px; background-color: ${colors.buttonBgHover}; border-radius: 0 6px 0 0;`;
+        const upNormalStyle = `padding: 2px 6px; background-color: transparent; border-radius: 0 6px 0 0;`;
+        const boundUpClick = handleUpButtonClick.bind(null, container, valueLabel, max, step);
+        const boundUpEnter = handleWidgetHoverEnter.bind(null, upButton, upHoverStyle);
+        const boundUpLeave = handleWidgetHoverLeave.bind(null, upButton, upNormalStyle);
+        
+        upButton.connect('clicked', boundUpClick);
+        upButton.connect('enter-event', boundUpEnter);
+        upButton.connect('leave-event', boundUpLeave);
 
         buttonsBox.add_child(upButton);
 
@@ -1484,31 +1441,16 @@ export class LayoutSettingsDialog {
         });
         downButton.set_child(downIcon);
 
-        downButton.connect('clicked', () => {
-            if (container._value > min) {
-                container._value = Math.max(min, container._value - step);
-                valueLabel.text = String(container._value);
-            }
-        });
-
-        downButton.connect('enter-event', () => {
-            downButton.style = `
-                padding: 2px 6px;
-                background-color: ${colors.buttonBgHover};
-                border-radius: 0 0 6px 0;
-                border-top: 1px solid ${colors.inputBorder};
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
-        downButton.connect('leave-event', () => {
-            downButton.style = `
-                padding: 2px 6px;
-                background-color: transparent;
-                border-radius: 0 0 6px 0;
-                border-top: 1px solid ${colors.inputBorder};
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
+        // Use module-level handlers to prevent closure leaks
+        const downHoverStyle = `padding: 2px 6px; background-color: ${colors.buttonBgHover}; border-radius: 0 0 6px 0; border-top: 1px solid ${colors.inputBorder};`;
+        const downNormalStyle = `padding: 2px 6px; background-color: transparent; border-radius: 0 0 6px 0; border-top: 1px solid ${colors.inputBorder};`;
+        const boundDownClick = handleDownButtonClick.bind(null, container, valueLabel, min, step);
+        const boundDownEnter = handleWidgetHoverEnter.bind(null, downButton, downHoverStyle);
+        const boundDownLeave = handleWidgetHoverLeave.bind(null, downButton, downNormalStyle);
+        
+        downButton.connect('clicked', boundDownClick);
+        downButton.connect('enter-event', boundDownEnter);
+        downButton.connect('leave-event', boundDownLeave);
 
         buttonsBox.add_child(downButton);
         container.add_child(buttonsBox);
