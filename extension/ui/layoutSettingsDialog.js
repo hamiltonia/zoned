@@ -46,6 +46,107 @@ import {TemplateManager} from '../templateManager.js';
 const logger = createLogger('LayoutSettingsDialog');
 
 /**
+ * Module-level handler functions to prevent closure leaks
+ * Following LayoutSwitcher's proven pattern - no arrow functions, no closures
+ */
+
+/**
+ * Generic hover enter handler for widgets with style changes
+ * @param {St.Widget} widget - The widget to update
+ * @param {string} hoverStyle - The hover style to apply
+ * @returns {number} Clutter.EVENT_PROPAGATE
+ */
+function handleWidgetHoverEnter(widget, hoverStyle) {
+    widget.style = hoverStyle;
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Generic hover leave handler for widgets with style changes
+ * @param {St.Widget} widget - The widget to update
+ * @param {string} normalStyle - The normal style to apply
+ * @returns {number} Clutter.EVENT_PROPAGATE
+ */
+function handleWidgetHoverLeave(widget, normalStyle) {
+    widget.style = normalStyle;
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Icon button hover enter handler (updates both button and icon)
+ * @param {St.Button} button - The button to update
+ * @param {St.Icon} icon - The icon child to update
+ * @param {string} hoverStyle - The hover style for button
+ * @returns {number} Clutter.EVENT_PROPAGATE
+ */
+function handleIconButtonHoverEnter(button, icon, hoverStyle) {
+    button.style = hoverStyle;
+    icon.style = 'color: white;';
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Icon button hover leave handler (updates both button and icon)
+ * @param {St.Button} button - The button to update
+ * @param {St.Icon} icon - The icon child to update
+ * @param {string} normalStyle - The normal style for button
+ * @param {string} iconNormalColor - The normal color for icon
+ * @returns {number} Clutter.EVENT_PROPAGATE
+ */
+function handleIconButtonHoverLeave(button, icon, normalStyle, iconNormalColor) {
+    button.style = normalStyle;
+    icon.style = `color: ${iconNormalColor};`;
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Dropdown/Spinner up button handler
+ * @param {St.BoxLayout} container - The dropdown/spinner container
+ * @param {St.Label} valueLabel - The value display label
+ * @param {Array|number} optionsOrMax - Options array (dropdown) or max value (spinner)
+ * @param {number} [step] - Step value for spinner (undefined for dropdown)
+ * @returns {void}
+ */
+function handleUpButtonClick(container, valueLabel, optionsOrMax, step) {
+    if (Array.isArray(optionsOrMax)) {
+        // Dropdown: cycle forwards through options
+        container._selectedIndex = (container._selectedIndex + 1) % optionsOrMax.length;
+        valueLabel.text = optionsOrMax[container._selectedIndex];
+    } else {
+        // Spinner: increment value
+        const max = optionsOrMax;
+        if (container._value < max) {
+            container._value = Math.min(max, container._value + step);
+            valueLabel.text = String(container._value);
+        }
+    }
+}
+
+/**
+ * Dropdown/Spinner down button handler
+ * @param {St.BoxLayout} container - The dropdown/spinner container
+ * @param {St.Label} valueLabel - The value display label
+ * @param {Array|number} optionsOrMin - Options array (dropdown) or min value (spinner)
+ * @param {number} [step] - Step value for spinner (undefined for dropdown)
+ * @returns {void}
+ */
+function handleDownButtonClick(container, valueLabel, optionsOrMin, step) {
+    if (Array.isArray(optionsOrMin)) {
+        // Dropdown: cycle backwards through options
+        const options = optionsOrMin;
+        container._selectedIndex = (container._selectedIndex - 1 + options.length) % options.length;
+        valueLabel.text = options[container._selectedIndex];
+    } else {
+        // Spinner: decrement value
+        const min = optionsOrMin;
+        if (container._value > min) {
+            container._value = Math.max(min, container._value - step);
+            valueLabel.text = String(container._value);
+        }
+    }
+}
+
+/**
  * LayoutSettingsDialog - Gateway dialog for layout management
  *
  * Separates metadata editing (name, padding, shortcut) from geometry editing (zones).
@@ -102,6 +203,9 @@ export class LayoutSettingsDialog {
         // Signal tracking for cleanup
         this._signalTracker = new SignalTracker('LayoutSettingsDialog');
 
+        // Track GLib sources for cleanup (prevent memory leaks)
+        this._idleSourceIds = [];
+
         // Bind methods to avoid closure leaks
         this._boundHandleContainerClick = this._handleContainerClick.bind(this);
         this._boundHandleKeyPress = this._handleKeyPress.bind(this);
@@ -110,6 +214,11 @@ export class LayoutSettingsDialog {
         this._boundHandleDeleteCancelClick = this._hideDeleteConfirmation.bind(this);
         this._boundHandleDeleteConfirmClick = this._onDeleteConfirmClick.bind(this);
         this._boundHandleDeleteWrapperClick = this._handleDeleteWrapperClick.bind(this);
+        this._boundOpenZoneEditor = this._openZoneEditor.bind(this);
+        this._boundOnDuplicate = this._onDuplicate.bind(this);
+        this._boundOnDelete = this._onDelete.bind(this);
+        this._boundOnCancel = this._onCancel.bind(this);
+        this._boundOnSave = this._onSave.bind(this);
 
         logger.debug(`LayoutSettingsDialog created (${this._isNewLayout ? 'CREATE' : 'EDIT'} mode, template: ${this._isTemplate})`);
     }
@@ -146,21 +255,40 @@ export class LayoutSettingsDialog {
         // Build the dialog card
         this._buildDialogCard(colors);
 
-        // Center the dialog card
-        const cardWidth = 420;
-        const cardHeight = this._dialogCard.get_preferred_height(cardWidth)[1] || 500;
-        this._dialogCard.set_position(
-            Math.floor((monitor.width - cardWidth) / 2),
-            Math.floor((monitor.height - cardHeight) / 2),
-        );
-
+        // Add dialog to container (but don't add to UI yet)
         this._container.add_child(this._dialogCard);
-        Main.uiGroup.add_child(this._container);
+
+        // Position and show dialog after layout is complete
+        // This ensures the dialog appears centered without any visible repositioning
+        const positionSourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            // Guard: verify dialog is still alive
+            if (this._closing || !this._visible || !this._container || !this._dialogCard) {
+                return GLib.SOURCE_REMOVE;
+            }
+
+            // Position the dialog before making it visible
+            const actualHeight = this._dialogCard.get_height();
+            const actualWidth = this._dialogCard.get_width();
+            this._dialogCard.set_position(
+                Math.floor((monitor.width - actualWidth) / 2),
+                Math.floor((monitor.height - actualHeight) / 2),
+            );
+
+            // Make dialog visible
+            this._dialogCard.opacity = 255;
+
+            // Now add to UI (dialog is already positioned)
+            Main.uiGroup.add_child(this._container);
+
+            return GLib.SOURCE_REMOVE;
+        });
+        this._idleSourceIds.push(positionSourceId);
 
         // Push modal to capture input - use proper Shell.ActionMode constant
         // Defer modal acquisition to avoid conflict with LayoutSwitcher's modal release
-        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            if (!this._container) {
+        const modalSourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            // Guard: verify dialog is still alive
+            if (this._closing || !this._visible || !this._container) {
                 logger.warn('Container destroyed before modal acquisition');
                 return GLib.SOURCE_REMOVE;
             }
@@ -182,31 +310,26 @@ export class LayoutSettingsDialog {
 
             return GLib.SOURCE_REMOVE;
         });
+        this._idleSourceIds.push(modalSourceId);
 
-        // Connect key handler for ESC - use bound method
-        this._keyPressId = this._container.connect('key-press-event', this._boundHandleKeyPress);
+        // Connect key handler for ESC - use bound method via SignalTracker
+        this._signalTracker.connect(
+            this._container, 'key-press-event', this._boundHandleKeyPress,
+        );
 
         this._visible = true;
 
-        // Re-center and focus after layout is complete
-        // get_preferred_height may return incorrect value before widget is laid out
-        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            // Re-center the dialog now that layout is complete
-            if (this._dialogCard && this._container) {
-                const actualHeight = this._dialogCard.get_height();
-                const actualWidth = this._dialogCard.get_width();
-                this._dialogCard.set_position(
-                    Math.floor((monitor.width - actualWidth) / 2),
-                    Math.floor((monitor.height - actualHeight) / 2),
-                );
+        // Focus the name entry after dialog is shown
+        const focusSourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            // Guard: verify dialog is still alive
+            if (this._closing || !this._visible || !this._nameEntry) {
+                return GLib.SOURCE_REMOVE;
             }
 
-            // Focus the name entry
-            if (this._nameEntry) {
-                this._nameEntry.grab_key_focus();
-            }
+            this._nameEntry.grab_key_focus();
             return GLib.SOURCE_REMOVE;
         });
+        this._idleSourceIds.push(focusSourceId);
 
         logger.debug('LayoutSettingsDialog opened');
     }
@@ -220,22 +343,135 @@ export class LayoutSettingsDialog {
         }
         this._closing = true;
 
-        // Pop modal - pass the Clutter.Grab object returned by pushModal
+        this._cleanupIdleSources();
+        this._cleanupModal();
+        this._signalTracker.disconnectAll();
+        this._destroyWidgets();
+        this._releaseBoundFunctions();
+        this._destroyContainer();
+        this._cleanupThemeManager();
+
+        this._visible = false;
+        logger.debug('LayoutSettingsDialog closed');
+    }
+
+    /**
+     * Clean up all pending GLib idle sources
+     * @private
+     */
+    _cleanupIdleSources() {
+        logger.debug(`Removing ${this._idleSourceIds.length} idle sources`);
+        for (const sourceId of this._idleSourceIds) {
+            GLib.Source.remove(sourceId);
+        }
+        this._idleSourceIds = [];
+    }
+
+    /**
+     * Clean up modal state
+     * @private
+     */
+    _cleanupModal() {
         if (this._modal) {
             Main.popModal(this._modal);
             this._modal = null;
         }
+    }
 
-        // Disconnect key handler
-        if (this._keyPressId && this._container) {
-            this._container.disconnect(this._keyPressId);
-            this._keyPressId = null;
+    /**
+     * Destroy all widgets to break reference cycles
+     * @private
+     */
+    _destroyWidgets() {
+        // FIRST: Break circular references in composite widgets
+        this._clearSpinnerReferences();
+        this._clearDropdownReferences();
+        this._clearButtonStyles();
+        this._clearCheckboxReferences();
+
+        // THEN: Destroy widgets in reverse order of creation
+        const widgets = [
+            '_saveButton',
+            '_deleteButton',
+            '_duplicateButton',
+            '_nameEntry',
+            '_paddingCheckbox',
+            '_paddingSpinner',
+            '_shortcutDropdown',
+            '_previewContainer',
+            '_dialogCard',
+        ];
+
+        for (const widgetName of widgets) {
+            if (this[widgetName]) {
+                this[widgetName].destroy();
+                this[widgetName] = null;
+            }
         }
 
-        // Disconnect all tracked signals
-        this._signalTracker.disconnectAll();
+        // Null the SignalTracker after disconnecting
+        this._signalTracker = null;
+    }
 
-        // Release bound function references
+    /**
+     * Clear spinner internal references to break cycles
+     * @private
+     */
+    _clearSpinnerReferences() {
+        if (this._paddingSpinner) {
+            this._paddingSpinner._valueLabel = null;
+            this._paddingSpinner._value = null;
+            this._paddingSpinner._min = null;
+            this._paddingSpinner._max = null;
+            this._paddingSpinner._step = null;
+        }
+    }
+
+    /**
+     * Clear dropdown internal references to break cycles
+     * @private
+     */
+    _clearDropdownReferences() {
+        if (this._shortcutDropdown) {
+            this._shortcutDropdown._valueLabel = null;
+            this._shortcutDropdown._options = null;
+            this._shortcutDropdown._selectedIndex = null;
+        }
+    }
+
+    /**
+     * Clear button style references
+     * @private
+     */
+    _clearButtonStyles() {
+        const buttons = [this._saveButton, this._deleteButton, this._duplicateButton];
+        for (const button of buttons) {
+            if (button) {
+                button._normalStyle = null;
+                button._hoverStyle = null;
+            }
+        }
+    }
+
+    /**
+     * Clear checkbox references (destroy child label before nulling)
+     * @private
+     */
+    _clearCheckboxReferences() {
+        if (this._paddingCheckbox) {
+            const checkboxChild = this._paddingCheckbox.get_child();
+            if (checkboxChild) {
+                checkboxChild.destroy();
+            }
+            this._paddingCheckbox._checked = null;
+        }
+    }
+
+    /**
+     * Release all bound function references
+     * @private
+     */
+    _releaseBoundFunctions() {
         this._boundHandleContainerClick = null;
         this._boundHandleKeyPress = null;
         this._boundUpdateSaveButton = null;
@@ -243,23 +479,34 @@ export class LayoutSettingsDialog {
         this._boundHandleDeleteCancelClick = null;
         this._boundHandleDeleteConfirmClick = null;
         this._boundHandleDeleteWrapperClick = null;
+        this._boundOpenZoneEditor = null;
+        this._boundOnDuplicate = null;
+        this._boundOnDelete = null;
+        this._boundOnCancel = null;
+        this._boundOnSave = null;
+    }
 
-        // Destroy container
+    /**
+     * Destroy the main container
+     * @private
+     */
+    _destroyContainer() {
         if (this._container) {
             Main.uiGroup.remove_child(this._container);
             this._container.destroy();
             this._container = null;
         }
+    }
 
-        this._visible = false;
-
-        // Clean up ThemeManager
+    /**
+     * Clean up ThemeManager
+     * @private
+     */
+    _cleanupThemeManager() {
         if (this._themeManager) {
             this._themeManager.destroy();
             this._themeManager = null;
         }
-
-        logger.debug('LayoutSettingsDialog closed');
     }
 
     /**
@@ -486,7 +733,8 @@ export class LayoutSettingsDialog {
             vertical: true,
             reactive: true,
             style: `background-color: ${colors.containerBg}; border-radius: 16px; ` +
-                   'padding: 24px; min-width: 420px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);',
+                   'padding: 24px; min-width: 420px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); ' +
+                   'opacity: 0;',  // Start invisible, will be shown after positioning
         });
 
         // Header
@@ -635,18 +883,11 @@ export class LayoutSettingsDialog {
         });
         button.set_child(icon);
 
-        // Hover effects
-        button.connect('enter-event', () => {
-            button.style = hoverStyle;
-            icon.style = 'color: white;';
-            return Clutter.EVENT_PROPAGATE;
-        });
-
-        button.connect('leave-event', () => {
-            button.style = idleStyle;
-            icon.style = 'color: rgba(255, 255, 255, 0.8);';
-            return Clutter.EVENT_PROPAGATE;
-        });
+        // Use module-level handlers to prevent closure leaks
+        const boundEnter = handleIconButtonHoverEnter.bind(null, button, icon, hoverStyle);
+        const boundLeave = handleIconButtonHoverLeave.bind(null, button, icon, idleStyle, 'rgba(255, 255, 255, 0.8)');
+        button.connect('enter-event', boundEnter);
+        button.connect('leave-event', boundLeave);
 
         // Click opens zone editor
         button.connect('clicked', () => {
@@ -709,17 +950,13 @@ export class LayoutSettingsDialog {
         });
         button.set_child(icon);
 
-        button.connect('clicked', onClick);
+        this._signalTracker.connect(button, 'clicked', onClick);
 
-        button.connect('enter-event', () => {
-            button.style = hoverStyle;
-            return Clutter.EVENT_PROPAGATE;
-        });
-
-        button.connect('leave-event', () => {
-            button.style = normalStyle;
-            return Clutter.EVENT_PROPAGATE;
-        });
+        // Use module-level handlers to prevent closure leaks
+        const boundEnter = handleWidgetHoverEnter.bind(null, button, hoverStyle);
+        const boundLeave = handleWidgetHoverLeave.bind(null, button, normalStyle);
+        this._signalTracker.connect(button, 'enter-event', boundEnter);
+        this._signalTracker.connect(button, 'leave-event', boundLeave);
 
         return button;
     }
@@ -839,28 +1076,16 @@ export class LayoutSettingsDialog {
         });
         upButton.set_child(upIcon);
 
-        upButton.connect('clicked', () => {
-            // Cycle forwards through options (higher numbers)
-            container._selectedIndex = (container._selectedIndex + 1) % options.length;
-            valueLabel.text = options[container._selectedIndex];
-        });
+        // Use module-level handlers to prevent closure leaks
+        const upHoverStyle = `padding: 2px 6px; background-color: ${colors.buttonBgHover}; border-radius: 0 6px 0 0;`;
+        const upNormalStyle = 'padding: 2px 6px; background-color: transparent; border-radius: 0 6px 0 0;';
+        const boundUpClick = handleUpButtonClick.bind(null, container, valueLabel, options, undefined);
+        const boundUpEnter = handleWidgetHoverEnter.bind(null, upButton, upHoverStyle);
+        const boundUpLeave = handleWidgetHoverLeave.bind(null, upButton, upNormalStyle);
 
-        upButton.connect('enter-event', () => {
-            upButton.style = `
-                padding: 2px 6px;
-                background-color: ${colors.buttonBgHover};
-                border-radius: 0 6px 0 0;
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
-        upButton.connect('leave-event', () => {
-            upButton.style = `
-                padding: 2px 6px;
-                background-color: transparent;
-                border-radius: 0 6px 0 0;
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
+        upButton.connect('clicked', boundUpClick);
+        upButton.connect('enter-event', boundUpEnter);
+        upButton.connect('leave-event', boundUpLeave);
 
         buttonsBox.add_child(upButton);
 
@@ -881,30 +1106,16 @@ export class LayoutSettingsDialog {
         });
         downButton.set_child(downIcon);
 
-        downButton.connect('clicked', () => {
-            // Cycle backwards through options (lower numbers)
-            container._selectedIndex = (container._selectedIndex - 1 + options.length) % options.length;
-            valueLabel.text = options[container._selectedIndex];
-        });
+        // Use module-level handlers to prevent closure leaks
+        const downHoverStyle = `padding: 2px 6px; background-color: ${colors.buttonBgHover}; border-radius: 0 0 6px 0; border-top: 1px solid ${colors.inputBorder};`;
+        const downNormalStyle = `padding: 2px 6px; background-color: transparent; border-radius: 0 0 6px 0; border-top: 1px solid ${colors.inputBorder};`;
+        const boundDownClick = handleDownButtonClick.bind(null, container, valueLabel, options, undefined);
+        const boundDownEnter = handleWidgetHoverEnter.bind(null, downButton, downHoverStyle);
+        const boundDownLeave = handleWidgetHoverLeave.bind(null, downButton, downNormalStyle);
 
-        downButton.connect('enter-event', () => {
-            downButton.style = `
-                padding: 2px 6px;
-                background-color: ${colors.buttonBgHover};
-                border-radius: 0 0 6px 0;
-                border-top: 1px solid ${colors.inputBorder};
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
-        downButton.connect('leave-event', () => {
-            downButton.style = `
-                padding: 2px 6px;
-                background-color: transparent;
-                border-radius: 0 0 6px 0;
-                border-top: 1px solid ${colors.inputBorder};
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
+        downButton.connect('clicked', boundDownClick);
+        downButton.connect('enter-event', boundDownEnter);
+        downButton.connect('leave-event', boundDownLeave);
 
         buttonsBox.add_child(downButton);
         container.add_child(buttonsBox);
@@ -1103,6 +1314,12 @@ export class LayoutSettingsDialog {
     _toggleCheckbox(checkbox, colors) {
         checkbox._checked = !checkbox._checked;
 
+        // Destroy old child before setting new one
+        const oldChild = checkbox.get_child();
+        if (oldChild) {
+            oldChild.destroy();
+        }
+
         checkbox.style = 'width: 18px; height: 18px; ' +
                `border: 2px solid ${checkbox._checked ? colors.accentHex : colors.textMuted}; ` +
                'border-radius: 3px; ' +
@@ -1188,29 +1405,16 @@ export class LayoutSettingsDialog {
         });
         upButton.set_child(upIcon);
 
-        upButton.connect('clicked', () => {
-            if (container._value < max) {
-                container._value = Math.min(max, container._value + step);
-                valueLabel.text = String(container._value);
-            }
-        });
+        // Use module-level handlers to prevent closure leaks
+        const upHoverStyle = `padding: 2px 6px; background-color: ${colors.buttonBgHover}; border-radius: 0 6px 0 0;`;
+        const upNormalStyle = 'padding: 2px 6px; background-color: transparent; border-radius: 0 6px 0 0;';
+        const boundUpClick = handleUpButtonClick.bind(null, container, valueLabel, max, step);
+        const boundUpEnter = handleWidgetHoverEnter.bind(null, upButton, upHoverStyle);
+        const boundUpLeave = handleWidgetHoverLeave.bind(null, upButton, upNormalStyle);
 
-        upButton.connect('enter-event', () => {
-            upButton.style = `
-                padding: 2px 6px;
-                background-color: ${colors.buttonBgHover};
-                border-radius: 0 6px 0 0;
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
-        upButton.connect('leave-event', () => {
-            upButton.style = `
-                padding: 2px 6px;
-                background-color: transparent;
-                border-radius: 0 6px 0 0;
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
+        upButton.connect('clicked', boundUpClick);
+        upButton.connect('enter-event', boundUpEnter);
+        upButton.connect('leave-event', boundUpLeave);
 
         buttonsBox.add_child(upButton);
 
@@ -1231,31 +1435,16 @@ export class LayoutSettingsDialog {
         });
         downButton.set_child(downIcon);
 
-        downButton.connect('clicked', () => {
-            if (container._value > min) {
-                container._value = Math.max(min, container._value - step);
-                valueLabel.text = String(container._value);
-            }
-        });
+        // Use module-level handlers to prevent closure leaks
+        const downHoverStyle = `padding: 2px 6px; background-color: ${colors.buttonBgHover}; border-radius: 0 0 6px 0; border-top: 1px solid ${colors.inputBorder};`;
+        const downNormalStyle = `padding: 2px 6px; background-color: transparent; border-radius: 0 0 6px 0; border-top: 1px solid ${colors.inputBorder};`;
+        const boundDownClick = handleDownButtonClick.bind(null, container, valueLabel, min, step);
+        const boundDownEnter = handleWidgetHoverEnter.bind(null, downButton, downHoverStyle);
+        const boundDownLeave = handleWidgetHoverLeave.bind(null, downButton, downNormalStyle);
 
-        downButton.connect('enter-event', () => {
-            downButton.style = `
-                padding: 2px 6px;
-                background-color: ${colors.buttonBgHover};
-                border-radius: 0 0 6px 0;
-                border-top: 1px solid ${colors.inputBorder};
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
-        downButton.connect('leave-event', () => {
-            downButton.style = `
-                padding: 2px 6px;
-                background-color: transparent;
-                border-radius: 0 0 6px 0;
-                border-top: 1px solid ${colors.inputBorder};
-            `;
-            return Clutter.EVENT_PROPAGATE;
-        });
+        downButton.connect('clicked', boundDownClick);
+        downButton.connect('enter-event', boundDownEnter);
+        downButton.connect('leave-event', boundDownLeave);
 
         buttonsBox.add_child(downButton);
         container.add_child(buttonsBox);

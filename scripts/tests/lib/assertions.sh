@@ -93,6 +93,21 @@ init_test() {
     fi
 }
 
+# Initialize memory test with required debug settings
+# This should be used instead of init_test() for all memory leak tests
+init_memory_test() {
+    local name=$1
+    
+    # Enable required debug settings for memory testing
+    info "Configuring debug settings for memory testing..."
+    gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true
+    
+    # Call standard init
+    init_test "$name"
+    
+    info "Debug settings enabled (D-Bus: ✓)"
+}
+
 # Print pass message
 pass() {
     echo -e "${GREEN:-\033[0;32m}✓ PASS:${NC:-\033[0m} $1"

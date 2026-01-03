@@ -82,7 +82,7 @@ const BUILTIN_TEMPLATES = {
  */
 export class TemplateManager {
     constructor() {
-        global.zonedDebug?.trackInstance('TemplateManager', 1);
+        global.zonedDebug?.trackInstance('TemplateManager');
         this._templates = {...BUILTIN_TEMPLATES};
         logger.info(`TemplateManager initialized with ${Object.keys(this._templates).length} built-in templates`);
     }
@@ -156,6 +156,6 @@ export class TemplateManager {
      */
     destroy() {
         this._templates = null;
-        global.zonedDebug?.trackInstance('TemplateManager', -1);
+        global.zonedDebug?.trackInstance('TemplateManager', false);
     }
 }

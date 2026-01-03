@@ -1,4 +1,4 @@
-#!/bin/bash
+ #!/bin/bash
 #
 # vm-test-mem - Memory leak testing with multi-run statistical analysis
 #
@@ -42,38 +42,38 @@ fi
 # Define presets
 case "$PRESET_MODE" in
     "standard")
-        # All 3 tests, variable duration 1-10 minutes, 100ms delay
-        PRESET_TESTS=("1" "2" "3")
+        # All 5 tests, variable duration 1-10 minutes, 200ms delay
+        PRESET_TESTS=("1" "2" "3" "4" "5")
         PRESET_MAX_DURATION=10
-        PRESET_DELAY=100
+        PRESET_DELAY=200
         PRESET_VARIABLE=true
         ;;
     "quick")
-        # LayoutSwitcher only, variable 1-3 minutes, 100ms delay
+        # LayoutSwitcher only, variable 1-3 minutes, 200ms delay
         PRESET_TESTS=("2")
         PRESET_MAX_DURATION=3
-        PRESET_DELAY=100
+        PRESET_DELAY=200
         PRESET_VARIABLE=true
         ;;
     "fast")
-        # LayoutSwitcher only, variable 1-2 minutes, 100ms delay (fastest option)
+        # LayoutSwitcher only, variable 1-2 minutes, 200ms delay (fastest option)
         PRESET_TESTS=("2")
         PRESET_MAX_DURATION=2
-        PRESET_DELAY=100
+        PRESET_DELAY=200
         PRESET_VARIABLE=true
         ;;
     "test")
-        # All 3 tests, variable 1-3 minutes, 100ms delay (for release-test)
-        PRESET_TESTS=("1" "2" "3")
+        # All 5 tests, variable 1-3 minutes, 200ms delay (for release-test)
+        PRESET_TESTS=("1" "2" "3" "4" "5")
         PRESET_MAX_DURATION=3
-        PRESET_DELAY=100
+        PRESET_DELAY=200
         PRESET_VARIABLE=true
         ;;
     "deep")
-        # All 3 tests, variable 1-20 minutes, 50ms delay
-        PRESET_TESTS=("1" "2" "3")
+        # All 5 tests, variable 1-20 minutes, 200ms delay
+        PRESET_TESTS=("1" "2" "3" "4" "5")
         PRESET_MAX_DURATION=20
-        PRESET_DELAY=50
+        PRESET_DELAY=200
         PRESET_VARIABLE=true
         ;;
     "")
@@ -148,13 +148,15 @@ else
     echo "  1) Enable/Disable Cycles"
     echo "  2) LayoutSwitcher (Show/Hide)"
     echo "  3) Zone Overlay (Show/Hide)"
-    echo "  4) All three tests (sequential)"
+    echo "  4) Global/Per-Workspace Toggle"
+    echo "  5) Layout Settings Dialog (Open/Close)"
+    echo "  6) All tests (sequential)"
     echo ""
-    read -p "Choice [1-4]: " test_choice
+    read -p "Choice [1-6]: " test_choice
     
     case $test_choice in
-        1|2|3) TEST_CHOICES=("$test_choice") ;;
-        4) TEST_CHOICES=("1" "2" "3") ;;
+        1|2|3|4|5) TEST_CHOICES=("$test_choice") ;;
+        6) TEST_CHOICES=("1" "2" "3" "4" "5") ;;
         *)
             error "Invalid choice"
             exit 1
@@ -217,10 +219,16 @@ else
         info "Fixed duration mode: $duration_per_run minutes per run"
     fi
     
-    echo ""
-    read -p "Delay between operations (ms) [100]: " delay_ms
-    delay_ms=${delay_ms:-100}
+echo ""
+read -p "Delay between operations (ms) [200]: " delay_ms
+delay_ms=${delay_ms:-200}
 fi
+
+# Enable debug settings for memory testing (must be done early)
+echo ""
+info "Configuring debug settings for memory testing..."
+gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true
+info "Debug settings enabled (D-Bus: ✓)"
 
 # Convert test choices to names
 declare -a TEST_NAMES
@@ -229,6 +237,8 @@ for choice in "${TEST_CHOICES[@]}"; do
         1) TEST_NAMES+=("Enable/Disable") ;;
         2) TEST_NAMES+=("LayoutSwitcher") ;;
         3) TEST_NAMES+=("Zone Overlay") ;;
+        4) TEST_NAMES+=("Global Toggle") ;;
+        5) TEST_NAMES+=("Layout Settings") ;;
     esac
 done
 

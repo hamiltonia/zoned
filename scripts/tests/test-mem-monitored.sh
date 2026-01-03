@@ -131,6 +131,26 @@ run_warmup() {
             dbus_trigger "hide-zone-overlay" "{}" >/dev/null 2>&1
             sleep_ms "$((delay_ms / 2))"
             ;;
+        global-toggle)
+            dbus_trigger "show-layout-switcher" "{}" >/dev/null 2>&1
+            sleep_ms "$delay_ms"
+            dbus_trigger "set-global-mode" '{"global": true}' >/dev/null 2>&1
+            sleep_ms "$delay_ms"
+            dbus_trigger "set-global-mode" '{"global": false}' >/dev/null 2>&1
+            sleep_ms "$delay_ms"
+            dbus_trigger "hide-layout-switcher" "{}" >/dev/null 2>&1
+            sleep_ms "$((delay_ms / 2))"
+            ;;
+        layout-settings)
+            dbus_trigger "show-layout-switcher" "{}" >/dev/null 2>&1
+            sleep_ms "$delay_ms"
+            dbus_trigger "open-layout-settings" '{}' >/dev/null 2>&1
+            sleep_ms "$delay_ms"
+            dbus_trigger "close-layout-settings" '{}' >/dev/null 2>&1
+            sleep_ms "$delay_ms"
+            dbus_trigger "hide-layout-switcher" "{}" >/dev/null 2>&1
+            sleep_ms "$((delay_ms / 2))"
+            ;;
     esac
     
     # Force GC to clean up warmup artifacts
@@ -293,6 +313,112 @@ run_zone_overlay() {
     done
 }
 
+# Run Global/Per-Workspace Toggle test
+run_global_toggle() {
+    local duration_minutes=$1
+    local delay_ms=$2
+    local end_time=$(($(date +%s) + duration_minutes * 60))
+    local next_report=$(($(date +%s) + 30))
+    
+    if ! dbus_interface_available; then
+        error "Global Toggle test requires D-Bus interface"
+        echo "Enable with: gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true"
+        exit 1
+    fi
+    
+    info "Starting Global/Per-Workspace Toggle test..."
+    info "Duration: ${duration_minutes} minutes, Delay: ${delay_ms}ms"
+    echo ""
+    
+    # Show LayoutSwitcher ONCE at start (keep it open for entire test)
+    dbus_trigger "show-layout-switcher" "{}" >/dev/null 2>&1
+    sleep_ms "$delay_ms"
+    
+    while [ $(date +%s) -lt $end_time ]; do
+        # Toggle to global mode (recreates Cairo thumbnails while LS is open)
+        dbus_trigger "set-global-mode" '{"global": true}' >/dev/null 2>&1
+        sleep_ms "$delay_ms"
+        
+        # Toggle to per-workspace mode (recreates Cairo thumbnails again)
+        dbus_trigger "set-global-mode" '{"global": false}' >/dev/null 2>&1
+        sleep_ms "$delay_ms"
+        
+        CYCLES=$((CYCLES + 1))
+        
+        # Periodic report every 30 seconds
+        if [ $(date +%s) -ge $next_report ]; then
+            local elapsed=$(($(date +%s) - START_TIME))
+            local mem=$(get_gnome_shell_memory)
+            local actual_diff=$((mem - WARMUP_BASELINE))
+            local report=$(dbus_get_resource_report)
+            local leaked_signals=$(extract_variant "leakedSignals" "$report" 2>/dev/null || echo "0")
+            local leaked_timers=$(extract_variant "leakedTimers" "$report" 2>/dev/null || echo "0")
+            
+            printf "[%02d:%02d] Memory: %+6d KB | Cycles: %5d | Signals: %d | Timers: %d\n" \
+                   $((elapsed / 60)) $((elapsed % 60)) "$actual_diff" "$CYCLES" \
+                   "$leaked_signals" "$leaked_timers"
+            
+            next_report=$(($(date +%s) + 30))
+        fi
+    done
+    
+    # Close LayoutSwitcher ONCE at end
+    dbus_trigger "hide-layout-switcher" "{}" >/dev/null 2>&1
+}
+
+# Run Layout Settings Dialog test
+run_layout_settings() {
+    local duration_minutes=$1
+    local delay_ms=$2
+    local end_time=$(($(date +%s) + duration_minutes * 60))
+    local next_report=$(($(date +%s) + 30))
+    
+    if ! dbus_interface_available; then
+        error "Layout Settings test requires D-Bus interface"
+        echo "Enable with: gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true"
+        exit 1
+    fi
+    
+    info "Starting Layout Settings Dialog test..."
+    info "Duration: ${duration_minutes} minutes, Delay: ${delay_ms}ms"
+    echo ""
+    
+    # Show LayoutSwitcher ONCE at start (keep it open for entire test)
+    dbus_trigger "show-layout-switcher" "{}" >/dev/null 2>&1
+    sleep_ms "$delay_ms"
+    
+    while [ $(date +%s) -lt $end_time ]; do
+        # Open layout settings (uses first template by default)
+        dbus_trigger "open-layout-settings" '{}' >/dev/null 2>&1
+        sleep_ms "$delay_ms"
+        
+        # Close layout settings
+        dbus_trigger "close-layout-settings" '{}' >/dev/null 2>&1
+        sleep_ms "$delay_ms"
+        
+        CYCLES=$((CYCLES + 1))
+        
+        # Periodic report every 30 seconds
+        if [ $(date +%s) -ge $next_report ]; then
+            local elapsed=$(($(date +%s) - START_TIME))
+            local mem=$(get_gnome_shell_memory)
+            local actual_diff=$((mem - WARMUP_BASELINE))
+            local report=$(dbus_get_resource_report)
+            local leaked_signals=$(extract_variant "leakedSignals" "$report" 2>/dev/null || echo "0")
+            local leaked_timers=$(extract_variant "leakedTimers" "$report" 2>/dev/null || echo "0")
+            
+            printf "[%02d:%02d] Memory: %+6d KB | Cycles: %5d | Signals: %d | Timers: %d\n" \
+                   $((elapsed / 60)) $((elapsed % 60)) "$actual_diff" "$CYCLES" \
+                   "$leaked_signals" "$leaked_timers"
+            
+            next_report=$(($(date +%s) + 30))
+        fi
+    done
+    
+    # Close LayoutSwitcher ONCE at end
+    dbus_trigger "hide-layout-switcher" "{}" >/dev/null 2>&1
+}
+
 # Main script
 # Only clear if running interactively (not piped/automated)
 if [ -t 0 ]; then
@@ -307,13 +433,17 @@ echo "Select test:"
 echo "  1) Enable/Disable Cycles"
 echo "  2) LayoutSwitcher (Show/Hide)"
 echo "  3) Zone Overlay (Show/Hide)"
+echo "  4) Global/Per-Workspace Toggle"
+echo "  5) Layout Settings Dialog (Open/Close)"
 echo ""
-read -p "Choice [1-3]: " choice
+read -p "Choice [1-5]: " choice
 
 case $choice in
     1) TEST_NAME="Enable/Disable" ;;
     2) TEST_NAME="LayoutSwitcher" ;;
     3) TEST_NAME="Zone Overlay" ;;
+    4) TEST_NAME="Global Toggle" ;;
+    5) TEST_NAME="Layout Settings" ;;
     *)
         error "Invalid choice"
         exit 1
@@ -322,8 +452,8 @@ esac
 
 echo ""
 read -p "Duration (minutes): " duration_minutes
-read -p "Delay between operations (ms) [100]: " delay_ms
-delay_ms=${delay_ms:-100}
+read -p "Delay between operations (ms) [200]: " delay_ms
+delay_ms=${delay_ms:-200}
 
 echo ""
 info "Test: $TEST_NAME"
@@ -333,7 +463,7 @@ echo ""
 read -p "Press Enter to start (Ctrl+C to stop early)..."
 
 # Initialize
-init_test "$TEST_NAME"
+init_memory_test "$TEST_NAME"
 START_TIME=$(date +%s)
 BASELINE_MEM=$(get_gnome_shell_memory)
 
@@ -351,6 +481,8 @@ case $choice in
     1) run_warmup "enable-disable" "$delay_ms" ;;
     2) run_warmup "layoutswitcher" "$delay_ms" ;;
     3) run_warmup "zone-overlay" "$delay_ms" ;;
+    4) run_warmup "global-toggle" "$delay_ms" ;;
+    5) run_warmup "layout-settings" "$delay_ms" ;;
 esac
 
 # Run selected test
@@ -358,6 +490,8 @@ case $choice in
     1) run_enable_disable "$duration_minutes" "$delay_ms" ;;
     2) run_layoutswitcher "$duration_minutes" "$delay_ms" ;;
     3) run_zone_overlay "$duration_minutes" "$delay_ms" ;;
+    4) run_global_toggle "$duration_minutes" "$delay_ms" ;;
+    5) run_layout_settings "$duration_minutes" "$delay_ms" ;;
 esac
 
 # Force GC before final measurement

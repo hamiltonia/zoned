@@ -127,6 +127,7 @@ show_help() {
     printf "  ${COLOR_INFO}func${COLOR_RESET}         - Functional correctness testing\n"
     printf "  ${COLOR_INFO}release${COLOR_RESET}      - Full suite (mem deep + all functional tests)\n"
     printf "  ${COLOR_INFO}release-test${COLOR_RESET} - Quick release validation (mem 2min + func)\n"
+    printf "  ${COLOR_INFO}notify${COLOR_RESET}       - Test notification system\n"
     printf "\n"
     printf "${COLOR_SUCCESS}Execution Mode:${COLOR_RESET}\n"
     printf "  ${COLOR_INFO}Default${COLOR_RESET}  - Run in VM via SSH (recommended)\n"
@@ -141,6 +142,9 @@ show_help() {
     printf "  ${COLOR_INFO}Release preparation:${COLOR_RESET}\n"
     printf "    ./scripts/test release               # Full suite (mem deep + func)\n"
     printf "    ./scripts/test mem --preset deep     # Just memory (1-20 min)\n"
+    printf "\n"
+    printf "  ${COLOR_INFO}Utilities:${COLOR_RESET}\n"
+    printf "    ./scripts/test notify                # Test notification system\n"
     printf "\n"
     printf "${COLOR_INFO}Note:${COLOR_RESET} Most testing happens in VM. Use --local for quick local verification.\n"
     printf "\n"
@@ -176,6 +180,27 @@ done
 
 # Validate test type
 case "$TEST_TYPE" in
+    notify)
+        # Test notification system
+        printf "${COLOR_INFO}Testing notification system...${COLOR_RESET}\n"
+        printf "\n"
+        printf "Sending test notifications:\n"
+        printf "  1. PASS notification\n"
+        send_notification "PASS" "Notification Test" "PASS notification is working"
+        sleep 2
+        printf "  2. WARN notification\n"
+        send_notification "WARN" "Notification Test" "WARN notification is working"
+        sleep 2
+        printf "  3. FAIL notification\n"
+        send_notification "FAIL" "Notification Test" "FAIL notification is working"
+        printf "\n"
+        printf "${COLOR_SUCCESS}✓ Test notifications sent!${COLOR_RESET}\n"
+        printf "\n"
+        printf "If you didn't see notifications, check:\n"
+        printf "  - notify-send is installed: ${COLOR_INFO}command -v notify-send${COLOR_RESET}\n"
+        printf "  - Notification daemon is running (usually automatic in desktop environments)\n"
+        exit 0
+        ;;
     mem|memory)
         TEST_SCRIPT="./scripts/tests/test-mem-with-restarts"
         ;;
@@ -184,7 +209,17 @@ case "$TEST_TYPE" in
         if [ "$RUN_LOCAL" = true ]; then
             printf "${COLOR_INFO}Running functional tests locally...${COLOR_RESET}\n"
             printf "\n"
-            exec "$SCRIPT_DIR/tests/test-func-runner.sh" "$@"
+            "$SCRIPT_DIR/tests/test-func-runner.sh" "$@"
+            TEST_EXIT=$?
+            
+            # Send notification based on test results
+            if [ $TEST_EXIT -eq 0 ]; then
+                send_notification "PASS" "Functional Tests Complete" "All tests passed"
+            else
+                send_notification "FAIL" "Functional Tests Failed" "One or more tests failed"
+            fi
+            
+            exit $TEST_EXIT
         else
             detect_vm_for_test
             printf "\n"
@@ -197,7 +232,16 @@ case "$TEST_TYPE" in
                 CMD="$CMD $(printf '%q' "$arg")"
             done
             ssh -t "$VM_DOMAIN" "$CMD"
-            exit $?
+            TEST_EXIT=$?
+            
+            # Send notification from host based on VM test results
+            if [ $TEST_EXIT -eq 0 ]; then
+                send_notification "PASS" "Functional Tests Complete" "All tests passed"
+            else
+                send_notification "FAIL" "Functional Tests Failed" "One or more tests failed"
+            fi
+            
+            exit $TEST_EXIT
         fi
         ;;
     release|release-test)
@@ -316,13 +360,6 @@ FUNC_EXIT=\${PIPESTATUS[0]}
 ./scripts/tests/lib/format-release-summary-json.sh --mem "\$MEM_JSON" --func "\$FUNC_JSON" --suite "$SUITE_NAME"
 SUMMARY_EXIT=\$?
 
-# Send notification based on test results
-if [ \$SUMMARY_EXIT -eq 0 ]; then
-    send_notification "PASS" "$(echo $SUITE_NAME | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g') Complete" "All tests passed"
-else
-    send_notification "FAIL" "$(echo $SUITE_NAME | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g') Failed" "One or more tests failed"
-fi
-
 # Clean up or save files
 if [ "\$NO_CLEANUP" != "true" ]; then
     rm -f "\$MEM_OUTPUT" "\$FUNC_OUTPUT" "\$MEM_JSON" "\$FUNC_JSON"
@@ -339,6 +376,13 @@ fi
 exit \$SUMMARY_EXIT
 EOSSH
             SSH_EXIT=$?
+            
+            # Send notification from host based on VM test results
+            if [ $SSH_EXIT -eq 0 ]; then
+                send_notification "PASS" "$(echo $SUITE_NAME | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g') Complete" "All tests passed"
+            else
+                send_notification "FAIL" "$(echo $SUITE_NAME | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g') Failed" "One or more tests failed"
+            fi
             
             # If --no-cleanup was used, parse file paths and copy to local machine
             if [ "$NO_CLEANUP" = "true" ]; then
@@ -397,7 +441,17 @@ if [ "$RUN_LOCAL" = true ]; then
     # Local execution
     printf "${COLOR_INFO}Running tests locally...${COLOR_RESET}\n"
     printf "\n"
-    exec "$TEST_SCRIPT" "$@"
+    "$TEST_SCRIPT" "$@"
+    TEST_EXIT=$?
+    
+    # Send notification based on test results
+    if [ $TEST_EXIT -eq 0 ]; then
+        send_notification "PASS" "Memory Test Complete" "Test passed"
+    else
+        send_notification "FAIL" "Memory Test Failed" "Test failed with exit code $TEST_EXIT"
+    fi
+    
+    exit $TEST_EXIT
 else
     # VM execution (default)
     detect_vm_for_test
@@ -413,4 +467,14 @@ else
     printf "${COLOR_SUCCESS}Executing test on VM...${COLOR_RESET}\n"
     printf "\n"
     ssh -t "$VM_DOMAIN" "$CMD"
+    TEST_EXIT=$?
+    
+    # Send notification from host based on VM test results
+    if [ $TEST_EXIT -eq 0 ]; then
+        send_notification "PASS" "Memory Test Complete" "Test passed"
+    else
+        send_notification "FAIL" "Memory Test Failed" "Test failed with exit code $TEST_EXIT"
+    fi
+    
+    exit $TEST_EXIT
 fi

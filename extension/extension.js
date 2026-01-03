@@ -25,6 +25,7 @@ import {LayoutSwitcher} from './ui/layoutSwitcher.js';
 import {ZoneOverlay} from './ui/zoneOverlay.js';
 import {ConflictDetector} from './ui/conflictDetector.js';
 import {PanelIndicator} from './ui/panelIndicator.js';
+import * as LayoutSettingsDialogModule from './ui/layoutSettingsDialog.js';
 import {createLogger, initDebugSettings, destroyDebugSettings} from './utils/debug.js';
 import {NotificationService, NotifyCategory} from './utils/notificationService.js';
 import {initResourceTracking, destroyResourceTracking} from './utils/resourceTracker.js';
@@ -94,7 +95,7 @@ export default class ZonedExtension extends Extension {
                 const newCount = current + (increment ? 1 : -1);
                 this.instances.set(className, newCount);
 
-                logger.memdebug(`${className} instance count: ${newCount} (${increment ? '+' : '-'}1)`);
+                logger.memdebug(`${className} instance count: ${newCount} (${increment ? '+1' : '-1'})`);
             },
 
             /**
@@ -185,6 +186,9 @@ export default class ZonedExtension extends Extension {
         // Initialize resource tracking (for stability testing)
         initResourceTracking(this._settings);
         logger.debug('Resource tracking initialized');
+
+        // Store LayoutSettingsDialog module for D-Bus testing
+        this._layoutSettingsDialogModule = LayoutSettingsDialogModule;
 
         // Initialize D-Bus debug interface
         this._debugInterface = createDebugInterface(this);
@@ -301,6 +305,18 @@ export default class ZonedExtension extends Extension {
 
         // Add panel indicator to top bar
         Main.panel.addToStatusArea('zoned-indicator', this._panelIndicator);
+
+        // Apply per-workspace layout for initial workspace if enabled
+        // This ensures the correct layout is shown on startup, not just when switching workspaces
+        if (this._settings.get_boolean('use-per-workspace-layouts')) {
+            const spaceKey = this._spatialStateManager.getCurrentSpaceKey();
+            const state = this._spatialStateManager.getState(spaceKey);
+            if (this._layoutManager.setLayout(state.layoutId)) {
+                logger.info(`Applied per-workspace layout for initial workspace: ${state.layoutId}`);
+            } else {
+                logger.warn(`Failed to apply per-workspace layout: ${state.layoutId}`);
+            }
+        }
 
         logger.info('Extension enabled successfully');
 
