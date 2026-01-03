@@ -19,6 +19,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/lib/setup.sh"
+
 CURRENT_TEST=""
 FAILED=0
 TOTAL=0
@@ -180,6 +182,13 @@ for test in "${FUNC_TESTS[@]}"; do
         echo ""
         FAILED_TESTS+=("$test_name")
         FAILED=$((FAILED + 1))
+    fi
+    
+    # Check for critical exceptions in recent logs (last 2 minutes)
+    if ! check_for_exceptions 2; then
+        echo "Aborting test suite due to critical exception"
+        FAILED_TESTS+=("$test_name (caused exception)")
+        exit 3
     fi
 done
 set -e

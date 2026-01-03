@@ -424,6 +424,13 @@ run_single_test() {
     echo "----------------------------------------"
     echo "  Run $run_number ($test_duration min) Result: $cycles cycles [Final: ${final_mem_mb} MB]"
     echo "----------------------------------------"
+    
+    # Check for critical exceptions after this run
+    if ! check_for_exceptions 2; then
+        echo ""
+        echo "Aborting memory test due to critical exception in Run $run_number"
+        exit 3
+    fi
 }
 
 # Function to perform automated restart between runs
