@@ -20,16 +20,20 @@ const logger = createLogger('LayoutSettingsDiagnostic');
 
 // CONTROL FLAGS - Toggle these to isolate memory leaks
 const ENABLE_CONTROLS = {
-    labels: true,
-    buttons: true,
-    iconButtons: true,
-    entries: true,
-    checkboxes: false,
-    spinners: false,
-    dropdowns: false,
-    hoverEffects: true,
-    themeManager: true,
+    labels: true,          // ✅ SAFE - No leaks (basic controls test: R²=0.475 PASS)
+    buttons: true,         // ✅ SAFE - No leaks (basic controls test: R²=0.475 PASS)
+    iconButtons: true,     // ✅ SAFE - No leaks (tested with basic: R²=0.713 PASS)
+    entries: true,         // ✅ SAFE - No leaks (basic controls test: R²=0.475 PASS)
+    checkboxes: false,     // ⚠️ UNCERTAIN - Borderline leak (Test 4: R²=0.650, needs retest)
+    spinners: false,       // ❌ LEAKS - When combined with basic (+5.300 MB/100, R²=0.898)
+                           //    BUT passes alone (+3.506 MB/100, R²=0.720 PASS) - INVESTIGATION NEEDED
+    dropdowns: false,      // ❌ LEAKS - Strong leak (+5.243 MB/100, R²=0.898 FAIL)
+                           //    Fixes applied in code but may not be deployed
+    hoverEffects: true,    // ✅ FIXED - Latest test: +2.636 MB/100, R²=0.779 PASS
+                           //    Bound handler tracking working
+    themeManager: true,    // ✅ SAFE - Test 3: +0.514 MB/100, R²=0.061 PASS
 };
+
 
 /**
  * Module-level handler functions to prevent closure leaks
@@ -98,6 +102,9 @@ export class LayoutSettingsDiagnostic {
         // Source tracking
         this._idleSourceIds = [];
 
+        // Bound handler tracking (for closures that capture widget references)
+        this._boundHandlers = [];
+
         // Modal state
         this._container = null;
         this._dialogCard = null;
@@ -118,6 +125,9 @@ export class LayoutSettingsDiagnostic {
             logger.warn('Diagnostic dialog already visible');
             return;
         }
+
+        // Reset bound handlers array at start of each open to prevent accumulation
+        this._boundHandlers = [];
 
         const monitor = Main.layoutManager.currentMonitor;
         const colors = this._themeManager ? this._themeManager.getColors() : this._getDefaultColors();
@@ -314,6 +324,7 @@ export class LayoutSettingsDiagnostic {
         if (ENABLE_CONTROLS.hoverEffects) {
             const boundEnter = handleWidgetHoverEnter.bind(null, button, hoverStyle);
             const boundLeave = handleWidgetHoverLeave.bind(null, button, normalStyle);
+            this._boundHandlers.push(boundEnter, boundLeave);
             this._signalTracker.connect(button, 'enter-event', boundEnter);
             this._signalTracker.connect(button, 'leave-event', boundLeave);
         }
@@ -342,6 +353,7 @@ export class LayoutSettingsDiagnostic {
         if (ENABLE_CONTROLS.hoverEffects) {
             const boundEnter = handleWidgetHoverEnter.bind(null, button, hoverStyle);
             const boundLeave = handleWidgetHoverLeave.bind(null, button, normalStyle);
+            this._boundHandlers.push(boundEnter, boundLeave);
             this._signalTracker.connect(button, 'enter-event', boundEnter);
             this._signalTracker.connect(button, 'leave-event', boundLeave);
         }
@@ -416,6 +428,7 @@ export class LayoutSettingsDiagnostic {
         // Don't push upIcon to _widgets - it's a child of upButton
 
         const boundUpClick = handleUpButtonClick.bind(null, container, valueLabel, 10, 1);
+        this._boundHandlers.push(boundUpClick);
         this._signalTracker.connect(upButton, 'clicked', boundUpClick);
 
         buttonsBox.add_child(upButton);
@@ -434,6 +447,7 @@ export class LayoutSettingsDiagnostic {
         // Don't push downIcon to _widgets - it's a child of downButton
 
         const boundDownClick = handleDownButtonClick.bind(null, container, valueLabel, 0, 1);
+        this._boundHandlers.push(boundDownClick);
         this._signalTracker.connect(downButton, 'clicked', boundDownClick);
 
         buttonsBox.add_child(downButton);
@@ -485,6 +499,7 @@ export class LayoutSettingsDiagnostic {
         // Don't push upIcon to _widgets - it's a child of upButton
 
         const boundUpClick = handleUpButtonClick.bind(null, container, valueLabel, options, undefined);
+        this._boundHandlers.push(boundUpClick);
         this._signalTracker.connect(upButton, 'clicked', boundUpClick);
 
         buttonsBox.add_child(upButton);
@@ -503,6 +518,7 @@ export class LayoutSettingsDiagnostic {
         // Don't push downIcon to _widgets - it's a child of downButton
 
         const boundDownClick = handleDownButtonClick.bind(null, container, valueLabel, options, undefined);
+        this._boundHandlers.push(boundDownClick);
         this._signalTracker.connect(downButton, 'clicked', boundDownClick);
 
         buttonsBox.add_child(downButton);
@@ -598,6 +614,8 @@ export class LayoutSettingsDiagnostic {
     }
 
     _releaseBoundFunctions() {
+        logger.debug(`Releasing ${this._boundHandlers.length} bound handlers`);
+        this._boundHandlers = [];
         this._boundHandleContainerClick = null;
         this._boundHandleKeyPress = null;
         this._boundOnClose = null;
