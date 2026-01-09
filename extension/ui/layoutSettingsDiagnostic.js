@@ -26,11 +26,11 @@ const ENABLE_CONTROLS = {
     entries: true,         // ✅ SAFE - No leaks (basic controls test: R²=0.475 PASS)
     checkboxes: false,     // ⚠️ UNCERTAIN - Borderline leak (Test 4: R²=0.650, needs retest)
     spinners: false,       // ❌ LEAKS - When combined with basic (+5.300 MB/100, R²=0.898)
-                           //    BUT passes alone (+3.506 MB/100, R²=0.720 PASS) - INVESTIGATION NEEDED
+    //    BUT passes alone (+3.506 MB/100, R²=0.720 PASS) - INVESTIGATION NEEDED
     dropdowns: false,      // ❌ LEAKS - Strong leak (+5.243 MB/100, R²=0.898 FAIL)
-                           //    Fixes applied in code but may not be deployed
+    //    Fixes applied in code but may not be deployed
     hoverEffects: true,    // ✅ FIXED - Latest test: +2.636 MB/100, R²=0.779 PASS
-                           //    Bound handler tracking working
+    //    Bound handler tracking working
     themeManager: true,    // ✅ SAFE - Test 3: +0.514 MB/100, R²=0.061 PASS
 };
 
