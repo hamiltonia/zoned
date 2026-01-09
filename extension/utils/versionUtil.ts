@@ -45,7 +45,7 @@ export interface ExtensionMetadata {
  */
 export function getExtensionVersion(
     extensionPath: string,
-    metadata: ExtensionMetadata
+    metadata: ExtensionMetadata,
 ): ExtensionVersion {
     // Check for local dev override first (.version-override is gitignored)
     const overridePath = GLib.build_filenamev([extensionPath, '.version-override']);

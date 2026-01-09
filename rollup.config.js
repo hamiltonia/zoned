@@ -100,10 +100,11 @@ function createGirsTransformer() {
     };
 }
 
-export default {
-    input: 'extension/utils/versionUtil.ts',
+// Shared configuration for all TypeScript builds
+const createTSBuildConfig = (inputFile, outputFile) => ({
+    input: inputFile,
     output: {
-        file: 'build/rollup/utils/versionUtil.js',
+        file: outputFile,
         format: 'es',
         generatedCode: { 
             constBindings: true 
@@ -134,4 +135,9 @@ export default {
             extensions: ['js', 'ts']
         })
     ]
-};
+});
+
+export default [
+    createTSBuildConfig('extension/utils/versionUtil.ts', 'build/rollup/utils/versionUtil.js'),
+    createTSBuildConfig('extension/utils/theme.ts', 'build/rollup/utils/theme.js'),
+];
