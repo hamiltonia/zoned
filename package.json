@@ -9,9 +9,23 @@
     "lint:fix": "eslint extension/ --fix"
   },
   "devDependencies": {
-    "eslint": "^9.16.0",
     "@eslint/js": "^9.16.0",
-    "globals": "^15.13.0"
+    "@girs/clutter-14": "^14.0.0-4.0.0-beta.38",
+    "@girs/gjs": "^4.0.0-beta.38",
+    "@girs/meta-14": "^14.0.0-4.0.0-beta.38",
+    "@girs/shell-14": "^14.0.0-4.0.0-beta.38",
+    "@girs/st-14": "^14.0.0-4.0.0-beta.38",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "@tsconfig/recommended": "^1.0.13",
+    "@typescript-eslint/eslint-plugin": "^8.52.0",
+    "@typescript-eslint/parser": "^8.52.0",
+    "eslint": "^9.16.0",
+    "globals": "^15.13.0",
+    "rollup": "^4.55.1",
+    "rollup-plugin-cleanup": "^3.2.1",
+    "tslib": "^2.8.1",
+    "typescript": "^5.9.3"
   },
   "repository": {
     "type": "git",

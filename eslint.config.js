@@ -7,6 +7,8 @@
 
 import js from '@eslint/js';
 import globals from 'globals';
+import tseslint from '@typescript-eslint/eslint-plugin';
+import tsparser from '@typescript-eslint/parser';
 
 export default [
     // Base recommended rules
@@ -138,6 +140,99 @@ export default [
         files: ['extension/prefs.js'],
         rules: {
             'no-console': 'off',
+        },
+    },
+
+    // TypeScript configuration
+    {
+        files: ['extension/**/*.ts'],
+        languageOptions: {
+            parser: tsparser,
+            parserOptions: {
+                ecmaVersion: 2022,
+                sourceType: 'module',
+                project: './tsconfig.json',
+            },
+            globals: {
+                // GJS/GNOME Shell globals
+                ...globals.es2021,
+                
+                // GNOME Shell specific globals
+                global: 'readonly',
+                imports: 'readonly',
+                log: 'readonly',
+                logError: 'readonly',
+                print: 'readonly',
+                printerr: 'readonly',
+                
+                // GLib main loop
+                ARGV: 'readonly',
+                
+                // Console API (available in GJS)
+                console: 'readonly',
+                
+                // Timer functions (GJS provides these)
+                setTimeout: 'readonly',
+                clearTimeout: 'readonly',
+                setInterval: 'readonly',
+                clearInterval: 'readonly',
+                
+                // TextEncoder/TextDecoder (available in GJS)
+                TextEncoder: 'readonly',
+                TextDecoder: 'readonly',
+            },
+        },
+        plugins: {
+            '@typescript-eslint': tseslint,
+        },
+        rules: {
+            // ==========================================
+            // TypeScript-specific rules
+            // ==========================================
+            
+            // Disable base rules that are handled by TypeScript
+            'no-undef': 'off',  // TypeScript handles this
+            'no-unused-vars': 'off',  // Use TypeScript version instead
+            
+            // TypeScript equivalents
+            '@typescript-eslint/no-unused-vars': ['warn', {
+                argsIgnorePattern: '^_',
+                varsIgnorePattern: '^_',
+            }],
+            '@typescript-eslint/no-explicit-any': 'warn',
+            '@typescript-eslint/explicit-function-return-type': 'off',
+            '@typescript-eslint/explicit-module-boundary-types': 'off',
+            '@typescript-eslint/no-non-null-assertion': 'warn',
+            
+            // Security (same as JS)
+            'no-eval': 'error',
+            'no-new-func': 'error',
+            'no-implied-eval': 'error',
+            'no-debugger': 'error',
+            
+            // Code quality
+            'complexity': ['error', 10],
+            'no-console': ['warn', {allow: ['error', 'warn']}],
+            'eqeqeq': ['warn', 'smart'],
+            
+            // Style
+            'indent': ['warn', 4, { SwitchCase: 1 }],
+            'no-trailing-spaces': 'warn',
+            'eol-last': ['warn', 'always'],
+            'quotes': ['warn', 'single', { avoidEscape: true }],
+            'semi': ['warn', 'always'],
+            'max-len': ['warn', { 
+                code: 120,
+                ignoreUrls: true,
+                ignoreStrings: true,
+                ignoreTemplateLiterals: true,
+                ignoreRegExpLiterals: true,
+            }],
+            'brace-style': ['warn', '1tbs', { allowSingleLine: true }],
+            'object-curly-spacing': ['warn', 'never'],
+            'array-bracket-spacing': ['warn', 'never'],
+            'comma-dangle': ['warn', 'always-multiline'],
+            'comma-spacing': ['warn', { before: false, after: true }],
         },
     },
 

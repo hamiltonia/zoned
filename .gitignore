@@ -39,6 +39,11 @@ dist/
 *.zip
 *.tar.gz
 
+# TypeScript build artifacts
+*.tsbuildinfo
+build/typescript/
+build/rollup/
+
 # Testing
 coverage/
 .nyc_output/
