@@ -151,6 +151,16 @@ run_warmup() {
             dbus_trigger "hide-layout-switcher" "{}" >/dev/null 2>&1
             sleep_ms "$((delay_ms / 2))"
             ;;
+        diagnostic-dialog)
+            dbus_trigger "show-layout-switcher" "{}" >/dev/null 2>&1
+            sleep_ms "$delay_ms"
+            dbus_trigger "open-diagnostic-dialog" '{}' >/dev/null 2>&1
+            sleep_ms "$delay_ms"
+            dbus_trigger "close-diagnostic-dialog" '{}' >/dev/null 2>&1
+            sleep_ms "$delay_ms"
+            dbus_trigger "hide-layout-switcher" "{}" >/dev/null 2>&1
+            sleep_ms "$((delay_ms / 2))"
+            ;;
     esac
     
     # Force GC to clean up warmup artifacts
@@ -419,6 +429,59 @@ run_layout_settings() {
     dbus_trigger "hide-layout-switcher" "{}" >/dev/null 2>&1
 }
 
+# Run Diagnostic Dialog test
+run_diagnostic_dialog() {
+    local duration_minutes=$1
+    local delay_ms=$2
+    local end_time=$(($(date +%s) + duration_minutes * 60))
+    local next_report=$(($(date +%s) + 30))
+    
+    if ! dbus_interface_available; then
+        error "Diagnostic Dialog test requires D-Bus interface"
+        echo "Enable with: gsettings set org.gnome.shell.extensions.zoned debug-expose-dbus true"
+        exit 1
+    fi
+    
+    info "Starting Diagnostic Dialog test..."
+    info "Duration: ${duration_minutes} minutes, Delay: ${delay_ms}ms"
+    echo ""
+    
+    # Show LayoutSwitcher ONCE at start (keep it open for entire test)
+    dbus_trigger "show-layout-switcher" "{}" >/dev/null 2>&1
+    sleep_ms "$delay_ms"
+    
+    while [ $(date +%s) -lt $end_time ]; do
+        # Open diagnostic dialog
+        dbus_trigger "open-diagnostic-dialog" '{}' >/dev/null 2>&1
+        sleep_ms "$delay_ms"
+        
+        # Close diagnostic dialog
+        dbus_trigger "close-diagnostic-dialog" '{}' >/dev/null 2>&1
+        sleep_ms "$delay_ms"
+        
+        CYCLES=$((CYCLES + 1))
+        
+        # Periodic report every 30 seconds
+        if [ $(date +%s) -ge $next_report ]; then
+            local elapsed=$(($(date +%s) - START_TIME))
+            local mem=$(get_gnome_shell_memory)
+            local actual_diff=$((mem - WARMUP_BASELINE))
+            local report=$(dbus_get_resource_report)
+            local leaked_signals=$(extract_variant "leakedSignals" "$report" 2>/dev/null || echo "0")
+            local leaked_timers=$(extract_variant "leakedTimers" "$report" 2>/dev/null || echo "0")
+            
+            printf "[%02d:%02d] Memory: %+6d KB | Cycles: %5d | Signals: %d | Timers: %d\n" \
+                   $((elapsed / 60)) $((elapsed % 60)) "$actual_diff" "$CYCLES" \
+                   "$leaked_signals" "$leaked_timers"
+            
+            next_report=$(($(date +%s) + 30))
+        fi
+    done
+    
+    # Close LayoutSwitcher ONCE at end
+    dbus_trigger "hide-layout-switcher" "{}" >/dev/null 2>&1
+}
+
 # Main script
 # Only clear if running interactively (not piped/automated)
 if [ -t 0 ]; then
@@ -435,8 +498,9 @@ echo "  2) LayoutSwitcher (Show/Hide)"
 echo "  3) Zone Overlay (Show/Hide)"
 echo "  4) Global/Per-Workspace Toggle"
 echo "  5) Layout Settings Dialog (Open/Close)"
+echo "  6) Diagnostic Dialog (Open/Close)"
 echo ""
-read -p "Choice [1-5]: " choice
+read -p "Choice [1-6]: " choice
 
 case $choice in
     1) TEST_NAME="Enable/Disable" ;;
@@ -444,6 +508,7 @@ case $choice in
     3) TEST_NAME="Zone Overlay" ;;
     4) TEST_NAME="Global Toggle" ;;
     5) TEST_NAME="Layout Settings" ;;
+    6) TEST_NAME="Diagnostic Dialog" ;;
     *)
         error "Invalid choice"
         exit 1
@@ -483,6 +548,7 @@ case $choice in
     3) run_warmup "zone-overlay" "$delay_ms" ;;
     4) run_warmup "global-toggle" "$delay_ms" ;;
     5) run_warmup "layout-settings" "$delay_ms" ;;
+    6) run_warmup "diagnostic-dialog" "$delay_ms" ;;
 esac
 
 # Run selected test
@@ -492,6 +558,7 @@ case $choice in
     3) run_zone_overlay "$duration_minutes" "$delay_ms" ;;
     4) run_global_toggle "$duration_minutes" "$delay_ms" ;;
     5) run_layout_settings "$duration_minutes" "$delay_ms" ;;
+    6) run_diagnostic_dialog "$duration_minutes" "$delay_ms" ;;
 esac
 
 # Force GC before final measurement

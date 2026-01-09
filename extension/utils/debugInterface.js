@@ -22,6 +22,7 @@ import {
     resetAllTracking,
 } from './resourceTracker.js';
 import {getExtensionVersion} from './versionUtil.js';
+import {LayoutSettingsDiagnostic} from '../ui/layoutSettingsDiagnostic.js';
 
 const logger = createLogger('DebugInterface');
 
@@ -365,6 +366,46 @@ function handleCloseLayoutSettings(extension) {
     return [true, ''];
 }
 
+function handleOpenDiagnosticDialog(extension) {
+    // Open the memory leak diagnostic dialog
+    logger.info('[D-Bus] handleOpenDiagnosticDialog called');
+
+    // Check if dialog already exists
+    if (extension._diagnosticDialog) {
+        logger.warn('[D-Bus] Diagnostic dialog already open');
+        return [false, 'Diagnostic dialog already open'];
+    }
+
+    const settings = extension._settings;
+    if (!settings) {
+        logger.error('[D-Bus] Settings not available');
+        return [false, 'Settings not available'];
+    }
+
+    // Create and open dialog
+    extension._diagnosticDialog = new LayoutSettingsDiagnostic(settings);
+    extension._diagnosticDialog.open();
+
+    logger.info('[D-Bus] Diagnostic dialog opened');
+    return [true, ''];
+}
+
+function handleCloseDiagnosticDialog(extension) {
+    // Close the diagnostic dialog
+    logger.info('[D-Bus] handleCloseDiagnosticDialog called');
+
+    if (!extension._diagnosticDialog) {
+        logger.warn('[D-Bus] No diagnostic dialog to close');
+        return [false, 'No diagnostic dialog open'];
+    }
+
+    extension._diagnosticDialog.close();
+    extension._diagnosticDialog = null;
+
+    logger.info('[D-Bus] Diagnostic dialog closed');
+    return [true, ''];
+}
+
 // Action handlers map
 const ACTION_HANDLERS = {
     'cycle-zone': handleCycleZone,
@@ -387,6 +428,8 @@ const ACTION_HANDLERS = {
     'set-global-mode': handleSetGlobalMode,
     'open-layout-settings': handleOpenLayoutSettings,
     'close-layout-settings': handleCloseLayoutSettings,
+    'open-diagnostic-dialog': handleOpenDiagnosticDialog,
+    'close-diagnostic-dialog': handleCloseDiagnosticDialog,
 };
 
 /**

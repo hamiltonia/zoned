@@ -42,8 +42,8 @@ fi
 # Define presets
 case "$PRESET_MODE" in
     "standard")
-        # All 5 tests, variable duration 1-10 minutes, 200ms delay
-        PRESET_TESTS=("1" "2" "3" "4" "5")
+        # All 6 tests, variable duration 1-10 minutes, 200ms delay
+        PRESET_TESTS=("1" "2" "3" "4" "5" "6")
         PRESET_MAX_DURATION=10
         PRESET_DELAY=200
         PRESET_VARIABLE=true
@@ -63,15 +63,15 @@ case "$PRESET_MODE" in
         PRESET_VARIABLE=true
         ;;
     "test")
-        # All 5 tests, variable 1-3 minutes, 200ms delay (for release-test)
-        PRESET_TESTS=("1" "2" "3" "4" "5")
+        # All 6 tests, variable 1-3 minutes, 200ms delay (for release-test)
+        PRESET_TESTS=("1" "2" "3" "4" "5" "6")
         PRESET_MAX_DURATION=3
         PRESET_DELAY=200
         PRESET_VARIABLE=true
         ;;
     "deep")
-        # All 5 tests, variable 1-20 minutes, 200ms delay
-        PRESET_TESTS=("1" "2" "3" "4" "5")
+        # All 6 tests, variable 1-20 minutes, 200ms delay
+        PRESET_TESTS=("1" "2" "3" "4" "5" "6")
         PRESET_MAX_DURATION=20
         PRESET_DELAY=200
         PRESET_VARIABLE=true
@@ -145,18 +145,19 @@ if [ -n "$PRESET_MODE" ]; then
 else
     # Interactive mode
     echo "Select test:"
-    echo "  1) Enable/Disable Cycles"
+    echo " 1) Enable/Disable Cycles"
     echo "  2) LayoutSwitcher (Show/Hide)"
     echo "  3) Zone Overlay (Show/Hide)"
     echo "  4) Global/Per-Workspace Toggle"
     echo "  5) Layout Settings Dialog (Open/Close)"
-    echo "  6) All tests (sequential)"
+    echo "  6) Diagnostic Dialog (Open/Close)"
+    echo "  7) All tests (sequential)"
     echo ""
-    read -p "Choice [1-6]: " test_choice
+    read -p "Choice [1-7]: " test_choice
     
     case $test_choice in
-        1|2|3|4|5) TEST_CHOICES=("$test_choice") ;;
-        6) TEST_CHOICES=("1" "2" "3" "4" "5") ;;
+        1|2|3|4|5|6) TEST_CHOICES=("$test_choice") ;;
+        7) TEST_CHOICES=("1" "2" "3" "4" "5" "6") ;;
         *)
             error "Invalid choice"
             exit 1
@@ -239,6 +240,7 @@ for choice in "${TEST_CHOICES[@]}"; do
         3) TEST_NAMES+=("Zone Overlay") ;;
         4) TEST_NAMES+=("Global Toggle") ;;
         5) TEST_NAMES+=("Layout Settings") ;;
+        6) TEST_NAMES+=("Diagnostic Dialog") ;;
     esac
 done
 
