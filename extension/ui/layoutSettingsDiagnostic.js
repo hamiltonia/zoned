@@ -18,6 +18,10 @@ import {ThemeManager} from '../utils/theme.js';
 
 const logger = createLogger('LayoutSettingsDiagnostic');
 
+// Instance tracking to detect dialog accumulation
+let instanceCounter = 0;
+let activeInstances = 0;
+
 // CONTROL FLAGS - Toggle these to isolate memory leaks
 const ENABLE_CONTROLS = {
     labels: true,          // ✅ SAFE - No leaks (basic controls test: R²=0.475 PASS)
@@ -117,7 +121,10 @@ export class LayoutSettingsDiagnostic {
         this._boundHandleKeyPress = this._handleKeyPress.bind(this);
         this._boundOnClose = this._onClose.bind(this);
 
-        logger.debug('LayoutSettingsDiagnostic created', ENABLE_CONTROLS);
+        // Track instance creation
+        this._instanceId = ++instanceCounter;
+        activeInstances++;
+        logger.debug(`LayoutSettingsDiagnostic #${this._instanceId} created. Active instances: ${activeInstances}`, ENABLE_CONTROLS);
     }
 
     open() {
@@ -219,7 +226,10 @@ export class LayoutSettingsDiagnostic {
         this._cleanupThemeManager();
 
         this._visible = false;
-        logger.debug('Diagnostic dialog closed');
+
+        // Track instance destruction
+        activeInstances--;
+        logger.debug(`LayoutSettingsDiagnostic #${this._instanceId} closed. Active instances: ${activeInstances}`);
     }
 
     _buildDialogCard(colors) {
