@@ -15,19 +15,9 @@
  */
 
 import Gio from '@girs/gio-2.0';
-// @ts-expect-error - debug.js not yet migrated to TypeScript
 import {createLogger} from './debug.js';
 
 const logger = createLogger('ThemeManager');
-
-// Global type declaration for GJS environment
-declare global {
-    const global: {
-        zonedDebug?: {
-            trackInstance: (name: string, track?: boolean) => void;
-        };
-    };
-}
 
 // RGB color in 0-1 range
 interface RGB {

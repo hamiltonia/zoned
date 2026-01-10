@@ -140,4 +140,7 @@ const createTSBuildConfig = (inputFile, outputFile) => ({
 export default [
     createTSBuildConfig('extension/utils/versionUtil.ts', 'build/rollup/utils/versionUtil.js'),
     createTSBuildConfig('extension/utils/theme.ts', 'build/rollup/utils/theme.js'),
+    createTSBuildConfig('extension/utils/debug.ts', 'build/rollup/utils/debug.js'),
+    createTSBuildConfig('extension/utils/signalTracker.ts', 'build/rollup/utils/signalTracker.js'),
+    createTSBuildConfig('extension/utils/resourceTracker.ts', 'build/rollup/utils/resourceTracker.js'),
 ];

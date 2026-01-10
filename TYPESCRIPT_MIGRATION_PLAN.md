@@ -2,7 +2,8 @@
 
 **Branch:** `infra/typescript-migration`  
 **Created:** January 9, 2026  
-**Status:** Planning Phase
+**Status:** In Progress - Phase 2 (Utilities Migration)  
+**Last Updated:** January 10, 2026
 
 ---
 
@@ -745,23 +746,29 @@ test: build-ts lint-ts typecheck
 ## Migration Checklist
 
 ### Phase 1: Foundation ✓
-- [ ] Create `infra/typescript-migration` branch
-- [ ] Install TypeScript and GJS type definitions
-- [ ] Create `tsconfig.json` with GNOME-specific settings
-- [ ] Update ESLint for TypeScript support
-- [ ] Update Makefile with TypeScript build targets
-- [ ] Update `.gitignore` for build artifacts
+- [x] Create `infra/typescript-migration` branch
+- [x] Install TypeScript and GJS type definitions
+- [x] Create `tsconfig.json` with GNOME-specific settings
+- [x] Update ESLint for TypeScript support
+- [x] Update Makefile with Rollup build targets (using Rollup instead of tsc)
+- [x] Update `.gitignore` for build artifacts
 - [ ] Document TypeScript setup in DEVELOPMENT.md
-- [ ] Test basic "Hello TypeScript" compilation
+- [x] Test basic TypeScript compilation (via Rollup)
+- [x] Create `extension/types/` directory for centralized type declarations
+
+**Notes:**
+- Using Rollup for TypeScript compilation instead of direct tsc
+- Centralized global type declarations in `extension/types/global.d.ts`
+- Build outputs to `build/rollup/` instead of `build/typescript/`
 
 ### Phase 2: File Migration ✓
-**Utilities** (2 days)
-- [ ] Migrate `utils/versionUtil.js`
-- [ ] Migrate `utils/theme.js`
-- [ ] Migrate `utils/debug.js`
-- [ ] Migrate `utils/notificationService.js`
-- [ ] Migrate `utils/signalTracker.js`
-- [ ] Migrate `utils/resourceTracker.js`
+**Utilities** (2 days) - 5 of 6 complete
+- [x] Migrate `utils/versionUtil.js` → versionUtil.ts
+- [x] Migrate `utils/theme.js` → theme.ts (+ removed duplicate global types)
+- [x] Migrate `utils/debug.js` → debug.ts
+- [ ] Migrate `utils/notificationService.js` → notificationService.ts
+- [x] Migrate `utils/signalTracker.js` → signalTracker.ts
+- [x] Migrate `utils/resourceTracker.js` → resourceTracker.ts
 - [ ] Test: VM install + basic functionality
 
 **Data Structures** (1 day)
