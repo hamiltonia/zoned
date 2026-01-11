@@ -76,6 +76,12 @@ main() {
         exit 1
     fi
     
+    # Copy compiled TypeScript files if they exist
+    if ssh "$VM_DOMAIN" "test -d '$VM_MOUNT_PATH/build/rollup'" 2>/dev/null; then
+        echo -e "${YELLOW}  [VM]${NC} Copying compiled TypeScript files..."
+        ssh "$VM_DOMAIN" "cp -r '$VM_MOUNT_PATH/build/rollup/.' $ext_dir/" 2>/dev/null || true
+    fi
+    
     echo -e "${YELLOW}  [VM]${NC} Verifying installation..."
     if ssh "$VM_DOMAIN" "test -f $ext_dir/metadata.json" 2>/dev/null; then
         vm_print_success "Extension files copied to writable directory"
