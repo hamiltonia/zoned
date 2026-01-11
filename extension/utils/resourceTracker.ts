@@ -296,7 +296,8 @@ export class ResourceTracker {
         try {
             object.disconnect(signalId);
         } catch {
-            // Object may already be destroyed
+            // Object may already be destroyed - ignore
+            void 0;
         }
 
         if (_trackingEnabled) {
@@ -320,7 +321,8 @@ export class ResourceTracker {
                 try {
                     objectRef.disconnect(info.signalId);
                 } catch {
-                    // Object may already be destroyed
+                    // Object may already be destroyed - ignore
+                    void 0;
                 }
             }
         }
@@ -459,7 +461,8 @@ export class ResourceTracker {
             try {
                 GLib.source_remove(sourceId);
             } catch {
-                // Source may already be removed
+                // Source may already be removed - ignore
+                void 0;
             }
         }
         this._timers.clear();

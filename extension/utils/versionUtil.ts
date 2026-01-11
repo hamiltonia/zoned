@@ -64,7 +64,8 @@ export function getExtensionVersion(
                 };
             }
         } catch {
-            // Fall through to metadata if override read fails
+            // Fall through to metadata if override read fails - ignore
+            void 0;
         }
     }
 
