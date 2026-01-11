@@ -14,10 +14,36 @@
  */
 
 /**
+ * GNOME/system keybinding definition
+ */
+export interface GnomeBinding {
+    schema: string;
+    key: string;
+    name: string;
+}
+
+/**
+ * Zoned keybinding definition
+ */
+export interface ZonedBinding {
+    key: string;
+    name: string;
+    enhanced: boolean;
+}
+
+/**
+ * Parsed accelerator components
+ */
+interface AcceleratorParts {
+    modifiers: string[];
+    key: string;
+}
+
+/**
  * GNOME/system keybindings that might conflict with Zoned
  * These are checked against Zoned's keybindings to detect collisions
  */
-export const GNOME_BINDINGS = [
+export const GNOME_BINDINGS: GnomeBinding[] = [
     // Window tiling (mutter)
     {schema: 'org.gnome.mutter.keybindings', key: 'toggle-tiled-left', name: 'Tile window left'},
     {schema: 'org.gnome.mutter.keybindings', key: 'toggle-tiled-right', name: 'Tile window right'},
@@ -50,7 +76,7 @@ export const GNOME_BINDINGS = [
  * Zoned keybindings that need conflict detection
  * Used to know which of our bindings to check against GNOME_BINDINGS
  */
-export const ZONED_BINDINGS = [
+export const ZONED_BINDINGS: ZonedBinding[] = [
     // Core keybindings (always checked)
     {key: 'show-layout-picker', name: 'Open Layout Picker', enhanced: false},
     {key: 'cycle-zone-left', name: 'Move Window to Previous Zone', enhanced: false},
@@ -65,7 +91,7 @@ export const ZONED_BINDINGS = [
  * Key name aliases - different names that map to the same physical key
  * GNOME GSettings sometimes uses different names than GTK accelerator syntax
  */
-export const KEY_ALIASES = {
+export const KEY_ALIASES: Record<string, string> = {
     // The backtick/grave key (left of 1 on US keyboards)
     'Above_Tab': 'grave',      // GNOME uses Above_Tab, GTK uses grave
     'quoteleft': 'grave',      // Another alias for the same key
@@ -104,10 +130,10 @@ export const KEY_ALIASES = {
  * Normalize an accelerator string to use canonical key names
  * This ensures consistent comparison regardless of how the key was named
  *
- * @param {string} accel - The accelerator string (e.g., '<Super>Above_Tab')
- * @returns {string} Normalized accelerator (e.g., '<Super>grave')
+ * @param accel - The accelerator string (e.g., '<Super>Above_Tab')
+ * @returns Normalized accelerator (e.g., '<Super>grave')
  */
-export function normalizeAccelerator(accel) {
+export function normalizeAccelerator(accel: string): string {
     if (!accel) return accel;
 
     let normalized = accel;
@@ -133,11 +159,11 @@ export function normalizeAccelerator(accel) {
  * comparison using keyval/modifiers, use the platform-specific parsing
  * (Gtk.accelerator_parse in prefs.js)
  *
- * @param {string} accel1 - First accelerator
- * @param {string} accel2 - Second accelerator
- * @returns {boolean} True if they represent the same shortcut
+ * @param accel1 - First accelerator
+ * @param accel2 - Second accelerator
+ * @returns True if they represent the same shortcut
  */
-export function acceleratorsMatch(accel1, accel2) {
+export function acceleratorsMatch(accel1: string, accel2: string): boolean {
     if (!accel1 || !accel2) return false;
 
     // Normalize both to handle aliases
@@ -172,17 +198,17 @@ export function acceleratorsMatch(accel1, accel2) {
 /**
  * Parse accelerator string into modifiers and key parts
  *
- * @param {string} accel - Accelerator string like '<Super><Ctrl>Left'
- * @returns {Object|null} {modifiers: ['Super', 'Ctrl'], key: 'Left'} or null
+ * @param accel - Accelerator string like '<Super><Ctrl>Left'
+ * @returns {modifiers: ['Super', 'Ctrl'], key: 'Left'} or null
  */
-function parseAcceleratorParts(accel) {
+function parseAcceleratorParts(accel: string): AcceleratorParts | null {
     if (!accel) return null;
 
-    const modifiers = [];
+    const modifiers: string[] = [];
 
     // Extract all <Modifier> parts
     const modRegex = /<([^>]+)>/g;
-    let match;
+    let match: RegExpExecArray | null;
     while ((match = modRegex.exec(accel)) !== null) {
         modifiers.push(match[1]);
     }

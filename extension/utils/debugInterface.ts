@@ -13,8 +13,8 @@
  *     -m org.gnome.Shell.Extensions.Zoned.Debug.GetState
  */
 
-import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
+import Gio from '@girs/gio-2.0';
+import GLib from '@girs/glib-2.0';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from './debug.js';
 import {
@@ -25,6 +25,43 @@ import {getExtensionVersion} from './versionUtil.js';
 import {LayoutSettingsDiagnostic} from '../ui/layoutSettingsDiagnostic.js';
 
 const logger = createLogger('DebugInterface');
+
+/**
+ * Extension interface (minimal type definition for what we need)
+ */
+interface Extension {
+    path: string;
+    metadata: any;  // Use any to avoid ExtensionMetadata strict typing issues
+    _settings: Gio.Settings | null;
+    _layoutManager: any;
+    _windowManager: any;
+    _spatialStateManager: any;
+    _layoutSwitcher: any;
+    _zoneOverlay: any;
+    _testLayoutSettingsDialog: any;
+    _diagnosticDialog: any;
+}
+
+/**
+ * Action handler parameters
+ */
+interface ActionParams {
+    direction?: number;
+    layoutId?: string;
+    index?: number;
+    enabled?: boolean;
+    global?: boolean;
+}
+
+/**
+ * Action handler return type
+ */
+type ActionResult = [success: boolean, error: string];
+
+/**
+ * Action handler function type
+ */
+type ActionHandler = (extension: Extension, params: ActionParams) => ActionResult;
 
 // D-Bus interface XML definition
 const DBUS_INTERFACE_XML = `
@@ -83,7 +120,7 @@ const DBUS_INTERFACE_XML = `
 `;
 
 // Action handler functions
-function handleCycleZone(extension, params) {
+function handleCycleZone(extension: Extension, params: ActionParams): ActionResult {
     const direction = params.direction || 1;
     extension._layoutManager?.cycleZone(direction);
     const window = extension._windowManager?.getFocusedWindow();
@@ -96,7 +133,7 @@ function handleCycleZone(extension, params) {
     return [true, ''];
 }
 
-function handleCycleZoneState(extension, params) {
+function handleCycleZoneState(extension: Extension, params: ActionParams): ActionResult {
     // State-only zone cycling - does NOT move any windows
     // Used for stress testing zone state management without side effects
     const direction = params.direction || 1;
@@ -104,14 +141,14 @@ function handleCycleZoneState(extension, params) {
     return [true, ''];
 }
 
-function handleSwitchLayout(extension, params) {
+function handleSwitchLayout(extension: Extension, params: ActionParams): ActionResult {
     const layoutId = params.layoutId;
     if (!layoutId) {
         return [false, 'Missing layoutId parameter'];
     }
     // Check if layout exists before switching
     const layouts = extension._layoutManager?.getAllLayouts() || [];
-    const layoutExists = layouts.some(l => l.id === layoutId);
+    const layoutExists = layouts.some((l: any) => l.id === layoutId);
     if (!layoutExists) {
         return [false, `Layout not found: ${layoutId}`];
     }
@@ -119,17 +156,17 @@ function handleSwitchLayout(extension, params) {
     return [true, ''];
 }
 
-function handleShowLayoutSwitcher(extension) {
+function handleShowLayoutSwitcher(extension: Extension): ActionResult {
     extension._layoutSwitcher?.show();
     return [true, ''];
 }
 
-function handleHideLayoutSwitcher(extension) {
+function handleHideLayoutSwitcher(extension: Extension): ActionResult {
     extension._layoutSwitcher?.hide();
     return [true, ''];
 }
 
-function handleShowZoneOverlay(extension) {
+function handleShowZoneOverlay(extension: Extension): ActionResult {
     const layout = extension._layoutManager?.getCurrentLayout();
     const zoneIndex = extension._layoutManager?.getCurrentZoneIndex() ?? 0;
     const totalZones = layout?.zones?.length ?? 0;
@@ -138,22 +175,22 @@ function handleShowZoneOverlay(extension) {
     return [true, ''];
 }
 
-function handleHideZoneOverlay(extension) {
+function handleHideZoneOverlay(extension: Extension): ActionResult {
     extension._zoneOverlay?._hide();
     return [true, ''];
 }
 
-function handleGetLayoutIds(extension) {
+function handleGetLayoutIds(extension: Extension): ActionResult {
     const layouts = extension._layoutManager?.getAllLayouts() || [];
-    return [true, JSON.stringify(layouts.map(l => l.id))];
+    return [true, JSON.stringify(layouts.map((l: any) => l.id))];
 }
 
-function handleGetMonitorCount(_extension) {
+function handleGetMonitorCount(_extension: Extension): ActionResult {
     const monitorCount = Main.layoutManager.monitors?.length ?? 1;
     return [true, JSON.stringify({count: monitorCount})];
 }
 
-function handleMoveFocusedToZone(extension) {
+function handleMoveFocusedToZone(extension: Extension): ActionResult {
     const window = extension._windowManager?.getFocusedWindow();
     if (!window) {
         return [false, 'No focused window'];
@@ -166,7 +203,7 @@ function handleMoveFocusedToZone(extension) {
     return [true, ''];
 }
 
-function handleGetFocusedWindowGeometry(extension) {
+function handleGetFocusedWindowGeometry(extension: Extension): ActionResult {
     const window = extension._windowManager?.getFocusedWindow();
     if (!window) {
         return [false, 'No focused window'];
@@ -180,7 +217,7 @@ function handleGetFocusedWindowGeometry(extension) {
     })];
 }
 
-function handleGetCurrentZoneGeometry(extension) {
+function handleGetCurrentZoneGeometry(extension: Extension): ActionResult {
     const zone = extension._layoutManager?.getCurrentZone();
     if (!zone) {
         return [false, 'No current zone'];
@@ -198,7 +235,7 @@ function handleGetCurrentZoneGeometry(extension) {
     })];
 }
 
-function handleSwitchWorkspace(_extension, params) {
+function handleSwitchWorkspace(_extension: Extension, params: ActionParams): ActionResult {
     const index = params.index;
     if (typeof index !== 'number') {
         return [false, 'Missing or invalid index parameter'];
@@ -211,7 +248,7 @@ function handleSwitchWorkspace(_extension, params) {
     return [true, ''];
 }
 
-function handleGetWorkspaceInfo(_extension) {
+function handleGetWorkspaceInfo(_extension: Extension): ActionResult {
     const workspaceManager = global.workspace_manager;
     const currentIndex = workspaceManager.get_active_workspace_index();
     const count = workspaceManager.get_n_workspaces();
@@ -221,7 +258,7 @@ function handleGetWorkspaceInfo(_extension) {
     })];
 }
 
-function handleMoveWindowToWorkspace(extension, params) {
+function handleMoveWindowToWorkspace(extension: Extension, params: ActionParams): ActionResult {
     const targetIndex = params.index;
     if (typeof targetIndex !== 'number') {
         return [false, 'Missing or invalid index parameter'];
@@ -234,7 +271,7 @@ function handleMoveWindowToWorkspace(extension, params) {
     return [true, ''];
 }
 
-function handleSetPerWorkspaceMode(extension, params) {
+function handleSetPerWorkspaceMode(extension: Extension, params: ActionParams): ActionResult {
     const enabled = params.enabled;
     if (typeof enabled !== 'boolean') {
         return [false, 'Missing or invalid enabled parameter'];
@@ -249,14 +286,14 @@ function handleSetPerWorkspaceMode(extension, params) {
     return [true, ''];
 }
 
-function handleGetSpatialState(extension) {
+function handleGetSpatialState(extension: Extension): ActionResult {
     const spatialManager = extension._spatialStateManager;
     if (!spatialManager) {
         return [false, 'SpatialStateManager not available'];
     }
     // Build state object from all space keys
     const spaceKeys = spatialManager.getAllSpaceKeys();
-    const state = {};
+    const state: Record<string, any> = {};
     for (const key of spaceKeys) {
         state[key] = spatialManager.getState(key);
     }
@@ -272,7 +309,7 @@ function handleGetSpatialState(extension) {
     })];
 }
 
-function handleSetGlobalMode(extension, params) {
+function handleSetGlobalMode(extension: Extension, params: ActionParams): ActionResult {
     // Set global/per-workspace mode explicitly
     // params.global: true = apply to all spaces, false = per-workspace mode
     const globalMode = params.global;
@@ -294,7 +331,7 @@ function handleSetGlobalMode(extension, params) {
     return [true, ''];
 }
 
-function handleOpenLayoutSettings(extension, params) {
+function handleOpenLayoutSettings(extension: Extension, params: ActionParams): ActionResult {
     // Delegate to LayoutSwitcher to open layout settings dialog
     // This simulates the actual user workflow through the UI
     logger.info('[D-Bus] handleOpenLayoutSettings called');
@@ -322,7 +359,7 @@ function handleOpenLayoutSettings(extension, params) {
     let layout = null;
     if (params.layoutId) {
         const allLayouts = layoutManager.getAllLayouts() || [];
-        layout = allLayouts.find(l => l.id === params.layoutId);
+        layout = allLayouts.find((l: any) => l.id === params.layoutId);
         if (!layout) {
             logger.error(`[D-Bus] Layout not found: ${params.layoutId}`);
             return [false, `Layout not found: ${params.layoutId}`];
@@ -331,7 +368,7 @@ function handleOpenLayoutSettings(extension, params) {
     } else {
         // Use first template as default
         const allLayouts = layoutManager.getAllLayouts() || [];
-        const templates = allLayouts.filter(l => !l.id?.startsWith('layout-'));
+        const templates = allLayouts.filter((l: any) => !l.id?.startsWith('layout-'));
         if (templates.length === 0) {
             logger.error('[D-Bus] No templates available');
             return [false, 'No templates available'];
@@ -348,7 +385,7 @@ function handleOpenLayoutSettings(extension, params) {
     return [true, ''];
 }
 
-function handleCloseLayoutSettings(extension) {
+function handleCloseLayoutSettings(extension: Extension): ActionResult {
     // Close the currently open layout settings dialog via LayoutSwitcher
     logger.info('[D-Bus] handleCloseLayoutSettings called');
 
@@ -366,7 +403,7 @@ function handleCloseLayoutSettings(extension) {
     return [true, ''];
 }
 
-function handleOpenDiagnosticDialog(extension) {
+function handleOpenDiagnosticDialog(extension: Extension): ActionResult {
     // Open the memory leak diagnostic dialog
     logger.info('[D-Bus] handleOpenDiagnosticDialog called');
 
@@ -390,7 +427,7 @@ function handleOpenDiagnosticDialog(extension) {
     return [true, ''];
 }
 
-function handleCloseDiagnosticDialog(extension) {
+function handleCloseDiagnosticDialog(extension: Extension): ActionResult {
     // Close the diagnostic dialog
     logger.info('[D-Bus] handleCloseDiagnosticDialog called');
 
@@ -407,7 +444,7 @@ function handleCloseDiagnosticDialog(extension) {
 }
 
 // Action handlers map
-const ACTION_HANDLERS = {
+const ACTION_HANDLERS: Record<string, ActionHandler> = {
     'cycle-zone': handleCycleZone,
     'cycle-zone-state': handleCycleZoneState,
     'switch-layout': handleSwitchLayout,
@@ -436,10 +473,13 @@ const ACTION_HANDLERS = {
  * Debug Interface - D-Bus service for automated testing
  */
 export class DebugInterface {
-    /**
-     * @param {Object} extension - Reference to main extension instance
-     */
-    constructor(extension) {
+    private _extension: Extension | null;
+    private _dbusExportId: any;
+    private _enabled: boolean;
+    private _settingsChangedId: number | null;
+    private _boundOnDebugExposeChanged: () => void;
+
+    constructor(extension: Extension) {
         this._extension = extension;
         this._dbusExportId = null;
         this._enabled = false;
@@ -451,10 +491,9 @@ export class DebugInterface {
 
     /**
      * Handler for debug-expose-dbus setting changes
-     * @private
      */
-    _onDebugExposeChanged() {
-        const settings = this._extension._settings;
+    private _onDebugExposeChanged(): void {
+        const settings = this._extension?._settings;
         if (!settings) return;
 
         const newValue = settings.get_boolean('debug-expose-dbus');
@@ -469,8 +508,8 @@ export class DebugInterface {
     /**
      * Initialize the debug interface based on settings
      */
-    init() {
-        const settings = this._extension._settings;
+    init(): void {
+        const settings = this._extension?._settings;
         if (!settings) {
             logger.error('Cannot init debug interface: settings not available');
             return;
@@ -489,9 +528,8 @@ export class DebugInterface {
 
     /**
      * Enable the D-Bus interface
-     * @private
      */
-    _enable() {
+    private _enable(): void {
         try {
             const dbusImpl = Gio.DBusExportedObject.wrapJSObject(
                 DBUS_INTERFACE_XML,
@@ -505,16 +543,15 @@ export class DebugInterface {
 
             this._dbusExportId = dbusImpl;
             logger.info('D-Bus debug interface enabled');
-        } catch (e) {
+        } catch (e: any) {
             logger.error('Failed to enable D-Bus interface:', e.message);
         }
     }
 
     /**
      * Disable the D-Bus interface
-     * @private
      */
-    _disable() {
+    private _disable(): void {
         if (this._dbusExportId) {
             try {
                 this._dbusExportId.unexport();
@@ -530,20 +567,19 @@ export class DebugInterface {
      * D-Bus Method: GetState
      * Returns current extension state as a variant dictionary
      */
-    GetState() {
+    GetState(): Record<string, GLib.Variant> {
         return this._buildStateResponse();
     }
 
     /**
      * Build state response object
-     * @private
      */
-    _buildStateResponse() {
+    private _buildStateResponse(): Record<string, GLib.Variant> {
         const layoutState = this._getLayoutState();
         const settingsState = this._getSettingsState();
 
         // Get version info dynamically
-        const versionInfo = getExtensionVersion(this._extension.path, this._extension.metadata);
+        const versionInfo = getExtensionVersion(this._extension!.path, this._extension!.metadata);
 
         return {
             enabled: GLib.Variant.new_boolean(true),
@@ -555,9 +591,8 @@ export class DebugInterface {
 
     /**
      * Get layout-related state
-     * @private
      */
-    _getLayoutState() {
+    private _getLayoutState(): Record<string, GLib.Variant> {
         const data = this._extractLayoutData();
 
         return {
@@ -572,11 +607,16 @@ export class DebugInterface {
 
     /**
      * Extract raw layout data
-     * @private
      */
-    // eslint-disable-next-line complexity
-    _extractLayoutData() {
-        const layoutManager = this._extension._layoutManager;
+    private _extractLayoutData(): {
+        layoutId: string;
+        layoutName: string;
+        zoneIndex: number;
+        zoneCount: number;
+        layoutCount: number;
+        layoutIds: string[];
+    } {
+        const layoutManager = this._extension?._layoutManager;
         if (!layoutManager) {
             return {layoutId: '', layoutName: '', zoneIndex: 0, zoneCount: 0, layoutCount: 0, layoutIds: []};
         }
@@ -590,16 +630,15 @@ export class DebugInterface {
             zoneIndex: layoutManager.getCurrentZoneIndex() ?? 0,
             zoneCount: currentLayout?.zones?.length ?? 0,
             layoutCount: allLayouts.length,
-            layoutIds: allLayouts.map(l => l.id),
+            layoutIds: allLayouts.map((l: any) => l.id),
         };
     }
 
     /**
      * Get settings-related state
-     * @private
      */
-    _getSettingsState() {
-        const settings = this._extension._settings;
+    private _getSettingsState(): Record<string, GLib.Variant> {
+        const settings = this._extension?._settings;
 
         return {
             workspaceMode: GLib.Variant.new_boolean(this._getBoolSetting(settings, 'use-per-workspace-layouts')),
@@ -610,9 +649,8 @@ export class DebugInterface {
 
     /**
      * Safely get boolean setting
-     * @private
      */
-    _getBoolSetting(settings, key) {
+    private _getBoolSetting(settings: Gio.Settings | null | undefined, key: string): boolean {
         return settings?.get_boolean(key) || false;
     }
 
@@ -620,7 +658,7 @@ export class DebugInterface {
      * D-Bus Method: GetResourceReport
      * Returns aggregated resource tracking report
      */
-    GetResourceReport() {
+    GetResourceReport(): Record<string, GLib.Variant> {
         const report = getAggregatedReport();
 
         return {
@@ -641,7 +679,7 @@ export class DebugInterface {
      * D-Bus Method: GetMemoryReport
      * Returns instance count report from global memory debug registry
      */
-    GetMemoryReport() {
+    GetMemoryReport(): string {
         if (global.zonedDebug) {
             return global.zonedDebug.getReport();
         }
@@ -652,7 +690,7 @@ export class DebugInterface {
      * D-Bus Method: GetComponentReports
      * Returns detailed per-component reports as JSON string
      */
-    GetComponentReports() {
+    GetComponentReports(): string {
         const report = getAggregatedReport();
         return JSON.stringify(report.componentReports, null, 2);
     }
@@ -660,11 +698,8 @@ export class DebugInterface {
     /**
      * D-Bus Method: TriggerAction
      * Trigger an extension action programmatically
-     * @param {string} action - Action name
-     * @param {string} paramsJson - JSON string of parameters
-     * @returns {[boolean, string]} [success, error]
      */
-    TriggerAction(action, paramsJson) {
+    TriggerAction(action: string, paramsJson: string): [boolean, string] {
         try {
             const handler = ACTION_HANDLERS[action];
             if (!handler) {
@@ -672,23 +707,23 @@ export class DebugInterface {
             }
 
             // Parse parameters
-            let params = {};
+            let params: ActionParams = {};
             if (paramsJson && paramsJson !== '{}') {
                 try {
                     params = JSON.parse(paramsJson);
-                } catch (e) {
+                } catch (e: any) {
                     return [false, `Invalid JSON parameters: ${e.message}`];
                 }
             }
 
             // Execute handler
-            const [success, error] = handler(this._extension, params);
+            const [success, error] = handler(this._extension!, params);
 
             // Emit signal
             this.emitActionCompleted(action, success);
 
             return [success, error || ''];
-        } catch (e) {
+        } catch (e: any) {
             logger.error(`TriggerAction error for '${action}':`, e.message);
             return [false, e.message];
         }
@@ -698,11 +733,11 @@ export class DebugInterface {
      * D-Bus Method: ResetResourceTracking
      * Reset all resource tracking counters
      */
-    ResetResourceTracking() {
+    ResetResourceTracking(): boolean {
         try {
             resetAllTracking();
             return true;
-        } catch (e) {
+        } catch (e: any) {
             logger.error('Failed to reset resource tracking:', e.message);
             return false;
         }
@@ -712,22 +747,21 @@ export class DebugInterface {
      * D-Bus Method: Ping
      * Simple health check
      */
-    Ping() {
+    Ping(): string {
         return 'pong';
     }
 
     /**
      * D-Bus Method: GetGJSMemory
      * Returns GJS memory statistics for leak detection
-     * @returns {Object} Memory stats as variant dictionary
      */
-    GetGJSMemory() {
+    GetGJSMemory(): Record<string, GLib.Variant> {
         try {
             return {
                 timestamp: GLib.Variant.new_int64(GLib.get_real_time()),
                 pageSize: GLib.Variant.new_int32(4096),
             };
-        } catch (e) {
+        } catch (e: any) {
             logger.error('GetGJSMemory error:', e.message);
             return {
                 timestamp: GLib.Variant.new_int64(GLib.get_real_time()),
@@ -740,12 +774,11 @@ export class DebugInterface {
      * D-Bus Method: GetActorCount
      * Returns the number of actors in Main.uiGroup
      * Used for leak detection by comparing counts before/after operations
-     * @returns {number} Number of child actors
      */
-    GetActorCount() {
+    GetActorCount(): number {
         try {
             return Main.uiGroup.get_n_children();
-        } catch (e) {
+        } catch (e: any) {
             logger.error('GetActorCount error:', e.message);
             return -1;
         }
@@ -753,10 +786,8 @@ export class DebugInterface {
 
     /**
      * Emit ActionCompleted signal
-     * @param {string} action - Action that completed
-     * @param {boolean} success - Whether action succeeded
      */
-    emitActionCompleted(action, success) {
+    emitActionCompleted(action: string, success: boolean): void {
         if (this._dbusExportId) {
             this._dbusExportId.emit_signal(
                 'ActionCompleted',
@@ -768,12 +799,11 @@ export class DebugInterface {
     /**
      * Emit InitCompleted signal
      * Called at the end of extension enable() to signal successful initialization
-     * @param {boolean} success - Whether initialization completed successfully
      */
-    emitInitCompleted(success) {
+    emitInitCompleted(success: boolean): void {
         if (this._dbusExportId) {
             // Get version info dynamically
-            const versionInfo = getExtensionVersion(this._extension.path, this._extension.metadata);
+            const versionInfo = getExtensionVersion(this._extension!.path, this._extension!.metadata);
 
             this._dbusExportId.emit_signal(
                 'InitCompleted',
@@ -786,7 +816,7 @@ export class DebugInterface {
     /**
      * Clean up resources
      */
-    destroy() {
+    destroy(): void {
         // Disconnect settings handler
         if (this._settingsChangedId && this._extension?._settings) {
             try {
@@ -807,9 +837,7 @@ export class DebugInterface {
 
 /**
  * Create a debug interface instance
- * @param {Object} extension - Reference to main extension
- * @returns {DebugInterface}
  */
-export function createDebugInterface(extension) {
+export function createDebugInterface(extension: Extension): DebugInterface {
     return new DebugInterface(extension);
 }

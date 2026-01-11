@@ -9,8 +9,72 @@ import {createLogger} from './debug.js';
 
 const logger = createLogger('LayoutConverter');
 
+/**
+ * Zone definition (window positioning format)
+ */
+interface Zone {
+    name?: string;
+    x: number;        // 0.0 to 1.0
+    y: number;        // 0.0 to 1.0
+    w: number;        // width (0.0 to 1.0)
+    h: number;        // height (0.0 to 1.0)
+}
+
+/**
+ * Zone-based layout (storage format)
+ */
+interface ZoneLayout {
+    id: string;
+    name: string;
+    zones: Zone[];
+}
+
+/**
+ * Edge definition (for zone editor)
+ */
+interface Edge {
+    id: string;
+    type: 'vertical' | 'horizontal';
+    position: number;    // 0.0 to 1.0
+    start: number;       // 0.0 to 1.0
+    length: number;      // 0.0 to 1.0
+    fixed: boolean;      // true for screen boundaries
+}
+
+/**
+ * Region definition (zone represented by edge references)
+ */
+interface Region {
+    name: string;
+    left: string;       // Edge ID
+    right: string;      // Edge ID
+    top: string;        // Edge ID
+    bottom: string;     // Edge ID
+}
+
+/**
+ * Edge-based layout (editor format)
+ */
+export interface EdgeLayout {
+    id: string;
+    name: string;
+    edges: Edge[];
+    regions: Region[];
+}
+
+/**
+ * Edge segment (intermediate format during conversion)
+ */
+interface EdgeSegment {
+    type: 'vertical' | 'horizontal';
+    position: number;
+    start: number;
+    end: number;
+    zoneIdx: number;
+}
+
 // Boundary edge lookup by type and normalized position (0 or 1)
-const BOUNDARY_EDGE_IDS = {
+const BOUNDARY_EDGE_IDS: Record<string, string> = {
     'vertical-0': 'left',
     'vertical-1': 'right',
     'horizontal-0': 'top',
@@ -19,12 +83,8 @@ const BOUNDARY_EDGE_IDS = {
 
 /**
  * Check if a position is at a boundary edge
- * @param {string} type - Edge type ('vertical' or 'horizontal')
- * @param {number} position - Position to check (0.0 to 1.0)
- * @param {number} tolerance - Position tolerance
- * @returns {string|null} Boundary edge ID or null
  */
-function getBoundaryEdgeId(type, position, tolerance) {
+function getBoundaryEdgeId(type: string, position: number, tolerance: number): string | null {
     if (Math.abs(position) < tolerance) {
         return BOUNDARY_EDGE_IDS[`${type}-0`] || null;
     }
@@ -37,13 +97,10 @@ function getBoundaryEdgeId(type, position, tolerance) {
 /**
  * Convert zone-based layout to edge-based representation
  * Creates segmented edges - each zone boundary becomes a separate edge segment
- *
- * @param {Object} zoneLayout - Layout with zones array
- * @returns {Object} Edge-based layout with edges and regions
  */
-export function zonesToEdges(zoneLayout) {
-    const edges = [];
-    const regions = [];
+export function zonesToEdges(zoneLayout: ZoneLayout): EdgeLayout {
+    const edges: Edge[] = [];
+    const regions: Region[] = [];
     let edgeIdCounter = 0;
     const TOLERANCE = 0.001;
 
@@ -55,7 +112,7 @@ export function zonesToEdges(zoneLayout) {
 
     // Create segmented edges from zone boundaries
     // For each zone, create edge segments for its four sides
-    const edgeSegments = [];
+    const edgeSegments: EdgeSegment[] = [];
 
     zoneLayout.zones.forEach((zone, zoneIdx) => {
         // Left edge of this zone (vertical at zone.x, from zone.y to zone.y+zone.h)
@@ -105,14 +162,14 @@ export function zonesToEdges(zoneLayout) {
 
     // Merge overlapping edge segments that should be one edge
     // Group by type and position
-    const groupedEdges = new Map();
+    const groupedEdges = new Map<string, EdgeSegment[]>();
 
     edgeSegments.forEach(seg => {
         const key = `${seg.type}-${seg.position.toFixed(4)}`;
         if (!groupedEdges.has(key)) {
             groupedEdges.set(key, []);
         }
-        groupedEdges.get(key).push(seg);
+        groupedEdges.get(key)!.push(seg);
     });
 
     // For each group, merge overlapping/adjacent segments
@@ -124,7 +181,7 @@ export function zonesToEdges(zoneLayout) {
         segments.sort((a, b) => a.start - b.start);
 
         // Merge overlapping/adjacent segments
-        const merged = [];
+        const merged: EdgeSegment[] = [];
         let current = {...segments[0]};
 
         for (let i = 1; i < segments.length; i++) {
@@ -146,7 +203,7 @@ export function zonesToEdges(zoneLayout) {
             const id = type === 'vertical' ? `v${edgeIdCounter++}` : `h${edgeIdCounter++}`;
             edges.push({
                 id,
-                type: seg.type,
+                type: seg.type as 'vertical' | 'horizontal',
                 position: position,
                 start: seg.start,
                 length: seg.end - seg.start,
@@ -156,7 +213,7 @@ export function zonesToEdges(zoneLayout) {
     });
 
     // Helper to find edge ID by position, type, and range
-    const findEdgeId = (type, position, rangeStart, rangeEnd) => {
+    const findEdgeId = (type: 'vertical' | 'horizontal', position: number, rangeStart: number, rangeEnd: number): string | null => {
         // Check boundaries first using lookup
         const boundaryId = getBoundaryEdgeId(type, position, TOLERANCE);
         if (boundaryId) return boundaryId;
@@ -206,12 +263,9 @@ export function zonesToEdges(zoneLayout) {
 
 /**
  * Convert edge-based layout to zone-based representation
- *
- * @param {Object} edgeLayout - Layout with edges and regions
- * @returns {Object} Zone-based layout
  */
-export function edgesToZones(edgeLayout) {
-    const edgeMap = new Map();
+export function edgesToZones(edgeLayout: EdgeLayout): ZoneLayout {
+    const edgeMap = new Map<string, Edge>();
 
     // Build edge lookup map
     edgeLayout.edges.forEach(edge => {
@@ -219,7 +273,9 @@ export function edgesToZones(edgeLayout) {
     });
 
     // Convert regions to zones
-    const zones = edgeLayout.regions.map((region, index) => {
+    const zones: Zone[] = [];
+    
+    edgeLayout.regions.forEach((region, index) => {
         const left = edgeMap.get(region.left);
         const right = edgeMap.get(region.right);
         const top = edgeMap.get(region.top);
@@ -227,17 +283,17 @@ export function edgesToZones(edgeLayout) {
 
         if (!left || !right || !top || !bottom) {
             logger.error(`Region ${index} has invalid edge references`);
-            return null;
+            return;
         }
 
-        return {
+        zones.push({
             name: region.name || `Zone ${index + 1}`,
             x: left.position,
             y: top.position,
             w: right.position - left.position,
             h: bottom.position - top.position,
-        };
-    }).filter(zone => zone !== null);
+        });
+    });
 
     logger.debug(`Converted ${edgeLayout.regions.length} regions to ${zones.length} zones`);
 
@@ -250,10 +306,8 @@ export function edgesToZones(edgeLayout) {
 
 /**
  * Check if layout has required structure
- * @param {Object} edgeLayout - Layout to validate
- * @returns {boolean} True if structure is valid
  */
-function hasValidStructure(edgeLayout) {
+function hasValidStructure(edgeLayout: EdgeLayout): boolean {
     if (!edgeLayout || !edgeLayout.edges || !edgeLayout.regions) {
         logger.warn('Layout missing edges or regions');
         return false;
@@ -263,10 +317,8 @@ function hasValidStructure(edgeLayout) {
 
 /**
  * Check if layout has all required boundary edges
- * @param {Array} edges - Edges array
- * @returns {boolean} True if all boundary edges present
  */
-function hasBoundaryEdges(edges) {
+function hasBoundaryEdges(edges: Edge[]): boolean {
     const edgeIds = new Set(edges.map(e => e.id));
     const required = ['left', 'right', 'top', 'bottom'];
     const missing = required.filter(id => !edgeIds.has(id));
@@ -280,10 +332,8 @@ function hasBoundaryEdges(edges) {
 
 /**
  * Check if all edges have valid positions (0-1 range)
- * @param {Array} edges - Edges array
- * @returns {boolean} True if all edge positions are valid
  */
-function hasValidEdgePositions(edges) {
+function hasValidEdgePositions(edges: Edge[]): boolean {
     for (const edge of edges) {
         const pos = edge.position;
         if (typeof pos !== 'number' || pos < 0 || pos > 1) {
@@ -296,11 +346,8 @@ function hasValidEdgePositions(edges) {
 
 /**
  * Check if all regions reference valid edges
- * @param {Array} regions - Regions array
- * @param {Map} edgeMap - Edge lookup map
- * @returns {boolean} True if all region edge references are valid
  */
-function hasValidRegionEdges(regions, edgeMap) {
+function hasValidRegionEdges(regions: Region[], edgeMap: Map<string, Edge>): boolean {
     for (const region of regions) {
         const refs = [region.left, region.right, region.top, region.bottom];
         const invalid = refs.filter(ref => !edgeMap.has(ref));
@@ -315,11 +362,8 @@ function hasValidRegionEdges(regions, edgeMap) {
 
 /**
  * Validate edge-based layout
- *
- * @param {Object} edgeLayout - Layout to validate
- * @returns {boolean} True if valid
  */
-export function validateEdgeLayout(edgeLayout) {
+export function validateEdgeLayout(edgeLayout: EdgeLayout): boolean {
     if (!hasValidStructure(edgeLayout)) return false;
     if (!hasBoundaryEdges(edgeLayout.edges)) return false;
     if (!hasValidEdgePositions(edgeLayout.edges)) return false;
