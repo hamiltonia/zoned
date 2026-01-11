@@ -14,27 +14,55 @@
  */
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import Gio from '@girs/gio-2.0';
+import Meta from '@girs/meta-14';
 import {createLogger} from './utils/debug.js';
 
 const logger = createLogger('SpatialStateManager');
 
+/**
+ * Space key identifier: "connector:workspaceIndex"
+ */
+export type SpaceKey = string;
+
+/**
+ * State for a specific space
+ */
+export interface SpatialState {
+    layoutId: string;
+    zoneIndex: number;
+}
+
+/**
+ * Cache of spatial states keyed by SpaceKey
+ */
+type SpatialStateCache = Record<SpaceKey, SpatialState>;
+
+/**
+ * Monitor object with optional connector property
+ */
+interface MonitorInfo {
+    connector?: string;
+    index?: number;
+}
+
 export class SpatialStateManager {
-    /**
-     * @param {Gio.Settings} settings - GSettings object for state persistence
-     */
-    constructor(settings) {
+    private _settings: Gio.Settings;
+    private _stateCache: SpatialStateCache;
+
+    constructor(settings: Gio.Settings) {
         this._settings = settings;
-        this._stateCache = {};  // In-memory cache of spatial state
+        this._stateCache = {};
         this._loadState();
     }
 
     /**
      * Get monitor connector string
-     * @param {number|Object} monitor - Monitor index or monitor object
-     * @returns {string} Connector name (e.g., "DP-1", "eDP-1")
+     * @param monitor - Monitor index or monitor object
+     * @returns Connector name (e.g., "DP-1", "eDP-1")
      */
-    getMonitorConnector(monitor) {
-        let monitorObj;
+    getMonitorConnector(monitor: number | MonitorInfo): string {
+        let monitorObj: MonitorInfo | undefined;
 
         if (typeof monitor === 'number') {
             monitorObj = Main.layoutManager.monitors[monitor];
@@ -55,27 +83,27 @@ export class SpatialStateManager {
 
     /**
      * Get primary monitor connector
-     * @returns {string} Primary monitor connector name
+     * @returns Primary monitor connector name
      */
-    getPrimaryConnector() {
+    getPrimaryConnector(): string {
         return this.getMonitorConnector(Main.layoutManager.primaryIndex);
     }
 
     /**
      * Get current workspace index
-     * @returns {number} Active workspace index
+     * @returns Active workspace index
      */
-    getCurrentWorkspaceIndex() {
+    getCurrentWorkspaceIndex(): number {
         return global.workspace_manager.get_active_workspace_index();
     }
 
     /**
      * Build space key from monitor and workspace
-     * @param {number|string} monitor - Monitor index or connector string
-     * @param {number} workspace - Workspace index
-     * @returns {string} SpaceKey in format "connector:workspace"
+     * @param monitor - Monitor index or connector string
+     * @param workspace - Workspace index
+     * @returns SpaceKey in format "connector:workspace"
      */
-    makeKey(monitor, workspace) {
+    makeKey(monitor: number | string, workspace: number): SpaceKey {
         const connector = typeof monitor === 'string'
             ? monitor
             : this.getMonitorConnector(monitor);
@@ -84,9 +112,9 @@ export class SpatialStateManager {
 
     /**
      * Get current space key for the primary monitor
-     * @returns {string} SpaceKey for current workspace on primary monitor
+     * @returns SpaceKey for current workspace on primary monitor
      */
-    getCurrentSpaceKey() {
+    getCurrentSpaceKey(): SpaceKey {
         return this.makeKey(
             Main.layoutManager.primaryIndex,
             this.getCurrentWorkspaceIndex(),
@@ -95,10 +123,10 @@ export class SpatialStateManager {
 
     /**
      * Get space key from a window
-     * @param {Meta.Window} window - The window
-     * @returns {string} SpaceKey for the window's monitor and workspace
+     * @param window - The window
+     * @returns SpaceKey for the window's monitor and workspace
      */
-    getSpaceKeyForWindow(window) {
+    getSpaceKeyForWindow(window: Meta.Window | null): SpaceKey {
         if (!window) return this.getCurrentSpaceKey();
 
         const monitorIndex = window.get_monitor();
@@ -110,10 +138,10 @@ export class SpatialStateManager {
 
     /**
      * Get state for a space
-     * @param {string} key - SpaceKey
-     * @returns {{layoutId: string, zoneIndex: number}} State object
+     * @param key - SpaceKey
+     * @returns State object
      */
-    getState(key) {
+    getState(key: SpaceKey): SpatialState {
         // Check cache for exact match
         if (this._stateCache[key]) {
             return {...this._stateCache[key]};
@@ -130,11 +158,11 @@ export class SpatialStateManager {
 
     /**
      * Set state for a space
-     * @param {string} key - SpaceKey
-     * @param {string} layoutId - Layout ID
-     * @param {number} [zoneIndex=0] - Zone index
+     * @param key - SpaceKey
+     * @param layoutId - Layout ID
+     * @param zoneIndex - Zone index
      */
-    setState(key, layoutId, zoneIndex = 0) {
+    setState(key: SpaceKey, layoutId: string, zoneIndex: number = 0): void {
         this._stateCache[key] = {layoutId, zoneIndex};
         this._saveState();
 
@@ -146,20 +174,20 @@ export class SpatialStateManager {
 
     /**
      * Update layout ID only (preserves zone index if exists)
-     * @param {string} key - SpaceKey
-     * @param {string} layoutId - Layout ID
+     * @param key - SpaceKey
+     * @param layoutId - Layout ID
      */
-    setLayoutId(key, layoutId) {
+    setLayoutId(key: SpaceKey, layoutId: string): void {
         const currentState = this.getState(key);
         this.setState(key, layoutId, currentState.zoneIndex);
     }
 
     /**
      * Update zone index only
-     * @param {string} key - SpaceKey
-     * @param {number} zoneIndex - Zone index
+     * @param key - SpaceKey
+     * @param zoneIndex - Zone index
      */
-    setZoneIndex(key, zoneIndex) {
+    setZoneIndex(key: SpaceKey, zoneIndex: number): void {
         if (!this._stateCache[key]) {
             // Initialize with fallback state first
             const defaultState = this.getState(key);
@@ -173,26 +201,26 @@ export class SpatialStateManager {
 
     /**
      * Check if a space has explicit state configured
-     * @param {string} key - SpaceKey
-     * @returns {boolean} True if space has explicit state
+     * @param key - SpaceKey
+     * @returns True if space has explicit state
      */
-    hasExplicitState(key) {
+    hasExplicitState(key: SpaceKey): boolean {
         return key in this._stateCache;
     }
 
     /**
      * Get all configured space keys
-     * @returns {string[]} Array of SpaceKeys
+     * @returns Array of SpaceKeys
      */
-    getAllSpaceKeys() {
+    getAllSpaceKeys(): SpaceKey[] {
         return Object.keys(this._stateCache);
     }
 
     /**
      * Remove state for a specific space
-     * @param {string} key - SpaceKey
+     * @param key - SpaceKey
      */
-    removeState(key) {
+    removeState(key: SpaceKey): void {
         delete this._stateCache[key];
         this._saveState();
         logger.debug(`Removed state for ${key}`);
@@ -201,7 +229,7 @@ export class SpatialStateManager {
     /**
      * Clear all spatial state (reset to defaults)
      */
-    clearAllState() {
+    clearAllState(): void {
         this._stateCache = {};
         this._saveState();
         logger.info('Cleared all spatial state');
@@ -210,20 +238,20 @@ export class SpatialStateManager {
     /**
      * Validate zone index against layout zone count
      * Returns valid index (clamped if necessary)
-     * @param {number} zoneIndex - Current zone index
-     * @param {number} zoneCount - Number of zones in layout
-     * @returns {number} Valid zone index
+     * @param zoneIndex - Current zone index
+     * @param zoneCount - Number of zones in layout
+     * @returns Valid zone index
      */
-    validateZoneIndex(zoneIndex, zoneCount) {
+    validateZoneIndex(zoneIndex: number, zoneCount: number): number {
         if (zoneCount <= 0) return 0;
         return Math.max(0, Math.min(zoneIndex, zoneCount - 1));
     }
 
     /**
      * Clean up orphaned state (layouts that no longer exist)
-     * @param {string[]} validLayoutIds - Array of valid layout IDs
+     * @param validLayoutIds - Array of valid layout IDs
      */
-    cleanupOrphanedState(validLayoutIds) {
+    cleanupOrphanedState(validLayoutIds: string[]): void {
         const validSet = new Set(validLayoutIds);
         let cleaned = false;
 
@@ -242,12 +270,11 @@ export class SpatialStateManager {
 
     /**
      * Load state from GSettings
-     * @private
      */
-    _loadState() {
+    private _loadState(): void {
         try {
             const json = this._settings.get_string('spatial-state-map');
-            this._stateCache = JSON.parse(json);
+            this._stateCache = JSON.parse(json) as SpatialStateCache;
 
             if (typeof this._stateCache !== 'object' || this._stateCache === null) {
                 this._stateCache = {};
@@ -267,9 +294,8 @@ export class SpatialStateManager {
 
     /**
      * Save state to GSettings
-     * @private
      */
-    _saveState() {
+    private _saveState(): void {
         try {
             const json = JSON.stringify(this._stateCache);
             this._settings.set_string('spatial-state-map', json);
@@ -282,12 +308,11 @@ export class SpatialStateManager {
      * Migrate from old workspace-layout-map format
      * Old format: {"0": "layout-halves", "1": "layout-code"}
      * New format: {"monitor:0": {layoutId, zoneIndex}, ...}
-     * @private
      */
-    _migrateOldState() {
+    private _migrateOldState(): void {
         try {
             const oldJson = this._settings.get_string('workspace-layout-map');
-            const oldMap = JSON.parse(oldJson);
+            const oldMap = JSON.parse(oldJson) as Record<string, string>;
 
             if (!oldMap || typeof oldMap !== 'object' || Object.keys(oldMap).length === 0) {
                 return; // Nothing to migrate
@@ -317,7 +342,7 @@ export class SpatialStateManager {
     /**
      * Debug: dump current state to log
      */
-    dumpState() {
+    dumpState(): void {
         logger.info('=== Spatial State Dump ===');
         logger.info(`Per-workspace mode enabled: ${this._settings.get_boolean('use-per-workspace-layouts')}`);
         logger.info(`Last selected layout: ${this._settings.get_string('last-selected-layout')}`);
@@ -333,7 +358,7 @@ export class SpatialStateManager {
     /**
      * Clean up resources
      */
-    destroy() {
+    destroy(): void {
         this._stateCache = {};
     }
 }

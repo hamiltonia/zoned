@@ -19,5 +19,5 @@ declare global {
     };
 }
 
-// Required for TypeScript to treat this as a module
-export {};
+// Export layout types for use throughout the extension
+export type { Zone, Layout, BuiltinTemplate } from './layout';

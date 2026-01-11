@@ -7,6 +7,7 @@
  */
 
 import {createLogger} from './utils/debug.js';
+import type {Zone, Layout, BuiltinTemplate} from './types/layout';
 
 const logger = createLogger('TemplateManager');
 
@@ -17,7 +18,7 @@ const logger = createLogger('TemplateManager');
  * NOTE: These should match the templates in config/default-layouts.json
  * This is a fallback for legacy template-* ID restoration.
  */
-const BUILTIN_TEMPLATES = {
+const BUILTIN_TEMPLATES: Record<string, BuiltinTemplate> = {
     split: {
         id: 'split',
         name: 'Split',
@@ -81,6 +82,8 @@ const BUILTIN_TEMPLATES = {
  * Provides access to built-in layout templates
  */
 export class TemplateManager {
+    private _templates: Record<string, BuiltinTemplate> | null;
+
     constructor() {
         global.zonedDebug?.trackInstance('TemplateManager');
         this._templates = {...BUILTIN_TEMPLATES};
@@ -89,18 +92,25 @@ export class TemplateManager {
 
     /**
      * Get all built-in templates
-     * @returns {Array} Array of template objects
+     * @returns Array of template objects
      */
-    getBuiltinTemplates() {
+    getBuiltinTemplates(): BuiltinTemplate[] {
+        if (!this._templates) {
+            return [];
+        }
         return Object.values(this._templates);
     }
 
     /**
      * Get a specific template by ID
-     * @param {string} templateId - Template ID (e.g., 'split')
-     * @returns {Object|null} Template object or null if not found
+     * @param templateId - Template ID (e.g., 'split')
+     * @returns Template object or null if not found
      */
-    getTemplate(templateId) {
+    getTemplate(templateId: string): BuiltinTemplate | null {
+        if (!this._templates) {
+            return null;
+        }
+
         const template = this._templates[templateId];
         if (!template) {
             logger.warn(`Template not found: ${templateId}`);
@@ -113,20 +123,25 @@ export class TemplateManager {
      * Create a layout from a template
      * Deep copies the template zones and assigns a unique ID
      *
-     * @param {string} templateId - Template ID to create layout from
-     * @returns {Object} New layout object with unique ID
-     * @throws {Error} If template ID is invalid
+     * @param templateId - Template ID to create layout from
+     * @returns New layout object with unique ID
+     * @throws Error if template ID is invalid
      */
-    createLayoutFromTemplate(templateId) {
+    createLayoutFromTemplate(templateId: string): Layout {
+        if (!this._templates) {
+            throw new Error('TemplateManager has been destroyed');
+        }
+
         const template = this._templates[templateId];
         if (!template) {
             throw new Error(`Unknown template: ${templateId}`);
         }
 
-        const layout = {
+        const layout: Layout = {
             id: `template-${templateId}`,  // Stable ID for persistence across reloads
             name: template.name,
-            zones: JSON.parse(JSON.stringify(template.zones)), // Deep copy
+            zones: JSON.parse(JSON.stringify(template.zones)) as Zone[], // Deep copy
+            editable: false, // Templates are not editable
         };
 
         logger.debug(`Created layout from template '${templateId}': ${layout.id}`);
@@ -135,18 +150,24 @@ export class TemplateManager {
 
     /**
      * Get template count
-     * @returns {number} Number of available templates
+     * @returns Number of available templates
      */
-    getTemplateCount() {
+    getTemplateCount(): number {
+        if (!this._templates) {
+            return 0;
+        }
         return Object.keys(this._templates).length;
     }
 
     /**
      * Check if a template ID exists
-     * @param {string} templateId - Template ID to check
-     * @returns {boolean} True if template exists
+     * @param templateId - Template ID to check
+     * @returns True if template exists
      */
-    hasTemplate(templateId) {
+    hasTemplate(templateId: string): boolean {
+        if (!this._templates) {
+            return false;
+        }
         return templateId in this._templates;
     }
 
@@ -154,7 +175,7 @@ export class TemplateManager {
      * Clean up resources
      * Clears cached template data to prevent memory leaks
      */
-    destroy() {
+    destroy(): void {
         this._templates = null;
         global.zonedDebug?.trackInstance('TemplateManager', false);
     }

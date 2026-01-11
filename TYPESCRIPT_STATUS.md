@@ -1,12 +1,12 @@
 # TypeScript Migration - Current Status
 
-**Date:** January 11, 2026 9:11 AM  
+**Date:** January 11, 2026 11:29 AM  
 **Branch:** `infra/typescript-migration`  
-**Status:** All Utilities Complete - Ready for Validation
+**Status:** Group 1 Complete - Template Manager Migrated
 
 ---
 
-## ✅ Completed (9 files)
+## ✅ Completed (10 files)
 
 ### Utilities (100% - 9/9)
 - [x] `extension/utils/versionUtil.ts` - Extension version detection
@@ -19,14 +19,14 @@
 - [x] `extension/utils/layoutConverter.ts` - Zone/edge layout conversion
 - [x] `extension/utils/debugInterface.ts` - D-Bus debug interface
 
-**Status:** All compile successfully, rollup.config.js updated
+### Core Data/Templates (100% - 1/1)
+- [x] `extension/templateManager.ts` - Built-in layout templates
+
+**Status:** All compile successfully, rollup.config.js updated, types exported
 
 ---
 
-## 🔄 Remaining Files (21 files)
-
-### Core Data/Templates (1 file)
-- [ ] extension/templateManager.js
+## 🔄 Remaining Files (20 files)
 
 ### State Managers (2 files)
 - [ ] extension/spatialStateManager.js
@@ -64,13 +64,13 @@
 ## 📊 Progress Summary
 
 ```
-✅ Utilities Complete: 9 files migrated (30%)
-🔄 Remaining Migration: 21 files remaining (70%)
+✅ Group 1 Complete: 10 files migrated (33%)
+🔄 Remaining Migration: 20 files remaining (67%)
 ```
 
 **Total:** 30 files to migrate  
-**Completed:** 9 files (30%)  
-**Remaining:** 21 files (70%)
+**Completed:** 10 files (33%)  
+**Remaining:** 20 files (67%)
 
 ---
 
@@ -121,23 +121,52 @@ M  extension/utils/versionUtil.ts (TypeScript content)
 
 ---
 
+## 🚨 CRITICAL: Git History Workflow
+
+### **All File Migrations Must Use `git mv`!**
+
+**Required Workflow for Each File:**
+
+1. `git mv extension/file.js extension/file.ts` - Preserves git history
+2. Write TypeScript to `extension/file.tmp.ts` - AI creates converted version
+3. `cp extension/file.tmp.ts extension/file.ts` - Overwrite with TypeScript
+4. `rm extension/file.tmp.ts` - Clean up temp file
+5. **Result**: Git shows `RM file.js -> file.ts` with modification delta ✅
+
+**Why This Matters:**
+- ✅ Preserves full git blame/log history
+- ✅ Shows rename + modification (not delete + create)
+- ✅ Enables proper code archaeology
+- ✅ Maintains attribution in git history
+
+**Example (templateManager - Now Fixed):**
+```bash
+git mv extension/templateManager.js extension/templateManager.ts
+# ... AI writes TypeScript to tmp, copies over, deletes tmp ...
+git status  # Shows: RM extension/templateManager.js -> extension/templateManager.ts
+```
+
+---
+
 ## 🚀 Next Actions
 
 **Option 1: Aggressive Bulk Migration (Recommended by user)**
-- Migrate all 24 files in dependency order
+- **USE GIT MV WORKFLOW for all 20 remaining files!**
+- Migrate all files in dependency order
 - Build after each group to catch errors early
 - Test in VM once at the end
 - Fix all errors together
 
 **Option 2: Incremental Batches**
+- **USE GIT MV WORKFLOW for each batch!**
 - Migrate 5-7 files at a time
 - Build and test after each batch
 - Lower risk, slower progress
 
 **Option 3: Test First**
-- Commit current 6 utilities
+- Commit current progress (templateManager git history fixed)
 - Test in VM to verify approach works
-- Then proceed with bulk migration
+- Then proceed with bulk migration using git mv workflow
 
 ---
 
@@ -229,4 +258,22 @@ All preparation complete. Waiting for direction on:
 
 ---
 
-**Last Updated:** January 10, 2026 6:38 PM
+---
+
+## 📝 Group 1 Changes (templateManager)
+
+**New Files:**
+- `extension/types/layout.d.ts` - Core type definitions for Zone, Layout, BuiltinTemplate
+- `extension/templateManager.ts` - TypeScript migration with full type safety
+
+**Notable Improvements:**
+- Strict typing for template configurations
+- Type-safe layout creation from templates
+- Proper null checking in all methods
+- `Record<string, BuiltinTemplate>` for template storage
+
+**Next Group:** State Managers (spatialStateManager, layoutManager)
+
+---
+
+**Last Updated:** January 11, 2026 11:29 AM

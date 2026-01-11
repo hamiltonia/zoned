@@ -138,6 +138,7 @@ const createTSBuildConfig = (inputFile, outputFile) => ({
 });
 
 export default [
+    // Utilities
     createTSBuildConfig('extension/utils/versionUtil.ts', 'build/rollup/utils/versionUtil.js'),
     createTSBuildConfig('extension/utils/theme.ts', 'build/rollup/utils/theme.js'),
     createTSBuildConfig('extension/utils/debug.ts', 'build/rollup/utils/debug.js'),
@@ -147,4 +148,11 @@ export default [
     createTSBuildConfig('extension/utils/keybindingConfig.ts', 'build/rollup/utils/keybindingConfig.js'),
     createTSBuildConfig('extension/utils/layoutConverter.ts', 'build/rollup/utils/layoutConverter.js'),
     createTSBuildConfig('extension/utils/debugInterface.ts', 'build/rollup/utils/debugInterface.js'),
+    
+    // Core Data/Templates
+    createTSBuildConfig('extension/templateManager.ts', 'build/rollup/templateManager.js'),
+    
+    // State Managers (Group 2)
+    createTSBuildConfig('extension/spatialStateManager.ts', 'build/rollup/spatialStateManager.js'),
+    createTSBuildConfig('extension/layoutManager.ts', 'build/rollup/layoutManager.js'),
 ];

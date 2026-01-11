@@ -254,6 +254,40 @@ export default [
 
 ### Phase 2: Incremental File Migration (Week 1-2)
 
+#### **CRITICAL: Preserve Git History During Migration**
+
+**All file migrations MUST use `git mv` to preserve git history!**
+
+**Correct Workflow for Each File:**
+
+1. **`git mv extension/file.js extension/file.ts`** - Rename with git (preserves history)
+2. **Write TypeScript version** to `extension/file.tmp.ts` - Create converted file
+3. **`cp extension/file.tmp.ts extension/file.ts`** - Overwrite renamed file with TypeScript
+4. **`rm extension/file.tmp.ts`** - Clean up temporary file
+5. **Add to rollup.config.js** - Include in build configuration
+6. **Git result**: Shows `RM file.js -> file.ts` with modifications ✅
+
+**Why This Matters:**
+- ✅ Preserves full git blame history
+- ✅ Git shows rename + modification (not delete + create)
+- ✅ Easier code archaeology later
+- ✅ Proper attribution in git history
+
+**Example:**
+```bash
+# Step 1: Rename with git
+git mv extension/templateManager.js extension/templateManager.ts
+
+# Step 2-4: Convert content (AI writes to tmp, copies over, deletes tmp)
+# ... conversion happens here ...
+
+# Step 5: Verify git status
+git status
+# Output: RM extension/templateManager.js -> extension/templateManager.ts
+```
+
+---
+
 #### Migration Order (Low → High Coupling)
 
 ##### 2.1 Utilities (Week 1, Days 3-4)

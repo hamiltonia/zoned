@@ -38,32 +38,33 @@ All 6 utility files have been successfully migrated to TypeScript:
 
 ---
 
+## 🚨 CRITICAL: Git History Preservation
+
+### **Required Workflow for All Migrations**
+
+**All future file migrations MUST use `git mv` to preserve git history!**
+
+**Correct Workflow:**
+1. `git mv extension/file.js extension/file.ts` - Rename with git (preserves history)
+2. Write TypeScript version to `extension/file.tmp.ts` - Create converted file
+3. `cp extension/file.tmp.ts extension/file.ts` - Overwrite renamed file
+4. `rm extension/file.tmp.ts` - Clean up
+5. **Git shows**: `RM file.js -> file.ts` with modifications ✅
+
+**Example (templateManager - Fixed):**
+```bash
+git mv extension/templateManager.js extension/templateManager.ts
+# ... AI conversion ...
+git status  # Shows: RM extension/templateManager.js -> extension/templateManager.ts
+```
+
+---
+
 ## 🎯 Recommended Next Steps
 
 ### Phase 2b: Validation Checkpoint (1-2 hours)
 
 **Goal:** Verify the TypeScript utilities work correctly in the VM before proceeding
-
-#### Step 1: Clean Up Duplicate Files
-```bash
-# Remove old JavaScript versions (keep as backup first)
-git mv extension/utils/versionUtil.js extension/utils/versionUtil.js.bak
-git mv extension/utils/theme.js extension/utils/theme.js.bak
-git mv extension/utils/debug.js extension/utils/debug.js.bak
-git mv extension/utils/notificationService.js extension/utils/notificationService.js.bak
-git mv extension/utils/signalTracker.js extension/utils/signalTracker.js.bak
-git mv extension/utils/resourceTracker.js extension/utils/resourceTracker.js.bak
-```
-
-**Or** (if confident - requires explicit approval):
-```bash
-rm extension/utils/versionUtil.js
-rm extension/utils/theme.js  
-rm extension/utils/debug.js
-rm extension/utils/notificationService.js
-rm extension/utils/signalTracker.js
-rm extension/utils/resourceTracker.js
-```
 
 #### Step 2: Update Import References
 Check if any other files import the utilities with `.js` extension:
@@ -98,9 +99,17 @@ make vm-logs
 
 ### Phase 2c: Data Structures Migration (2-3 days)
 
-Once utilities are validated, proceed to `templateManager.js`:
+Once utilities are validated, proceed with remaining files.
 
-#### Step 1: Define Core Type Interfaces
+#### **REMEMBER: Use git mv workflow for ALL migrations!**
+
+**For each file:**
+1. `git mv extension/file.js extension/file.ts`
+2. Write TypeScript to temp file
+3. Copy temp over renamed file
+4. Remove temp file
+
+#### Step 1: Define Core Type Interfaces (Already Done ✅)
 
 Create `extension/types/layout.d.ts`:
 ```typescript
