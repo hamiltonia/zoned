@@ -762,11 +762,11 @@ test: build-ts lint-ts typecheck
 - Build outputs to `build/rollup/` instead of `build/typescript/`
 
 ### Phase 2: File Migration ✓
-**Utilities** (2 days) - 5 of 6 complete
+**Utilities** (2 days) - ✅ COMPLETE (6 of 6)
 - [x] Migrate `utils/versionUtil.js` → versionUtil.ts
 - [x] Migrate `utils/theme.js` → theme.ts (+ removed duplicate global types)
 - [x] Migrate `utils/debug.js` → debug.ts
-- [ ] Migrate `utils/notificationService.js` → notificationService.ts
+- [x] Migrate `utils/notificationService.js` → notificationService.ts
 - [x] Migrate `utils/signalTracker.js` → signalTracker.ts
 - [x] Migrate `utils/resourceTracker.js` → resourceTracker.ts
 - [ ] Test: VM install + basic functionality
