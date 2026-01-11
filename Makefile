@@ -67,10 +67,14 @@ help:
 	@printf "  make vm-clean-install  - Deep clean VM installation (extension + settings)\n"
 	@printf "\n"
 
-install: dev-version
+install: dev-version build-ts
 	@printf "$(COLOR_INFO)Installing Zoned extension...$(COLOR_RESET)\n"
 	@mkdir -p $(INSTALL_DIR)
 	@cp -r $(EXTENSION_DIR)/* $(INSTALL_DIR)/
+	@if [ -d "build/rollup" ]; then \
+		printf "$(COLOR_INFO)  Copying compiled TypeScript files...$(COLOR_RESET)\n"; \
+		cp -r build/rollup/* $(INSTALL_DIR)/ 2>/dev/null || true; \
+	fi
 	@printf "$(COLOR_SUCCESS)✓ Installation complete: $(INSTALL_DIR)$(COLOR_RESET)\n"
 	@printf "$(COLOR_INFO)  Note: Schema will be compiled by GNOME Shell when enabling extension$(COLOR_RESET)\n"
 	@printf "$(COLOR_INFO)  Tip: Enable debug logging in Preferences → Developer section (Ctrl+Shift+D)$(COLOR_RESET)\n"
@@ -176,9 +180,7 @@ build-ts:
 		printf "$(COLOR_WARN)⚠ No TypeScript files found - skipping compilation$(COLOR_RESET)\n"; \
 	else \
 		npx rollup -c rollup.config.js; \
-		printf "$(COLOR_INFO)Copying compiled files to extension directory...$(COLOR_RESET)\n"; \
-		cp -f build/rollup/utils/*.js extension/utils/ 2>/dev/null || true; \
-		printf "$(COLOR_SUCCESS)✓ TypeScript compiled successfully$(COLOR_RESET)\n"; \
+		printf "$(COLOR_SUCCESS)✓ TypeScript compiled to build/rollup/$(COLOR_RESET)\n"; \
 	fi
 
 watch-ts:
