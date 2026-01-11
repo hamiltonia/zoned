@@ -144,4 +144,7 @@ export default [
     createTSBuildConfig('extension/utils/signalTracker.ts', 'build/rollup/utils/signalTracker.js'),
     createTSBuildConfig('extension/utils/resourceTracker.ts', 'build/rollup/utils/resourceTracker.js'),
     createTSBuildConfig('extension/utils/notificationService.ts', 'build/rollup/utils/notificationService.js'),
+    createTSBuildConfig('extension/utils/keybindingConfig.ts', 'build/rollup/utils/keybindingConfig.js'),
+    createTSBuildConfig('extension/utils/layoutConverter.ts', 'build/rollup/utils/layoutConverter.js'),
+    createTSBuildConfig('extension/utils/debugInterface.ts', 'build/rollup/utils/debugInterface.js'),
 ];

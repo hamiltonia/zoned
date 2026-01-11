@@ -1,31 +1,29 @@
 # TypeScript Migration - Current Status
 
-**Date:** January 10, 2026 6:38 PM  
+**Date:** January 11, 2026 9:11 AM  
 **Branch:** `infra/typescript-migration`  
-**Status:** Ready for Bulk Migration
+**Status:** All Utilities Complete - Ready for Validation
 
 ---
 
-## ✅ Completed (6 files)
+## ✅ Completed (9 files)
 
-### Utilities (100% - 6/6)
+### Utilities (100% - 9/9)
 - [x] `extension/utils/versionUtil.ts` - Extension version detection
 - [x] `extension/utils/theme.ts` - Theme utilities
 - [x] `extension/utils/debug.ts` - Logging/debug
 - [x] `extension/utils/notificationService.ts` - Notification routing
 - [x] `extension/utils/signalTracker.ts` - Signal tracking
 - [x] `extension/utils/resourceTracker.ts` - Memory leak detection
+- [x] `extension/utils/keybindingConfig.ts` - Keybinding configuration & conflict detection
+- [x] `extension/utils/layoutConverter.ts` - Zone/edge layout conversion
+- [x] `extension/utils/debugInterface.ts` - D-Bus debug interface
 
-**Status:** All compile successfully, git history preserved
+**Status:** All compile successfully, rollup.config.js updated
 
 ---
 
-## 🔄 Remaining Files (24 files)
-
-### Remaining Utils (3 files)
-- [ ] extension/utils/debugInterface.js
-- [ ] extension/utils/keybindingConfig.js
-- [ ] extension/utils/layoutConverter.js
+## 🔄 Remaining Files (21 files)
 
 ### Core Data/Templates (1 file)
 - [ ] extension/templateManager.js
@@ -66,13 +64,13 @@
 ## 📊 Progress Summary
 
 ```
-✅ Phase A Complete: 6 files migrated (20%)
-🔄 Phase B Pending: 24 files remaining (80%)
+✅ Utilities Complete: 9 files migrated (30%)
+🔄 Remaining Migration: 21 files remaining (70%)
 ```
 
 **Total:** 30 files to migrate  
-**Completed:** 6 files (20%)  
-**Remaining:** 24 files (80%)
+**Completed:** 9 files (30%)  
+**Remaining:** 21 files (70%)
 
 ---
 
