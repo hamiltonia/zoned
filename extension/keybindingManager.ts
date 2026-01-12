@@ -297,46 +297,57 @@ export class KeybindingManager {
     }
 
     /**
-     * Handler: Cycle to previous zone (Super+Left)
+     * Cycle zone and move focused window (shared logic)
      * @private
      */
-    private _onCycleZoneLeft(): void {
-        logger.debug('Cycle zone left triggered');
-
+    private _cycleZoneAndNotify(direction: number): void {
         const window = this._windowManager?.getFocusedWindow();
         if (!window) {
             logger.debug('No focused window to move');
             return;
         }
 
-        // Get space context for per-workspace mode
         const spaceKey = this._getSpaceKeyFromWindow(window);
-
-        const zone = this._layoutManager?.cycleZone(-1, spaceKey as any);
+        const zone = this._layoutManager?.cycleZone(direction, spaceKey as any);
         if (!zone) {
-            logger.warn('Failed to cycle to previous zone');
+            logger.warn(`Failed to cycle to ${direction > 0 ? 'next' : 'previous'} zone`);
             return;
         }
 
-        // Get layout info (space-aware if per-workspace mode)
         const layout = this._layoutManager?.getCurrentLayout(spaceKey as any);
         const padding = layout?.padding || 0;
-
         this._windowManager?.moveWindowToZone(window, zone, padding);
+
+        this._notifyZoneChange(spaceKey, layout);
+    }
+
+    /**
+     * Show zone change notification
+     * @private
+     */
+    private _notifyZoneChange(spaceKey: string | null, layout: any): void {
+        if (!this._notificationService || !layout) return;
+
         const zoneIndex = spaceKey
             ? this._layoutManager?.getZoneIndexForSpace(spaceKey) ?? 0
             : this._layoutManager?.getCurrentZoneIndex() ?? 0;
         const totalZones = layout?.zones.length ?? 0;
 
-        // Show zone notification (uses notification settings)
-        if (this._notificationService && layout) {
-            this._notificationService.notifyZone(
-                NotifyCategory.WINDOW_SNAPPING,
-                layout.name,
-                zoneIndex,
-                totalZones,
-            );
-        }
+        this._notificationService.notifyZone(
+            NotifyCategory.WINDOW_SNAPPING,
+            layout.name,
+            zoneIndex,
+            totalZones,
+        );
+    }
+
+    /**
+     * Handler: Cycle to previous zone (Super+Left)
+     * @private
+     */
+    private _onCycleZoneLeft(): void {
+        logger.debug('Cycle zone left triggered');
+        this._cycleZoneAndNotify(-1);
     }
 
     /**
@@ -345,41 +356,7 @@ export class KeybindingManager {
      */
     private _onCycleZoneRight(): void {
         logger.debug('Cycle zone right triggered');
-
-        const window = this._windowManager?.getFocusedWindow();
-        if (!window) {
-            logger.debug('No focused window to move');
-            return;
-        }
-
-        // Get space context for per-workspace mode
-        const spaceKey = this._getSpaceKeyFromWindow(window);
-
-        const zone = this._layoutManager?.cycleZone(1, spaceKey as any);
-        if (!zone) {
-            logger.warn('Failed to cycle to next zone');
-            return;
-        }
-
-        // Get layout info (space-aware if per-workspace mode)
-        const layout = this._layoutManager?.getCurrentLayout(spaceKey as any);
-        const padding = layout?.padding || 0;
-
-        this._windowManager?.moveWindowToZone(window, zone, padding);
-        const zoneIndex = spaceKey
-            ? this._layoutManager?.getZoneIndexForSpace(spaceKey) ?? 0
-            : this._layoutManager?.getCurrentZoneIndex() ?? 0;
-        const totalZones = layout?.zones.length ?? 0;
-
-        // Show zone notification (uses notification settings)
-        if (this._notificationService && layout) {
-            this._notificationService.notifyZone(
-                NotifyCategory.WINDOW_SNAPPING,
-                layout.name,
-                zoneIndex,
-                totalZones,
-            );
-        }
+        this._cycleZoneAndNotify(1);
     }
 
     /**
@@ -397,6 +374,37 @@ export class KeybindingManager {
     }
 
     /**
+     * Find layout by shortcut key
+     * @private
+     */
+    private _findLayoutByShortcut(shortcutKey: number): any | null {
+        const layouts = this._layoutManager?.getAllLayoutsOrdered() ?? [];
+        return layouts.find(l =>
+            l.shortcut === String(shortcutKey) || l.shortcut === shortcutKey,
+        ) ?? null;
+    }
+
+    /**
+     * Apply layout based on current mode (global vs per-workspace)
+     * @private
+     */
+    private _applyLayoutByMode(layout: any): void {
+        const perSpaceEnabled = this._settings?.get_boolean('use-per-workspace-layouts') ?? false;
+
+        if (perSpaceEnabled) {
+            const spatialStateManager = this._layoutManager?.getSpatialStateManager();
+            if (spatialStateManager) {
+                const window = this._windowManager?.getFocusedWindow();
+                const spaceKey = spatialStateManager.getSpaceKeyForWindow(window);
+                this._layoutManager?.setLayoutForSpace(spaceKey, layout.id);
+                logger.info(`Applied layout '${layout.name}' to space ${spaceKey}`);
+            }
+        } else {
+            this._layoutManager?.setLayout(layout.id);
+        }
+    }
+
+    /**
      * Handler: Quick layout shortcut (Super+Ctrl+Alt+1-9)
      * Activates layout by its assigned shortcut property (user-configurable in layout settings)
      * @param shortcutKey - The shortcut key pressed (1-9)
@@ -405,15 +413,7 @@ export class KeybindingManager {
     private _onQuickLayout(shortcutKey: number): void {
         logger.debug(`Quick layout shortcut ${shortcutKey} triggered`);
 
-        const layouts = this._layoutManager?.getAllLayoutsOrdered() ?? [];
-
-        // Find layout with matching shortcut assignment
-        // shortcut can be string ('1'-'9') or number (1-9)
-        const layout = layouts.find(l =>
-            l.shortcut === String(shortcutKey) || l.shortcut === shortcutKey,
-        );
-
-        // Check if any layout has this shortcut assigned
+        const layout = this._findLayoutByShortcut(shortcutKey);
         if (!layout) {
             logger.debug(`No layout assigned to shortcut ${shortcutKey}`);
             if (this._notificationService) {
@@ -426,26 +426,8 @@ export class KeybindingManager {
         }
 
         logger.info(`Quick switching to layout: ${layout.name} (shortcut ${shortcutKey})`);
+        this._applyLayoutByMode(layout);
 
-        // Check if per-workspace mode is enabled
-        const perSpaceEnabled = this._settings?.get_boolean('use-per-workspace-layouts') ?? false;
-
-        if (perSpaceEnabled) {
-            // Apply to the current space (works even without a focused window)
-            const spatialStateManager = this._layoutManager?.getSpatialStateManager();
-            if (spatialStateManager) {
-                // getSpaceKeyForWindow handles null window → uses getCurrentSpaceKey()
-                const window = this._windowManager?.getFocusedWindow();
-                const spaceKey = spatialStateManager.getSpaceKeyForWindow(window);
-                this._layoutManager?.setLayoutForSpace(spaceKey, layout.id);
-                logger.info(`Applied layout '${layout.name}' to space ${spaceKey}`);
-            }
-        } else {
-            // Apply globally
-            this._layoutManager?.setLayout(layout.id);
-        }
-
-        // Show notification (uses notification settings)
         if (this._notificationService) {
             this._notificationService.notify(
                 NotifyCategory.LAYOUT_SWITCHING,
@@ -488,6 +470,21 @@ export class KeybindingManager {
     }
 
     /**
+     * Try to restore a minimized window and notify
+     * @private
+     */
+    private _tryRestoreMinimized(): boolean {
+        const restored = this._windowManager?.restoreMinimizedWindow() ?? false;
+        if (restored && this._notificationService) {
+            this._notificationService.notify(
+                NotifyCategory.WINDOW_MANAGEMENT,
+                'Restored',
+            );
+        }
+        return restored;
+    }
+
+    /**
      * Handler: Maximize/restore window (Super+Up)
      * If a window was minimized by Super+Down, restore it.
      * Otherwise, toggle between maximized and floating.
@@ -496,19 +493,10 @@ export class KeybindingManager {
     private _onMaximizeWindow(): void {
         logger.debug('Maximize window triggered');
 
-        // First, try to restore a minimized window
-        const restored = this._windowManager?.restoreMinimizedWindow() ?? false;
-        if (restored) {
-            if (this._notificationService) {
-                this._notificationService.notify(
-                    NotifyCategory.WINDOW_MANAGEMENT,
-                    'Restored',
-                );
-            }
+        if (this._tryRestoreMinimized()) {
             return;
         }
 
-        // No minimized window to restore, toggle maximize on focused window
         const window = this._windowManager?.getFocusedWindow();
         if (!window) {
             logger.debug('No focused window to maximize');

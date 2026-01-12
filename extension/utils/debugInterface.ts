@@ -575,33 +575,62 @@ export class DebugInterface {
      * Build state response object
      */
     private _buildStateResponse(): Record<string, GLib.Variant> {
-        const layoutState = this._getLayoutState();
-        const settingsState = this._getSettingsState();
-
-        // Get version info dynamically
         const versionInfo = getExtensionVersion(this._extension!.path, this._extension!.metadata);
+        const layoutData = this._extractLayoutData();
+        const settings = this._extension?._settings;
 
         return {
             enabled: GLib.Variant.new_boolean(true),
             extensionVersion: GLib.Variant.new_string(versionInfo.name),
-            ...layoutState,
-            ...settingsState,
+            layoutId: GLib.Variant.new_string(layoutData.layoutId),
+            layoutName: GLib.Variant.new_string(layoutData.layoutName),
+            zoneIndex: GLib.Variant.new_int32(layoutData.zoneIndex),
+            zoneCount: GLib.Variant.new_int32(layoutData.zoneCount),
+            layoutCount: GLib.Variant.new_int32(layoutData.layoutCount),
+            layouts: GLib.Variant.new_strv(layoutData.layoutIds),
+            workspaceMode: GLib.Variant.new_boolean(this._getBoolSetting(settings, 'use-per-workspace-layouts')),
+            debugLogging: GLib.Variant.new_boolean(this._getBoolSetting(settings, 'debug-logging')),
+            resourceTracking: GLib.Variant.new_boolean(this._getBoolSetting(settings, 'debug-track-resources')),
         };
     }
 
     /**
-     * Get layout-related state
+     * Get empty layout data (fallback when layout manager unavailable)
+     * @private
      */
-    private _getLayoutState(): Record<string, GLib.Variant> {
-        const data = this._extractLayoutData();
+    private _getEmptyLayoutData(): {
+        layoutId: string;
+        layoutName: string;
+        zoneIndex: number;
+        zoneCount: number;
+        layoutCount: number;
+        layoutIds: string[];
+    } {
+        return {layoutId: '', layoutName: '', zoneIndex: 0, zoneCount: 0, layoutCount: 0, layoutIds: []};
+    }
+
+    /**
+     * Build layout data from layout manager
+     * @private
+     */
+    private _buildLayoutData(layoutManager: any): {
+        layoutId: string;
+        layoutName: string;
+        zoneIndex: number;
+        zoneCount: number;
+        layoutCount: number;
+        layoutIds: string[];
+    } {
+        const currentLayout = layoutManager.getCurrentLayout();
+        const allLayouts = layoutManager.getAllLayouts() ?? [];
 
         return {
-            layoutId: GLib.Variant.new_string(data.layoutId),
-            layoutName: GLib.Variant.new_string(data.layoutName),
-            zoneIndex: GLib.Variant.new_int32(data.zoneIndex),
-            zoneCount: GLib.Variant.new_int32(data.zoneCount),
-            layoutCount: GLib.Variant.new_int32(data.layoutCount),
-            layouts: GLib.Variant.new_strv(data.layoutIds),
+            layoutId: currentLayout?.id ?? '',
+            layoutName: currentLayout?.name ?? '',
+            zoneIndex: layoutManager.getCurrentZoneIndex() ?? 0,
+            zoneCount: currentLayout?.zones?.length ?? 0,
+            layoutCount: allLayouts.length,
+            layoutIds: allLayouts.map((l: any) => l.id),
         };
     }
 
@@ -618,33 +647,10 @@ export class DebugInterface {
     } {
         const layoutManager = this._extension?._layoutManager;
         if (!layoutManager) {
-            return {layoutId: '', layoutName: '', zoneIndex: 0, zoneCount: 0, layoutCount: 0, layoutIds: []};
+            return this._getEmptyLayoutData();
         }
 
-        const currentLayout = layoutManager.getCurrentLayout();
-        const allLayouts = layoutManager.getAllLayouts() ?? [];
-
-        return {
-            layoutId: currentLayout?.id ?? '',
-            layoutName: currentLayout?.name ?? '',
-            zoneIndex: layoutManager.getCurrentZoneIndex() ?? 0,
-            zoneCount: currentLayout?.zones?.length ?? 0,
-            layoutCount: allLayouts.length,
-            layoutIds: allLayouts.map((l: any) => l.id),
-        };
-    }
-
-    /**
-     * Get settings-related state
-     */
-    private _getSettingsState(): Record<string, GLib.Variant> {
-        const settings = this._extension?._settings;
-
-        return {
-            workspaceMode: GLib.Variant.new_boolean(this._getBoolSetting(settings, 'use-per-workspace-layouts')),
-            debugLogging: GLib.Variant.new_boolean(this._getBoolSetting(settings, 'debug-logging')),
-            resourceTracking: GLib.Variant.new_boolean(this._getBoolSetting(settings, 'debug-track-resources')),
-        };
+        return this._buildLayoutData(layoutManager);
     }
 
     /**
