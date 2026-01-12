@@ -8,27 +8,63 @@
  * consistency with prefs.js conflict detection.
  */
 
-import Gio from 'gi://Gio';
-import {createLogger} from '../utils/debug.js';
+import Gio from '@girs/gio-2.0';
+import {createLogger} from '../utils/debug';
 import {
     GNOME_BINDINGS,
     ZONED_BINDINGS,
     acceleratorsMatch,
-} from '../utils/keybindingConfig.js';
+    GnomeBinding,
+} from '../utils/keybindingConfig';
 
 const logger = createLogger('ConflictDetector');
 
+interface Conflict {
+    zonedAction: string;
+    zonedName: string;
+    zonedBinding: string;
+    gnomeSchema: string;
+    gnomeKey: string;
+    gnomeDescription: string;
+    gnomeBinding: string[];
+}
+
+interface FixResult {
+    success: boolean;
+    error?: string;
+    fixed?: {
+        action: string;
+        binding: string[];
+    };
+    backup?: Record<string, string[]>;
+}
+
+interface AutoFixResults {
+    fixed: Array<{
+        action: string;
+        binding: string[];
+    }>;
+    failed: Array<{
+        action: string;
+        error: string;
+    }>;
+    backup: Record<string, string[]>;
+}
+
 export class ConflictDetector {
-    constructor(settings) {
+    private _settings: Gio.Settings;
+    private _conflicts: Conflict[];
+
+    constructor(settings: Gio.Settings) {
         this._settings = settings;
         this._conflicts = [];
     }
 
     /**
      * Detect all keybinding conflicts with GNOME/system
-     * @returns {Array} Array of conflict objects
+     * @returns Array of conflict objects
      */
-    detectConflicts() {
+    detectConflicts(): Conflict[] {
         this._conflicts = [];
 
         try {
@@ -76,13 +112,13 @@ export class ConflictDetector {
     /**
      * Check if a Zoned binding conflicts with a GNOME binding
      * @private
-     * @param {string} zonedKey - Zoned settings key
-     * @param {string} zonedName - Human-readable name
-     * @param {string} ourAccel - Our accelerator string
-     * @param {Object} gnome - GNOME binding definition from GNOME_BINDINGS
-     * @returns {Object|null} Conflict object or null
+     * @param zonedKey - Zoned settings key
+     * @param zonedName - Human-readable name
+     * @param ourAccel - Our accelerator string
+     * @param gnome - GNOME binding definition from GNOME_BINDINGS
+     * @returns Conflict object or null
      */
-    _checkConflict(zonedKey, zonedName, ourAccel, gnome) {
+    private _checkConflict(zonedKey: string, zonedName: string, ourAccel: string, gnome: GnomeBinding): Conflict | null {
         try {
             const schema = new Gio.Settings({schema: gnome.schema});
             const gnomeBindings = schema.get_strv(gnome.key);
@@ -112,26 +148,26 @@ export class ConflictDetector {
 
     /**
      * Get array of detected conflicts
-     * @returns {Array} Array of conflict objects
+     * @returns Array of conflict objects
      */
-    getConflicts() {
+    getConflicts(): Conflict[] {
         return this._conflicts;
     }
 
     /**
      * Check if any conflicts exist
-     * @returns {boolean} True if conflicts detected
+     * @returns True if conflicts detected
      */
-    hasConflicts() {
+    hasConflicts(): boolean {
         return this._conflicts.length > 0;
     }
 
     /**
      * Fix a single conflict by disabling the conflicting GNOME binding
-     * @param {string} zonedAction - The Zoned action key (e.g., 'cycle-zone-left')
-     * @returns {Object} Result of fix attempt
+     * @param zonedAction - The Zoned action key (e.g., 'cycle-zone-left')
+     * @returns Result of fix attempt
      */
-    fixSingleConflict(zonedAction) {
+    fixSingleConflict(zonedAction: string): FixResult {
         const conflict = this._conflicts.find(c => c.zonedAction === zonedAction);
 
         if (!conflict) {
@@ -164,16 +200,16 @@ export class ConflictDetector {
             };
         } catch (error) {
             logger.error(`Failed to fix conflict for ${zonedAction}: ${error}`);
-            return {success: false, error: error.message};
+            return {success: false, error: String(error)};
         }
     }
 
     /**
      * Automatically fix conflicts by disabling conflicting GNOME bindings
-     * @returns {Object} Results of fix attempt
+     * @returns Results of fix attempt
      */
-    autoFixConflicts() {
-        const results = {
+    autoFixConflicts(): AutoFixResults {
+        const results: AutoFixResults = {
             fixed: [],
             failed: [],
             backup: {},
@@ -200,7 +236,7 @@ export class ConflictDetector {
                 } catch (error) {
                     results.failed.push({
                         action: conflict.gnomeDescription,
-                        error: error.message,
+                        error: String(error),
                     });
                     logger.error(`Failed to fix ${conflict.gnomeDescription}: ${error}`);
                 }
@@ -220,9 +256,9 @@ export class ConflictDetector {
 
     /**
      * Restore GNOME bindings from backup
-     * @param {Object} backup - Backup object from autoFixConflicts
+     * @param backup - Backup object from autoFixConflicts
      */
-    restoreFromBackup(backup) {
+    restoreFromBackup(backup: Record<string, string[]>): void {
         try {
             Object.entries(backup).forEach(([key, value]) => {
                 const [schemaId, settingKey] = key.split(':');
@@ -241,9 +277,9 @@ export class ConflictDetector {
 
     /**
      * Get a human-readable summary of conflicts
-     * @returns {string} Formatted summary
+     * @returns Formatted summary
      */
-    getConflictSummary() {
+    getConflictSummary(): string {
         if (this._conflicts.length === 0) {
             return 'No keybinding conflicts detected.';
         }
@@ -262,7 +298,7 @@ export class ConflictDetector {
     /**
      * Clean up resources
      */
-    destroy() {
+    destroy(): void {
         this._conflicts = [];
     }
 }

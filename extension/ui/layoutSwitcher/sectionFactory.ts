@@ -10,10 +10,10 @@
  * Part of the LayoutSwitcher module split for maintainability.
  */
 
-import Clutter from 'gi://Clutter';
-import Gio from 'gi://Gio';
-import St from 'gi://St';
-import {createLogger} from '../../utils/debug.js';
+import Clutter from '@girs/clutter-14';
+import Gio from '@girs/gio-2.0';
+import St from '@girs/st-14';
+import {createLogger} from '../../utils/debug';
 import {createTemplateCard, createCustomLayoutCard} from './cardFactory.js';
 
 const logger = createLogger('SectionFactory');

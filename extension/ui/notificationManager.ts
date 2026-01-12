@@ -12,18 +12,27 @@
  * - No user interaction required
  */
 
-import GLib from 'gi://GLib';
-import Gio from 'gi://Gio';
-import St from 'gi://St';
-import Clutter from 'gi://Clutter';
-import Pango from 'gi://Pango';
+import GLib from '@girs/glib-2.0';
+import Gio from '@girs/gio-2.0';
+import St from '@girs/st-14';
+import Clutter from '@girs/clutter-14';
+import Pango from '@girs/pango-1.0';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from '../utils/debug.js';
 
 const logger = createLogger('NotificationManager');
 
+// Extension type placeholder
+type Extension = {
+    path: string;
+};
+
 export class NotificationManager {
-    constructor(extension) {
+    private _extension: Extension;
+    private _notification: St.BoxLayout | null;
+    private _timeoutId: number | null;
+
+    constructor(extension: Extension) {
         this._extension = extension;
         this._notification = null;
         this._timeoutId = null;
@@ -32,10 +41,10 @@ export class NotificationManager {
     /**
      * Show a notification with [Icon] | Message layout
      *
-     * @param {string} message - Notification message
-     * @param {number} duration - Duration to show notification in milliseconds (default: 2000)
+     * @param message - Notification message
+     * @param duration - Duration to show notification in milliseconds (default: 2000)
      */
-    show(message, duration = 2000) {
+    show(message: string, duration: number = 2000): void {
         // Remove existing notification first
         this._hide();
 
@@ -90,17 +99,17 @@ export class NotificationManager {
             this._notification.add_child(messageLabel);
 
             // Add to UI at top-center
-            Main.layoutManager.uiGroup.add_child(this._notification);
+            (Main.layoutManager as any).uiGroup.add_child(this._notification);
 
             // Wait for allocation then position (width won't be available until allocated)
             const allocationId = this._notification.connect('notify::allocation', () => {
-                this._notification.disconnect(allocationId);
+                this._notification?.disconnect(allocationId);
 
                 // Position at top-center of current monitor (below panel)
-                const monitor = Main.layoutManager.currentMonitor;
-                const panel = Main.layoutManager.panelBox;
+                const monitor = (Main.layoutManager as any).currentMonitor;
+                const panel = (Main.layoutManager as any).panelBox;
 
-                this._notification.set_position(
+                this._notification?.set_position(
                     monitor.x + (monitor.width - this._notification.width) / 2,
                     monitor.y + panel.height + 10,  // 10px below top panel
                 );
@@ -108,7 +117,7 @@ export class NotificationManager {
 
             // Fade in
             this._notification.opacity = 0;
-            this._notification.ease({
+            (this._notification as any).ease({
                 opacity: 255,
                 duration: 150,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
@@ -131,7 +140,7 @@ export class NotificationManager {
      * Hide the notification
      * @private
      */
-    _hide() {
+    private _hide(): void {
         // Clear timeout
         if (this._timeoutId) {
             GLib.Source.remove(this._timeoutId);
@@ -140,13 +149,13 @@ export class NotificationManager {
 
         // Remove notification with fade out
         if (this._notification) {
-            this._notification.ease({
+            (this._notification as any).ease({
                 opacity: 0,
                 duration: 150,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
                 onComplete: () => {
                     if (this._notification) {
-                        Main.layoutManager.uiGroup.remove_child(this._notification);
+                        (Main.layoutManager as any).uiGroup.remove_child(this._notification);
                         this._notification.destroy();
                         this._notification = null;
                     }
@@ -158,7 +167,7 @@ export class NotificationManager {
     /**
      * Clean up resources
      */
-    destroy() {
+    destroy(): void {
         this._hide();
     }
 }

@@ -10,23 +10,32 @@
  * LayoutPreviewBackground and other custom overlays in Main.uiGroup.
  */
 
-import GObject from 'gi://GObject';
-import Clutter from 'gi://Clutter';
-import St from 'gi://St';
+import GObject from '@girs/gobject-2.0';
+import Clutter from '@girs/clutter-14';
+import St from '@girs/st-14';
+import Gio from '@girs/gio-2.0';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
-import {createLogger} from '../utils/debug.js';
-import {ThemeManager} from '../utils/theme.js';
-import {SignalTracker} from '../utils/signalTracker.js';
+import {createLogger} from '../utils/debug';
+import {ThemeManager} from '../utils/theme';
+import {SignalTracker} from '../utils/signalTracker';
 
 const logger = createLogger('ConfirmDialog');
+
+interface ConfirmDialogOptions {
+    confirmLabel?: string;
+    cancelLabel?: string;
+    destructive?: boolean;
+    settings?: Gio.Settings;
+    onCancel?: () => void;
+}
 
 /**
  * Handle enter-event on destructive confirm button for hover styling
  * Module-level handler (Wave 3: avoid arrow function closure)
- * @param {St.Button} button - The confirm button
- * @returns {boolean} Clutter.EVENT_PROPAGATE
+ * @param button - The confirm button
+ * @returns Clutter.EVENT_PROPAGATE
  */
-function handleConfirmButtonEnter(button) {
+function handleConfirmButtonEnter(button: St.Button): boolean {
     button.style = `
         background-color: #a01720;
         color: white;
@@ -38,10 +47,10 @@ function handleConfirmButtonEnter(button) {
 /**
  * Handle leave-event on destructive confirm button to restore styling
  * Module-level handler (Wave 3: avoid arrow function closure)
- * @param {St.Button} button - The confirm button
- * @returns {boolean} Clutter.EVENT_PROPAGATE
+ * @param button - The confirm button
+ * @returns Clutter.EVENT_PROPAGATE
  */
-function handleConfirmButtonLeave(button) {
+function handleConfirmButtonLeave(button: St.Button): boolean {
     button.style = `
         background-color: #c01c28;
         color: white;
@@ -65,19 +74,26 @@ function handleConfirmButtonLeave(button) {
  */
 export const ConfirmDialog = GObject.registerClass(
     class ConfirmDialog extends ModalDialog.ModalDialog {
-    /**
-     * Create a new confirmation dialog
-     * @param {string} title - Dialog title
-     * @param {string} message - Message to display
-     * @param {Function} onConfirm - Callback when user confirms
-     * @param {Object} options - Optional settings
-     * @param {string} options.confirmLabel - Label for confirm button (default: 'Confirm')
-     * @param {string} options.cancelLabel - Label for cancel button (default: 'Cancel')
-     * @param {boolean} options.destructive - Style confirm button as destructive (red)
-     * @param {Object} options.settings - GSettings object for theme support
-     * @param {Function} options.onCancel - Callback when user cancels (optional)
-     */
-        constructor(title, message, onConfirm, options = {}) {
+        private _title: string;
+        private _message: string;
+        private _onConfirm: (() => void) | null;
+        private _onCancel: (() => void) | null;
+        private _options: {
+            confirmLabel: string;
+            cancelLabel: string;
+            destructive: boolean;
+        };
+        private _themeManager: ThemeManager | null;
+        private _signalTracker: SignalTracker | null;
+
+        /**
+         * Create a new confirmation dialog
+         * @param title - Dialog title
+         * @param message - Message to display
+         * @param onConfirm - Callback when user confirms
+         * @param options - Optional settings
+         */
+        constructor(title: string, message: string, onConfirm: () => void, options: ConfirmDialogOptions = {}) {
             super({styleClass: 'zoned-confirm-dialog'});
 
             this._title = title;
@@ -102,11 +118,11 @@ export const ConfirmDialog = GObject.registerClass(
         }
 
         /**
-     * Apply CSS custom properties to dialog for stylesheet theming
-     * Uses dialogLayout which is the actual container element
-     * @private
-     */
-        _applyCSSVariables() {
+         * Apply CSS custom properties to dialog for stylesheet theming
+         * Uses dialogLayout which is the actual container element
+         * @private
+         */
+        private _applyCSSVariables(): void {
             if (!this._themeManager) {
                 return;
             }
@@ -114,9 +130,9 @@ export const ConfirmDialog = GObject.registerClass(
             const colors = this._themeManager.getColors();
 
             // Use dialogLayout instead of _dialog (which doesn't exist in GNOME's ModalDialog)
-            if (this.dialogLayout) {
-                const style = this.dialogLayout.get_style();
-                this.dialogLayout.set_style(
+            if ((this as any).dialogLayout) {
+                const style = (this as any).dialogLayout.get_style();
+                (this as any).dialogLayout.set_style(
                     (style || '') +
                 `--zoned-container-bg: ${colors.containerBg}; ` +
                 `--zoned-card-bg: ${colors.cardBg}; ` +
@@ -133,15 +149,15 @@ export const ConfirmDialog = GObject.registerClass(
 
                 // Apply theme class
                 const themeClass = colors.isDark ? 'zoned-theme-dark' : 'zoned-theme-light';
-                this.dialogLayout.add_style_class_name(themeClass);
+                (this as any).dialogLayout.add_style_class_name(themeClass);
             }
         }
 
         /**
-     * Override open() to apply CSS variables when dialog is shown
-     * @override
-     */
-        open() {
+         * Override open() to apply CSS variables when dialog is shown
+         * @override
+         */
+        open(): boolean {
             const result = super.open();
 
             // Apply CSS variables to dialogLayout
@@ -151,11 +167,11 @@ export const ConfirmDialog = GObject.registerClass(
         }
 
         /**
-     * Build the dialog UI
-     * @private
-     */
-        _buildUI() {
-        // Apply CSS custom properties to dialog root for stylesheet
+         * Build the dialog UI
+         * @private
+         */
+        private _buildUI(): void {
+            // Apply CSS custom properties to dialog root for stylesheet
             this._applyCSSVariables();
 
             // Add title
@@ -163,7 +179,7 @@ export const ConfirmDialog = GObject.registerClass(
                 text: this._title,
                 style: 'font-weight: bold; font-size: 14pt; margin-bottom: 12px;',
             });
-            this.contentLayout.add_child(titleLabel);
+            (this as any).contentLayout.add_child(titleLabel);
 
             // Add message
             const messageLabel = new St.Label({
@@ -171,10 +187,10 @@ export const ConfirmDialog = GObject.registerClass(
                 style: 'line-height: 1.4;',
             });
             messageLabel.clutter_text.line_wrap = true;
-            this.contentLayout.add_child(messageLabel);
+            (this as any).contentLayout.add_child(messageLabel);
 
             // Add buttons using ModalDialog's button system
-            this.setButtons([
+            (this as any).setButtons([
                 {
                     label: this._options.cancelLabel,
                     action: () => {
@@ -201,8 +217,8 @@ export const ConfirmDialog = GObject.registerClass(
 
             // Apply destructive styling to confirm button if requested
             // The confirm button is the second button in the button layout
-            if (this._options.destructive && this.buttonLayout) {
-                const buttons = this.buttonLayout.get_children();
+            if (this._options.destructive && (this as any).buttonLayout) {
+                const buttons = (this as any).buttonLayout.get_children();
                 if (buttons.length >= 2) {
                     const confirmButton = buttons[1];
                     // Red destructive styling matching layoutSwitcher's delete confirmation
@@ -214,8 +230,8 @@ export const ConfirmDialog = GObject.registerClass(
                     // Also style on hover (Wave 3: bound methods)
                     const boundEnter = handleConfirmButtonEnter.bind(null, confirmButton);
                     const boundLeave = handleConfirmButtonLeave.bind(null, confirmButton);
-                    this._signalTracker.connect(confirmButton, 'enter-event', boundEnter);
-                    this._signalTracker.connect(confirmButton, 'leave-event', boundLeave);
+                    this._signalTracker!.connect(confirmButton, 'enter-event', boundEnter);
+                    this._signalTracker!.connect(confirmButton, 'leave-event', boundLeave);
                 }
             }
         }
@@ -223,7 +239,7 @@ export const ConfirmDialog = GObject.registerClass(
         /**
          * Override destroy to clean up resources
          */
-        destroy() {
+        destroy(): void {
             // Disconnect all signals
             if (this._signalTracker) {
                 this._signalTracker.disconnectAll();

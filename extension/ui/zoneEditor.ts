@@ -15,15 +15,15 @@
  * - Save/Cancel workflow
  */
 
-import St from 'gi://St';
-import Clutter from 'gi://Clutter';
+import St from '@girs/st-14';
+import Clutter from '@girs/clutter-14';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import Shell from 'gi://Shell';
-import Gio from 'gi://Gio';
-import {createLogger} from '../utils/debug.js';
-import {zonesToEdges, edgesToZones, validateEdgeLayout} from '../utils/layoutConverter.js';
-import {ThemeManager} from '../utils/theme.js';
-import {SignalTracker} from '../utils/signalTracker.js';
+import Shell from '@girs/shell-14';
+import Gio from '@girs/gio-2.0';
+import {createLogger} from '../utils/debug';
+import {zonesToEdges, edgesToZones, validateEdgeLayout} from '../utils/layoutConverter';
+import {ThemeManager} from '../utils/theme';
+import {SignalTracker} from '../utils/signalTracker';
 
 const logger = createLogger('ZoneEditor');
 

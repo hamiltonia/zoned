@@ -32,15 +32,15 @@
  * - UI updates to custom layout mode
  */
 
-import Clutter from 'gi://Clutter';
-import St from 'gi://St';
-import GLib from 'gi://GLib';
-import Shell from 'gi://Shell';
+import Clutter from '@girs/clutter-14';
+import St from '@girs/st-14';
+import GLib from '@girs/glib-2.0';
+import Shell from '@girs/shell-14';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import {createLogger} from '../utils/debug.js';
-import {SignalTracker} from '../utils/signalTracker.js';
-import {ThemeManager} from '../utils/theme.js';
-import {ZoneEditor} from './zoneEditor.js';
+import {createLogger} from '../utils/debug';
+import {SignalTracker} from '../utils/signalTracker';
+import {ThemeManager} from '../utils/theme';
+import {ZoneEditor} from './zoneEditor';
 import {TemplateManager} from '../templateManager.js';
 
 const logger = createLogger('LayoutSettingsDialog');

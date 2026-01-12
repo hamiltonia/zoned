@@ -7,10 +7,10 @@
  * - Auto-dismisses after a short duration
  */
 
-import GLib from 'gi://GLib';
-import Gio from 'gi://Gio';
-import St from 'gi://St';
-import Clutter from 'gi://Clutter';
+import GLib from '@girs/glib-2.0';
+import Gio from '@girs/gio-2.0';
+import St from '@girs/st-14';
+import Clutter from '@girs/clutter-14';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from '../utils/debug.js';
 
@@ -23,8 +23,26 @@ const SIZE_CONFIG = {
     large: {container: 512, icon: 512, titleFont: 18, messageFont: 16, padding: '20px 32px'},
 };
 
+type SizeKey = keyof typeof SIZE_CONFIG;
+
+// Extension and Settings type placeholders
+type Extension = {
+    path: string;
+    getSettings(): Settings;
+};
+
+type Settings = {
+    get_string(key: string): string;
+    get_int(key: string): number;
+};
+
 export class ZoneOverlay {
-    constructor(extension) {
+    private _extension: Extension | null;
+    private _settings: Settings | null;
+    private _overlay: St.Widget | null;
+    private _timeoutId: number | null;
+
+    constructor(extension: Extension) {
         this._extension = extension;
         this._settings = extension.getSettings();
         this._overlay = null;
@@ -34,12 +52,12 @@ export class ZoneOverlay {
     /**
      * Show the zone overlay with current zone information
      *
-     * @param {string} layoutName - Name of the current layout
-     * @param {number} zoneIndex - Current zone index (0-based)
-     * @param {number} totalZones - Total number of zones in layout
-     * @param {number} duration - Duration to show overlay in milliseconds (default: 1000)
+     * @param layoutName - Name of the current layout
+     * @param zoneIndex - Current zone index (0-based)
+     * @param totalZones - Total number of zones in layout
+     * @param duration - Duration to show overlay in milliseconds (default: 1000)
      */
-    show(layoutName, zoneIndex, totalZones, duration = 1000) {
+    show(layoutName: string, zoneIndex: number, totalZones: number, duration: number = 1000): void {
         const layoutText = layoutName;
         const messageText = `Zone ${zoneIndex + 1} of ${totalZones}`;
         this._showNotification(layoutText, messageText, duration);
@@ -48,10 +66,10 @@ export class ZoneOverlay {
     /**
      * Show a generic message notification (center-screen)
      *
-     * @param {string} message - Message to display
-     * @param {number} duration - Duration to show overlay in milliseconds (default: 1000)
+     * @param message - Message to display
+     * @param duration - Duration to show overlay in milliseconds (default: 1000)
      */
-    showMessage(message, duration = 1000) {
+    showMessage(message: string, duration: number = 1000): void {
         this._showNotification(null, message, duration);
     }
 
@@ -59,15 +77,15 @@ export class ZoneOverlay {
      * Internal method to display the notification
      * @private
      */
-    _showNotification(titleText, messageText, duration) {
+    private _showNotification(titleText: string | null, messageText: string, duration: number): void {
         // Remove existing overlay first
         this._hide();
 
         try {
             // Get size and opacity settings
-            const sizeSetting = this._settings.get_string('center-notification-size');
-            const opacityPercent = this._settings.get_int('center-notification-opacity');
-            const config = SIZE_CONFIG[sizeSetting] || SIZE_CONFIG.medium;
+            const sizeSetting = this._settings?.get_string('center-notification-size') || 'medium';
+            const opacityPercent = this._settings?.get_int('center-notification-opacity') ?? 85;
+            const config = SIZE_CONFIG[sizeSetting as SizeKey] || SIZE_CONFIG.medium;
             const bgOpacity = opacityPercent / 100;
 
             logger.debug(`Overlay settings: size=${sizeSetting}, opacity=${opacityPercent}%`);
@@ -82,7 +100,7 @@ export class ZoneOverlay {
 
             // Add icon as full background (first child = back layer)
             try {
-                const iconPath = this._extension.path + '/icons/zoned-watermark.svg';
+                const iconPath = (this._extension?.path || '') + '/icons/zoned-watermark.svg';
                 const iconFile = Gio.File.new_for_path(iconPath);
 
                 if (iconFile.query_exists(null)) {
@@ -149,11 +167,11 @@ export class ZoneOverlay {
             this._overlay = container;
 
             // Add to UI
-            Main.uiGroup.add_child(this._overlay);
+            (Main as any).uiGroup.add_child(this._overlay);
 
             // Position notification with text pill centered at same screen location for all sizes
             // The text pill is centered within the container, so we offset based on container size
-            const monitor = Main.layoutManager.currentMonitor;
+            const monitor = (Main.layoutManager as any).currentMonitor;
             const calcX = Math.floor(monitor.x + (monitor.width - config.container) / 2);
             // Target: put pill center at true center of screen (50%)
             // Pill center = container top + (container / 2)
@@ -180,7 +198,7 @@ export class ZoneOverlay {
      * Hide the overlay
      * @private
      */
-    _hide() {
+    private _hide(): void {
         // Clear timeout
         if (this._timeoutId) {
             GLib.Source.remove(this._timeoutId);
@@ -189,7 +207,7 @@ export class ZoneOverlay {
 
         // Remove overlay
         if (this._overlay) {
-            Main.uiGroup.remove_child(this._overlay);
+            (Main as any).uiGroup.remove_child(this._overlay);
             this._overlay.destroy();
             this._overlay = null;
         }
@@ -198,7 +216,7 @@ export class ZoneOverlay {
     /**
      * Clean up resources
      */
-    destroy() {
+    destroy(): void {
         this._hide();
 
         // Clear references to prevent memory leaks

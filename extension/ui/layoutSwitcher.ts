@@ -14,16 +14,16 @@
  * - resizeHandler.js - Dialog resize operations
  */
 
-import Clutter from 'gi://Clutter';
-import GLib from 'gi://GLib';
-import St from 'gi://St';
+import Clutter from '@girs/clutter-14';
+import GLib from '@girs/glib-2.0';
+import St from '@girs/st-14';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import {createLogger} from '../utils/debug.js';
-import {SignalTracker} from '../utils/signalTracker.js';
+import {createLogger} from '../utils/debug';
+import {SignalTracker} from '../utils/signalTracker';
 import {TemplateManager} from '../templateManager.js';
-import {LayoutSettingsDialog} from './layoutSettingsDialog.js';
-import {ThemeManager} from '../utils/theme.js';
-import {LayoutPreviewBackground} from './layoutPreviewBackground.js';
+import {LayoutSettingsDialog} from './layoutSettingsDialog';
+import {ThemeManager} from '../utils/theme';
+import {LayoutPreviewBackground} from './layoutPreviewBackground';
 
 // Import split modules (UI construction delegated to these)
 import {createTemplatesSection, createCustomLayoutsSection, createNewLayoutButton} from './layoutSwitcher/sectionFactory.js';

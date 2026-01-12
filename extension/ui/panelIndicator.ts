@@ -8,22 +8,49 @@
  * - Conflict warning (if applicable)
  */
 
-import GObject from 'gi://GObject';
-import St from 'gi://St';
-import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
+import GObject from '@girs/gobject-2.0';
+import St from '@girs/st-14';
+import Gio from '@girs/gio-2.0';
+import GLib from '@girs/glib-2.0';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
-import {createLogger} from '../utils/debug.js';
-import {SignalTracker} from '../utils/signalTracker.js';
-import {NotifyCategory} from '../utils/notificationService.js';
+import {createLogger} from '../utils/debug';
+import {SignalTracker} from '../utils/signalTracker';
+import {NotifyCategory} from '../utils/notificationService';
+import type {LayoutManager} from '../layoutManager';
+import type {ConflictDetector} from './conflictDetector';
+import type {NotificationManager} from './notificationManager';
+import type {ZoneOverlay} from './zoneOverlay';
+import type {NotificationService} from '../utils/notificationService';
 
 const logger = createLogger('PanelIndicator');
 
 export const PanelIndicator = GObject.registerClass(
     class ZonedPanelIndicator extends PanelMenu.Button {
-        _init(layoutManager, conflictDetector, layoutEditor, notificationManager,
-            zoneOverlay, settings, notificationService) {
+        private _layoutManager: LayoutManager;
+        private _conflictDetector: ConflictDetector;
+        private _layoutSwitcher: any;
+        private _notificationManager: NotificationManager;
+        private _zoneOverlay: ZoneOverlay;
+        private _settings: Gio.Settings;
+        private _notificationService: NotificationService;
+        private _hasConflicts: boolean;
+        private _signalTracker: SignalTracker | null;
+        private _boundOnMenuOpenStateChanged: ((menu: any, isOpen: boolean) => void) | null;
+        private _extensionPath: string;
+        private _icon!: St.Icon;
+        private _conflictWarningItem?: any;
+
+        _init(
+            layoutManager: LayoutManager,
+            conflictDetector: ConflictDetector,
+            layoutEditor: any,
+            notificationManager: NotificationManager,
+            zoneOverlay: ZoneOverlay,
+            settings: Gio.Settings,
+            notificationService: NotificationService,
+            extensionPath: string
+        ): void {
             super._init(0.0, 'Zoned Indicator', false);
 
             this._layoutManager = layoutManager;
@@ -41,33 +68,33 @@ export const PanelIndicator = GObject.registerClass(
             // Bound methods for signal handlers
             this._boundOnMenuOpenStateChanged = this._onMenuOpenStateChanged.bind(this);
 
-            // Create icon with reduced padding - using custom SVG
-            this._extensionPath = import.meta.url.replace('file://', '').replace('/ui/panelIndicator.js', '');
+            // Store extension path for icon loading
+            this._extensionPath = extensionPath;
             const iconPath = `${this._extensionPath}/icons/zoned-symbolic.svg`;
             this._icon = new St.Icon({
                 gicon: Gio.icon_new_for_string(iconPath),
                 style_class: 'system-status-icon',
                 icon_size: 16,
             });
-            this.add_child(this._icon);
+            (this as any).add_child(this._icon);
 
             // Reduce padding on the button itself
-            this.style = 'padding: 0 4px;';
+            (this as any).style = 'padding: 0 4px;';
 
             // Build menu
             this._buildMenu();
 
             // Re-detect conflicts every time the menu opens
-            this._signalTracker.connect(this.menu, 'open-state-changed', this._boundOnMenuOpenStateChanged);
+            this._signalTracker.connect((this as any).menu, 'open-state-changed', this._boundOnMenuOpenStateChanged);
         }
 
         /**
          * Handle menu open state changed
-         * @param {PopupMenu.PopupMenu} menu - The menu
-         * @param {boolean} isOpen - Whether menu is open
+         * @param menu - The menu
+         * @param isOpen - Whether menu is open
          * @private
          */
-        _onMenuOpenStateChanged(menu, isOpen) {
+        private _onMenuOpenStateChanged(menu: any, isOpen: boolean): void {
             if (isOpen) {
                 this._conflictDetector.detectConflicts();
                 this.setConflictStatus(this._conflictDetector.hasConflicts());
@@ -75,11 +102,11 @@ export const PanelIndicator = GObject.registerClass(
         }
 
         /**
-     * Build the popup menu
-     * @private
-     */
-        _buildMenu() {
-        // Current layout section
+         * Build the popup menu
+         * @private
+         */
+        private _buildMenu(): void {
+            // Current layout section
             const currentLayout = this._layoutManager.getCurrentLayout();
             if (currentLayout) {
                 const currentItem = new PopupMenu.PopupMenuItem(
@@ -87,14 +114,14 @@ export const PanelIndicator = GObject.registerClass(
                     {reactive: false},
                 );
                 currentItem.label.style = 'font-weight: bold;';
-                this.menu.addMenuItem(currentItem);
+                (this as any).menu.addMenuItem(currentItem);
 
-                this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+                (this as any).menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
             }
 
             // Quick switch submenu
             const layoutsSubmenu = new PopupMenu.PopupSubMenuMenuItem('Choose Layout');
-            const layouts = this._layoutManager.getAllLayouts() ;
+            const layouts = this._layoutManager.getAllLayouts();
 
             layouts.forEach(layout => {
                 const isCurrent = currentLayout && layout.id === currentLayout.id;
@@ -108,25 +135,25 @@ export const PanelIndicator = GObject.registerClass(
                 layoutsSubmenu.menu.addMenuItem(layoutItem);
             });
 
-            this.menu.addMenuItem(layoutsSubmenu);
+            (this as any).menu.addMenuItem(layoutsSubmenu);
 
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            (this as any).menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
             // Full layout switcher (LayoutSwitcher)
             const layoutsItem = new PopupMenu.PopupMenuItem('Layout Switcher');
             layoutsItem.connect('activate', () => {
                 this._openLayoutSwitcher();
             });
-            this.menu.addMenuItem(layoutsItem);
+            (this as any).menu.addMenuItem(layoutsItem);
 
             // Settings (Extensions app preferences)
             const settingsItem = new PopupMenu.PopupMenuItem('Settings');
             settingsItem.connect('activate', () => {
                 this._openSettings();
             });
-            this.menu.addMenuItem(settingsItem);
+            (this as any).menu.addMenuItem(settingsItem);
 
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            (this as any).menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
             // Conflict warning and fix option (if applicable)
             if (this._hasConflicts) {
@@ -138,60 +165,62 @@ export const PanelIndicator = GObject.registerClass(
                 this._conflictWarningItem.connect('activate', () => {
                     this._showConflictDetails();
                 });
-                this.menu.addMenuItem(this._conflictWarningItem);
+                (this as any).menu.addMenuItem(this._conflictWarningItem);
 
                 // Add "Fix Conflicts" button
                 const fixItem = new PopupMenu.PopupMenuItem('Fix Conflicts Automatically');
                 fixItem.connect('activate', () => {
                     this._autoFixConflicts();
                 });
-                this.menu.addMenuItem(fixItem);
+                (this as any).menu.addMenuItem(fixItem);
 
-                this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+                (this as any).menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
             }
-
         }
 
         /**
-     * Update the menu (rebuild it)
-     */
-        updateMenu() {
-            this.menu.removeAll();
+         * Update the menu (rebuild it)
+         */
+        updateMenu(): void {
+            (this as any).menu.removeAll();
             this._buildMenu();
         }
 
         /**
-     * Set conflict status and update menu
-     * @param {boolean} hasConflicts - Whether conflicts exist
-     */
-        setConflictStatus(hasConflicts) {
+         * Set conflict status and update menu
+         * @param hasConflicts - Whether conflicts exist
+         */
+        setConflictStatus(hasConflicts: boolean): void {
             if (this._hasConflicts !== hasConflicts) {
                 this._hasConflicts = hasConflicts;
 
-                // Swap icon file when conflicts exist
-                if (hasConflicts) {
-                    const warningIconPath = `${this._extensionPath}/icons/zoned-warning.svg`;
-                    this._icon.gicon = Gio.icon_new_for_string(warningIconPath);
-                    logger.debug('Switching to warning icon (conflicts detected)');
-                } else {
-                    const normalIconPath = `${this._extensionPath}/icons/zoned-symbolic.svg`;
-                    this._icon.gicon = Gio.icon_new_for_string(normalIconPath);
-                    logger.debug('Switching to normal icon (no conflicts)');
-                }
+                // Only update UI if component is fully initialized
+                if (this._icon) {
+                    // Swap icon file when conflicts exist
+                    if (hasConflicts) {
+                        const warningIconPath = `${this._extensionPath}/icons/zoned-warning.svg`;
+                        this._icon.gicon = Gio.icon_new_for_string(warningIconPath);
+                        logger.debug('Switching to warning icon (conflicts detected)');
+                    } else {
+                        const normalIconPath = `${this._extensionPath}/icons/zoned-symbolic.svg`;
+                        this._icon.gicon = Gio.icon_new_for_string(normalIconPath);
+                        logger.debug('Switching to normal icon (no conflicts)');
+                    }
 
-                this.updateMenu();
+                    this.updateMenu();
+                }
             }
         }
 
         /**
-     * Open the layout switcher (comprehensive layout management)
-     * @private
-     */
-        _openLayoutSwitcher() {
+         * Open the layout switcher (comprehensive layout management)
+         * @private
+         */
+        private _openLayoutSwitcher(): void {
             logger.debug('Opening layout switcher...');
 
             // Close menu first to release keyboard grab
-            this.menu.close();
+            (this as any).menu.close();
 
             if (this._layoutSwitcher) {
                 this._layoutSwitcher.show();
@@ -202,14 +231,14 @@ export const PanelIndicator = GObject.registerClass(
         }
 
         /**
-     * Open settings (GNOME Extensions preferences)
-     * @private
-     */
-        _openSettings() {
+         * Open settings (GNOME Extensions preferences)
+         * @private
+         */
+        private _openSettings(): void {
             logger.debug('Opening settings...');
 
             try {
-            // Open GNOME Extensions preferences for this extension
+                // Open GNOME Extensions preferences for this extension
                 const extensionId = 'zoned@hamiltonia.me';
                 const command = `gnome-extensions prefs ${extensionId}`;
 
@@ -224,26 +253,26 @@ export const PanelIndicator = GObject.registerClass(
         }
 
         /**
-     * Handle layout selection from menu
-     * @private
-     */
-        _onLayoutSelected(layoutId) {
-        // Use shared helper that handles both layout switching and notification (center-screen for user action)
-            this._layoutManager.setLayoutWithNotification(layoutId, this._zoneOverlay);
+         * Handle layout selection from menu
+         * @private
+         */
+        private _onLayoutSelected(layoutId: string): void {
+            // Use shared helper that handles both layout switching and notification (center-screen for user action)
+            (this._layoutManager as any).setLayoutWithNotification(layoutId, this._zoneOverlay);
             this.updateMenu();
         }
 
         /**
-     * Auto-fix keybinding conflicts
-     * @private
-     */
-        _autoFixConflicts() {
+         * Auto-fix keybinding conflicts
+         * @private
+         */
+        private _autoFixConflicts(): void {
             logger.debug('Auto-fixing keybinding conflicts...');
 
             const results = this._conflictDetector.autoFixConflicts();
 
             if (results.fixed.length > 0) {
-            // Show success notification (uses user's notify-conflicts setting)
+                // Show success notification (uses user's notify-conflicts setting)
                 if (this._notificationService) {
                     this._notificationService.notify(
                         NotifyCategory.CONFLICTS,
@@ -265,7 +294,7 @@ export const PanelIndicator = GObject.registerClass(
             }
 
             if (results.failed.length > 0) {
-            // Show error notification (uses user's notify-conflicts setting)
+                // Show error notification (uses user's notify-conflicts setting)
                 if (this._notificationService) {
                     this._notificationService.notify(
                         NotifyCategory.CONFLICTS,
@@ -278,10 +307,10 @@ export const PanelIndicator = GObject.registerClass(
         }
 
         /**
-     * Show conflict details - opens settings scrolled to keyboard shortcuts
-     * @private
-     */
-        _showConflictDetails() {
+         * Show conflict details - opens settings scrolled to keyboard shortcuts
+         * @private
+         */
+        private _showConflictDetails(): void {
             const conflicts = this._conflictDetector.getConflicts();
 
             if (conflicts.length === 0) {
@@ -302,7 +331,7 @@ export const PanelIndicator = GObject.registerClass(
 
             // Set scroll target so prefs opens at the keyboard shortcuts section
             if (this._settings) {
-            // Determine which section to scroll to based on first conflict
+                // Determine which section to scroll to based on first conflict
                 const firstConflict = conflicts[0];
                 const isEnhancedConflict = firstConflict.zonedAction === 'minimize-window' ||
                                        firstConflict.zonedAction === 'maximize-window';
@@ -317,9 +346,9 @@ export const PanelIndicator = GObject.registerClass(
         }
 
         /**
-     * Clean up
-     */
-        destroy() {
+         * Clean up
+         */
+        destroy(): void {
             // Disconnect all tracked signals
             if (this._signalTracker) {
                 this._signalTracker.disconnectAll();

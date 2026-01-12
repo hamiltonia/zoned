@@ -12,10 +12,10 @@
  * Part of the LayoutSwitcher module split for maintainability.
  */
 
-import Clutter from 'gi://Clutter';
-import St from 'gi://St';
+import Clutter from '@girs/clutter-14';
+import St from '@girs/st-14';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import {createLogger} from '../../utils/debug.js';
+import {createLogger} from '../../utils/debug';
 import {createZonePreview} from './cardFactory.js';
 
 const logger = createLogger('TopBar');

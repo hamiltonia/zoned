@@ -8,37 +8,36 @@
  * - Window state management
  */
 
-import Meta from 'gi://Meta';
+import Meta from '@girs/meta-14';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from './utils/debug.js';
+import type {Zone} from './types/zone';
 
 const logger = createLogger('WindowManager');
 
 export class WindowManager {
+    private _display: Meta.Display | null;
+
     constructor() {
         this._display = global.display;
     }
 
     /**
      * Get the currently focused window
-     * @returns {Meta.Window|null} The focused window, or null if none
+     * @returns The focused window, or null if none
      */
-    getFocusedWindow() {
-        return this._display.focus_window;
+    getFocusedWindow(): Meta.Window | null {
+        return this._display?.focus_window ?? null;
     }
 
     /**
      * Move and resize a window to fit within a specified zone
      *
-     * @param {Meta.Window} window - The window to move
-     * @param {Object} zone - Zone definition with x, y, w, h (percentages 0-1)
-     * @param {number} zone.x - X position as percentage of screen width
-     * @param {number} zone.y - Y position as percentage of screen height
-     * @param {number} zone.w - Width as percentage of screen width
-     * @param {number} zone.h - Height as percentage of screen height
-     * @param {number} [padding=0] - Padding in pixels to inset window from zone edges
+     * @param window - The window to move
+     * @param zone - Zone definition with x, y, w, h (percentages 0-1)
+     * @param padding - Padding in pixels to inset window from zone edges
      */
-    moveWindowToZone(window, zone, padding = 0) {
+    moveWindowToZone(window: Meta.Window | null, zone: Zone, padding: number = 0): void {
         if (!window) {
             logger.warn('No window provided to moveWindowToZone');
             return;
@@ -56,7 +55,7 @@ export class WindowManager {
 
         // Get the monitor the window is currently on
         const monitorIndex = window.get_monitor();
-        const workArea = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
+        const workArea = (Main.layoutManager as any).getWorkAreaForMonitor(monitorIndex);
 
         // Calculate absolute pixel coordinates from zone percentages
         const x = Math.round(workArea.x + (zone.x * workArea.width));
@@ -84,9 +83,9 @@ export class WindowManager {
 
     /**
      * Minimize the specified window
-     * @param {Meta.Window} window - The window to minimize
+     * @param window - The window to minimize
      */
-    minimizeWindow(window) {
+    minimizeWindow(window: Meta.Window | null): void {
         if (!window) {
             logger.warn('No window provided to minimizeWindow');
             return;
@@ -104,9 +103,9 @@ export class WindowManager {
      * If not maximized, maximize it
      * If already maximized, unmaximize it
      *
-     * @param {Meta.Window} window - The window to maximize/restore
+     * @param window - The window to maximize/restore
      */
-    maximizeWindow(window) {
+    maximizeWindow(window: Meta.Window | null): void {
         if (!window) {
             logger.warn('No window provided to maximizeWindow');
             return;
@@ -129,9 +128,9 @@ export class WindowManager {
 
     /**
      * Restore the most recently minimized window
-     * @returns {boolean} True if a window was restored, false otherwise
+     * @returns True if a window was restored, false otherwise
      */
-    restoreMinimizedWindow() {
+    restoreMinimizedWindow(): boolean {
         const workspace = global.workspace_manager.get_active_workspace();
         const windows = workspace.list_windows();
 
@@ -153,7 +152,7 @@ export class WindowManager {
     /**
      * Clean up resources
      */
-    destroy() {
+    destroy(): void {
         // Clear display reference to prevent memory leaks
         this._display = null;
     }

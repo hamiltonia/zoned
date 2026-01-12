@@ -23,6 +23,8 @@ export interface Layout {
     zones: Zone[];
     editable?: boolean;
     isTemplate?: boolean;
+    padding?: number;      // Optional padding in pixels
+    shortcut?: string | number;  // Optional quick layout shortcut (1-9)
 }
 
 /**

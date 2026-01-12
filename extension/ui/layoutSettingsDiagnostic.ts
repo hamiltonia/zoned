@@ -7,14 +7,15 @@
  * proper cleanup, no closures.
  */
 
-import Clutter from 'gi://Clutter';
-import St from 'gi://St';
-import GLib from 'gi://GLib';
-import Shell from 'gi://Shell';
+import Clutter from '@girs/clutter-14';
+import St from '@girs/st-14';
+import GLib from '@girs/glib-2.0';
+import Shell from '@girs/shell-14';
+import Gio from '@girs/gio-2.0';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import {createLogger} from '../utils/debug.js';
-import {SignalTracker} from '../utils/signalTracker.js';
-import {ThemeManager} from '../utils/theme.js';
+import {createLogger} from '../utils/debug';
+import {SignalTracker} from '../utils/signalTracker';
+import {ThemeManager} from '../utils/theme';
 
 const logger = createLogger('LayoutSettingsDiagnostic');
 
@@ -38,53 +39,88 @@ const ENABLE_CONTROLS = {
     themeManager: true,    // ✅ SAFE - Test 3: +0.514 MB/100, R²=0.061 PASS
 };
 
+interface ColorScheme {
+    containerBg: string;
+    sectionBg: string;
+    sectionBorder: string;
+    textPrimary: string;
+    textSecondary: string;
+    inputBg: string;
+    inputBorder: string;
+    buttonBg: string;
+    buttonBgHover: string;
+    buttonText: string;
+    accentHex: string;
+}
+
+interface SpinnerContainer extends St.BoxLayout {
+    _valueLabel?: St.Label;
+    _value?: number;
+    _min?: number;
+    _max?: number;
+    _step?: number;
+}
+
+interface DropdownContainer extends St.BoxLayout {
+    _valueLabel?: St.Label;
+    _options?: string[];
+    _selectedIndex?: number;
+}
+
+interface CheckboxButton extends St.Button {
+    _checked?: boolean;
+}
 
 /**
  * Module-level handler functions to prevent closure leaks
  * Following layoutSettingsDialog's proven pattern
  */
 
-function handleButtonClick() {
+function handleButtonClick(): void {
     logger.debug('Diagnostic button clicked');
 }
 
-function handleWidgetHoverEnter(widget, hoverStyle) {
+function handleWidgetHoverEnter(widget: St.Widget, hoverStyle: string): boolean {
     widget.style = hoverStyle;
     return Clutter.EVENT_PROPAGATE;
 }
 
-function handleWidgetHoverLeave(widget, normalStyle) {
+function handleWidgetHoverLeave(widget: St.Widget, normalStyle: string): boolean {
     widget.style = normalStyle;
     return Clutter.EVENT_PROPAGATE;
 }
 
-function handleUpButtonClick(container, valueLabel, optionsOrMax, step) {
+function handleUpButtonClick(container: SpinnerContainer | DropdownContainer, valueLabel: St.Label, optionsOrMax: string[] | number, step: number | undefined): void {
     if (Array.isArray(optionsOrMax)) {
         // Dropdown
-        container._selectedIndex = (container._selectedIndex + 1) % optionsOrMax.length;
-        valueLabel.text = optionsOrMax[container._selectedIndex];
+        const dropdown = container as DropdownContainer;
+        dropdown._selectedIndex = ((dropdown._selectedIndex || 0) + 1) % optionsOrMax.length;
+        valueLabel.text = optionsOrMax[dropdown._selectedIndex];
     } else {
         // Spinner
+        const spinner = container as SpinnerContainer;
         const max = optionsOrMax;
-        if (container._value < max) {
-            container._value = Math.min(max, container._value + step);
-            valueLabel.text = String(container._value);
+        if ((spinner._value || 0) < max) {
+            spinner._value = Math.min(max, (spinner._value || 0) + (step || 1));
+            valueLabel.text = String(spinner._value);
         }
     }
 }
 
-function handleDownButtonClick(container, valueLabel, optionsOrMin, step) {
+function handleDownButtonClick(container: SpinnerContainer | DropdownContainer, valueLabel: St.Label, optionsOrMin: string[] | number, step: number | undefined): void {
     if (Array.isArray(optionsOrMin)) {
         // Dropdown
+        const dropdown = container as DropdownContainer;
         const options = optionsOrMin;
-        container._selectedIndex = (container._selectedIndex - 1 + options.length) % options.length;
-        valueLabel.text = options[container._selectedIndex];
+        dropdown._selectedIndex = ((dropdown._selectedIndex || 0) - 1 + options.length) % options.length;
+        valueLabel.text = options[dropdown._selectedIndex!];
     } else {
         // Spinner
+        const spinner = container as SpinnerContainer;
         const min = optionsOrMin;
-        if (container._value > min) {
-            container._value = Math.max(min, container._value - step);
-            valueLabel.text = String(container._value);
+        if ((spinner._value || 0) > min) {
+            spinner._value = Math.max(min, (spinner._value || 0) - (step || 1));
+            valueLabel.text = String(spinner._value);
         }
     }
 }
@@ -93,7 +129,23 @@ function handleDownButtonClick(container, valueLabel, optionsOrMin, step) {
  * Diagnostic Dialog for Memory Leak Testing
  */
 export class LayoutSettingsDiagnostic {
-    constructor(settings) {
+    private _settings: Gio.Settings;
+    private _themeManager: ThemeManager | null;
+    private _widgets: St.Widget[];
+    private _signalTracker: SignalTracker | null;
+    private _idleSourceIds: number[];
+    private _boundHandlers: ((...args: any[]) => any)[];
+    private _container: St.Widget | null;
+    private _dialogCard: St.BoxLayout | null;
+    private _modal: any;
+    private _visible: boolean;
+    private _closing: boolean;
+    private _boundHandleContainerClick: ((actor: St.Widget, event: Clutter.Event) => boolean) | null;
+    private _boundHandleKeyPress: ((actor: St.Widget, event: Clutter.Event) => boolean) | null;
+    private _boundOnClose: (() => void) | null;
+    private _instanceId: number;
+
+    constructor(settings: Gio.Settings) {
         this._settings = settings;
         this._themeManager = ENABLE_CONTROLS.themeManager ? new ThemeManager(settings) : null;
 
@@ -127,7 +179,7 @@ export class LayoutSettingsDiagnostic {
         logger.debug(`LayoutSettingsDiagnostic #${this._instanceId} created. Active instances: ${activeInstances}`, ENABLE_CONTROLS);
     }
 
-    open() {
+    open(): void {
         if (this._visible) {
             logger.warn('Diagnostic dialog already visible');
             return;
@@ -136,7 +188,7 @@ export class LayoutSettingsDiagnostic {
         // Reset bound handlers array at start of each open to prevent accumulation
         this._boundHandlers = [];
 
-        const monitor = Main.layoutManager.currentMonitor;
+        const monitor = (Main.layoutManager as any).currentMonitor;
         const colors = this._themeManager ? this._themeManager.getColors() : this._getDefaultColors();
 
         // Create full-screen container
@@ -150,7 +202,7 @@ export class LayoutSettingsDiagnostic {
         });
 
         // Click on container dismisses
-        this._signalTracker.connect(
+        this._signalTracker!.connect(
             this._container, 'button-press-event', this._boundHandleContainerClick,
         );
 
@@ -158,7 +210,7 @@ export class LayoutSettingsDiagnostic {
         this._buildDialogCard(colors);
 
         // Add to container
-        this._container.add_child(this._dialogCard);
+        this._container.add_child(this._dialogCard!);
 
         // Position and show
         const positionSourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
@@ -174,7 +226,7 @@ export class LayoutSettingsDiagnostic {
             );
 
             this._dialogCard.opacity = 255;
-            Main.uiGroup.add_child(this._container);
+            (Main.uiGroup as any).add_child(this._container);
 
             return GLib.SOURCE_REMOVE;
         });
@@ -187,14 +239,14 @@ export class LayoutSettingsDiagnostic {
             }
 
             try {
-                this._modal = Main.pushModal(this._container, {
+                this._modal = (Main as any).pushModal(this._container, {
                     actionMode: Shell.ActionMode.NORMAL,
                 });
                 if (!this._modal) {
                     logger.error('Failed to acquire modal');
                 }
             } catch (e) {
-                logger.error(`Exception acquiring modal: ${e.message}`);
+                logger.error(`Exception acquiring modal: ${(e as Error).message}`);
                 this._modal = null;
             }
 
@@ -203,7 +255,7 @@ export class LayoutSettingsDiagnostic {
         this._idleSourceIds.push(modalSourceId);
 
         // Connect key handler
-        this._signalTracker.connect(
+        this._signalTracker!.connect(
             this._container, 'key-press-event', this._boundHandleKeyPress,
         );
 
@@ -211,7 +263,7 @@ export class LayoutSettingsDiagnostic {
         logger.debug('Diagnostic dialog opened');
     }
 
-    close() {
+    close(): void {
         if (!this._visible || this._closing) {
             return;
         }
@@ -219,7 +271,7 @@ export class LayoutSettingsDiagnostic {
 
         this._cleanupIdleSources();
         this._cleanupModal();
-        this._signalTracker.disconnectAll();
+        this._signalTracker!.disconnectAll();
         this._destroyWidgets();
         this._releaseBoundFunctions();
         this._destroyContainer();
@@ -232,7 +284,7 @@ export class LayoutSettingsDiagnostic {
         logger.debug(`LayoutSettingsDiagnostic #${this._instanceId} closed. Active instances: ${activeInstances}`);
     }
 
-    _buildDialogCard(colors) {
+    private _buildDialogCard(colors: any): void {
         this._dialogCard = new St.BoxLayout({
             vertical: true,
             reactive: true,
@@ -255,12 +307,12 @@ export class LayoutSettingsDiagnostic {
         this._widgets.push(section);
 
         // Close button
-        const closeBtn = this._createButton(colors, 'Close', this._boundOnClose);
+        const closeBtn = this._createButton(colors, 'Close', this._boundOnClose!);
         this._dialogCard.add_child(closeBtn);
         this._widgets.push(closeBtn);
     }
 
-    _createSection(colors) {
+    private _createSection(colors: any): St.BoxLayout {
         const section = new St.BoxLayout({
             vertical: true,
             style: `background-color: ${colors.sectionBg}; border: 1px solid ${colors.sectionBorder}; ` +
@@ -317,7 +369,7 @@ export class LayoutSettingsDiagnostic {
         return section;
     }
 
-    _createButton(colors, label, onClick) {
+    private _createButton(colors: any, label: string, onClick: () => void): St.Button {
         const normalStyle = 'padding: 10px 24px; background-color: ' + colors.buttonBg + '; ' +
                            'color: ' + colors.buttonText + '; border-radius: 6px; border: 1px solid ' + colors.sectionBorder + ';';
         const hoverStyle = 'padding: 10px 24px; background-color: ' + colors.buttonBgHover + '; ' +
@@ -329,20 +381,20 @@ export class LayoutSettingsDiagnostic {
             can_focus: true,
         });
 
-        this._signalTracker.connect(button, 'clicked', onClick);
+        this._signalTracker!.connect(button, 'clicked', onClick);
 
         if (ENABLE_CONTROLS.hoverEffects) {
             const boundEnter = handleWidgetHoverEnter.bind(null, button, hoverStyle);
             const boundLeave = handleWidgetHoverLeave.bind(null, button, normalStyle);
             this._boundHandlers.push(boundEnter, boundLeave);
-            this._signalTracker.connect(button, 'enter-event', boundEnter);
-            this._signalTracker.connect(button, 'leave-event', boundLeave);
+            this._signalTracker!.connect(button, 'enter-event', boundEnter);
+            this._signalTracker!.connect(button, 'leave-event', boundLeave);
         }
 
         return button;
     }
 
-    _createIconButton(colors) {
+    private _createIconButton(colors: any): St.Button {
         const normalStyle = 'padding: 6px 10px; background-color: transparent; border-radius: 6px;';
         const hoverStyle = `padding: 6px 10px; background-color: ${colors.buttonBgHover}; border-radius: 6px;`;
 
@@ -358,22 +410,22 @@ export class LayoutSettingsDiagnostic {
         });
         button.set_child(icon);
 
-        this._signalTracker.connect(button, 'clicked', handleButtonClick);
+        this._signalTracker!.connect(button, 'clicked', handleButtonClick);
 
         if (ENABLE_CONTROLS.hoverEffects) {
             const boundEnter = handleWidgetHoverEnter.bind(null, button, hoverStyle);
             const boundLeave = handleWidgetHoverLeave.bind(null, button, normalStyle);
             this._boundHandlers.push(boundEnter, boundLeave);
-            this._signalTracker.connect(button, 'enter-event', boundEnter);
-            this._signalTracker.connect(button, 'leave-event', boundLeave);
+            this._signalTracker!.connect(button, 'enter-event', boundEnter);
+            this._signalTracker!.connect(button, 'leave-event', boundLeave);
         }
 
         return button;
     }
 
-    _createCheckbox(colors) {
+    private _createCheckbox(colors: any): CheckboxButton {
         const checked = true;
-        const checkbox = new St.Button({
+        const checkbox: CheckboxButton = new St.Button({
             style: 'width: 18px; height: 18px; margin-bottom: 8px; ' +
                    `border: 2px solid ${checked ? colors.accentHex : colors.textSecondary}; ` +
                    'border-radius: 3px; ' +
@@ -397,8 +449,8 @@ export class LayoutSettingsDiagnostic {
         return checkbox;
     }
 
-    _createSpinner(colors) {
-        const container = new St.BoxLayout({
+    private _createSpinner(colors: any): SpinnerContainer {
+        const container: SpinnerContainer = new St.BoxLayout({
             vertical: false,
             style: `background-color: ${colors.inputBg}; border: 1px solid ${colors.inputBorder}; ` +
                    'border-radius: 6px; margin-bottom: 8px;',
@@ -439,7 +491,7 @@ export class LayoutSettingsDiagnostic {
 
         const boundUpClick = handleUpButtonClick.bind(null, container, valueLabel, 10, 1);
         this._boundHandlers.push(boundUpClick);
-        this._signalTracker.connect(upButton, 'clicked', boundUpClick);
+        this._signalTracker!.connect(upButton, 'clicked', boundUpClick);
 
         buttonsBox.add_child(upButton);
         // Don't push upButton to _widgets - it's a child of buttonsBox
@@ -458,7 +510,7 @@ export class LayoutSettingsDiagnostic {
 
         const boundDownClick = handleDownButtonClick.bind(null, container, valueLabel, 0, 1);
         this._boundHandlers.push(boundDownClick);
-        this._signalTracker.connect(downButton, 'clicked', boundDownClick);
+        this._signalTracker!.connect(downButton, 'clicked', boundDownClick);
 
         buttonsBox.add_child(downButton);
         // Don't push downButton to _widgets - it's a child of buttonsBox
@@ -469,9 +521,9 @@ export class LayoutSettingsDiagnostic {
         return container;
     }
 
-    _createDropdown(colors) {
+    private _createDropdown(colors: any): DropdownContainer {
         const options = ['Option 1', 'Option 2', 'Option 3'];
-        const container = new St.BoxLayout({
+        const container: DropdownContainer = new St.BoxLayout({
             vertical: false,
             style: `background-color: ${colors.inputBg}; border: 1px solid ${colors.inputBorder}; ` +
                    'border-radius: 6px; margin-bottom: 8px;',
@@ -510,7 +562,7 @@ export class LayoutSettingsDiagnostic {
 
         const boundUpClick = handleUpButtonClick.bind(null, container, valueLabel, options, undefined);
         this._boundHandlers.push(boundUpClick);
-        this._signalTracker.connect(upButton, 'clicked', boundUpClick);
+        this._signalTracker!.connect(upButton, 'clicked', boundUpClick);
 
         buttonsBox.add_child(upButton);
         // Don't push upButton to _widgets - it's a child of buttonsBox
@@ -529,7 +581,7 @@ export class LayoutSettingsDiagnostic {
 
         const boundDownClick = handleDownButtonClick.bind(null, container, valueLabel, options, undefined);
         this._boundHandlers.push(boundDownClick);
-        this._signalTracker.connect(downButton, 'clicked', boundDownClick);
+        this._signalTracker!.connect(downButton, 'clicked', boundDownClick);
 
         buttonsBox.add_child(downButton);
         // Don't push downButton to _widgets - it's a child of buttonsBox
@@ -540,7 +592,7 @@ export class LayoutSettingsDiagnostic {
         return container;
     }
 
-    _getDefaultColors() {
+    private _getDefaultColors(): ColorScheme {
         return {
             containerBg: '#2d2d2d',
             sectionBg: '#3a3a3a',
@@ -556,7 +608,7 @@ export class LayoutSettingsDiagnostic {
         };
     }
 
-    _handleContainerClick(actor, event) {
+    private _handleContainerClick(actor: St.Widget, event: Clutter.Event): boolean {
         const [clickX, clickY] = event.get_coords();
         const cardAlloc = this._dialogCard ? this._dialogCard.get_transformed_extents() : null;
 
@@ -574,7 +626,7 @@ export class LayoutSettingsDiagnostic {
         return Clutter.EVENT_PROPAGATE;
     }
 
-    _handleKeyPress(actor, event) {
+    private _handleKeyPress(actor: St.Widget, event: Clutter.Event): boolean {
         const symbol = event.get_key_symbol();
         if (symbol === Clutter.KEY_Escape) {
             this._onClose();
@@ -583,7 +635,7 @@ export class LayoutSettingsDiagnostic {
         return Clutter.EVENT_PROPAGATE;
     }
 
-    _onClose() {
+    private _onClose(): void {
         if (this._closing || !this._visible) {
             return;
         }
@@ -591,7 +643,7 @@ export class LayoutSettingsDiagnostic {
         this.close();
     }
 
-    _cleanupIdleSources() {
+    private _cleanupIdleSources(): void {
         logger.debug(`Removing ${this._idleSourceIds.length} idle sources`);
         for (const sourceId of this._idleSourceIds) {
             GLib.Source.remove(sourceId);
@@ -599,14 +651,14 @@ export class LayoutSettingsDiagnostic {
         this._idleSourceIds = [];
     }
 
-    _cleanupModal() {
+    private _cleanupModal(): void {
         if (this._modal) {
-            Main.popModal(this._modal);
+            (Main as any).popModal(this._modal);
             this._modal = null;
         }
     }
 
-    _destroyWidgets() {
+    private _destroyWidgets(): void {
         logger.debug(`Destroying ${this._widgets.length} widgets`);
         for (const widget of this._widgets.reverse()) {
             if (widget) {
@@ -623,7 +675,7 @@ export class LayoutSettingsDiagnostic {
         this._signalTracker = null;
     }
 
-    _releaseBoundFunctions() {
+    private _releaseBoundFunctions(): void {
         logger.debug(`Releasing ${this._boundHandlers.length} bound handlers`);
         this._boundHandlers = [];
         this._boundHandleContainerClick = null;
@@ -631,15 +683,15 @@ export class LayoutSettingsDiagnostic {
         this._boundOnClose = null;
     }
 
-    _destroyContainer() {
+    private _destroyContainer(): void {
         if (this._container) {
-            Main.uiGroup.remove_child(this._container);
+            (Main.uiGroup as any).remove_child(this._container);
             this._container.destroy();
             this._container = null;
         }
     }
 
-    _cleanupThemeManager() {
+    private _cleanupThemeManager(): void {
         if (this._themeManager) {
             this._themeManager.destroy();
             this._themeManager = null;

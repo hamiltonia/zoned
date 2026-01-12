@@ -5,18 +5,18 @@
  * Includes editable keyboard shortcuts with capture functionality.
  */
 
-import Adw from 'gi://Adw';
-import Gtk from 'gi://Gtk';
+import Adw from '@girs/adw-1';
+import Gtk from '@girs/gtk-4.0';
 import Gdk from 'gi://Gdk';
-import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
+import Gio from '@girs/gio-2.0';
+import GLib from '@girs/glib-2.0';
 import GObject from 'gi://GObject';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 import {
     GNOME_BINDINGS,
     normalizeAccelerator,
-} from './utils/keybindingConfig.js';
+} from './utils/keybindingConfig';
 import {getExtensionVersion} from './utils/versionUtil.js';
 
 // Debug logging for prefs (console.log goes to journalctl)

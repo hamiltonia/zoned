@@ -15,21 +15,21 @@
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-import {WindowManager} from './windowManager.js';
-import {LayoutManager} from './layoutManager.js';
-import {SpatialStateManager} from './spatialStateManager.js';
-import {TemplateManager} from './templateManager.js';
-import {KeybindingManager} from './keybindingManager.js';
-import {NotificationManager} from './ui/notificationManager.js';
-import {LayoutSwitcher} from './ui/layoutSwitcher.js';
-import {ZoneOverlay} from './ui/zoneOverlay.js';
-import {ConflictDetector} from './ui/conflictDetector.js';
-import {PanelIndicator} from './ui/panelIndicator.js';
-import * as LayoutSettingsDialogModule from './ui/layoutSettingsDialog.js';
-import {createLogger, initDebugSettings, destroyDebugSettings} from './utils/debug.js';
-import {NotificationService, NotifyCategory} from './utils/notificationService.js';
-import {initResourceTracking, destroyResourceTracking} from './utils/resourceTracker.js';
-import {createDebugInterface} from './utils/debugInterface.js';
+import {WindowManager} from './windowManager';
+import {LayoutManager} from './layoutManager';
+import {SpatialStateManager} from './spatialStateManager';
+import {TemplateManager} from './templateManager';
+import {KeybindingManager} from './keybindingManager';
+import {NotificationManager} from './ui/notificationManager';
+import {LayoutSwitcher} from './ui/layoutSwitcher';
+import {ZoneOverlay} from './ui/zoneOverlay';
+import {ConflictDetector} from './ui/conflictDetector';
+import {PanelIndicator} from './ui/panelIndicator';
+import * as LayoutSettingsDialogModule from './ui/layoutSettingsDialog';
+import {createLogger, initDebugSettings, destroyDebugSettings} from './utils/debug';
+import {NotificationService, NotifyCategory} from './utils/notificationService';
+import {initResourceTracking, destroyResourceTracking} from './utils/resourceTracker';
+import {createDebugInterface} from './utils/debugInterface';
 
 const logger = createLogger('Extension');
 
@@ -249,6 +249,7 @@ export default class ZonedExtension extends Extension {
             this._zoneOverlay,
             this._settings,
             this._notificationService,
+            this.path,
         );
         logger.debug('PanelIndicator initialized');
 

@@ -155,4 +155,31 @@ export default [
     // State Managers (Group 2)
     createTSBuildConfig('extension/spatialStateManager.ts', 'build/rollup/spatialStateManager.js'),
     createTSBuildConfig('extension/layoutManager.ts', 'build/rollup/layoutManager.js'),
+    
+    // Core Components (Group 3)
+    createTSBuildConfig('extension/windowManager.ts', 'build/rollup/windowManager.js'),
+    createTSBuildConfig('extension/keybindingManager.ts', 'build/rollup/keybindingManager.js'),
+    
+    // UI Components (Group 4)
+    createTSBuildConfig('extension/ui/notificationManager.ts', 'build/rollup/ui/notificationManager.js'),
+    createTSBuildConfig('extension/ui/zoneOverlay.ts', 'build/rollup/ui/zoneOverlay.js'),
+    createTSBuildConfig('extension/ui/confirmDialog.ts', 'build/rollup/ui/confirmDialog.js'),
+    createTSBuildConfig('extension/ui/conflictDetector.ts', 'build/rollup/ui/conflictDetector.js'),
+    createTSBuildConfig('extension/ui/panelIndicator.ts', 'build/rollup/ui/panelIndicator.js'),
+    createTSBuildConfig('extension/ui/layoutPreviewBackground.ts', 'build/rollup/ui/layoutPreviewBackground.js'),
+    createTSBuildConfig('extension/ui/layoutSettingsDiagnostic.ts', 'build/rollup/ui/layoutSettingsDiagnostic.js'),
+    createTSBuildConfig('extension/ui/zoneEditor.ts', 'build/rollup/ui/zoneEditor.js'),
+    createTSBuildConfig('extension/ui/layoutSettingsDialog.ts', 'build/rollup/ui/layoutSettingsDialog.js'),
+    createTSBuildConfig('extension/ui/layoutSwitcher.ts', 'build/rollup/ui/layoutSwitcher.js'),
+    
+    // LayoutSwitcher Components
+    createTSBuildConfig('extension/ui/layoutSwitcher/resizeHandler.ts', 'build/rollup/ui/layoutSwitcher/resizeHandler.js'),
+    createTSBuildConfig('extension/ui/layoutSwitcher/tierConfig.ts', 'build/rollup/ui/layoutSwitcher/tierConfig.js'),
+    createTSBuildConfig('extension/ui/layoutSwitcher/sectionFactory.ts', 'build/rollup/ui/layoutSwitcher/sectionFactory.js'),
+    createTSBuildConfig('extension/ui/layoutSwitcher/cardFactory.ts', 'build/rollup/ui/layoutSwitcher/cardFactory.js'),
+    createTSBuildConfig('extension/ui/layoutSwitcher/topBar.ts', 'build/rollup/ui/layoutSwitcher/topBar.js'),
+    
+    // Entry Points (Group 5)
+    createTSBuildConfig('extension/extension.ts', 'build/rollup/extension.js'),
+    createTSBuildConfig('extension/prefs.ts', 'build/rollup/prefs.js'),
 ];

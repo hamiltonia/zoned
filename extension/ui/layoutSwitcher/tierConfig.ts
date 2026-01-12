@@ -15,7 +15,7 @@
  * - Equal left/right margins
  */
 
-import {createLogger} from '../../utils/debug.js';
+import {createLogger} from '../../utils/debug';
 
 const logger = createLogger('TierConfig');
 

@@ -21,9 +21,9 @@
  * Part of the LayoutSwitcher module split for maintainability.
  */
 
-import Clutter from 'gi://Clutter';
-import St from 'gi://St';
-import {createLogger} from '../../utils/debug.js';
+import Clutter from '@girs/clutter-14';
+import St from '@girs/st-14';
+import {createLogger} from '../../utils/debug';
 
 const logger = createLogger('CardFactory');
 

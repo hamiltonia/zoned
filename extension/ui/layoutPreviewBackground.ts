@@ -17,25 +17,45 @@
  * Similar to ZoneEditor visuals but completely non-interactive.
  */
 
-import St from 'gi://St';
-import Clutter from 'gi://Clutter';
+import St from '@girs/st-14';
+import Clutter from '@girs/clutter-14';
+import Gio from '@girs/gio-2.0';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import {createLogger} from '../utils/debug.js';
-import {ThemeManager} from '../utils/theme.js';
-import {SignalTracker} from '../utils/signalTracker.js';
+import {createLogger} from '../utils/debug';
+import {ThemeManager} from '../utils/theme';
+import {SignalTracker} from '../utils/signalTracker';
+import type {Layout, Zone} from '../types/layout';
+import type {LayoutManager} from '../layoutManager';
+import type {SpatialStateManager} from '../spatialStateManager';
 
 const logger = createLogger('LayoutPreviewBackground');
 
 // Fast fade duration in milliseconds (for polished transitions)
 const FADE_DURATION_MS = 100;
 
+interface Monitor {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    index: number;
+}
+
+interface MonitorData {
+    overlay: St.Widget;
+    zoneActors: St.Widget[];
+    currentLayout: Layout | null;
+    monitorIndex: number;
+    monitor: Monitor;
+}
+
 /**
  * Handle button-press-event on overlay to dismiss preview
  * Module-level handler (Wave 3: avoid arrow function closure)
- * @param {Function} onBackgroundClick - Callback to invoke
- * @returns {boolean} Clutter.EVENT_STOP
+ * @param onBackgroundClick - Callback to invoke
+ * @returns Clutter.EVENT_STOP
  */
-function handleOverlayButtonPress(onBackgroundClick) {
+function handleOverlayButtonPress(onBackgroundClick: (() => void) | null): boolean {
     if (onBackgroundClick) {
         onBackgroundClick();
     }
@@ -43,13 +63,24 @@ function handleOverlayButtonPress(onBackgroundClick) {
 }
 
 export class LayoutPreviewBackground {
+    private _settings: Gio.Settings;
+    private _themeManager: ThemeManager | null;
+    private _onBackgroundClick: (() => void) | null;
+    private _signalTracker: SignalTracker | null;
+    private _monitorOverlays: MonitorData[];
+    private _selectedMonitorIndex: number;
+    private _visible: boolean;
+    private _isDestroying: boolean;
+    private _layoutManager: LayoutManager | null;
+    private _spatialStateManager: SpatialStateManager | null;
+
     /**
      * Create a new layout preview background
-     * @param {Gio.Settings} settings - Extension settings instance
-     * @param {Function} onBackgroundClick - Callback when background is clicked (to dismiss dialog)
+     * @param settings - Extension settings instance
+     * @param onBackgroundClick - Callback when background is clicked (to dismiss dialog)
      */
-    constructor(settings, onBackgroundClick) {
-        global.zonedDebug?.trackInstance('LayoutPreviewBackground');
+    constructor(settings: Gio.Settings, onBackgroundClick: (() => void) | null) {
+        (global as any).zonedDebug?.trackInstance('LayoutPreviewBackground');
         this._settings = settings;
         this._themeManager = new ThemeManager(settings);
         this._onBackgroundClick = onBackgroundClick;
@@ -74,31 +105,31 @@ export class LayoutPreviewBackground {
 
     /**
      * Set layout manager reference for per-space layout lookups
-     * @param {LayoutManager} layoutManager
+     * @param layoutManager
      */
-    setLayoutManager(layoutManager) {
+    setLayoutManager(layoutManager: LayoutManager): void {
         this._layoutManager = layoutManager;
-        this._spatialStateManager = layoutManager?.getSpatialStateManager?.() || null;
+        this._spatialStateManager = (layoutManager as any)?.getSpatialStateManager?.() || null;
     }
 
     /**
      * Show the preview background on all monitors
-     * @param {Object} layout - Initial layout for selected monitor (optional)
-     * @param {number} selectedMonitorIndex - Which monitor is being configured (default: current)
+     * @param layout - Initial layout for selected monitor (optional)
+     * @param selectedMonitorIndex - Which monitor is being configured (default: current)
      */
-    show(layout = null, selectedMonitorIndex = null) {
+    show(layout: Layout | null = null, selectedMonitorIndex: number | null = null): void {
         if (this._visible) {
             return;
         }
 
-        const colors = this._themeManager.getColors();
-        const monitors = Main.layoutManager.monitors;
+        const colors = this._themeManager!.getColors();
+        const monitors = (Main.layoutManager as any).monitors as Monitor[];
 
         // Determine selected monitor
         if (selectedMonitorIndex !== null) {
             this._selectedMonitorIndex = selectedMonitorIndex;
         } else {
-            this._selectedMonitorIndex = Main.layoutManager.currentMonitor.index;
+            this._selectedMonitorIndex = (Main.layoutManager as any).currentMonitor.index;
         }
 
         // Create overlay for each monitor
@@ -117,10 +148,10 @@ export class LayoutPreviewBackground {
 
             // Click on any overlay to dismiss (Wave 3: bound method)
             const boundButtonPress = handleOverlayButtonPress.bind(null, this._onBackgroundClick);
-            this._signalTracker.connect(overlay, 'button-press-event', boundButtonPress);
+            this._signalTracker!.connect(overlay, 'button-press-event', boundButtonPress);
 
             // Add to uiGroup
-            Main.uiGroup.add_child(overlay);
+            (Main.uiGroup as any).add_child(overlay);
 
             this._monitorOverlays.push({
                 overlay: overlay,
@@ -147,7 +178,7 @@ export class LayoutPreviewBackground {
     /**
      * Hide and destroy the preview background on all monitors
      */
-    hide() {
+    hide(): void {
         if (!this._visible) {
             return;
         }
@@ -162,7 +193,7 @@ export class LayoutPreviewBackground {
             this._clearZonesForMonitor(monitorData);
 
             if (monitorData.overlay.get_parent()) {
-                Main.uiGroup.remove_child(monitorData.overlay);
+                (Main.uiGroup as any).remove_child(monitorData.overlay);
             }
             monitorData.overlay.destroy();
         }
@@ -176,9 +207,9 @@ export class LayoutPreviewBackground {
     /**
      * Set visibility of overlays without destroying them
      * Used when temporarily hiding for zone editor, then restoring
-     * @param {boolean} visible - Whether overlays should be visible
+     * @param visible - Whether overlays should be visible
      */
-    setVisibility(visible) {
+    setVisibility(visible: boolean): void {
         if (!this._visible || this._monitorOverlays.length === 0) {
             logger.warn('setVisibility called but no overlays exist');
             return;
@@ -199,7 +230,7 @@ export class LayoutPreviewBackground {
      * Update layouts on non-selected monitors (for per-space mode)
      * @private
      */
-    _updateOtherMonitorLayouts() {
+    private _updateOtherMonitorLayouts(): void {
         const perSpaceEnabled = this._settings.get_boolean('use-per-workspace-layouts');
 
         if (!perSpaceEnabled || !this._layoutManager || !this._spatialStateManager) {
@@ -213,7 +244,7 @@ export class LayoutPreviewBackground {
 
             // Get the layout for this monitor's space
             const spaceKey = this._spatialStateManager.makeKey(monitorData.monitorIndex);
-            const layout = this._layoutManager.getLayoutForSpace(spaceKey);
+            const layout = (this._layoutManager as any).getLayoutForSpace(spaceKey);
 
             if (layout) {
                 this._setLayoutForMonitorImmediate(monitorData, layout);
@@ -223,9 +254,9 @@ export class LayoutPreviewBackground {
 
     /**
      * Update the displayed layout on the selected monitor with a fast fade transition
-     * @param {Object} layout - Layout to display (with zones array)
+     * @param layout - Layout to display (with zones array)
      */
-    setLayout(layout) {
+    setLayout(layout: Layout): void {
         if (!this._visible || this._monitorOverlays.length === 0) {
             logger.warn('Cannot setLayout - preview not visible');
             return;
@@ -265,9 +296,9 @@ export class LayoutPreviewBackground {
 
     /**
      * Set layout immediately without fade (for initial display or performance)
-     * @param {Object} layout - Layout to display
+     * @param layout - Layout to display
      */
-    setLayoutImmediate(layout) {
+    setLayoutImmediate(layout: Layout): void {
         if (!this._visible || this._monitorOverlays.length === 0) {
             return;
         }
@@ -280,11 +311,11 @@ export class LayoutPreviewBackground {
 
     /**
      * Set layout immediately for a specific monitor
-     * @param {Object} monitorData - Monitor data object from _monitorOverlays
-     * @param {Object} layout - Layout to display
+     * @param monitorData - Monitor data object from _monitorOverlays
+     * @param layout - Layout to display
      * @private
      */
-    _setLayoutForMonitorImmediate(monitorData, layout) {
+    private _setLayoutForMonitorImmediate(monitorData: MonitorData, layout: Layout): void {
         monitorData.currentLayout = layout;
         this._clearZonesForMonitor(monitorData);
 
@@ -299,10 +330,10 @@ export class LayoutPreviewBackground {
 
     /**
      * Set the selected monitor index and optionally update its layout
-     * @param {number} monitorIndex - Monitor index to select
-     * @param {Object} layout - Optional layout to display on that monitor
+     * @param monitorIndex - Monitor index to select
+     * @param layout - Optional layout to display on that monitor
      */
-    setSelectedMonitor(monitorIndex, layout = null) {
+    setSelectedMonitor(monitorIndex: number, layout: Layout | null = null): void {
         this._selectedMonitorIndex = monitorIndex;
         if (layout) {
             this.setLayout(layout);
@@ -311,14 +342,14 @@ export class LayoutPreviewBackground {
 
     /**
      * Create zone actors for the given zones on a specific monitor
-     * @param {Object} monitorData - Monitor data object
-     * @param {Array} zones - Array of zone definitions {x, y, w, h, name}
+     * @param monitorData - Monitor data object
+     * @param zones - Array of zone definitions {x, y, w, h, name}
      * @private
      */
-    _createZonesForMonitor(monitorData, zones) {
+    private _createZonesForMonitor(monitorData: MonitorData, zones: Zone[]): void {
         const monitor = monitorData.monitor;
         const isSelected = (monitorData.monitorIndex === this._selectedMonitorIndex);
-        const colors = this._themeManager.getColors();
+        const colors = this._themeManager!.getColors();
         const accentHex = colors.accentHex;
 
         // Non-selected monitors get dimmed zones
@@ -386,15 +417,14 @@ export class LayoutPreviewBackground {
             monitorData.overlay.add_child(zoneActor);
             monitorData.zoneActors.push(zoneActor);
         });
-
     }
 
     /**
      * Clear all zone actors for a specific monitor
-     * @param {Object} monitorData - Monitor data object
+     * @param monitorData - Monitor data object
      * @private
      */
-    _clearZonesForMonitor(monitorData) {
+    private _clearZonesForMonitor(monitorData: MonitorData): void {
         monitorData.zoneActors.forEach(actor => {
             if (actor.get_parent() === monitorData.overlay) {
                 monitorData.overlay.remove_child(actor);
@@ -406,12 +436,12 @@ export class LayoutPreviewBackground {
 
     /**
      * Fade in zone actors for a specific monitor
-     * @param {Object} monitorData - Monitor data object
+     * @param monitorData - Monitor data object
      * @private
      */
-    _fadeInZonesForMonitor(monitorData) {
+    private _fadeInZonesForMonitor(monitorData: MonitorData): void {
         monitorData.zoneActors.forEach(actor => {
-            actor.ease({
+            (actor as any).ease({
                 opacity: 255,
                 duration: FADE_DURATION_MS,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
@@ -421,11 +451,11 @@ export class LayoutPreviewBackground {
 
     /**
      * Fade out zone actors for a specific monitor then call callback
-     * @param {Object} monitorData - Monitor data object
-     * @param {Function} callback - Called when fade completes
+     * @param monitorData - Monitor data object
+     * @param callback - Called when fade completes
      * @private
      */
-    _fadeOutZonesForMonitor(monitorData, callback) {
+    private _fadeOutZonesForMonitor(monitorData: MonitorData, callback: () => void): void {
         if (monitorData.zoneActors.length === 0) {
             callback();
             return;
@@ -435,7 +465,7 @@ export class LayoutPreviewBackground {
         const total = monitorData.zoneActors.length;
 
         monitorData.zoneActors.forEach(actor => {
-            actor.ease({
+            (actor as any).ease({
                 opacity: 0,
                 duration: FADE_DURATION_MS / 2,
                 mode: Clutter.AnimationMode.EASE_IN_QUAD,
@@ -453,27 +483,27 @@ export class LayoutPreviewBackground {
      * Bring all overlays to the front (below modal dialog)
      * Used when dialog order changes
      */
-    raise() {
+    raise(): void {
         for (const monitorData of this._monitorOverlays) {
             if (monitorData.overlay && monitorData.overlay.get_parent()) {
                 const parent = monitorData.overlay.get_parent();
-                parent.set_child_below_sibling(monitorData.overlay, null);
+                (parent as any).set_child_below_sibling(monitorData.overlay, null);
             }
         }
     }
 
     /**
      * Get whether the preview is currently visible
-     * @returns {boolean}
+     * @returns
      */
-    isVisible() {
+    isVisible(): boolean {
         return this._visible;
     }
 
     /**
      * Clean up resources
      */
-    destroy() {
+    destroy(): void {
         // Guard against re-entrance during cleanup
         if (this._isDestroying) {
             return;
@@ -496,7 +526,7 @@ export class LayoutPreviewBackground {
                 this._themeManager = null;
             }
 
-            global.zonedDebug?.trackInstance('LayoutPreviewBackground', false);
+            (global as any).zonedDebug?.trackInstance('LayoutPreviewBackground', false);
         } finally {
             // Always reset the flag, even if an error occurred
             this._isDestroying = false;

@@ -7,27 +7,62 @@
  * - Coordinating actions between managers
  */
 
-import Meta from 'gi://Meta';
-import Shell from 'gi://Shell';
+import Meta from '@girs/meta-14';
+import Shell from '@girs/shell-14';
+import Gio from '@girs/gio-2.0';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from './utils/debug.js';
 import {NotifyCategory} from './utils/notificationService.js';
+import type {LayoutManager} from './layoutManager';
+import type {WindowManager} from './windowManager';
+import type {NotificationService} from './utils/notificationService';
 
 const logger = createLogger('KeybindingManager');
 
+// Placeholder types for UI components not yet migrated
+type NotificationManager = any;
+type LayoutSwitcher = any;
+type ZoneOverlay = any;
+
 export class KeybindingManager {
+    private _settings: Gio.Settings | null;
+    private _layoutManager: LayoutManager | null;
+    private _windowManager: WindowManager | null;
+    private _notificationManager: NotificationManager | null;
+    private _layoutSwitcher: LayoutSwitcher | null;
+    private _zoneOverlay: ZoneOverlay | null;
+    private _notificationService: NotificationService | null;
+    private _registeredKeys: string[];
+    private _enhancedWindowManagementKeys: string[];
+    private _quickLayoutKeys: string[];
+    private _settingsChangedId: number | null;
+    private _quickLayoutSettingsChangedId: number | null;
+    private _boundOnEnhancedWindowManagementChanged: (() => void) | null;
+    private _boundOnQuickLayoutShortcutsChanged: (() => void) | null;
+    private _boundOnCycleZoneLeft: () => void;
+    private _boundOnCycleZoneRight: () => void;
+    private _boundOnShowLayoutSwitcher: () => void;
+    private _boundOnMinimizeWindow: () => void;
+    private _boundOnMaximizeWindow: () => void;
+    private _boundQuickLayoutHandlers: Array<() => void>;
+
     /**
-     * @param {Gio.Settings} settings - GSettings object
-     * @param {LayoutManager} layoutManager - Layout manager instance
-     * @param {WindowManager} windowManager - Window manager instance
-     * @param {NotificationManager} notificationManager - Notification manager instance (legacy)
-     * @param {LayoutSwitcher} layoutSwitcher - Layout Switcher instance
-     * @param {ZoneOverlay} zoneOverlay - Zone overlay instance (optional)
-     * @param {NotificationService} notificationService - Notification service for routing (optional)
+     * @param settings - GSettings object
+     * @param layoutManager - Layout manager instance
+     * @param windowManager - Window manager instance
+     * @param notificationManager - Notification manager instance (legacy)
+     * @param layoutSwitcher - Layout Switcher instance
+     * @param zoneOverlay - Zone overlay instance (optional)
+     * @param notificationService - Notification service for routing (optional)
      */
     constructor(
-        settings, layoutManager, windowManager, notificationManager,
-        layoutEditor, zoneOverlay = null, notificationService = null,
+        settings: Gio.Settings,
+        layoutManager: LayoutManager,
+        windowManager: WindowManager,
+        notificationManager: NotificationManager,
+        layoutEditor: LayoutSwitcher,
+        zoneOverlay: ZoneOverlay | null = null,
+        notificationService: NotificationService | null = null,
     ) {
         this._settings = settings;
         this._layoutManager = layoutManager;
@@ -65,7 +100,7 @@ export class KeybindingManager {
     /**
      * Register all keybindings
      */
-    registerKeybindings() {
+    registerKeybindings(): void {
         logger.info('Registering keybindings...');
 
         // Zone cycling - use pre-bound handlers
@@ -83,17 +118,17 @@ export class KeybindingManager {
 
         // Listen for settings changes to toggle enhanced window management
         this._boundOnEnhancedWindowManagementChanged = this._onEnhancedWindowManagementChanged.bind(this);
-        this._settingsChangedId = this._settings.connect(
+        this._settingsChangedId = this._settings?.connect(
             'changed::enhanced-window-management-enabled',
             this._boundOnEnhancedWindowManagementChanged,
-        );
+        ) ?? null;
 
         // Listen for settings changes to toggle quick layout shortcuts
         this._boundOnQuickLayoutShortcutsChanged = this._onQuickLayoutShortcutsChanged.bind(this);
-        this._quickLayoutSettingsChangedId = this._settings.connect(
+        this._quickLayoutSettingsChangedId = this._settings?.connect(
             'changed::quick-layout-shortcuts-enabled',
             this._boundOnQuickLayoutShortcutsChanged,
-        );
+        ) ?? null;
 
         logger.info(`Registered ${this._registeredKeys.length} keybindings`);
     }
@@ -102,8 +137,8 @@ export class KeybindingManager {
      * Register quick layout shortcuts (Super+Ctrl+Alt+1-9) if enabled
      * @private
      */
-    _registerQuickLayoutShortcuts() {
-        const enabled = this._settings.get_boolean('quick-layout-shortcuts-enabled');
+    private _registerQuickLayoutShortcuts(): void {
+        const enabled = this._settings?.get_boolean('quick-layout-shortcuts-enabled') ?? false;
 
         if (!enabled) {
             logger.debug('Quick layout shortcuts disabled, skipping registration');
@@ -122,8 +157,8 @@ export class KeybindingManager {
      * Handle quick layout shortcuts setting change
      * @private
      */
-    _onQuickLayoutShortcutsChanged() {
-        const enabled = this._settings.get_boolean('quick-layout-shortcuts-enabled');
+    private _onQuickLayoutShortcutsChanged(): void {
+        const enabled = this._settings?.get_boolean('quick-layout-shortcuts-enabled') ?? false;
         logger.info(`Quick layout shortcuts ${enabled ? 'enabled' : 'disabled'}`);
 
         if (enabled) {
@@ -139,11 +174,11 @@ export class KeybindingManager {
      * Unregister only quick layout shortcuts keybindings
      * @private
      */
-    _unregisterQuickLayoutShortcuts() {
+    private _unregisterQuickLayoutShortcuts(): void {
         this._quickLayoutKeys.forEach(name => {
             if (this._registeredKeys.includes(name)) {
                 try {
-                    Main.wm.removeKeybinding(name);
+                    (Main.wm as any).removeKeybinding(name);
                     this._registeredKeys = this._registeredKeys.filter(k => k !== name);
                     logger.debug(`Unregistered quick layout keybinding: ${name}`);
                 } catch (error) {
@@ -157,8 +192,8 @@ export class KeybindingManager {
      * Register enhanced window management keybindings if enabled
      * @private
      */
-    _registerEnhancedWindowManagement() {
-        const enabled = this._settings.get_boolean('enhanced-window-management-enabled');
+    private _registerEnhancedWindowManagement(): void {
+        const enabled = this._settings?.get_boolean('enhanced-window-management-enabled') ?? false;
 
         if (!enabled) {
             logger.debug('Enhanced window management disabled, skipping registration');
@@ -176,8 +211,8 @@ export class KeybindingManager {
      * Handle enhanced window management setting change
      * @private
      */
-    _onEnhancedWindowManagementChanged() {
-        const enabled = this._settings.get_boolean('enhanced-window-management-enabled');
+    private _onEnhancedWindowManagementChanged(): void {
+        const enabled = this._settings?.get_boolean('enhanced-window-management-enabled') ?? false;
         logger.info(`Enhanced window management ${enabled ? 'enabled' : 'disabled'}`);
 
         if (enabled) {
@@ -193,11 +228,11 @@ export class KeybindingManager {
      * Unregister only enhanced window management keybindings
      * @private
      */
-    _unregisterEnhancedWindowManagement() {
+    private _unregisterEnhancedWindowManagement(): void {
         this._enhancedWindowManagementKeys.forEach(name => {
             if (this._registeredKeys.includes(name)) {
                 try {
-                    Main.wm.removeKeybinding(name);
+                    (Main.wm as any).removeKeybinding(name);
                     this._registeredKeys = this._registeredKeys.filter(k => k !== name);
                     logger.debug(`Unregistered enhanced keybinding: ${name}`);
                 } catch (error) {
@@ -211,9 +246,9 @@ export class KeybindingManager {
      * Register a single keybinding
      * @private
      */
-    _registerKeybinding(name, handler) {
+    private _registerKeybinding(name: string, handler: () => void): void {
         try {
-            Main.wm.addKeybinding(
+            (Main.wm as any).addKeybinding(
                 name,
                 this._settings,
                 Meta.KeyBindingFlags.NONE,
@@ -230,12 +265,12 @@ export class KeybindingManager {
     /**
      * Unregister all keybindings
      */
-    unregisterKeybindings() {
+    unregisterKeybindings(): void {
         logger.info('Unregistering keybindings...');
 
         this._registeredKeys.forEach(name => {
             try {
-                Main.wm.removeKeybinding(name);
+                (Main.wm as any).removeKeybinding(name);
                 logger.debug(`Unregistered keybinding: ${name}`);
             } catch (error) {
                 logger.error(`Failed to unregister keybinding '${name}': ${error}`);
@@ -247,15 +282,15 @@ export class KeybindingManager {
 
     /**
      * Get space key from focused window for per-space mode
-     * @param {Meta.Window} window - The window to get space context from
-     * @returns {string|null} Space key if per-workspace mode enabled, null otherwise
+     * @param window - The window to get space context from
+     * @returns Space key if per-workspace mode enabled, null otherwise
      * @private
      */
-    _getSpaceKeyFromWindow(window) {
-        const perSpaceEnabled = this._settings.get_boolean('use-per-workspace-layouts');
+    private _getSpaceKeyFromWindow(window: Meta.Window | null): string | null {
+        const perSpaceEnabled = this._settings?.get_boolean('use-per-workspace-layouts') ?? false;
         if (!perSpaceEnabled || !window) return null;
 
-        const spatialStateManager = this._layoutManager.getSpatialStateManager();
+        const spatialStateManager = this._layoutManager?.getSpatialStateManager();
         if (!spatialStateManager) return null;
 
         return spatialStateManager.getSpaceKeyForWindow(window);
@@ -265,10 +300,10 @@ export class KeybindingManager {
      * Handler: Cycle to previous zone (Super+Left)
      * @private
      */
-    _onCycleZoneLeft() {
+    private _onCycleZoneLeft(): void {
         logger.debug('Cycle zone left triggered');
 
-        const window = this._windowManager.getFocusedWindow();
+        const window = this._windowManager?.getFocusedWindow();
         if (!window) {
             logger.debug('No focused window to move');
             return;
@@ -277,24 +312,24 @@ export class KeybindingManager {
         // Get space context for per-workspace mode
         const spaceKey = this._getSpaceKeyFromWindow(window);
 
-        const zone = this._layoutManager.cycleZone(-1, spaceKey);
+        const zone = this._layoutManager?.cycleZone(-1, spaceKey as any);
         if (!zone) {
             logger.warn('Failed to cycle to previous zone');
             return;
         }
 
         // Get layout info (space-aware if per-workspace mode)
-        const layout = this._layoutManager.getCurrentLayout(spaceKey);
+        const layout = this._layoutManager?.getCurrentLayout(spaceKey as any);
         const padding = layout?.padding || 0;
 
-        this._windowManager.moveWindowToZone(window, zone, padding);
+        this._windowManager?.moveWindowToZone(window, zone, padding);
         const zoneIndex = spaceKey
-            ? this._layoutManager.getZoneIndexForSpace(spaceKey)
-            : this._layoutManager.getCurrentZoneIndex();
-        const totalZones = layout.zones.length;
+            ? this._layoutManager?.getZoneIndexForSpace(spaceKey) ?? 0
+            : this._layoutManager?.getCurrentZoneIndex() ?? 0;
+        const totalZones = layout?.zones.length ?? 0;
 
         // Show zone notification (uses notification settings)
-        if (this._notificationService) {
+        if (this._notificationService && layout) {
             this._notificationService.notifyZone(
                 NotifyCategory.WINDOW_SNAPPING,
                 layout.name,
@@ -308,10 +343,10 @@ export class KeybindingManager {
      * Handler: Cycle to next zone (Super+Right)
      * @private
      */
-    _onCycleZoneRight() {
+    private _onCycleZoneRight(): void {
         logger.debug('Cycle zone right triggered');
 
-        const window = this._windowManager.getFocusedWindow();
+        const window = this._windowManager?.getFocusedWindow();
         if (!window) {
             logger.debug('No focused window to move');
             return;
@@ -320,24 +355,24 @@ export class KeybindingManager {
         // Get space context for per-workspace mode
         const spaceKey = this._getSpaceKeyFromWindow(window);
 
-        const zone = this._layoutManager.cycleZone(1, spaceKey);
+        const zone = this._layoutManager?.cycleZone(1, spaceKey as any);
         if (!zone) {
             logger.warn('Failed to cycle to next zone');
             return;
         }
 
         // Get layout info (space-aware if per-workspace mode)
-        const layout = this._layoutManager.getCurrentLayout(spaceKey);
+        const layout = this._layoutManager?.getCurrentLayout(spaceKey as any);
         const padding = layout?.padding || 0;
 
-        this._windowManager.moveWindowToZone(window, zone, padding);
+        this._windowManager?.moveWindowToZone(window, zone, padding);
         const zoneIndex = spaceKey
-            ? this._layoutManager.getZoneIndexForSpace(spaceKey)
-            : this._layoutManager.getCurrentZoneIndex();
-        const totalZones = layout.zones.length;
+            ? this._layoutManager?.getZoneIndexForSpace(spaceKey) ?? 0
+            : this._layoutManager?.getCurrentZoneIndex() ?? 0;
+        const totalZones = layout?.zones.length ?? 0;
 
         // Show zone notification (uses notification settings)
-        if (this._notificationService) {
+        if (this._notificationService && layout) {
             this._notificationService.notifyZone(
                 NotifyCategory.WINDOW_SNAPPING,
                 layout.name,
@@ -351,7 +386,7 @@ export class KeybindingManager {
      * Handler: Show Layout Switcher (Super+grave)
      * @private
      */
-    _onShowLayoutSwitcher() {
+    private _onShowLayoutSwitcher(): void {
         logger.debug('Show Layout Switcher triggered');
 
         if (this._layoutSwitcher) {
@@ -364,13 +399,13 @@ export class KeybindingManager {
     /**
      * Handler: Quick layout shortcut (Super+Ctrl+Alt+1-9)
      * Activates layout by its assigned shortcut property (user-configurable in layout settings)
-     * @param {number} shortcutKey - The shortcut key pressed (1-9)
+     * @param shortcutKey - The shortcut key pressed (1-9)
      * @private
      */
-    _onQuickLayout(shortcutKey) {
+    private _onQuickLayout(shortcutKey: number): void {
         logger.debug(`Quick layout shortcut ${shortcutKey} triggered`);
 
-        const layouts = this._layoutManager.getAllLayoutsOrdered();
+        const layouts = this._layoutManager?.getAllLayoutsOrdered() ?? [];
 
         // Find layout with matching shortcut assignment
         // shortcut can be string ('1'-'9') or number (1-9)
@@ -393,21 +428,21 @@ export class KeybindingManager {
         logger.info(`Quick switching to layout: ${layout.name} (shortcut ${shortcutKey})`);
 
         // Check if per-workspace mode is enabled
-        const perSpaceEnabled = this._settings.get_boolean('use-per-workspace-layouts');
+        const perSpaceEnabled = this._settings?.get_boolean('use-per-workspace-layouts') ?? false;
 
         if (perSpaceEnabled) {
             // Apply to the current space (works even without a focused window)
-            const spatialStateManager = this._layoutManager.getSpatialStateManager();
+            const spatialStateManager = this._layoutManager?.getSpatialStateManager();
             if (spatialStateManager) {
                 // getSpaceKeyForWindow handles null window → uses getCurrentSpaceKey()
-                const window = this._windowManager.getFocusedWindow();
+                const window = this._windowManager?.getFocusedWindow();
                 const spaceKey = spatialStateManager.getSpaceKeyForWindow(window);
-                this._layoutManager.setLayoutForSpace(spaceKey, layout.id);
+                this._layoutManager?.setLayoutForSpace(spaceKey, layout.id);
                 logger.info(`Applied layout '${layout.name}' to space ${spaceKey}`);
             }
         } else {
             // Apply globally
-            this._layoutManager.setLayout(layout.id);
+            this._layoutManager?.setLayout(layout.id);
         }
 
         // Show notification (uses notification settings)
@@ -424,13 +459,13 @@ export class KeybindingManager {
      * If already minimized (by us), restore it instead.
      * @private
      */
-    _onMinimizeWindow() {
+    private _onMinimizeWindow(): void {
         logger.debug('Minimize window triggered');
 
-        const window = this._windowManager.getFocusedWindow();
+        const window = this._windowManager?.getFocusedWindow();
         if (!window) {
             // No focused window - try to restore the last minimized
-            const restored = this._windowManager.restoreMinimizedWindow();
+            const restored = this._windowManager?.restoreMinimizedWindow() ?? false;
             if (restored) {
                 if (this._notificationService) {
                     this._notificationService.notify(
@@ -443,7 +478,7 @@ export class KeybindingManager {
         }
 
         // Minimize the focused window
-        this._windowManager.minimizeWindow(window);
+        this._windowManager?.minimizeWindow(window);
         if (this._notificationService) {
             this._notificationService.notify(
                 NotifyCategory.WINDOW_MANAGEMENT,
@@ -458,11 +493,11 @@ export class KeybindingManager {
      * Otherwise, toggle between maximized and floating.
      * @private
      */
-    _onMaximizeWindow() {
+    private _onMaximizeWindow(): void {
         logger.debug('Maximize window triggered');
 
         // First, try to restore a minimized window
-        const restored = this._windowManager.restoreMinimizedWindow();
+        const restored = this._windowManager?.restoreMinimizedWindow() ?? false;
         if (restored) {
             if (this._notificationService) {
                 this._notificationService.notify(
@@ -474,14 +509,14 @@ export class KeybindingManager {
         }
 
         // No minimized window to restore, toggle maximize on focused window
-        const window = this._windowManager.getFocusedWindow();
+        const window = this._windowManager?.getFocusedWindow();
         if (!window) {
             logger.debug('No focused window to maximize');
             return;
         }
 
         const wasMaximized = window.maximized_horizontally || window.maximized_vertically;
-        this._windowManager.maximizeWindow(window);
+        this._windowManager?.maximizeWindow(window);
 
         if (this._notificationService) {
             this._notificationService.notify(
@@ -494,17 +529,17 @@ export class KeybindingManager {
     /**
      * Clean up resources
      */
-    destroy() {
+    destroy(): void {
         // Unregister keybindings first
         this.unregisterKeybindings();
 
         // Disconnect settings listeners
-        if (this._settingsChangedId) {
+        if (this._settingsChangedId && this._settings) {
             this._settings.disconnect(this._settingsChangedId);
             this._settingsChangedId = null;
         }
 
-        if (this._quickLayoutSettingsChangedId) {
+        if (this._quickLayoutSettingsChangedId && this._settings) {
             this._settings.disconnect(this._quickLayoutSettingsChangedId);
             this._quickLayoutSettingsChangedId = null;
         }
@@ -512,12 +547,6 @@ export class KeybindingManager {
         // Release ALL bound function references to prevent memory leaks
         this._boundOnEnhancedWindowManagementChanged = null;
         this._boundOnQuickLayoutShortcutsChanged = null;
-        this._boundOnCycleZoneLeft = null;
-        this._boundOnCycleZoneRight = null;
-        this._boundOnShowLayoutSwitcher = null;
-        this._boundOnMinimizeWindow = null;
-        this._boundOnMaximizeWindow = null;
-        this._boundQuickLayoutHandlers = null;
 
         // Release ALL component references to break reference cycles
         this._settings = null;
@@ -527,8 +556,5 @@ export class KeybindingManager {
         this._layoutSwitcher = null;
         this._zoneOverlay = null;
         this._notificationService = null;
-        this._registeredKeys = null;
-        this._enhancedWindowManagementKeys = null;
-        this._quickLayoutKeys = null;
     }
 }
