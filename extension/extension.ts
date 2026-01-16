@@ -12,8 +12,9 @@
  * - PanelIndicator: Top bar menu
  */
 
+import Gio from '@girs/gio-2.0';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import {Extension, ExtensionMetadata} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {WindowManager} from './windowManager';
 import {LayoutManager} from './layoutManager';
@@ -29,12 +30,45 @@ import * as LayoutSettingsDialogModule from './ui/layoutSettingsDialog';
 import {createLogger, initDebugSettings, destroyDebugSettings} from './utils/debug';
 import {NotificationService, NotifyCategory} from './utils/notificationService';
 import {initResourceTracking, destroyResourceTracking} from './utils/resourceTracker';
-import {createDebugInterface} from './utils/debugInterface';
+import {createDebugInterface, DebugInterface} from './utils/debugInterface';
 
 const logger = createLogger('Extension');
 
 export default class ZonedExtension extends Extension {
-    constructor(metadata) {
+    // Manager instances
+    private _settings: Gio.Settings | null;
+    private _windowManager: WindowManager | null;
+    private _layoutManager: LayoutManager | null;
+    private _spatialStateManager: SpatialStateManager | null;
+    private _templateManager: TemplateManager | null;
+    private _notificationManager: NotificationManager | null;
+    private _notificationService: NotificationService | null;
+    private _layoutSwitcher: LayoutSwitcher | null;
+    private _zoneOverlay: ZoneOverlay | null;
+    private _conflictDetector: ConflictDetector | null;
+    private _panelIndicator: PanelIndicator | null;
+    private _keybindingManager: KeybindingManager | null;
+    private _debugInterface: DebugInterface | null;
+
+    // Signal connection IDs
+    private _workspaceSwitchedSignal: number | null;
+    private _conflictCountSignal: number | null;
+    private _previewSignal: number | null;
+    private _showIndicatorSignal: number | null;
+
+    // Bound signal handlers (for proper cleanup)
+    private _boundOnShowIndicatorChanged: (() => void) | null;
+    private _boundOnConflictCountChanged: (() => void) | null;
+    private _boundOnPreviewChanged: (() => void) | null;
+    private _boundOnWorkspaceSwitched: ((manager: any, from: number, to: number, direction: any) => void) | null;
+
+    // Recursion guard for preview signal handler
+    private _handlingPreview: boolean;
+
+    // Layout settings dialog module (stored for D-Bus testing)
+    private _layoutSettingsDialogModule: typeof LayoutSettingsDialogModule | null;
+
+    constructor(metadata: ExtensionMetadata) {
         super(metadata);
 
         // Manager instances
