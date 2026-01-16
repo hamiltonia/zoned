@@ -15,11 +15,12 @@ Complete step-by-step guide to set up VM-based development for Zoned GNOME Shell
 
 1. [Quick Start (Recommended)](#quick-start-recommended)
 2. [Host Prerequisites](#host-prerequisites)
-3. [Create VM in GNOME Boxes](#create-vm-in-gnome-boxes)
-4. [Configure virtiofs File Sharing](#configure-virtiofs-file-sharing)
-5. [Initialize VM Development](#initialize-vm-development)
-6. [Daily Development Workflow](#daily-development-workflow)
-7. [Troubleshooting](#troubleshooting)
+3. [Network Configuration (Important!)](#network-configuration-important)
+4. [Create VM in GNOME Boxes](#create-vm-in-gnome-boxes)
+5. [Configure virtiofs File Sharing](#configure-virtiofs-file-sharing)
+6. [Initialize VM Development](#initialize-vm-development)
+7. [Daily Development Workflow](#daily-development-workflow)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -30,15 +31,17 @@ Complete step-by-step guide to set up VM-based development for Zoned GNOME Shell
 ```
 1. Install GNOME Boxes and virtualization tools
    ↓
-2. Create VM in GNOME Boxes (30 seconds, GUI)
+2. Configure host network (./scripts/util/vm-network-setup)
    ↓
-3. Install OS (Fedora 42 recommended)
+3. Create VM in GNOME Boxes (30 seconds, GUI)
    ↓
-4. make vm-virtiofs-migrate (automated virtiofs setup)
+4. Install OS (Fedora 42 recommended)
    ↓
-5. make vm-setup (SSH + verify virtiofs)
+5. make vm-virtiofs-migrate (automated virtiofs setup)
    ↓
-6. make vm-install (deploy & test)
+6. make vm-setup (SSH + verify virtiofs)
+   ↓
+7. make vm-install (deploy & test)
 ```
 
 This guide walks you through each step.
@@ -89,6 +92,62 @@ sudo usermod -a -G libvirt $USER
 lsmod | grep kvm
 # Should show: kvm_intel or kvm_amd
 ```
+
+---
+
+## Network Configuration (Important!)
+
+**This step is critical** - VMs need proper network configuration to access the internet. This is especially important if you have Docker installed.
+
+### The Problem
+
+Docker's default iptables configuration sets the FORWARD policy to DROP, which prevents VMs from accessing the internet through the `virbr0` bridge. Even without Docker, network configuration ensures VMs work reliably.
+
+### The Solution
+
+Run the network setup script **before** creating VMs (or after if you encounter network issues):
+
+```bash
+cd ~/GitHub/zoned
+./scripts/util/vm-network-setup
+# Or: make vm-network-setup
+```
+
+**What this script does:**
+- Enables IP forwarding (`net.ipv4.ip_forward = 1`)
+- Adds iptables FORWARD rules for the virbr0 bridge
+- Configures NAT MASQUERADE for VM subnet (192.168.122.0/24)
+- Makes all changes persistent across reboots
+- Detects your distro and configures appropriately (Fedora/firewalld, Ubuntu/iptables-persistent, Arch)
+
+**Safe to run multiple times** - The script is idempotent and won't duplicate rules.
+
+### When to Run
+
+- **Proactive:** Run before creating any VMs (recommended)
+- **Reactive:** Run if VMs can't access the internet
+- **One-time setup:** Affects all VMs on your host, not just one
+
+### Verification
+
+After running the script and creating a VM:
+
+**In the VM:**
+```bash
+ping -c 3 8.8.8.8
+# Should succeed with replies from 8.8.8.8
+```
+
+**On the host (optional):**
+```bash
+sudo iptables -L FORWARD -n -v --line-numbers
+# Should show ACCEPT rules for virbr0
+
+sudo iptables -t nat -L POSTROUTING -n -v
+# Should show MASQUERADE rule for 192.168.122.0/24
+```
+
+**If you skip this step:** VMs will start fine but won't be able to access the internet or install packages.
 
 ---
 
@@ -491,10 +550,11 @@ make vm-stop
 
 **Setup (one-time):**
 1. Install GNOME Boxes + virtiofsd on host
-2. Create VM in GNOME Boxes
-3. Install OS (Fedora 42 recommended)
-4. `make vm-virtiofs-migrate` (automated virtiofs setup)
-5. `make vm-setup` (SSH + verify + install extension)
+2. **Configure host network:** `./scripts/util/vm-network-setup`
+3. Create VM in GNOME Boxes
+4. Install OS (Fedora 42 recommended)
+5. `make vm-virtiofs-migrate` (automated virtiofs setup)
+6. `make vm-setup` (SSH + verify + install extension)
 
 **Daily workflow:**
 1. Start VM in GNOME Boxes
