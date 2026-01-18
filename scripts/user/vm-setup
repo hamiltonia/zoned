@@ -5,8 +5,7 @@
 # This script handles the complete VM setup workflow:
 # - Auto-detects running VMs
 # - Sets up SSH access
-# - Prompts for file sharing method (virtiofs or SPICE)
-# - Sets up the chosen sharing method
+# - Sets up virtiofs file sharing
 # - Copies extension files to writable VM directory
 # - Compiles GSettings schema in writable location
 # - Writes cache for fast vm-install iterations
@@ -45,7 +44,7 @@ show_help() {
     printf "${CYAN}What it does:${NC}\n"
     printf "  1. Auto-detects running VMs (or lets you select from multiple)\n"
     printf "  2. Sets up SSH access (creates config, copies keys)\n"
-    printf "  3. Configures file sharing (virtiofs or SPICE)\n"
+    printf "  3. Configures file sharing (virtiofs)\n"
     printf "  4. Copies extension files to writable VM directory\n"
     printf "  5. Compiles GSettings schema in writable location\n"
     printf "  6. Enables the extension\n"
@@ -54,18 +53,10 @@ show_help() {
     printf "${CYAN}Options:${NC}\n"
     printf "  -h, --help        Show this help message\n"
     printf "\n"
-    printf "${CYAN}File Sharing Methods:${NC}\n"
-    printf "  ${GREEN}virtiofs${NC} (recommended)\n"
-    printf "    - Fast, kernel-level file sharing\n"
+    printf "${CYAN}File Sharing:${NC}\n"
+    printf "  Uses ${GREEN}virtiofs${NC} for fast, kernel-level file sharing.\n"
     printf "    - Better for long-haul testing\n"
-    printf "    - Requires one-time VM restart\n"
     printf "    - Persistent across reboots\n"
-    printf "\n"
-    printf "  ${YELLOW}SPICE WebDAV${NC}\n"
-    printf "    - Works with GNOME Boxes out of the box\n"
-    printf "    - Slower, uses GVFS mount\n"
-    printf "    - Requires display client connection\n"
-    printf "    - May need manual remounting\n"
     printf "\n"
     printf "${CYAN}Multi-VM Workflow:${NC}\n"
     printf "  vm-setup automatically creates a profile for each VM you configure.\n"
@@ -111,6 +102,12 @@ main() {
     echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
     echo -e "${CYAN}   Zoned VM Setup${NC}"
     echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    
+    # Step 0: Check host prerequisites (virtiofsd, etc)
+    if ! vm_check_host_prerequisites; then
+        exit 1
+    fi
     echo ""
     
     # Step 1: Detect running VM
@@ -163,35 +160,43 @@ main() {
     if [[ "$need_share_setup" == "true" ]]; then
         vm_print_step "Step 3: Setting up file sharing..."
         
-        # Ask user to choose sharing method
-        vm_select_share_type
-        echo ""
+        # virtiofs is the only supported sharing method
+        VM_SHARE_TYPE="virtiofs"
         
-        # For virtiofs, ensure permissions are correct on host
-        if [[ "$VM_SHARE_TYPE" == "virtiofs" ]]; then
-            vm_ensure_virtiofs_permissions
-        fi
+        # Ensure permissions are correct on host
+        vm_ensure_virtiofs_permissions
         
-        # For virtiofs, check if host side is configured
-        if [[ "$VM_SHARE_TYPE" == "virtiofs" ]]; then
-            local has_virtiofs
-            has_virtiofs=$(virsh --connect "$VIRSH_CONNECT" dumpxml "$VM_DOMAIN" 2>/dev/null | grep -c "virtiofs" | head -1)
-            [[ -z "$has_virtiofs" ]] && has_virtiofs="0"
+        # Check if host side is configured
+        local has_virtiofs
+        has_virtiofs=$(virsh --connect "$VIRSH_CONNECT" dumpxml "$VM_DOMAIN" 2>/dev/null | grep -c "virtiofs" | head -1)
+        [[ -z "$has_virtiofs" ]] && has_virtiofs="0"
+        
+        # The expected share path is the project root (parent of scripts/)
+        local expected_share_path
+        expected_share_path="$(cd "$SCRIPT_DIR/../.." && pwd)"
+        
+        if [[ "$has_virtiofs" -gt 0 ]]; then
+            # virtiofs configured - check if path is correct
+            local current_path
+            current_path=$(vm_get_virtiofs_source_path "$VM_DOMAIN")
             
-            if [[ "$has_virtiofs" -eq 0 ]]; then
-                vm_print_warning "virtiofs not configured on host"
+            if ! vm_virtiofs_path_correct "$VM_DOMAIN" "$expected_share_path"; then
+                vm_print_warning "virtiofs source path is incorrect"
                 echo ""
-                echo "The VM needs virtiofs configuration first."
+                echo -e "Current path: ${YELLOW}$current_path${NC}"
+                echo -e "Expected path: ${GREEN}$expected_share_path${NC}"
                 echo ""
-                read -p "Run vm-virtiofs-migrate now to configure? [Y/n]: " migrate_confirm
-                if [[ "${migrate_confirm,,}" != "n" ]]; then
-                    "$SCRIPT_DIR/../util/vm-virtiofs-migrate"
-                    if [[ $? -ne 0 ]]; then
-                        vm_print_error "virtiofs migration failed"
+                echo "The virtiofs share is pointing to the wrong directory."
+                echo "This needs to be corrected."
+                echo ""
+                read -p "Update virtiofs source path? [Y/n]: " fix_confirm
+                if [[ "${fix_confirm,,}" != "n" ]]; then
+                    if ! vm_update_virtiofs_path "$VM_DOMAIN" "$expected_share_path"; then
+                        vm_print_error "Failed to update virtiofs path"
                         exit 1
                     fi
                     
-                    # Wait for VM to be fully ready after migration restart
+                    # Wait for SSH to be ready after VM restart
                     vm_print_step "Waiting for VM to be ready..."
                     local waited=0
                     while [[ $waited -lt 60 ]]; do
@@ -205,16 +210,57 @@ main() {
                     done
                     echo ""
                     
-                    if ! ssh -o ConnectTimeout=3 -o BatchMode=yes "$VM_DOMAIN" "exit" 2>/dev/null; then
-                        vm_print_error "VM not responding after migration"
-                        echo "Please check VM status and try again"
-                        exit 1
-                    fi
+                    # Unmount old mount if present (it will have stale data)
+                    ssh "$VM_DOMAIN" "sudo umount /mnt/zoned 2>/dev/null" || true
                 else
-                    vm_print_error "Cannot continue without virtiofs configuration"
-                    echo "Run 'scripts/vm-virtiofs-migrate' manually, then try again."
+                    vm_print_error "Cannot continue with incorrect virtiofs path"
                     exit 1
                 fi
+            fi
+        fi
+        
+        if [[ "$has_virtiofs" -eq 0 ]]; then
+            vm_print_warning "virtiofs not configured on host"
+            echo ""
+            echo "The VM needs virtiofs configuration."
+            echo "This will:"
+            echo "  1. Shut down the VM temporarily"
+            echo "  2. Add virtiofs configuration to the VM"
+            echo "  3. Start the VM again"
+            echo ""
+            read -p "Configure virtiofs now? [Y/n]: " config_confirm
+            if [[ "${config_confirm,,}" != "n" ]]; then
+                # Use the share path which is the parent directory (the zoned repo)
+                local share_path
+                share_path="$(cd "$SCRIPT_DIR/../.." && pwd)"
+                
+                if ! vm_configure_virtiofs_host "$VM_DOMAIN" "$share_path"; then
+                    vm_print_error "virtiofs configuration failed"
+                    exit 1
+                fi
+                
+                # Wait for SSH to be ready after VM restart
+                vm_print_step "Waiting for VM to be ready..."
+                local waited=0
+                while [[ $waited -lt 60 ]]; do
+                    if ssh -o ConnectTimeout=3 -o BatchMode=yes "$VM_DOMAIN" "exit" 2>/dev/null; then
+                        vm_print_success "VM is ready"
+                        break
+                    fi
+                    echo -n "."
+                    sleep 2
+                    waited=$((waited + 2))
+                done
+                echo ""
+                
+                if ! ssh -o ConnectTimeout=3 -o BatchMode=yes "$VM_DOMAIN" "exit" 2>/dev/null; then
+                    vm_print_error "VM not responding after configuration"
+                    echo "Please check VM status and try again"
+                    exit 1
+                fi
+            else
+                vm_print_error "Cannot continue without virtiofs configuration"
+                exit 1
             fi
         fi
         
@@ -230,6 +276,38 @@ main() {
             vm_print_warning "Additional action required (see above)"
             exit 0
         fi
+        
+        # Verify mount actually works
+        vm_print_step "Verifying mount..."
+        if ! ssh "$VM_DOMAIN" "mountpoint -q /mnt/zoned" 2>/dev/null; then
+            vm_print_error "Mount verification failed - /mnt/zoned is not mounted"
+            echo ""
+            echo "Diagnostics:"
+            echo -e "${YELLOW}  [VM]${NC} Checking mount status..."
+            ssh "$VM_DOMAIN" "mount | grep -i virtiofs || echo '  No virtiofs mounts found'" 2>/dev/null || true
+            echo ""
+            echo "The virtiofs share may not be available in the VM yet."
+            echo "Try:"
+            echo "  1. Restart the VM completely (not just reboot)"
+            echo "  2. Run 'make vm-setup' again"
+            exit 1
+        fi
+        
+        # Verify the extension directory is accessible
+        if ! ssh "$VM_DOMAIN" "test -d /mnt/zoned/extension" 2>/dev/null; then
+            vm_print_error "Mount verification failed - extension directory not accessible"
+            echo ""
+            echo "The mount at /mnt/zoned doesn't contain the expected files."
+            echo ""
+            echo -e "${YELLOW}  [VM]${NC} Contents of /mnt/zoned:"
+            ssh "$VM_DOMAIN" "ls -la /mnt/zoned 2>/dev/null || echo '  Cannot list directory'" || true
+            echo ""
+            echo "Make sure the virtiofs share points to the zoned project directory."
+            exit 1
+        fi
+        
+        VM_MOUNT_PATH="/mnt/zoned"
+        vm_print_success "Mount verified: /mnt/zoned"
     else
         vm_print_step "Step 3: File sharing already configured"
     fi
@@ -383,11 +461,7 @@ main() {
     echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
     echo ""
     echo -e "  VM: ${CYAN}$VM_DOMAIN${NC} ($VM_IP)"
-    if [[ "$VM_SHARE_TYPE" == "virtiofs" ]]; then
-        echo -e "  File Sharing: ${GREEN}virtiofs${NC} (optimal)"
-    else
-        echo -e "  File Sharing: ${YELLOW}SPICE WebDAV${NC}"
-    fi
+    echo -e "  File Sharing: ${GREEN}virtiofs${NC}"
     echo ""
     echo "  Next steps:"
     echo "    make vm-install     - Fast deploy (use for iteration)"

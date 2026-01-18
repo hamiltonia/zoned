@@ -18,7 +18,7 @@
 #       export ZONED_LOG_WATCHER=1
 #       nohup bash -c 'journalctl -f /usr/bin/gnome-shell 2>/dev/null | \
 #           grep --line-buffered -i zoned | \
-#           tee /run/user/1000/spice-client-folder/zoned-extension.log' \
+#           tee /mnt/zoned/zoned-extension.log' \
 #           > /dev/null 2>&1 &
 #   fi
 #   EOF

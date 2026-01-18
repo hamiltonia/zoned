@@ -29,7 +29,7 @@ Complete step-by-step guide to set up VM-based development for Zoned GNOME Shell
 **The Simple Workflow:**
 
 ```
-1. Install GNOME Boxes and virtualization tools
+1. Install GNOME Boxes and virtualization tools (includes virtiofsd)
    ↓
 2. Configure host network (./scripts/util/vm-network-setup)
    ↓
@@ -37,11 +37,9 @@ Complete step-by-step guide to set up VM-based development for Zoned GNOME Shell
    ↓
 4. Install OS (Fedora 42 recommended)
    ↓
-5. make vm-virtiofs-migrate (automated virtiofs setup)
+5. make vm-setup (handles virtiofs + SSH + extension install)
    ↓
-6. make vm-setup (SSH + verify virtiofs)
-   ↓
-7. make vm-install (deploy & test)
+6. make vm-install (deploy & test)
 ```
 
 This guide walks you through each step.
@@ -257,29 +255,21 @@ echo $XDG_SESSION_TYPE
 
 ## Configure virtiofs File Sharing
 
-virtiofs provides fast, kernel-level file sharing between host and VM. This is the recommended method.
+virtiofs provides fast, kernel-level file sharing between host and VM. The `vm-setup` script handles this automatically.
 
-### On Host
+### What vm-setup Does
 
-**Navigate to zoned directory:**
-```bash
-cd ~/GitHub/zoned
-```
+When you run `make vm-setup`, it will:
 
-**Run automated virtiofs migration:**
-```bash
-make vm-virtiofs-migrate
-# Or: ./scripts/vm-virtiofs-migrate
-```
-
-**The script will:**
-1. List available VMs and let you select one
-2. Shut down the VM (if running)
-3. Back up current VM configuration
-4. Add virtiofs configuration for sharing the zoned directory
-5. **Automatically fix file permissions** (chmod -R a+rX on shared directory)
-6. Offer to start the VM
-7. Provide guest-side mount instructions
+1. **Check host prerequisites** (virtiofsd must be installed)
+2. **Auto-detect** running VMs and let you select one
+3. **Configure virtiofs on host** if not already set up:
+   - Shut down the VM temporarily
+   - Add virtiofs configuration to VM libvirt XML
+   - Start the VM again
+4. **Mount virtiofs share in VM** at `/mnt/zoned`
+5. **Add fstab entry** for persistence across reboots
+6. **Fix file permissions** (chmod -R a+rX on shared directory)
 
 **What gets configured:**
 - **Host share path:** `/home/yourusername/GitHub/zoned`
@@ -287,9 +277,9 @@ make vm-virtiofs-migrate
 - **Guest mount point:** `/mnt/zoned`
 - **File permissions:** Readable by all users (fixes UID mismatch)
 
-### In VM (Automated by vm-setup)
+### Manual Mount (rarely needed)
 
-The `vm-setup` script will automatically mount virtiofs when you run it. But if you need to do it manually:
+If you need to manually mount virtiofs in the VM:
 
 ```bash
 # Create mount point
@@ -553,8 +543,7 @@ make vm-stop
 2. **Configure host network:** `./scripts/util/vm-network-setup`
 3. Create VM in GNOME Boxes
 4. Install OS (Fedora 42 recommended)
-5. `make vm-virtiofs-migrate` (automated virtiofs setup)
-6. `make vm-setup` (SSH + verify + install extension)
+5. `make vm-setup` (handles virtiofs + SSH + extension install)
 
 **Daily workflow:**
 1. Start VM in GNOME Boxes
@@ -564,10 +553,9 @@ make vm-stop
 5. Repeat!
 
 **Key commands:**
-- `make vm-setup` - Full VM configuration
+- `make vm-setup` - Full VM configuration (virtiofs + SSH + extension)
 - `make vm-install` - Fast deploy (daily use)
 - `./scripts/vm logs` - Watch extension logs
-- `make vm-virtiofs-migrate` - Convert to virtiofs
 
 **Next Steps:**
 - See [DEVELOPMENT.md](../DEVELOPMENT.md) for general development workflow
