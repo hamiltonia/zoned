@@ -16,7 +16,6 @@ scripts/
 │   └── vm-headless       # Headless VM operations
 ├── util/                 # Utilities (rarely called directly)
 │   ├── vm-network-setup
-│   ├── vm-virtiofs-migrate
 │   └── analyze-memory.py
 ├── lib/                  # Shared libraries
 ├── vm-guest/             # Scripts that run inside the VM
@@ -91,7 +90,6 @@ alias run-tests='/path/to/zoned/scripts/run-tests'
 
 ### Utilities
 - `vm network` - Configure host networking
-- `vm virtiofs` - Migrate to virtiofs file sharing
 
 ## User vs Util Scripts
 

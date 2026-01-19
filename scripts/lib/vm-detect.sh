@@ -675,6 +675,374 @@ vm_setup_sharing() {
 }
 
 # ============================================
+#  HOST PREREQUISITES
+# ============================================
+
+# Check if host has virtiofsd installed (required for virtiofs sharing)
+# Returns: 0 if installed, 1 if not
+vm_check_host_virtiofsd() {
+    # Check common locations for virtiofsd
+    if command -v virtiofsd &>/dev/null; then
+        return 0
+    fi
+    if [[ -x /usr/libexec/virtiofsd ]]; then
+        return 0
+    fi
+    if [[ -x /usr/lib/virtiofsd ]]; then
+        return 0
+    fi
+    return 1
+}
+
+# Check all host prerequisites for VM development
+# Returns: 0 if all present, 1 if missing
+vm_check_host_prerequisites() {
+    local missing=()
+    
+    vm_print_step "Checking host prerequisites..."
+    
+    # Check for virtiofsd
+    if ! vm_check_host_virtiofsd; then
+        missing+=("virtiofsd")
+    fi
+    
+    # Check for virsh
+    if ! command -v virsh &>/dev/null; then
+        missing+=("virsh (libvirt)")
+    fi
+    
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        vm_print_success "Host prerequisites satisfied"
+        return 0
+    fi
+    
+    vm_print_error "Missing host prerequisites: ${missing[*]}"
+    echo ""
+    echo "Install the missing packages:"
+    echo ""
+    
+    # Detect host distro
+    local distro="unknown"
+    if [[ -f /etc/os-release ]]; then
+        distro=$(. /etc/os-release; echo "$ID")
+    fi
+    
+    case "$distro" in
+        fedora)
+            echo "  sudo dnf install virtiofsd libvirt"
+            ;;
+        ubuntu|debian|pop)
+            echo "  sudo apt install virtiofsd libvirt-daemon-system"
+            ;;
+        arch|endeavouros|manjaro)
+            echo "  sudo pacman -S virtiofsd libvirt"
+            ;;
+        *)
+            echo "  Install virtiofsd and libvirt for your distribution"
+            ;;
+    esac
+    echo ""
+    return 1
+}
+
+# ============================================
+#  VIRTIOFS HOST CONFIGURATION
+# ============================================
+
+# Add virtiofs configuration to VM's libvirt XML
+# Args: $1 = domain, $2 = share_path
+# Returns: 0 on success, 1 on failure
+vm_configure_virtiofs_host() {
+    local domain="$1"
+    local share_path="$2"
+    local share_name="zoned"
+    
+    vm_print_step "Configuring virtiofs on host..."
+    
+    # Check if VM is running - need to shut it down to modify XML
+    local state
+    state=$(virsh --connect "$VIRSH_CONNECT" domstate "$domain" 2>/dev/null || echo "unknown")
+    
+    if [[ "$state" == "running" ]]; then
+        vm_print_warning "VM must be shut down to modify virtiofs configuration"
+        read -p "Shut down VM now? [Y/n]: " shutdown_confirm
+        
+        if [[ "${shutdown_confirm,,}" == "n" ]]; then
+            vm_print_error "Cannot configure virtiofs while VM is running"
+            return 1
+        fi
+        
+        vm_print_info "Shutting down VM..."
+        virsh --connect "$VIRSH_CONNECT" shutdown "$domain" 2>/dev/null || true
+        
+        # Wait for shutdown (max 60 seconds)
+        local waited=0
+        while [[ $waited -lt 60 ]]; do
+            state=$(virsh --connect "$VIRSH_CONNECT" domstate "$domain" 2>/dev/null || echo "unknown")
+            if [[ "$state" == "shut off" ]]; then
+                vm_print_success "VM shut down"
+                break
+            fi
+            echo -n "."
+            sleep 2
+            waited=$((waited + 2))
+        done
+        echo ""
+        
+        if [[ "$state" != "shut off" ]]; then
+            vm_print_warning "Graceful shutdown timed out, forcing off..."
+            virsh --connect "$VIRSH_CONNECT" destroy "$domain" 2>/dev/null || true
+            sleep 2
+        fi
+    fi
+    
+    # Get current XML
+    local xml_file=$(mktemp)
+    virsh --connect "$VIRSH_CONNECT" dumpxml "$domain" > "$xml_file"
+    
+    # Check if memoryBacking already exists
+    if ! grep -q "<memoryBacking>" "$xml_file"; then
+        # Add memoryBacking before </domain>
+        sed -i 's|</domain>|  <memoryBacking>\n    <source type="memfd"/>\n    <access mode="shared"/>\n  </memoryBacking>\n</domain>|' "$xml_file"
+        vm_print_info "Added memoryBacking configuration"
+    fi
+    
+    # Check if virtiofs filesystem already exists
+    if grep -q "type='virtiofs'" "$xml_file"; then
+        vm_print_info "virtiofs filesystem already configured"
+    else
+        # Add filesystem element inside <devices>
+        local fs_config="    <filesystem type='mount' accessmode='passthrough'>\n      <driver type='virtiofs'/>\n      <source dir='${share_path}'/>\n      <target dir='${share_name}'/>\n    </filesystem>"
+        
+        sed -i "s|</devices>|${fs_config}\n  </devices>|" "$xml_file"
+        vm_print_info "Added virtiofs filesystem configuration"
+    fi
+    
+    # Apply the new configuration
+    if virsh --connect "$VIRSH_CONNECT" define "$xml_file" >/dev/null 2>&1; then
+        vm_print_success "VM configuration updated"
+    else
+        vm_print_error "Failed to update VM configuration"
+        rm "$xml_file"
+        return 1
+    fi
+    
+    rm "$xml_file"
+    
+    # Start VM
+    vm_print_info "Starting VM..."
+    if virsh --connect "$VIRSH_CONNECT" start "$domain" 2>/dev/null; then
+        vm_print_success "VM started"
+    else
+        vm_print_error "Failed to start VM"
+        return 1
+    fi
+    
+    # Wait for VM to be running
+    waited=0
+    while [[ $waited -lt 30 ]]; do
+        state=$(virsh --connect "$VIRSH_CONNECT" domstate "$domain" 2>/dev/null || echo "unknown")
+        if [[ "$state" == "running" ]]; then
+            break
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+    
+    return 0
+}
+
+# Check if VM has virtiofs configured in libvirt XML
+# Args: $1 = domain
+# Returns: 0 if configured, 1 if not
+vm_has_virtiofs_config() {
+    local domain="$1"
+    local count
+    count=$(virsh --connect "$VIRSH_CONNECT" dumpxml "$domain" 2>/dev/null | grep -c "virtiofs" || echo "0")
+    [[ "$count" -gt 0 ]]
+}
+
+# Get the current virtiofs source path from VM's libvirt XML
+# Args: $1 = domain
+# Returns: the source path, or empty string if not configured
+vm_get_virtiofs_source_path() {
+    local domain="$1"
+    local xml
+    xml=$(virsh --connect "$VIRSH_CONNECT" dumpxml "$domain" 2>/dev/null)
+    
+    # Parse XML to find virtiofs filesystem block and extract source dir
+    # The XML structure is:
+    #   <filesystem type='mount' accessmode='passthrough'>
+    #     <driver type='virtiofs'/>
+    #     <source dir='/path/to/share'/>
+    #     <target dir='zoned'/>
+    #   </filesystem>
+    #
+    # Strategy: Find lines with virtiofs, then look for nearby source dir
+    # Use sed to extract just the filesystem blocks, then find the virtiofs one
+    
+    local source_path=""
+    local in_virtiofs_block=false
+    local block_source=""
+    
+    while IFS= read -r line; do
+        if [[ "$line" =~ \<filesystem ]]; then
+            in_virtiofs_block=false
+            block_source=""
+        fi
+        if [[ "$line" =~ virtiofs ]]; then
+            in_virtiofs_block=true
+        fi
+        if [[ "$line" =~ \<source.*dir= ]]; then
+            # Extract path from: <source dir='/path/here'/> or <source dir="/path/here"/>
+            block_source=$(echo "$line" | sed -n "s/.*dir=['\"]\\([^'\"]*\\)['\"].*/\\1/p")
+        fi
+        if [[ "$line" =~ \</filesystem\> ]]; then
+            if [[ "$in_virtiofs_block" == "true" ]] && [[ -n "$block_source" ]]; then
+                echo "$block_source"
+                return 0
+            fi
+        fi
+    done <<< "$xml"
+}
+
+# Check if virtiofs source path is correct (points to project root with extension/)
+# Args: $1 = domain, $2 = expected_path
+# Returns: 0 if correct, 1 if wrong or not configured
+vm_virtiofs_path_correct() {
+    local domain="$1"
+    local expected_path="$2"
+    
+    local current_path
+    current_path=$(vm_get_virtiofs_source_path "$domain")
+    
+    if [[ -z "$current_path" ]]; then
+        return 1  # Not configured
+    fi
+    
+    # Normalize paths (remove trailing slashes)
+    current_path="${current_path%/}"
+    expected_path="${expected_path%/}"
+    
+    if [[ "$current_path" == "$expected_path" ]]; then
+        return 0  # Correct
+    fi
+    
+    return 1  # Wrong path
+}
+
+# Update virtiofs source path in VM's libvirt XML
+# Args: $1 = domain, $2 = new_share_path
+# Returns: 0 on success, 1 on failure
+vm_update_virtiofs_path() {
+    local domain="$1"
+    local new_path="$2"
+    local share_name="zoned"
+    
+    vm_print_step "Updating virtiofs source path..."
+    vm_print_info "New path: $new_path"
+    
+    # Check if VM is running - need to shut it down to modify XML
+    local state
+    state=$(virsh --connect "$VIRSH_CONNECT" domstate "$domain" 2>/dev/null || echo "unknown")
+    
+    if [[ "$state" == "running" ]]; then
+        vm_print_warning "VM must be shut down to update virtiofs configuration"
+        read -p "Shut down VM now? [Y/n]: " shutdown_confirm
+        
+        if [[ "${shutdown_confirm,,}" == "n" ]]; then
+            vm_print_error "Cannot update virtiofs while VM is running"
+            return 1
+        fi
+        
+        vm_print_info "Shutting down VM..."
+        virsh --connect "$VIRSH_CONNECT" shutdown "$domain" 2>/dev/null || true
+        
+        # Wait for shutdown (max 60 seconds)
+        local waited=0
+        while [[ $waited -lt 60 ]]; do
+            state=$(virsh --connect "$VIRSH_CONNECT" domstate "$domain" 2>/dev/null || echo "unknown")
+            if [[ "$state" == "shut off" ]]; then
+                vm_print_success "VM shut down"
+                break
+            fi
+            echo -n "."
+            sleep 2
+            waited=$((waited + 2))
+        done
+        echo ""
+        
+        if [[ "$state" != "shut off" ]]; then
+            vm_print_warning "Graceful shutdown timed out, forcing off..."
+            virsh --connect "$VIRSH_CONNECT" destroy "$domain" 2>/dev/null || true
+            sleep 2
+        fi
+    fi
+    
+    # Get current XML
+    local xml_file=$(mktemp)
+    virsh --connect "$VIRSH_CONNECT" dumpxml "$domain" > "$xml_file"
+    
+    # Update the source dir path in the virtiofs filesystem element
+    # Match: <source dir='...'/>  and replace with new path
+    sed -i "s|<source dir='[^']*'/>\\(.*virtiofs\\)|<source dir='${new_path}'/>\1|" "$xml_file"
+    
+    # Alternative pattern if the above doesn't match (different XML formatting)
+    # Also try: source dir= with virtiofs driver nearby
+    if ! grep -q "dir='${new_path}'" "$xml_file"; then
+        # Use a more robust approach - find the filesystem block with virtiofs and update source
+        python3 -c "
+import sys
+import re
+
+with open('$xml_file', 'r') as f:
+    content = f.read()
+
+# Pattern to find virtiofs filesystem block and update source dir
+pattern = r\"(<filesystem[^>]*>.*?<driver type='virtiofs'/>.*?<source dir=')[^']*('/>.*?</filesystem>)\"
+replacement = r\"\1${new_path}\2\"
+content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+
+with open('$xml_file', 'w') as f:
+    f.write(content)
+" 2>/dev/null || true
+    fi
+    
+    # Apply the new configuration
+    if virsh --connect "$VIRSH_CONNECT" define "$xml_file" >/dev/null 2>&1; then
+        vm_print_success "VM configuration updated"
+    else
+        vm_print_error "Failed to update VM configuration"
+        rm "$xml_file"
+        return 1
+    fi
+    
+    rm "$xml_file"
+    
+    # Start VM
+    vm_print_info "Starting VM..."
+    if virsh --connect "$VIRSH_CONNECT" start "$domain" 2>/dev/null; then
+        vm_print_success "VM started"
+    else
+        vm_print_error "Failed to start VM"
+        return 1
+    fi
+    
+    # Wait for VM to be running
+    waited=0
+    while [[ $waited -lt 30 ]]; do
+        state=$(virsh --connect "$VIRSH_CONNECT" domstate "$domain" 2>/dev/null || echo "unknown")
+        if [[ "$state" == "running" ]]; then
+            break
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+    
+    return 0
+}
+
+# ============================================
 #  VIRTIOFS PERMISSIONS
 # ============================================
 

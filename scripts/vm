@@ -35,8 +35,8 @@ show_help() {
     printf "  ${COLOR_INFO}start${COLOR_RESET} [vmname]     - Start VM with display\n"
     printf "\n"
     printf "${COLOR_SUCCESS}Utilities:${COLOR_RESET}\n"
+    printf "  ${COLOR_INFO}optimize${COLOR_RESET}          - Apply VirtIO optimizations to VM config\n"
     printf "  ${COLOR_INFO}network${COLOR_RESET}           - Configure host networking\n"
-    printf "  ${COLOR_INFO}virtiofs${COLOR_RESET}          - Migrate VM to virtiofs\n"
     printf "\n"
     printf "${COLOR_SUCCESS}Examples:${COLOR_RESET}\n"
     printf "  vm setup              - Run initial VM setup\n"
@@ -87,12 +87,13 @@ case "$COMMAND" in
     
     
     # Utilities
-    network)
-        exec "$SCRIPT_DIR/util/vm-network-setup" "$@"
+    optimize)
+        # Use system Python explicitly - libvirt-python is a system package
+        exec /usr/bin/python3 "$SCRIPT_DIR/util/vm-optimize.py" "$@"
         ;;
     
-    virtiofs)
-        exec "$SCRIPT_DIR/util/vm-virtiofs-migrate" "$@"
+    network)
+        exec "$SCRIPT_DIR/util/vm-network-setup" "$@"
         ;;
     
     # Help

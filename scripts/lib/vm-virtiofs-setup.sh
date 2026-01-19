@@ -3,7 +3,7 @@
 # vm-virtiofs-setup.sh - Setup virtiofs sharing in guest VM
 #
 # This library handles the guest-side setup for virtiofs file sharing.
-# It assumes vm-virtiofs-migrate has already configured the host side.
+# It assumes the host-side virtiofs has been configured in vm-setup.
 #
 
 # Source common functions if not already loaded
@@ -38,57 +38,13 @@ vm_virtiofs_setup() {
     [[ -z "$has_virtiofs" ]] && has_virtiofs="0"
     
     if [[ "$has_virtiofs" -eq 0 ]]; then
-        vm_print_warning "virtiofs not configured on host (libvirt)"
+        vm_print_error "virtiofs not configured on host (libvirt)"
         echo ""
         echo "The VM's libvirt XML needs virtiofs filesystem configuration."
-        echo "This requires:"
-        echo "  1. Shutting down the VM"
-        echo "  2. Modifying the VM configuration"
-        echo "  3. Restarting the VM"
+        echo "This should be handled automatically by vm-setup."
         echo ""
-        echo "The vm-virtiofs-migrate script will do this automatically."
-        echo ""
-        read -p "Run vm-virtiofs-migrate now? [Y/n]: " migrate_confirm
-        
-        if [[ "${migrate_confirm,,}" == "n" ]]; then
-            vm_print_warning "Skipping virtiofs setup"
-            echo ""
-            echo "To set up virtiofs later:"
-            echo "  1. Run: scripts/vm-virtiofs-migrate"
-            echo "  2. Then run: make vm-setup"
-            return 1
-        fi
-        
-        # Run the migration script
-        "$SCRIPT_DIR/../util/vm-virtiofs-migrate"
-        local migrate_result=$?
-        
-        if [[ $migrate_result -ne 0 ]]; then
-            vm_print_error "virtiofs migration failed"
-            echo ""
-            echo "Try again: scripts/vm-virtiofs-migrate"
-            return 1
-        fi
-        
-        # VM was restarted by migrate script, wait for it to be ready
-        vm_print_step "Waiting for VM to be ready after restart..."
-        local waited=0
-        while [[ $waited -lt 60 ]]; do
-            if ssh -o ConnectTimeout=3 -o BatchMode=yes "$domain" "exit" 2>/dev/null; then
-                vm_print_success "VM is ready"
-                break
-            fi
-            echo -n "."
-            sleep 2
-            waited=$((waited + 2))
-        done
-        echo ""
-        
-        if ! ssh -o ConnectTimeout=3 -o BatchMode=yes "$domain" "exit" 2>/dev/null; then
-            vm_print_error "VM not responding after migration"
-            echo "Please check VM status manually and try again"
-            return 1
-        fi
+        echo "Run: make vm-setup"
+        return 1
     else
         vm_print_success "Host-side virtiofs is configured"
     fi
@@ -350,7 +306,7 @@ vm_virtiofs_restart_and_mount() {
         vm_print_error "virtiofs mount still failing after restart"
         echo ""
         echo "The share may not be configured correctly."
-        echo "Run 'scripts/vm-virtiofs-migrate' to reconfigure."
+        echo "Run 'make vm-setup' to reconfigure."
         return 1
     fi
 }

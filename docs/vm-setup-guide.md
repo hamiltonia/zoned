@@ -15,11 +15,12 @@ Complete step-by-step guide to set up VM-based development for Zoned GNOME Shell
 
 1. [Quick Start (Recommended)](#quick-start-recommended)
 2. [Host Prerequisites](#host-prerequisites)
-3. [Create VM in GNOME Boxes](#create-vm-in-gnome-boxes)
-4. [Configure virtiofs File Sharing](#configure-virtiofs-file-sharing)
-5. [Initialize VM Development](#initialize-vm-development)
-6. [Daily Development Workflow](#daily-development-workflow)
-7. [Troubleshooting](#troubleshooting)
+3. [Network Configuration (Important!)](#network-configuration-important)
+4. [Create VM in GNOME Boxes](#create-vm-in-gnome-boxes)
+5. [Configure virtiofs File Sharing](#configure-virtiofs-file-sharing)
+6. [Initialize VM Development](#initialize-vm-development)
+7. [Daily Development Workflow](#daily-development-workflow)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -28,15 +29,15 @@ Complete step-by-step guide to set up VM-based development for Zoned GNOME Shell
 **The Simple Workflow:**
 
 ```
-1. Install GNOME Boxes and virtualization tools
+1. Install GNOME Boxes and virtualization tools (includes virtiofsd)
    ↓
-2. Create VM in GNOME Boxes (30 seconds, GUI)
+2. Configure host network (./scripts/util/vm-network-setup)
    ↓
-3. Install OS (Fedora 42 recommended)
+3. Create VM in GNOME Boxes (30 seconds, GUI)
    ↓
-4. make vm-virtiofs-migrate (automated virtiofs setup)
+4. Install OS (Fedora 42 recommended)
    ↓
-5. make vm-setup (SSH + verify virtiofs)
+5. make vm-setup (handles virtiofs + SSH + extension install)
    ↓
 6. make vm-install (deploy & test)
 ```
@@ -89,6 +90,62 @@ sudo usermod -a -G libvirt $USER
 lsmod | grep kvm
 # Should show: kvm_intel or kvm_amd
 ```
+
+---
+
+## Network Configuration (Important!)
+
+**This step is critical** - VMs need proper network configuration to access the internet. This is especially important if you have Docker installed.
+
+### The Problem
+
+Docker's default iptables configuration sets the FORWARD policy to DROP, which prevents VMs from accessing the internet through the `virbr0` bridge. Even without Docker, network configuration ensures VMs work reliably.
+
+### The Solution
+
+Run the network setup script **before** creating VMs (or after if you encounter network issues):
+
+```bash
+cd ~/GitHub/zoned
+./scripts/util/vm-network-setup
+# Or: make vm-network-setup
+```
+
+**What this script does:**
+- Enables IP forwarding (`net.ipv4.ip_forward = 1`)
+- Adds iptables FORWARD rules for the virbr0 bridge
+- Configures NAT MASQUERADE for VM subnet (192.168.122.0/24)
+- Makes all changes persistent across reboots
+- Detects your distro and configures appropriately (Fedora/firewalld, Ubuntu/iptables-persistent, Arch)
+
+**Safe to run multiple times** - The script is idempotent and won't duplicate rules.
+
+### When to Run
+
+- **Proactive:** Run before creating any VMs (recommended)
+- **Reactive:** Run if VMs can't access the internet
+- **One-time setup:** Affects all VMs on your host, not just one
+
+### Verification
+
+After running the script and creating a VM:
+
+**In the VM:**
+```bash
+ping -c 3 8.8.8.8
+# Should succeed with replies from 8.8.8.8
+```
+
+**On the host (optional):**
+```bash
+sudo iptables -L FORWARD -n -v --line-numbers
+# Should show ACCEPT rules for virbr0
+
+sudo iptables -t nat -L POSTROUTING -n -v
+# Should show MASQUERADE rule for 192.168.122.0/24
+```
+
+**If you skip this step:** VMs will start fine but won't be able to access the internet or install packages.
 
 ---
 
@@ -198,29 +255,21 @@ echo $XDG_SESSION_TYPE
 
 ## Configure virtiofs File Sharing
 
-virtiofs provides fast, kernel-level file sharing between host and VM. This is the recommended method.
+virtiofs provides fast, kernel-level file sharing between host and VM. The `vm-setup` script handles this automatically.
 
-### On Host
+### What vm-setup Does
 
-**Navigate to zoned directory:**
-```bash
-cd ~/GitHub/zoned
-```
+When you run `make vm-setup`, it will:
 
-**Run automated virtiofs migration:**
-```bash
-make vm-virtiofs-migrate
-# Or: ./scripts/vm-virtiofs-migrate
-```
-
-**The script will:**
-1. List available VMs and let you select one
-2. Shut down the VM (if running)
-3. Back up current VM configuration
-4. Add virtiofs configuration for sharing the zoned directory
-5. **Automatically fix file permissions** (chmod -R a+rX on shared directory)
-6. Offer to start the VM
-7. Provide guest-side mount instructions
+1. **Check host prerequisites** (virtiofsd must be installed)
+2. **Auto-detect** running VMs and let you select one
+3. **Configure virtiofs on host** if not already set up:
+   - Shut down the VM temporarily
+   - Add virtiofs configuration to VM libvirt XML
+   - Start the VM again
+4. **Mount virtiofs share in VM** at `/mnt/zoned`
+5. **Add fstab entry** for persistence across reboots
+6. **Fix file permissions** (chmod -R a+rX on shared directory)
 
 **What gets configured:**
 - **Host share path:** `/home/yourusername/GitHub/zoned`
@@ -228,9 +277,9 @@ make vm-virtiofs-migrate
 - **Guest mount point:** `/mnt/zoned`
 - **File permissions:** Readable by all users (fixes UID mismatch)
 
-### In VM (Automated by vm-setup)
+### Manual Mount (rarely needed)
 
-The `vm-setup` script will automatically mount virtiofs when you run it. But if you need to do it manually:
+If you need to manually mount virtiofs in the VM:
 
 ```bash
 # Create mount point
@@ -491,10 +540,10 @@ make vm-stop
 
 **Setup (one-time):**
 1. Install GNOME Boxes + virtiofsd on host
-2. Create VM in GNOME Boxes
-3. Install OS (Fedora 42 recommended)
-4. `make vm-virtiofs-migrate` (automated virtiofs setup)
-5. `make vm-setup` (SSH + verify + install extension)
+2. **Configure host network:** `./scripts/util/vm-network-setup`
+3. Create VM in GNOME Boxes
+4. Install OS (Fedora 42 recommended)
+5. `make vm-setup` (handles virtiofs + SSH + extension install)
 
 **Daily workflow:**
 1. Start VM in GNOME Boxes
@@ -504,10 +553,9 @@ make vm-stop
 5. Repeat!
 
 **Key commands:**
-- `make vm-setup` - Full VM configuration
+- `make vm-setup` - Full VM configuration (virtiofs + SSH + extension)
 - `make vm-install` - Fast deploy (daily use)
 - `./scripts/vm logs` - Watch extension logs
-- `make vm-virtiofs-migrate` - Convert to virtiofs
 
 **Next Steps:**
 - See [DEVELOPMENT.md](../DEVELOPMENT.md) for general development workflow
