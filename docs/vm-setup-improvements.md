@@ -24,10 +24,10 @@ This document summarizes the improvements made to the VM setup workflow to addre
 **Solution**:
 - Created "virtiofs Setup Wizard" with clear step-by-step flow
 - Automatic host-side detection and configuration offer
-- Integrated vm-virtiofs-migrate into setup flow with confirmation
+- Integrated virtiofs host configuration directly into vm-setup
 - Clear progress indicators (Step 1/2/3/4)
 - Better error messages with actionable suggestions
-- Automatic fallback suggestion to SPICE when virtiofs unavailable
+- Host prerequisite checking (virtiofsd must be installed)
 
 ### 3. Existing VM Mount Discovery
 **Problem**: Could not re-discover shared folders after VM restart

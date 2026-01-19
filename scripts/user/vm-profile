@@ -6,6 +6,8 @@
 #   vm-profile list              - List all configured VM profiles
 #   vm-profile switch <name>     - Switch to a different VM profile
 #   vm-profile info [name]       - Show profile information
+#   vm-profile rename <old> <new> - Rename a profile
+#   vm-profile delete <name>     - Delete a profile
 #
 
 set -e
@@ -88,6 +90,223 @@ cmd_info() {
     fi
 }
 
+cmd_rename() {
+    local old_name="$1"
+    local new_name="$2"
+    
+    # Interactive mode if no arguments provided
+    if [[ -z "$old_name" ]]; then
+        vm_profiles_init
+        
+        # Get list of profiles
+        local profiles=()
+        for profile_file in "$VM_PROFILES_DIR"/*.profile; do
+            [[ -e "$profile_file" ]] || continue
+            profiles+=("$(basename "$profile_file" .profile)")
+        done
+        
+        if [[ ${#profiles[@]} -eq 0 ]]; then
+            vm_print_error "No profiles found to rename"
+            exit 1
+        fi
+        
+        echo -e "${CYAN}Select profile to rename:${NC}"
+        echo ""
+        local i=1
+        for profile in "${profiles[@]}"; do
+            echo "  $i) $profile"
+            ((i++))
+        done
+        echo ""
+        read -p "Select profile [1-${#profiles[@]}]: " selection
+        
+        # Validate selection
+        if [[ ! "$selection" =~ ^[0-9]+$ ]] || [[ $selection -lt 1 ]] || [[ $selection -gt ${#profiles[@]} ]]; then
+            vm_print_error "Invalid selection"
+            exit 1
+        fi
+        
+        old_name="${profiles[$((selection-1))]}"
+        
+        # Show current profile details
+        local old_profile_file="$VM_PROFILES_DIR/${old_name}.profile"
+        if [[ -f "$old_profile_file" ]]; then
+            source "$old_profile_file"
+            echo ""
+            echo -e "${CYAN}Current profile details:${NC}"
+            echo -e "  Profile name:   $old_name"
+            echo -e "  Libvirt domain: ${VM_DOMAIN:-$old_name}"
+            [[ -n "$VM_TITLE" ]] && echo -e "  Display name:   $VM_TITLE"
+            [[ -n "$VM_IP" ]] && echo -e "  IP address:     $VM_IP"
+        fi
+        
+        echo ""
+        read -p "Enter new name: " new_name
+        
+        if [[ -z "$new_name" ]]; then
+            vm_print_error "New name cannot be empty"
+            exit 1
+        fi
+    elif [[ -z "$new_name" ]]; then
+        # Old name provided but not new name - prompt for it
+        read -p "Enter new name for '$old_name': " new_name
+        
+        if [[ -z "$new_name" ]]; then
+            vm_print_error "New name cannot be empty"
+            exit 1
+        fi
+    fi
+    
+    vm_profiles_init
+    
+    local old_file="$VM_PROFILES_DIR/${old_name}.profile"
+    local new_file="$VM_PROFILES_DIR/${new_name}.profile"
+    
+    if [[ ! -f "$old_file" ]]; then
+        vm_print_error "Profile not found: $old_name"
+        echo ""
+        echo "Available profiles:"
+        vm_profiles_list
+        exit 1
+    fi
+    
+    if [[ -f "$new_file" ]]; then
+        vm_print_error "Profile already exists: $new_name"
+        exit 1
+    fi
+    
+    # Read the profile to get VM_DOMAIN (libvirt domain name)
+    source "$old_file"
+    local old_domain="${VM_DOMAIN:-$old_name}"
+    
+    echo ""
+    echo -e "${CYAN}Renaming VM:${NC}"
+    echo -e "  Profile:        $old_name -> $new_name"
+    echo -e "  Libvirt domain: $old_domain -> $new_name"
+    echo ""
+    
+    # Check if VM is running
+    local vm_state
+    vm_state=$(virsh --connect "$VIRSH_CONNECT" domstate "$old_domain" 2>/dev/null || echo "not found")
+    
+    local was_running=false
+    if [[ "$vm_state" == "running" ]]; then
+        was_running=true
+        vm_print_warning "VM must be shut down to rename"
+        read -p "Shut down VM now? [Y/n]: " shutdown_confirm
+        
+        if [[ "${shutdown_confirm,,}" == "n" ]]; then
+            vm_print_error "Cannot rename while VM is running"
+            exit 1
+        fi
+        
+        vm_print_step "Shutting down VM..."
+        virsh --connect "$VIRSH_CONNECT" shutdown "$old_domain" 2>/dev/null || true
+        
+        # Wait for shutdown (max 60 seconds)
+        local waited=0
+        while [[ $waited -lt 60 ]]; do
+            vm_state=$(virsh --connect "$VIRSH_CONNECT" domstate "$old_domain" 2>/dev/null || echo "unknown")
+            if [[ "$vm_state" == "shut off" ]]; then
+                vm_print_success "VM shut down"
+                break
+            fi
+            echo -n "."
+            sleep 2
+            waited=$((waited + 2))
+        done
+        echo ""
+        
+        if [[ "$vm_state" != "shut off" ]]; then
+            vm_print_warning "Graceful shutdown timed out, forcing off..."
+            virsh --connect "$VIRSH_CONNECT" destroy "$old_domain" 2>/dev/null || true
+            sleep 2
+        fi
+    elif [[ "$vm_state" == "not found" ]]; then
+        vm_print_warning "VM '$old_domain' not found in libvirt - will only rename profile"
+    fi
+    
+    # Rename libvirt domain (if it exists)
+    if [[ "$vm_state" != "not found" ]]; then
+        vm_print_step "Renaming libvirt domain..."
+        if virsh --connect "$VIRSH_CONNECT" domrename "$old_domain" "$new_name" 2>/dev/null; then
+            vm_print_success "Libvirt domain renamed: $old_domain -> $new_name"
+        else
+            vm_print_error "Failed to rename libvirt domain"
+            echo "The VM may need to be fully shut down (not suspended)"
+            exit 1
+        fi
+        
+        # Update GNOME Boxes title in XML
+        vm_print_step "Updating GNOME Boxes display name..."
+        local xml_file=$(mktemp)
+        virsh --connect "$VIRSH_CONNECT" dumpxml "$new_name" > "$xml_file"
+        
+        # Check if title exists
+        if grep -q "<title>" "$xml_file"; then
+            # Update existing title
+            sed -i "s|<title>.*</title>|<title>$new_name</title>|" "$xml_file"
+        else
+            # Add title element after <name>
+            sed -i "s|</name>|</name>\n  <title>$new_name</title>|" "$xml_file"
+        fi
+        
+        if virsh --connect "$VIRSH_CONNECT" define "$xml_file" >/dev/null 2>&1; then
+            vm_print_success "GNOME Boxes display name updated"
+        else
+            vm_print_warning "Could not update display name"
+        fi
+        rm -f "$xml_file"
+    fi
+    
+    # Update SSH config
+    if [[ -f "$SSH_CONFIG" ]] && grep -q "^Host $old_domain$" "$SSH_CONFIG" 2>/dev/null; then
+        vm_print_step "Updating SSH config..."
+        sed -i "s/^Host $old_domain$/Host $new_name/" "$SSH_CONFIG"
+        vm_print_success "SSH config updated"
+    fi
+    
+    # Check if this is the active profile
+    local is_active=false
+    if [[ -L "$VM_ACTIVE_PROFILE_LINK" ]]; then
+        local active_file=$(readlink "$VM_ACTIVE_PROFILE_LINK")
+        local active_name=$(basename "$active_file" .profile)
+        if [[ "$active_name" == "$old_name" ]]; then
+            is_active=true
+        fi
+    fi
+    
+    # Update profile contents (VM_DOMAIN) and rename file
+    vm_print_step "Updating profile..."
+    sed -i "s/^VM_DOMAIN=.*/VM_DOMAIN=$new_name/" "$old_file"
+    sed -i "s/^VM_LIBVIRT_NAME=.*/VM_LIBVIRT_NAME=$new_name/" "$old_file"
+    mv "$old_file" "$new_file"
+    
+    # Update active link if needed
+    if [[ "$is_active" == "true" ]]; then
+        ln -sf "$(basename "$new_file")" "$VM_ACTIVE_PROFILE_LINK"
+    fi
+    
+    vm_print_success "Profile renamed: $old_name -> $new_name"
+    
+    # Offer to restart VM if it was running
+    if [[ "$was_running" == "true" ]]; then
+        echo ""
+        read -p "Start VM again? [Y/n]: " start_confirm
+        if [[ "${start_confirm,,}" != "n" ]]; then
+            vm_print_step "Starting VM..."
+            if virsh --connect "$VIRSH_CONNECT" start "$new_name" 2>/dev/null; then
+                vm_print_success "VM started"
+            else
+                vm_print_error "Failed to start VM"
+            fi
+        fi
+    fi
+    
+    echo ""
+    vm_print_success "Rename complete!"
+}
+
 cmd_delete() {
     local profile_name="$1"
     
@@ -156,43 +375,48 @@ cmd_delete() {
 }
 
 cmd_help() {
-    cat << EOF
-${CYAN}vm-profile - VM Profile Manager${NC}
-
-Manage multiple VM configurations for easy switching between test environments.
-
-${CYAN}Usage:${NC}
-  vm-profile list               List all configured profiles
-  vm-profile switch <name>      Switch to a different profile
-  vm-profile info [name]        Show profile information
-  vm-profile delete <name>      Delete a profile (for dead VMs)
-  vm-profile help               Show this help
-
-${CYAN}Examples:${NC}
-  # List all profiles
-  vm-profile list
-
-  # Switch to a different VM
-  vm-profile switch fedora-40
-
-  # View active profile details
-  vm-profile info
-
-  # Remove a dead VM profile
-  vm-profile delete old-fedora-38
-
-${CYAN}Managing Profiles:${NC}
-  - Profiles are created automatically by 'make vm-setup'
-  - Each profile stores VM connection and mount information
-  - Switching profiles updates which VM 'make vm-install' targets
-  - Delete profiles when VMs are no longer needed
-  - Profiles are stored in .vm-profiles/ (gitignored)
-
-${CYAN}Legacy Migration:${NC}
-  Existing .vm-cache files are automatically migrated to profiles
-  on first run. No manual intervention needed.
-
-EOF
+    echo -e "${CYAN}vm-profile - VM Profile Manager${NC}"
+    echo ""
+    echo "Manage multiple VM configurations for easy switching between test environments."
+    echo ""
+    echo -e "${CYAN}Usage:${NC}"
+    echo "  vm-profile list               List all configured profiles"
+    echo "  vm-profile switch <name>      Switch to a different profile"
+    echo "  vm-profile info [name]        Show profile information"
+    echo "  vm-profile rename [old] [new] Rename profile, VM, and SSH config"
+    echo "  vm-profile delete <name>      Delete a profile (for dead VMs)"
+    echo "  vm-profile help               Show this help"
+    echo ""
+    echo -e "${CYAN}Examples:${NC}"
+    echo "  # List all profiles"
+    echo "  vm-profile list"
+    echo ""
+    echo "  # Switch to a different VM"
+    echo "  vm-profile switch fedora-40"
+    echo ""
+    echo "  # Rename a profile (interactive)"
+    echo "  vm-profile rename"
+    echo ""
+    echo "  # Rename a profile (explicit)"
+    echo "  vm-profile rename old-name new-name"
+    echo ""
+    echo "  # View active profile details"
+    echo "  vm-profile info"
+    echo ""
+    echo "  # Remove a dead VM profile"
+    echo "  vm-profile delete old-fedora-38"
+    echo ""
+    echo -e "${CYAN}Managing Profiles:${NC}"
+    echo "  - Profiles are created automatically by 'make vm-setup'"
+    echo "  - Each profile stores VM connection and mount information"
+    echo "  - Switching profiles updates which VM 'make vm-install' targets"
+    echo "  - Delete profiles when VMs are no longer needed"
+    echo "  - Profiles are stored in .vm-profiles/ (gitignored)"
+    echo ""
+    echo -e "${CYAN}Legacy Migration:${NC}"
+    echo "  Existing .vm-cache files are automatically migrated to profiles"
+    echo "  on first run. No manual intervention needed."
+    echo ""
 }
 
 # ============================================
@@ -212,6 +436,9 @@ main() {
             ;;
         info|show)
             cmd_info "$@"
+            ;;
+        rename|mv)
+            cmd_rename "$@"
             ;;
         delete|remove|rm)
             cmd_delete "$@"

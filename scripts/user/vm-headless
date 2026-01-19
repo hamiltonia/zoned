@@ -203,12 +203,7 @@ cmd_status() {
             echo -e "  Display:     ${GREEN}headless${NC}"
         fi
         
-        # Show share type
-        if [[ "$VM_SHARE_TYPE" == "virtiofs" ]]; then
-            echo -e "  Sharing:     ${GREEN}virtiofs${NC}"
-        else
-            echo -e "  Sharing:     ${YELLOW}SPICE WebDAV${NC}"
-        fi
+        echo -e "  Sharing:     ${GREEN}virtiofs${NC}"
     else
         echo -e "  State:       ${YELLOW}$state${NC}"
     fi
