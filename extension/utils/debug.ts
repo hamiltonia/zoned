@@ -127,11 +127,9 @@ export function isMemDebugEnabled(): boolean {
  * Logger class with conditional output
  */
 export class Logger {
-    private _component: string;
     private _prefix: string;
 
     constructor(component = '') {
-        this._component = component;
         this._prefix = component ? `[Zoned:${component}]` : '[Zoned]';
     }
 

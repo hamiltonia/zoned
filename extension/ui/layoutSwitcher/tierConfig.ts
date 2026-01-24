@@ -20,6 +20,52 @@ import {createLogger} from '../../utils/debug';
 const logger = createLogger('TierConfig');
 
 /**
+ * Tier configuration interface
+ */
+export interface TierConfig {
+    name: string;
+    cardWidth: number;
+    cardHeight: number;
+    cardGap: number;
+    rowGap: number;
+    internalMargin: number;
+    sectionPadding: number;
+    sectionGap: number;
+    containerPadding: number;
+    topBarHeight: number;
+    sectionHeaderHeight: number;
+    sectionHeaderMargin: number;
+    buttonHeight: number;
+    buttonMargin: number;
+    workspaceThumb: {w: number; h: number};
+    workspaceThumbGap: number;
+    containerRadius: number;
+    sectionRadius: number;
+    cardRadius: number;
+}
+
+/**
+ * Dialog dimensions interface
+ */
+export interface DialogDimensions extends TierConfig {
+    dialogWidth: number;
+    dialogHeight: number;
+    rowWidth: number;
+    contentWidth: number;
+    templateSectionHeight: number;
+    customSectionHeight: number;
+}
+
+/**
+ * Validation result interface
+ */
+export interface ValidationResult {
+    valid: boolean;
+    issues: string[];
+    screenPercent: {width: string; height: string};
+}
+
+/**
  * Tier definitions with all fixed values
  *
  * All spacing values are pre-calculated to guarantee:
@@ -145,10 +191,10 @@ export const TIER_NAMES = ['auto', 'SMALL', 'MEDIUM', 'LARGE', 'XLARGE'];
  * @param {number} forceTier - 0=auto, 1=SMALL, 2=MEDIUM, 3=LARGE, 4=XLARGE
  * @returns {Object} The selected tier configuration
  */
-export function selectTier(logicalHeight, forceTier = 0) {
+export function selectTier(logicalHeight: number, forceTier: number = 0): TierConfig {
     // Honor forced tier for debugging
     if (forceTier > 0 && forceTier <= 4) {
-        const tierName = TIER_NAMES[forceTier];
+        const tierName = TIER_NAMES[forceTier] as keyof typeof TIERS;
         logger.info(`[TIER] Forced to ${tierName}`);
         return TIERS[tierName];
     }
@@ -180,7 +226,7 @@ export function selectTier(logicalHeight, forceTier = 0) {
  * @param {Object} tier - Tier configuration object
  * @returns {Object} Calculated dialog dimensions
  */
-export function calculateDialogDimensions(tier) {
+export function calculateDialogDimensions(tier: TierConfig): DialogDimensions {
     const COLUMNS = 5;
     const CUSTOM_VISIBLE_ROWS = 2;
     const SECTION_BORDER_WIDTH = 2;  // 1px border on each side of section
@@ -246,8 +292,8 @@ export function calculateDialogDimensions(tier) {
  * @param {number} screenHeight - Screen height in logical pixels
  * @returns {Object} Validation results with any detected issues
  */
-export function validateDimensions(dims, screenWidth, screenHeight) {
-    const issues = [];
+export function validateDimensions(dims: DialogDimensions, screenWidth: number, screenHeight: number): ValidationResult {
+    const issues: string[] = [];
 
     const widthPercent = (dims.dialogWidth / screenWidth * 100).toFixed(1);
     const heightPercent = (dims.dialogHeight / screenHeight * 100).toFixed(1);
@@ -292,7 +338,13 @@ export function validateDimensions(dims, screenWidth, screenHeight) {
  * @param {number} scaleFactor - Display scale factor
  * @returns {string} Formatted debug text for overlay
  */
-export function generateDebugText(dims, validation, screenWidth, screenHeight, scaleFactor) {
+export function generateDebugText(
+    dims: DialogDimensions,
+    validation: ValidationResult,
+    screenWidth: number,
+    screenHeight: number,
+    scaleFactor: number,
+): string {
     const tierLine = `TIER: ${dims.name} | Ctrl+D=rects Ctrl+T=cycle`;
     const screenLine = `Screen: ${screenWidth}×${screenHeight} | Scale: ${scaleFactor}x`;
     const dialogLine = `Dialog: ${dims.dialogWidth}×${dims.dialogHeight} (${validation.screenPercent.width}%×${validation.screenPercent.height}%)`;

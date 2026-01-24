@@ -243,7 +243,8 @@ export class LayoutPreviewBackground {
             }
 
             // Get the layout for this monitor's space
-            const spaceKey = this._spatialStateManager.makeKey(monitorData.monitorIndex);
+            const workspaceIndex = (global as any).workspace_manager.get_active_workspace_index();
+            const spaceKey = this._spatialStateManager.makeKey(monitorData.monitorIndex, workspaceIndex);
             const layout = (this._layoutManager as any).getLayoutForSpace(spaceKey);
 
             if (layout) {

@@ -211,7 +211,6 @@ export function resetAllTracking(): void {
  */
 export class ResourceTracker {
     private _componentName: string;
-    private _prefix: string;
 
     // Signal tracking: Map<key, SignalInfo>
     private _signals: Map<string, SignalInfo>;
@@ -219,11 +218,9 @@ export class ResourceTracker {
 
     // Timer tracking: Map<sourceId, TimerInfo>
     private _timers: Map<number, TimerInfo>;
-    private _timerCounter: number;
 
     // Actor tracking: Set<actor>
     private _actors: Set<Clutter.Actor>;
-    private _actorCounter: number;
 
     // Stats
     private _totalSignals: number;
@@ -235,7 +232,6 @@ export class ResourceTracker {
      */
     constructor(componentName: string) {
         this._componentName = componentName;
-        this._prefix = `[Zoned:ResourceTracker:${componentName}]`;
 
         // Signal tracking: Map<object+signalId, SignalInfo>
         this._signals = new Map();
@@ -243,11 +239,9 @@ export class ResourceTracker {
 
         // Timer tracking: Map<sourceId, TimerInfo>
         this._timers = new Map();
-        this._timerCounter = 0;
 
         // Actor tracking: Set<actor> (weak references where possible)
         this._actors = new Set();
-        this._actorCounter = 0;
 
         // Stats
         this._totalSignals = 0;

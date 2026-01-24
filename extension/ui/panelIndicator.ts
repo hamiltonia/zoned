@@ -94,7 +94,7 @@ export const PanelIndicator = GObject.registerClass(
          * @param isOpen - Whether menu is open
          * @private
          */
-        private _onMenuOpenStateChanged(menu: any, isOpen: boolean): void {
+        private _onMenuOpenStateChanged(_menu: any, isOpen: boolean): void {
             if (isOpen) {
                 this._conflictDetector.detectConflicts();
                 this.setConflictStatus(this._conflictDetector.hasConflicts());

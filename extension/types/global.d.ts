@@ -12,6 +12,7 @@ declare global {
         display: any;
         workspace_manager: any;
         get_current_time: () => number;
+        stage: any;
         zonedDebug?: {
             instances: Map<string, number>;
             signals: Map<string, any[]>;
@@ -22,13 +23,6 @@ declare global {
             getReport: () => string;
         };
     };
-}
-
-// Ambient module declarations for GNOME Shell resource imports
-declare module 'resource:///org/gnome/shell/ui/main.js' {
-    export const panel: any;
-    export const layoutManager: any;
-    export const uiGroup: any;
 }
 
 declare module 'resource:///org/gnome/shell/extensions/extension.js' {
@@ -44,14 +38,14 @@ declare module 'resource:///org/gnome/shell/extensions/extension.js' {
 
     export class Extension {
         constructor(metadata: ExtensionMetadata);
-        
+
         readonly metadata: ExtensionMetadata;
         readonly uuid: string;
         readonly dir: any;
         readonly path: string;
-        
+
         getSettings(schema?: string): Gio.Settings;
-        
+
         enable(): void;
         disable(): void;
     }

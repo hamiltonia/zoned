@@ -129,7 +129,7 @@ function handleDownButtonClick(container: SpinnerContainer | DropdownContainer, 
  * Diagnostic Dialog for Memory Leak Testing
  */
 export class LayoutSettingsDiagnostic {
-    private _settings: Gio.Settings;
+    private readonly _settings: Gio.Settings;  // Stored for potential future use
     private _themeManager: ThemeManager | null;
     private _widgets: St.Widget[];
     private _signalTracker: SignalTracker | null;
@@ -147,6 +147,7 @@ export class LayoutSettingsDiagnostic {
 
     constructor(settings: Gio.Settings) {
         this._settings = settings;
+        void this._settings;  // Stored for future use (e.g., when dropdowns read settings)
         this._themeManager = ENABLE_CONTROLS.themeManager ? new ThemeManager(settings) : null;
 
         // Widget tracking
@@ -203,7 +204,7 @@ export class LayoutSettingsDiagnostic {
 
         // Click on container dismisses
         this._signalTracker!.connect(
-            this._container, 'button-press-event', this._boundHandleContainerClick,
+            this._container, 'button-press-event', this._boundHandleContainerClick!,
         );
 
         // Build dialog
@@ -256,7 +257,7 @@ export class LayoutSettingsDiagnostic {
 
         // Connect key handler
         this._signalTracker!.connect(
-            this._container, 'key-press-event', this._boundHandleKeyPress,
+            this._container, 'key-press-event', this._boundHandleKeyPress!,
         );
 
         this._visible = true;
@@ -608,7 +609,7 @@ export class LayoutSettingsDiagnostic {
         };
     }
 
-    private _handleContainerClick(actor: St.Widget, event: Clutter.Event): boolean {
+    private _handleContainerClick(_actor: St.Widget, event: Clutter.Event): boolean {
         const [clickX, clickY] = event.get_coords();
         const cardAlloc = this._dialogCard ? this._dialogCard.get_transformed_extents() : null;
 
@@ -626,7 +627,7 @@ export class LayoutSettingsDiagnostic {
         return Clutter.EVENT_PROPAGATE;
     }
 
-    private _handleKeyPress(actor: St.Widget, event: Clutter.Event): boolean {
+    private _handleKeyPress(_actor: St.Widget, event: Clutter.Event): boolean {
         const symbol = event.get_key_symbol();
         if (symbol === Clutter.KEY_Escape) {
             this._onClose();

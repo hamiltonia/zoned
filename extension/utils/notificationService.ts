@@ -76,7 +76,6 @@ interface NotificationManager {
 }
 
 export class NotificationService {
-    private _extension: Extension | null;
     private _settings: Gio.Settings | null;
     private _zoneOverlay: ZoneOverlay | null;
     private _notificationManager: NotificationManager | null;
@@ -91,7 +90,6 @@ export class NotificationService {
         zoneOverlay: ZoneOverlay | null,
         notificationManager: NotificationManager | null,
     ) {
-        this._extension = extension;
         this._settings = extension.getSettings();
         this._zoneOverlay = zoneOverlay;
         this._notificationManager = notificationManager;
@@ -244,7 +242,6 @@ export class NotificationService {
      * Clean up
      */
     destroy(): void {
-        this._extension = null;
         this._settings = null;
         this._zoneOverlay = null;
         this._notificationManager = null;

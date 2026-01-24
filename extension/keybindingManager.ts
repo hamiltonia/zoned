@@ -28,9 +28,7 @@ export class KeybindingManager {
     private _settings: Gio.Settings | null;
     private _layoutManager: LayoutManager | null;
     private _windowManager: WindowManager | null;
-    private _notificationManager: NotificationManager | null;
     private _layoutSwitcher: LayoutSwitcher | null;
-    private _zoneOverlay: ZoneOverlay | null;
     private _notificationService: NotificationService | null;
     private _registeredKeys: string[];
     private _enhancedWindowManagementKeys: string[];
@@ -59,17 +57,15 @@ export class KeybindingManager {
         settings: Gio.Settings,
         layoutManager: LayoutManager,
         windowManager: WindowManager,
-        notificationManager: NotificationManager,
+        _notificationManager: NotificationManager,  // Legacy param, kept for API compatibility
         layoutEditor: LayoutSwitcher,
-        zoneOverlay: ZoneOverlay | null = null,
+        _zoneOverlay: ZoneOverlay | null = null,    // Legacy param, kept for API compatibility
         notificationService: NotificationService | null = null,
     ) {
         this._settings = settings;
         this._layoutManager = layoutManager;
         this._windowManager = windowManager;
-        this._notificationManager = notificationManager;
         this._layoutSwitcher = layoutEditor;
-        this._zoneOverlay = zoneOverlay;
         this._notificationService = notificationService;
         this._registeredKeys = [];
         this._enhancedWindowManagementKeys = ['minimize-window', 'maximize-window'];
@@ -394,7 +390,7 @@ export class KeybindingManager {
         if (perSpaceEnabled) {
             const spatialStateManager = this._layoutManager?.getSpatialStateManager();
             if (spatialStateManager) {
-                const window = this._windowManager?.getFocusedWindow();
+                const window = this._windowManager?.getFocusedWindow() ?? null;
                 const spaceKey = spatialStateManager.getSpaceKeyForWindow(window);
                 this._layoutManager?.setLayoutForSpace(spaceKey, layout.id);
                 logger.info(`Applied layout '${layout.name}' to space ${spaceKey}`);
@@ -540,9 +536,7 @@ export class KeybindingManager {
         this._settings = null;
         this._layoutManager = null;
         this._windowManager = null;
-        this._notificationManager = null;
         this._layoutSwitcher = null;
-        this._zoneOverlay = null;
         this._notificationService = null;
     }
 }
