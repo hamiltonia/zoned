@@ -15,6 +15,8 @@ import Gio from '@girs/gio-2.0';
 import St from '@girs/st-14';
 import {createLogger} from '../../utils/debug';
 import {createTemplateCard, createCustomLayoutCard} from './cardFactory.js';
+import type {Layout} from '../../types/layout';
+import type {LayoutSwitcherContext, BuiltinTemplate} from './types';
 
 const logger = createLogger('SectionFactory');
 
@@ -25,12 +27,17 @@ const logger = createLogger('SectionFactory');
 
 /**
  * Handle scroll events on section
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {St.ScrollView} sectionScrollView - The scroll view reference
- * @param {Clutter.Actor} actor - The section actor
- * @param {Clutter.Event} event - The scroll event
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param sectionScrollView - The scroll view reference
+ * @param _actor - The section actor (unused but required for signal signature)
+ * @param event - The scroll event
  */
-function handleSectionScroll(ctx, sectionScrollView, actor, event) {
+function handleSectionScroll(
+    ctx: LayoutSwitcherContext,
+    sectionScrollView: St.ScrollView | null,
+    _actor: Clutter.Actor,
+    event: Clutter.Event
+): boolean {
     if (!sectionScrollView) return Clutter.EVENT_PROPAGATE;
 
     const direction = event.get_scroll_direction();
@@ -64,12 +71,17 @@ function handleSectionScroll(ctx, sectionScrollView, actor, event) {
 
 /**
  * Handle scroll view captured events
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {St.ScrollView} scrollView - The scroll view
- * @param {Clutter.Actor} actor - The scroll view actor
- * @param {Clutter.Event} event - The captured event
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param scrollView - The scroll view
+ * @param _actor - The scroll view actor (unused but required for signal signature)
+ * @param event - The captured event
  */
-function handleScrollViewCaptured(ctx, scrollView, actor, event) {
+function handleScrollViewCaptured(
+    ctx: LayoutSwitcherContext,
+    scrollView: St.ScrollView,
+    _actor: Clutter.Actor,
+    event: Clutter.Event
+): boolean {
     if (event.type() === Clutter.EventType.SCROLL) {
         const direction = event.get_scroll_direction();
 
@@ -105,22 +117,29 @@ function handleScrollViewCaptured(ctx, scrollView, actor, event) {
 
 /**
  * Handle create button click
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param ctx - Parent LayoutSwitcher instance
  */
-function handleCreateButtonClick(ctx) {
+function handleCreateButtonClick(ctx: LayoutSwitcherContext): void {
     ctx._onCreateNewLayoutClicked();
 }
 
 /**
  * Handle create button hover enter
- * @param {St.Button} button - The create button
- * @param {number} verticalPadding - Vertical padding in pixels
- * @param {number} horizontalPadding - Horizontal padding in pixels
- * @param {string} accentHexHover - Hover accent color
- * @param {number} cardRadius - Card border radius
- * @param {number} buttonMargin - Top margin
+ * @param button - The create button
+ * @param verticalPadding - Vertical padding in pixels
+ * @param horizontalPadding - Horizontal padding in pixels
+ * @param accentHexHover - Hover accent color
+ * @param cardRadius - Card border radius
+ * @param buttonMargin - Top margin
  */
-function handleCreateButtonEnter(button, verticalPadding, horizontalPadding, accentHexHover, cardRadius, buttonMargin) {
+function handleCreateButtonEnter(
+    button: St.Button,
+    verticalPadding: number,
+    horizontalPadding: number,
+    accentHexHover: string,
+    cardRadius: number,
+    buttonMargin: number
+): void {
     button.style = `padding: ${verticalPadding}px ${horizontalPadding}px; ` +
                   `background-color: ${accentHexHover}; ` +
                   `border-radius: ${cardRadius}px; ` +
@@ -129,14 +148,21 @@ function handleCreateButtonEnter(button, verticalPadding, horizontalPadding, acc
 
 /**
  * Handle create button hover leave
- * @param {St.Button} button - The create button
- * @param {number} verticalPadding - Vertical padding in pixels
- * @param {number} horizontalPadding - Horizontal padding in pixels
- * @param {string} accentHex - Normal accent color
- * @param {number} cardRadius - Card border radius
- * @param {number} buttonMargin - Top margin
+ * @param button - The create button
+ * @param verticalPadding - Vertical padding in pixels
+ * @param horizontalPadding - Horizontal padding in pixels
+ * @param accentHex - Normal accent color
+ * @param cardRadius - Card border radius
+ * @param buttonMargin - Top margin
  */
-function handleCreateButtonLeave(button, verticalPadding, horizontalPadding, accentHex, cardRadius, buttonMargin) {
+function handleCreateButtonLeave(
+    button: St.Button,
+    verticalPadding: number,
+    horizontalPadding: number,
+    accentHex: string,
+    cardRadius: number,
+    buttonMargin: number
+): void {
     button.style = `padding: ${verticalPadding}px ${horizontalPadding}px; ` +
                   `background-color: ${accentHex}; ` +
                   `border-radius: ${cardRadius}px; ` +
@@ -145,10 +171,10 @@ function handleCreateButtonLeave(button, verticalPadding, horizontalPadding, acc
 
 /**
  * Create templates section with visual depth
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.BoxLayout} The templates section widget
+ * @param ctx - Parent LayoutSwitcher instance
+ * @returns The templates section widget
  */
-export function createTemplatesSection(ctx) {
+export function createTemplatesSection(ctx: LayoutSwitcherContext): St.BoxLayout {
     const colors = ctx._themeManager.getColors();
 
     // Outer section card with depth - using configurable spacing
@@ -189,7 +215,7 @@ export function createTemplatesSection(ctx) {
             `padding-bottom: ${ctx._GRID_ROW_PADDING_BOTTOM}px;`,
     });
 
-    templates.forEach((template) => {
+    templates.forEach((template: BuiltinTemplate) => {
         const card = createTemplateCard(ctx, template, currentLayout);
         ctx._addDebugRect(card, 'card', `Template: ${template.name}`);
         templatesRow.add_child(card);
@@ -206,10 +232,10 @@ export function createTemplatesSection(ctx) {
 /**
  * Create custom layouts section with visual depth and internal scrolling
  * This section expands to fill available space and scrolls internally
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.BoxLayout} The custom layouts section widget
+ * @param ctx - Parent LayoutSwitcher instance
+ * @returns The custom layouts section widget
  */
-export function createCustomLayoutsSection(ctx) {
+export function createCustomLayoutsSection(ctx: LayoutSwitcherContext): St.BoxLayout {
     const colors = ctx._themeManager.getColors();
 
     // Outer section card with depth - expands to fill remaining space
@@ -229,13 +255,13 @@ export function createCustomLayoutsSection(ctx) {
     });
 
     // Store reference to section for scroll handling
-    let sectionScrollView = null;
+    let sectionScrollView: St.ScrollView | null = null;
 
     // Handle scroll events on the entire section (not just scrollView)
     // This catches scrolls over header and empty areas too
     // Create bound handler for section scroll (sectionScrollView will be set below)
-    const boundSectionScroll = (actor, event) => {
-        return handleSectionScroll(ctx, sectionScrollView, actor, event);
+    const boundSectionScroll = (_actor: Clutter.Actor, event: Clutter.Event): boolean => {
+        return handleSectionScroll(ctx, sectionScrollView, _actor, event);
     };
     ctx._signalTracker.connect(section, 'scroll-event', boundSectionScroll);
 
@@ -378,12 +404,16 @@ export function createCustomLayoutsSection(ctx) {
 /**
  * Create grid of custom layout cards using fixed-width rows
  * All rows have explicit width set to ensure uniform alignment when centered
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {Array} layouts - Array of custom layout definitions
- * @param {Object} currentLayout - Currently active layout
- * @returns {St.BoxLayout} The grid container widget
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param layouts - Array of custom layout definitions
+ * @param currentLayout - Currently active layout
+ * @returns The grid container widget
  */
-export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
+export function createCustomLayoutGrid(
+    ctx: LayoutSwitcherContext,
+    layouts: Layout[],
+    currentLayout: Layout | null
+): St.BoxLayout {
     const COLUMNS = ctx._customColumns;  // Always 5 columns
 
     // Calculate fixed row width: 5 cards + 4 gaps
@@ -404,9 +434,9 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
 
     ctx._addDebugRect(container, 'row', 'Custom Grid Container');
 
-    let currentRow = null;
+    let currentRow: St.BoxLayout | null = null;
     let rowNumber = 0;
-    layouts.forEach((layout, index) => {
+    layouts.forEach((layout: Layout, index: number) => {
         const col = index % COLUMNS;
         const isLastCard = index === layouts.length - 1;
 
@@ -426,11 +456,11 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
 
         const card = createCustomLayoutCard(ctx, layout, currentLayout);
         ctx._addDebugRect(card, 'card', `Custom: ${layout.name}`);
-        currentRow.add_child(card);
+        currentRow!.add_child(card);
         ctx._allCards.push({card, layout, isTemplate: false});
 
         // After the last card, add spacers to fill the row
-        if (isLastCard) {
+        if (isLastCard && currentRow) {
             const cardsInRow = col + 1;
             const spacersNeeded = COLUMNS - cardsInRow;
 
@@ -460,10 +490,10 @@ export function createCustomLayoutGrid(ctx, layouts, currentLayout) {
 /**
  * Create "Create new layout" button
  * Scales proportionally with tier size
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.Button} The create button widget
+ * @param ctx - Parent LayoutSwitcher instance
+ * @returns The create button widget
  */
-export function createNewLayoutButton(ctx) {
+export function createNewLayoutButton(ctx: LayoutSwitcherContext): St.Button {
     const colors = ctx._themeManager.getColors();
     const accentHex = colors.accentHex;
     const accentHexHover = colors.accentHexHover;

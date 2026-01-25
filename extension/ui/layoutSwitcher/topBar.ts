@@ -20,6 +20,42 @@ import {createZonePreview} from './cardFactory.js';
 
 const logger = createLogger('TopBar');
 
+
+/**
+ * Extended St.Button with workspace tracking
+ */
+interface WorkspaceThumbnail extends St.Button {
+    _workspaceIndex?: number;
+    _isDisabled?: boolean;
+}
+
+/**
+ * Monitor info from GNOME Shell's layoutManager
+ */
+interface MonitorInfo {
+    connector?: string;
+    width: number;
+    height: number;
+    x: number;
+    y: number;
+    index: number;
+}
+
+/**
+ * Monitor details for display
+ */
+interface MonitorDetails {
+    name: string;
+    details: string;
+    connector: string;
+}
+
+/**
+ * Interface describing the LayoutSwitcher context needed by topBar operations.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LayoutSwitcherContext = any;
+
 /**
  * Bound method handlers for signal connections
  * These are created once and stored on ctx (LayoutSwitcher instance)
@@ -28,11 +64,8 @@ const logger = createLogger('TopBar');
 
 /**
  * Handle scroll events on workspace pills wrapper
- * @param {Clutter.Actor} actor - The scroll wrapper actor
- * @param {Clutter.Event} event - The scroll event
- * @returns {number} Clutter.EVENT_STOP or Clutter.EVENT_PROPAGATE
  */
-function handleWorkspaceScrollEvent(actor, event) {
+function handleWorkspaceScrollEvent(this: LayoutSwitcherContext, _actor: Clutter.Actor, event: Clutter.Event): boolean {
     const ctx = this;  // ctx (LayoutSwitcher) bound via .bind(ctx)
     const direction = event.get_scroll_direction();
     const adjustment = ctx._workspaceScrollView.hadjustment;
@@ -77,7 +110,7 @@ function handleWorkspaceScrollEvent(actor, event) {
 /**
  * Handle monitor pill button hover enter
  */
-function handleMonitorPillEnter() {
+function handleMonitorPillEnter(this: LayoutSwitcherContext): void {
     const ctx = this;
     const c = ctx._themeManager.getColors();
     ctx._monitorPillBtn.style = 'padding: 6px 14px; ' +
@@ -89,7 +122,7 @@ function handleMonitorPillEnter() {
 /**
  * Handle monitor pill button hover leave
  */
-function handleMonitorPillLeave() {
+function handleMonitorPillLeave(this: LayoutSwitcherContext): void {
     const ctx = this;
     const c = ctx._themeManager.getColors();
     ctx._monitorPillBtn.style = 'padding: 6px 14px; ' +
@@ -101,16 +134,15 @@ function handleMonitorPillLeave() {
 /**
  * Handle monitor pill button click
  */
-function handleMonitorPillClick() {
+function handleMonitorPillClick(this: LayoutSwitcherContext): void {
     const ctx = this;
     toggleMonitorDropdown(ctx);
 }
 
 /**
  * Handle workspace thumbnail hover enter
- * @param {St.Button} thumb - The thumbnail button
  */
-function handleWorkspaceThumbnailEnter(thumb) {
+function handleWorkspaceThumbnailEnter(this: LayoutSwitcherContext, thumb: WorkspaceThumbnail): void {
     const ctx = this;
     const i = thumb._workspaceIndex;
     if (i !== ctx._currentWorkspace) {
@@ -124,9 +156,8 @@ function handleWorkspaceThumbnailEnter(thumb) {
 
 /**
  * Handle workspace thumbnail hover leave
- * @param {St.Button} thumb - The thumbnail button
  */
-function handleWorkspaceThumbnailLeave(thumb) {
+function handleWorkspaceThumbnailLeave(this: LayoutSwitcherContext, thumb: WorkspaceThumbnail): void {
     const ctx = this;
     const i = thumb._workspaceIndex;
     if (i !== ctx._currentWorkspace) {
@@ -140,9 +171,8 @@ function handleWorkspaceThumbnailLeave(thumb) {
 
 /**
  * Handle workspace thumbnail click
- * @param {St.Button} thumb - The thumbnail button
  */
-function handleWorkspaceThumbnailClick(thumb) {
+function handleWorkspaceThumbnailClick(this: LayoutSwitcherContext, thumb: WorkspaceThumbnail): void {
     const ctx = this;
     const i = thumb._workspaceIndex;
     onWorkspaceThumbnailClicked(ctx, i);
@@ -151,7 +181,7 @@ function handleWorkspaceThumbnailClick(thumb) {
 /**
  * Handle global checkbox label click
  */
-function handleGlobalCheckboxLabelClick() {
+function handleGlobalCheckboxLabelClick(this: LayoutSwitcherContext): boolean {
     const ctx = this;
     toggleGlobalCheckbox(ctx);
     return Clutter.EVENT_STOP;
@@ -160,7 +190,7 @@ function handleGlobalCheckboxLabelClick() {
 /**
  * Handle global checkbox button click
  */
-function handleGlobalCheckboxClick() {
+function handleGlobalCheckboxClick(this: LayoutSwitcherContext): boolean {
     const ctx = this;
     toggleGlobalCheckbox(ctx);
     return Clutter.EVENT_STOP;
@@ -168,10 +198,8 @@ function handleGlobalCheckboxClick() {
 
 /**
  * Handle monitor menu item hover enter
- * @param {St.Button} item - The menu item
- * @param {boolean} isSelected - Whether this item is selected
  */
-function handleMonitorMenuItemEnter(item, isSelected) {
+function handleMonitorMenuItemEnter(this: LayoutSwitcherContext, item: St.Button, isSelected: boolean): void {
     const ctx = this;
     if (!isSelected) {
         const colors = ctx._themeManager.getColors();
@@ -181,10 +209,8 @@ function handleMonitorMenuItemEnter(item, isSelected) {
 
 /**
  * Handle monitor menu item hover leave
- * @param {St.Button} item - The menu item
- * @param {boolean} isSelected - Whether this item is selected
  */
-function handleMonitorMenuItemLeave(item, isSelected) {
+function handleMonitorMenuItemLeave(this: LayoutSwitcherContext, item: St.Button, isSelected: boolean): void {
     const ctx = this;
     if (!isSelected) {
         const colors = ctx._themeManager.getColors();
@@ -194,9 +220,8 @@ function handleMonitorMenuItemLeave(item, isSelected) {
 
 /**
  * Handle monitor menu item click
- * @param {number} index - Monitor index
  */
-function handleMonitorMenuItemClick(index) {
+function handleMonitorMenuItemClick(this: LayoutSwitcherContext, index: number): boolean {
     const ctx = this;
     logger.info(`[MONITOR CLICK] Clicked monitor ${index}`);
     onMonitorSelected(ctx, index);
@@ -206,9 +231,9 @@ function handleMonitorMenuItemClick(index) {
 /**
  * Toggle global checkbox state
  * Extracted to avoid code duplication between label and checkbox handlers
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param ctx - Parent LayoutSwitcher instance
  */
-function toggleGlobalCheckbox(ctx) {
+function toggleGlobalCheckbox(ctx: LayoutSwitcherContext): void {
     ctx._applyGlobally = !ctx._applyGlobally;
     // Write inverted value: applyGlobally=true means per-workspace=false
     ctx._settings.set_boolean('use-per-workspace-layouts', !ctx._applyGlobally);
@@ -239,10 +264,10 @@ function toggleGlobalCheckbox(ctx) {
 /**
  * Create "Spaces" section with compact pill-style workspace selector + monitor picker
  * Redesigned for professional appearance with minimal footprint
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.BoxLayout} The top bar widget
+ * @param ctx - Parent LayoutSwitcher instance
+ * @returns The top bar widget
  */
-export function createTopBar(ctx) {
+export function createTopBar(ctx: LayoutSwitcherContext): St.BoxLayout {
     const colors = ctx._themeManager.getColors();
 
     // Read global apply setting (inverted from use-per-workspace-layouts)
@@ -370,11 +395,11 @@ export function createTopBar(ctx) {
 
 /**
  * Get display label for a monitor (short form for pill button)
- * @param {number} monitorIndex - Monitor index
- * @param {number} primaryIndex - Primary monitor index
- * @returns {string} Short display label
+ * @param monitorIndex - Monitor index
+ * @param primaryIndex - Primary monitor index
+ * @returns Short display label
  */
-function getMonitorShortLabel(monitorIndex, primaryIndex) {
+function getMonitorShortLabel(monitorIndex: number, primaryIndex: number): string {
     if (monitorIndex === primaryIndex) {
         return 'Primary';
     }
@@ -383,12 +408,12 @@ function getMonitorShortLabel(monitorIndex, primaryIndex) {
 
 /**
  * Get detailed label for a monitor (for dropdown menu)
- * @param {Object} monitor - Monitor object
- * @param {number} index - Monitor index
- * @param {number} primaryIndex - Primary monitor index
- * @returns {Object} {name, details} for display
+ * @param monitor - Monitor object
+ * @param index - Monitor index
+ * @param primaryIndex - Primary monitor index
+ * @returns {name, details} for display
  */
-function getMonitorDetails(monitor, index, primaryIndex) {
+function getMonitorDetails(monitor: MonitorInfo, index: number, primaryIndex: number): MonitorDetails {
     const connector = monitor?.connector || `Display ${index + 1}`;
     const width = monitor?.width || 0;
     const height = monitor?.height || 0;
@@ -407,10 +432,10 @@ function getMonitorDetails(monitor, index, primaryIndex) {
 
 /**
  * Create compact monitor pill dropdown
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.BoxLayout} The monitor pill container
+ * @param ctx - Parent LayoutSwitcher instance
+ * @returns The monitor pill container
  */
-export function createMonitorPill(ctx) {
+export function createMonitorPill(ctx: LayoutSwitcherContext): St.BoxLayout {
     const colors = ctx._themeManager.getColors();
     const monitors = Main.layoutManager.monitors;
     const primaryIndex = Main.layoutManager.primaryIndex;
@@ -509,11 +534,11 @@ export function createMonitorPill(ctx) {
 /**
  * Get the appropriate layout for a specific workspace
  * Handles both per-workspace and global modes
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {number} workspaceIndex - Workspace index
- * @returns {Object|null} The layout object for this workspace
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param workspaceIndex - Workspace index
+ * @returns The layout object for this workspace
  */
-function getWorkspaceLayout(ctx, workspaceIndex) {
+function getWorkspaceLayout(ctx: LayoutSwitcherContext, workspaceIndex: number): unknown {
     const perSpaceEnabled = ctx._settings.get_boolean('use-per-workspace-layouts');
 
     if (perSpaceEnabled) {
@@ -531,13 +556,13 @@ function getWorkspaceLayout(ctx, workspaceIndex) {
 /**
  * Create a single workspace thumbnail with zone preview
  * Extracted for reuse in both initial creation and refresh to ensure consistency
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {number} workspaceIndex - Workspace index
- * @param {boolean} isActive - Whether this workspace is selected
- * @param {boolean} isDisabled - Whether thumbnails are disabled (applying globally)
- * @returns {St.Button} The workspace thumbnail button
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param workspaceIndex - Workspace index
+ * @param isActive - Whether this workspace is selected
+ * @param isDisabled - Whether thumbnails are disabled (applying globally)
+ * @returns The workspace thumbnail button
  */
-function createWorkspaceThumbnail(ctx, workspaceIndex, isActive, isDisabled) {
+function createWorkspaceThumbnail(ctx: LayoutSwitcherContext, workspaceIndex: number, isActive: boolean, isDisabled: boolean): WorkspaceThumbnail {
     const tier = ctx._currentTier;
     const thumbW = tier.workspaceThumb.w;
     const thumbH = tier.workspaceThumb.h;
@@ -575,7 +600,8 @@ function createWorkspaceThumbnail(ctx, workspaceIndex, isActive, isDisabled) {
     });
 
     // Get zones for this workspace (per-space aware)
-    const zones = workspaceLayout?.zones || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const zones = (workspaceLayout as any)?.zones || [];
 
     const preview = createZonePreview(ctx, zones);
     preview.set_size(thumbW, thumbH);
@@ -609,9 +635,9 @@ function createWorkspaceThumbnail(ctx, workspaceIndex, isActive, isDisabled) {
 
     thumb.set_child(thumbContainer);
 
-    // Store for later reference
-    thumb._workspaceIndex = workspaceIndex;
-    thumb._isDisabled = isDisabled;
+    // Store for later reference - cast to WorkspaceThumbnail to add custom properties
+    (thumb as WorkspaceThumbnail)._workspaceIndex = workspaceIndex;
+    (thumb as WorkspaceThumbnail)._isDisabled = isDisabled;
 
     if (!isDisabled) {
         // Hover effects (only when not disabled) - use bound methods
@@ -631,10 +657,10 @@ function createWorkspaceThumbnail(ctx, workspaceIndex, isActive, isDisabled) {
 /**
  * Create workspace thumbnails with 16:9 zone previews
  * Shows the currently applied layout for each workspace
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.BoxLayout} The workspace thumbnails container
+ * @param ctx - Parent LayoutSwitcher instance
+ * @returns The workspace thumbnails container
  */
-export function createWorkspaceThumbnails(ctx) {
+export function createWorkspaceThumbnails(ctx: LayoutSwitcherContext): St.BoxLayout {
     const tier = ctx._currentTier;
     const thumbGap = tier.workspaceThumbGap || 8;
 
@@ -668,16 +694,16 @@ export function createWorkspaceThumbnails(ctx) {
 
 /**
  * Get workspace thumbnail style based on state
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {boolean} isActive - Whether this workspace is selected
- * @param {boolean} isDisabled - Whether thumbnails are disabled (applying globally)
- * @param {number} width - Thumbnail width
- * @param {number} height - Thumbnail height
- * @param {number} radius - Border radius
- * @param {boolean} isHovered - Whether the thumbnail is being hovered
- * @returns {string} CSS style string
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param isActive - Whether this workspace is selected
+ * @param isDisabled - Whether thumbnails are disabled (applying globally)
+ * @param width - Thumbnail width
+ * @param height - Thumbnail height
+ * @param radius - Border radius
+ * @param isHovered - Whether the thumbnail is being hovered
+ * @returns CSS style string
  */
-function getWorkspaceThumbnailStyle(ctx, isActive, isDisabled, width, height, radius, isHovered = false) {
+function getWorkspaceThumbnailStyle(ctx: LayoutSwitcherContext, isActive: boolean, isDisabled: boolean, width: number, height: number, radius: number, isHovered: boolean = false): string {
     const colors = ctx._themeManager.getColors();
 
     let baseStyle = `width: ${width}px; height: ${height}px; ` +
@@ -711,10 +737,10 @@ function getWorkspaceThumbnailStyle(ctx, isActive, isDisabled, width, height, ra
  * Handle workspace thumbnail click - select workspace for configuration
  * Single-click: Select workspace in UI (for assigning layouts)
  * Double-click: Actually switch to that GNOME workspace
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {number} workspaceIndex - Index of clicked workspace
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param workspaceIndex - Index of clicked workspace
  */
-export function onWorkspaceThumbnailClicked(ctx, workspaceIndex) {
+export function onWorkspaceThumbnailClicked(ctx: LayoutSwitcherContext, workspaceIndex: number | undefined): void {
     // Don't respond if disabled (global mode)
     if (ctx._applyGlobally) {
         return;
@@ -735,7 +761,7 @@ export function onWorkspaceThumbnailClicked(ctx, workspaceIndex) {
     const thumbRadius = Math.max(2, tier.cardRadius);
 
     // Update all thumbnail styles
-    ctx._workspaceButtons.forEach((thumb, index) => {
+    ctx._workspaceButtons.forEach((thumb: WorkspaceThumbnail, index: number) => {
         const isActive = index === workspaceIndex;
         thumb.style = getWorkspaceThumbnailStyle(ctx, isActive, false, thumbW, thumbH, thumbRadius);
     });
@@ -759,16 +785,16 @@ export function onWorkspaceThumbnailClicked(ctx, workspaceIndex) {
  * Refresh zone previews in workspace thumbnails
  * Called when toggling between global and per-workspace modes
  * Destroys and recreates each thumbnail using createWorkspaceThumbnail() to ensure consistency
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param ctx - Parent LayoutSwitcher instance
  */
-export function refreshWorkspaceThumbnailPreviews(ctx) {
+export function refreshWorkspaceThumbnailPreviews(ctx: LayoutSwitcherContext): void {
     const isDisabled = ctx._applyGlobally;
     const container = ctx._workspaceThumbnailsContainer;
 
     if (!container) return;
 
     // Destroy and recreate each thumbnail to ensure identical structure
-    ctx._workspaceButtons.forEach((oldThumb, i) => {
+    ctx._workspaceButtons.forEach((oldThumb: WorkspaceThumbnail, i: number) => {
         const isActive = i === ctx._currentWorkspace;
 
         // Create new thumbnail using the same helper function as initial creation
@@ -794,16 +820,16 @@ export function refreshWorkspaceThumbnailPreviews(ctx) {
 /**
  * Update workspace thumbnails disabled state
  * Called when "Apply to all workspaces" checkbox is toggled
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param ctx - Parent LayoutSwitcher instance
  */
-export function updateWorkspaceThumbnailsDisabledState(ctx) {
+export function updateWorkspaceThumbnailsDisabledState(ctx: LayoutSwitcherContext): void {
     const isDisabled = ctx._applyGlobally;
     const tier = ctx._currentTier;
     const thumbW = tier.workspaceThumb.w;
     const thumbH = tier.workspaceThumb.h;
     const thumbRadius = Math.max(2, tier.cardRadius);
 
-    ctx._workspaceButtons.forEach((thumb, index) => {
+    ctx._workspaceButtons.forEach((thumb: WorkspaceThumbnail, index: number) => {
         const isActive = index === ctx._currentWorkspace;
         thumb.style = getWorkspaceThumbnailStyle(ctx, isActive, isDisabled, thumbW, thumbH, thumbRadius);
         thumb.reactive = !isDisabled;
@@ -816,7 +842,7 @@ export function updateWorkspaceThumbnailsDisabledState(ctx) {
         if (container) {
             const children = container.get_children();
             // Find existing disabled overlay (last child if present)
-            const lastChild = children[children.length - 1];
+            const lastChild = children[children.length - 1] as St.Widget;
             if (lastChild && lastChild.style?.includes('rgba(0, 0, 0, 0.4)')) {
                 // Remove existing overlay
                 container.remove_child(lastChild);
@@ -845,10 +871,10 @@ export const onWorkspacePillClicked = onWorkspaceThumbnailClicked;
 
 /**
  * Create "Apply to all" checkbox group
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.BoxLayout} The checkbox container
+ * @param ctx - Parent LayoutSwitcher instance
+ * @returns The checkbox container
  */
-export function createGlobalCheckbox(ctx) {
+export function createGlobalCheckbox(ctx: LayoutSwitcherContext): St.BoxLayout {
     const colors = ctx._themeManager.getColors();
 
     const container = new St.BoxLayout({
@@ -901,9 +927,9 @@ export function createGlobalCheckbox(ctx) {
 /**
  * Toggle monitor dropdown menu visibility
  * Adds menu to _dialog (the modal actor) so it receives events through the modal
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param ctx - Parent LayoutSwitcher instance
  */
-export function toggleMonitorDropdown(ctx) {
+export function toggleMonitorDropdown(ctx: LayoutSwitcherContext): void {
     if (ctx._monitorMenu) {
         // Close existing menu
         closeMonitorDropdown(ctx);
@@ -940,9 +966,9 @@ export function toggleMonitorDropdown(ctx) {
 
 /**
  * Close the monitor dropdown menu
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param ctx - Parent LayoutSwitcher instance
  */
-export function closeMonitorDropdown(ctx) {
+export function closeMonitorDropdown(ctx: LayoutSwitcherContext): void {
     if (ctx._monitorMenu) {
         if (ctx._monitorMenu.get_parent()) {
             ctx._monitorMenu.get_parent().remove_child(ctx._monitorMenu);
@@ -954,10 +980,10 @@ export function closeMonitorDropdown(ctx) {
 
 /**
  * Create monitor dropdown menu
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @returns {St.BoxLayout} The dropdown menu widget
+ * @param ctx - Parent LayoutSwitcher instance
+ * @returns The dropdown menu widget
  */
-export function createMonitorDropdownMenu(ctx) {
+export function createMonitorDropdownMenu(ctx: LayoutSwitcherContext): St.BoxLayout {
     const colors = ctx._themeManager.getColors();
 
     const menu = new St.BoxLayout({
@@ -973,7 +999,7 @@ export function createMonitorDropdownMenu(ctx) {
     const monitors = Main.layoutManager.monitors;
     const primaryIndex = Main.layoutManager.primaryIndex;
 
-    monitors.forEach((monitor, index) => {
+    monitors.forEach((monitor: MonitorInfo, index: number) => {
         const isSelected = index === ctx._selectedMonitorIndex;
         const details = getMonitorDetails(monitor, index, primaryIndex);
 
@@ -1079,10 +1105,10 @@ export function createMonitorDropdownMenu(ctx) {
 
 /**
  * Handle monitor selection
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {number} monitorIndex - Index of selected monitor
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param monitorIndex - Index of selected monitor
  */
-export function onMonitorSelected(ctx, monitorIndex) {
+export function onMonitorSelected(ctx: LayoutSwitcherContext, monitorIndex: number): void {
     ctx._selectedMonitorIndex = monitorIndex;
     const monitors = Main.layoutManager.monitors;
     const primaryIndex = Main.layoutManager.primaryIndex;

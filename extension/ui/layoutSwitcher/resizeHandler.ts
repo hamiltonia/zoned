@@ -14,8 +14,11 @@ import Clutter from '@girs/clutter-14';
 import St from '@girs/st-14';
 import Meta from 'gi://Meta';
 import {createLogger} from '../../utils/debug';
+import type {LayoutSwitcherContext} from './types';
 
 const logger = createLogger('ResizeHandler');
+
+type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se';
 
 /**
  * Bound method handlers for resize signal connections
@@ -24,11 +27,11 @@ const logger = createLogger('ResizeHandler');
 
 /**
  * Handle resize handle hover enter
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {St.Widget} handle - The resize handle
- * @param {number} handleSize - Size of the handle
+ * @param _ctx - Parent LayoutSwitcher instance (unused but required for bound signature)
+ * @param handle - The resize handle
+ * @param handleSize - Size of the handle
  */
-function handleResizeHandleEnter(ctx, handle, handleSize) {
+function handleResizeHandleEnter(_ctx: LayoutSwitcherContext, handle: St.Widget, handleSize: number): void {
     handle.style = `width: ${handleSize}px; height: ${handleSize}px; ` +
                   'background-color: rgba(255, 165, 0, 0.6); ' +
                   'border-radius: 4px;';
@@ -37,11 +40,11 @@ function handleResizeHandleEnter(ctx, handle, handleSize) {
 
 /**
  * Handle resize handle hover leave
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {St.Widget} handle - The resize handle
- * @param {number} handleSize - Size of the handle
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param handle - The resize handle
+ * @param handleSize - Size of the handle
  */
-function handleResizeHandleLeave(ctx, handle, handleSize) {
+function handleResizeHandleLeave(ctx: LayoutSwitcherContext, handle: St.Widget, handleSize: number): void {
     if (!ctx._isResizing) {
         handle.style = `width: ${handleSize}px; height: ${handleSize}px; ` +
                       `background-color: ${ctx._debugMode ? 'rgba(255, 0, 0, 0.5)' : 'transparent'}; ` +
@@ -52,12 +55,17 @@ function handleResizeHandleLeave(ctx, handle, handleSize) {
 
 /**
  * Handle resize handle button press
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {string} corner - Which corner ('nw', 'ne', 'sw', 'se')
- * @param {Clutter.Actor} actor - The handle actor
- * @param {Clutter.Event} event - The button press event
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param corner - Which corner ('nw', 'ne', 'sw', 'se')
+ * @param _actor - The handle actor (unused but required for signal signature)
+ * @param event - The button press event
  */
-function handleResizeHandlePress(ctx, corner, actor, event) {
+function handleResizeHandlePress(
+    ctx: LayoutSwitcherContext,
+    corner: ResizeCorner,
+    _actor: Clutter.Actor,
+    event: Clutter.Event
+): boolean {
     if (event.get_button() === 1) { // Left click
         startResize(ctx, corner, event);
         return Clutter.EVENT_STOP;
@@ -67,21 +75,21 @@ function handleResizeHandlePress(ctx, corner, actor, event) {
 
 /**
  * Handle stage motion event during resize
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {Clutter.Actor} actor - The stage actor
- * @param {Clutter.Event} event - The motion event
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param _actor - The stage actor (unused but required for signal signature)
+ * @param event - The motion event
  */
-function handleResizeMotion(ctx, actor, event) {
+function handleResizeMotion(ctx: LayoutSwitcherContext, _actor: Clutter.Actor, event: Clutter.Event): boolean {
     return onResizeMotion(ctx, event);
 }
 
 /**
  * Handle stage button release event during resize
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {Clutter.Actor} actor - The stage actor
- * @param {Clutter.Event} event - The button release event
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param _actor - The stage actor (unused but required for signal signature)
+ * @param event - The button release event
  */
-function handleResizeRelease(ctx, actor, event) {
+function handleResizeRelease(ctx: LayoutSwitcherContext, _actor: Clutter.Actor, event: Clutter.Event): boolean {
     if (event.get_button() === 1) {
         endResize(ctx);
         return Clutter.EVENT_STOP;
@@ -91,12 +99,12 @@ function handleResizeRelease(ctx, actor, event) {
 
 /**
  * Add resize handles to the dialog corners
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {St.Widget} wrapper - Wrapper widget for resize handles
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param wrapper - Wrapper widget for resize handles
  */
-export function addResizeHandles(ctx, wrapper) {
+export function addResizeHandles(ctx: LayoutSwitcherContext, wrapper: St.Widget): void {
     const handleSize = 24;
-    const corners = ['nw', 'ne', 'sw', 'se'];
+    const corners: ResizeCorner[] = ['nw', 'ne', 'sw', 'se'];
 
     ctx._resizeHandles = {};
 
@@ -145,19 +153,19 @@ export function addResizeHandles(ctx, wrapper) {
 
 /**
  * Start a resize operation
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {string} corner - Which corner is being dragged ('nw', 'ne', 'sw', 'se')
- * @param {Clutter.Event} event - The mouse event
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param corner - Which corner is being dragged ('nw', 'ne', 'sw', 'se')
+ * @param event - The mouse event
  */
-export function startResize(ctx, corner, event) {
+export function startResize(ctx: LayoutSwitcherContext, corner: ResizeCorner, event: Clutter.Event): void {
     ctx._isResizing = true;
     ctx._resizeCorner = corner;
 
     const [x, y] = event.get_coords();
     ctx._resizeStartX = x;
     ctx._resizeStartY = y;
-    ctx._resizeStartWidth = ctx._currentDialogWidth;
-    ctx._resizeStartHeight = ctx._currentDialogHeight;
+    ctx._resizeStartWidth = ctx._currentDialogWidth ?? 0;
+    ctx._resizeStartHeight = ctx._currentDialogHeight ?? 0;
 
     logger.info(`Starting resize from ${corner} corner, size: ${ctx._resizeStartWidth}×${ctx._resizeStartHeight}`);
 
@@ -171,11 +179,11 @@ export function startResize(ctx, corner, event) {
 
 /**
  * Handle mouse motion during resize
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {Clutter.Event} event - The mouse motion event
- * @returns {Clutter.EVENT_STOP|Clutter.EVENT_PROPAGATE}
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param event - The mouse motion event
+ * @returns Clutter.EVENT_STOP or Clutter.EVENT_PROPAGATE
  */
-export function onResizeMotion(ctx, event) {
+export function onResizeMotion(ctx: LayoutSwitcherContext, event: Clutter.Event): boolean {
     if (!ctx._isResizing) return Clutter.EVENT_PROPAGATE;
 
     const [x, y] = event.get_coords();
@@ -212,13 +220,13 @@ export function onResizeMotion(ctx, event) {
 
     // Update container size directly (live preview)
     if (ctx._container) {
-        ctx._container.style = ctx._container.style.replace(
+        ctx._container.style = ctx._container.style?.replace(
             /width:\s*\d+px/,
             `width: ${newWidth}px`,
         ).replace(
             /height:\s*\d+px/,
             `height: ${newHeight}px`,
-        );
+        ) ?? '';
     }
 
     return Clutter.EVENT_STOP;
@@ -226,9 +234,9 @@ export function onResizeMotion(ctx, event) {
 
 /**
  * End a resize operation and rebuild the dialog
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
+ * @param ctx - Parent LayoutSwitcher instance
  */
-export function endResize(ctx) {
+export function endResize(ctx: LayoutSwitcherContext): void {
     if (!ctx._isResizing) return;
 
     ctx._isResizing = false;
@@ -246,8 +254,8 @@ export function endResize(ctx) {
 
     // Get final dimensions from container (both width and height, content-driven)
     if (ctx._container) {
-        const widthMatch = ctx._container.style.match(/width:\s*(\d+)px/);
-        const heightMatch = ctx._container.style.match(/height:\s*(\d+)px/);
+        const widthMatch = ctx._container.style?.match(/width:\s*(\d+)px/);
+        const heightMatch = ctx._container.style?.match(/height:\s*(\d+)px/);
 
         if (widthMatch && heightMatch) {
             const newWidth = parseInt(widthMatch[1]);
@@ -268,11 +276,11 @@ export function endResize(ctx) {
 /**
  * Rebuild the dialog with new dimensions
  * Recalculates card sizes to fit the new dialog size
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {number} newWidth - New dialog width
- * @param {number} newHeight - New dialog height
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param newWidth - New dialog width
+ * @param newHeight - New dialog height
  */
-export function rebuildWithNewSize(ctx, newWidth, newHeight) {
+export function rebuildWithNewSize(ctx: LayoutSwitcherContext, newWidth: number, newHeight: number): void {
     // Store current state
     const wasWorkspace = ctx._currentWorkspace;
     const wasSelectedIndex = ctx._selectedCardIndex;

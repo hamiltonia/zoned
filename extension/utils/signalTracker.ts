@@ -20,13 +20,13 @@
  *   }
  */
 
-import GObject from '@girs/gobject-2.0';
 import {createLogger} from './debug.js';
 
 const logger = createLogger('SignalTracker');
 
 interface SignalConnection {
-    object: GObject.Object;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    object: any;
     id: number;
     signal: string;
 }
@@ -48,32 +48,37 @@ export class SignalTracker {
     /**
      * Connect a signal and track it for cleanup
      *
-     * @param object - Object to connect to
+     * @param object - Object to connect to (must have connect() method)
      * @param signal - Signal name (e.g., 'changed', 'clicked')
      * @param handler - Signal handler (MUST be a bound method, not arrow function)
      * @returns Signal ID (can be used for manual disconnect if needed)
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    connect(object: GObject.Object, signal: string, handler: (...args: any[]) => void): number | null {
+    connect(object: unknown, signal: string, handler: (...args: any[]) => void): number | null {
         if (!object || !signal || !handler) {
             logger.error(`${this._componentName}: Invalid connect() call - object, signal, and handler required`);
             return null;
         }
 
-        const signalId = object.connect(signal, handler);
+        // Cast to any to access connect method - TypeScript doesn't know about GObject signals
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const signalId = (object as any).connect(signal, handler);
 
         this._connections.push({
-            object: object,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            object: object as any,
             id: signalId,
             signal: signal,
         });
 
         // Track in global registry
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const objectName = (object as any)?.constructor?.name || 'Unknown';
         global.zonedDebug?.trackSignal(
             this._componentName,
             signalId,
             signal,
-            object.constructor?.name || 'Unknown',
+            objectName,
         );
 
         logger.memdebug(`${this._componentName}: Connected ${signal} (ID: ${signalId})`);

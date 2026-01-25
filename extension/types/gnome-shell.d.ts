@@ -5,6 +5,34 @@
  * resource:// imports which are resolved at runtime by GJS.
  */
 
+declare module 'resource:///org/gnome/shell/extensions/extension.js' {
+    import Gio from '@girs/gio-2.0';
+
+    export interface ExtensionMetadata {
+        uuid: string;
+        name: string;
+        description: string;
+        version: number | string;
+        'shell-version': string[];
+        url?: string;
+        [key: string]: any;
+    }
+
+    export class Extension {
+        constructor(metadata: ExtensionMetadata);
+
+        readonly metadata: ExtensionMetadata;
+        readonly uuid: string;
+        readonly dir: Gio.File;
+        readonly path: string;
+
+        getSettings(schema?: string): Gio.Settings;
+
+        enable(): void;
+        disable(): void;
+    }
+}
+
 declare module 'resource:///org/gnome/shell/ui/main.js' {
     export const panel: any;
     export const layoutManager: any;
@@ -45,6 +73,37 @@ declare module 'resource:///org/gnome/shell/ui/panelMenu.js' {
         constructor();
         quickSettingsItems: any[];
     }
+}
+
+declare module 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js' {
+    import Gio from '@girs/gio-2.0';
+    import Adw from '@girs/adw-1';
+
+    export interface ExtensionMetadata {
+        uuid: string;
+        name: string;
+        description: string;
+        version: number | string;
+        'shell-version': string[];
+        url?: string;
+        [key: string]: any;
+    }
+
+    export class ExtensionPreferences {
+        readonly metadata: ExtensionMetadata;
+        readonly uuid: string;
+        readonly dir: Gio.File;
+        readonly path: string;
+
+        getSettings(schema?: string): Gio.Settings;
+        fillPreferencesWindow(window: Adw.PreferencesWindow): void;
+    }
+}
+
+// Ambient declaration for gi://Gdk (GTK4 Gdk)
+declare module 'gi://Gdk' {
+    export * from '@girs/gdk-4.0';
+    export { default } from '@girs/gdk-4.0';
 }
 
 declare module 'resource:///org/gnome/shell/ui/popupMenu.js' {

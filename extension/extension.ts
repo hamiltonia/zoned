@@ -26,6 +26,8 @@ import {LayoutSwitcher} from './ui/layoutSwitcher';
 import {ZoneOverlay} from './ui/zoneOverlay';
 import {ConflictDetector} from './ui/conflictDetector';
 import {PanelIndicator} from './ui/panelIndicator';
+// Type for PanelIndicator instance (GObject.registerClass returns a constructor, not a type)
+type PanelIndicatorInstance = InstanceType<typeof PanelIndicator>;
 import * as LayoutSettingsDialogModule from './ui/layoutSettingsDialog';
 import {createLogger, initDebugSettings, destroyDebugSettings} from './utils/debug';
 import {NotificationService, NotifyCategory} from './utils/notificationService';
@@ -35,6 +37,9 @@ import {createDebugInterface, DebugInterface} from './utils/debugInterface';
 const logger = createLogger('Extension');
 
 export default class ZonedExtension extends Extension {
+    // Inherited from Extension (declared for TypeScript)
+    declare path: string;
+
     // Manager instances
     private _settings: Gio.Settings | null;
     private _windowManager: WindowManager | null;
@@ -46,7 +51,7 @@ export default class ZonedExtension extends Extension {
     private _layoutSwitcher: LayoutSwitcher | null;
     private _zoneOverlay: ZoneOverlay | null;
     private _conflictDetector: ConflictDetector | null;
-    private _panelIndicator: PanelIndicator | null;
+    private _panelIndicator: PanelIndicatorInstance | null;
     private _keybindingManager: KeybindingManager | null;
     private _debugInterface: DebugInterface | null;
 
@@ -66,6 +71,7 @@ export default class ZonedExtension extends Extension {
     private _handlingPreview: boolean;
 
     // Layout settings dialog module (stored for D-Bus testing)
+    // @ts-expect-error - Stored for D-Bus testing but not directly used in this file
     private _layoutSettingsDialogModule: typeof LayoutSettingsDialogModule | null;
 
     constructor(metadata: ExtensionMetadata) {
@@ -125,7 +131,7 @@ export default class ZonedExtension extends Extension {
                 if (!this.instances.has(className)) {
                     this.instances.set(className, 0);
                 }
-                const current = this.instances.get(className);
+                const current = this.instances.get(className) ?? 0;
                 const newCount = current + (increment ? 1 : -1);
                 this.instances.set(className, newCount);
 
@@ -143,12 +149,15 @@ export default class ZonedExtension extends Extension {
                 if (!this.signals.has(componentName)) {
                     this.signals.set(componentName, []);
                 }
-                this.signals.get(componentName).push({
-                    id: signalId,
-                    signal: signalName,
-                    source: source,
-                    stack: new Error().stack.split('\n')[3], // Capture creation location
-                });
+                const signals = this.signals.get(componentName);
+                if (signals) {
+                    signals.push({
+                        id: signalId,
+                        signal: signalName,
+                        source: source,
+                        stack: new Error().stack?.split('\n')[3] ?? '', // Capture creation location
+                    });
+                }
                 logger.memdebug(`[${componentName}] Tracked signal ${signalName} (ID: ${signalId})`);
             },
 
@@ -163,6 +172,7 @@ export default class ZonedExtension extends Extension {
                 }
 
                 const signals = this.signals.get(componentName);
+                if (!signals) return;
                 const index = signals.findIndex(s => s.id === signalId);
                 if (index !== -1) {
                     const removed = signals.splice(index, 1)[0];
@@ -225,7 +235,8 @@ export default class ZonedExtension extends Extension {
         this._layoutSettingsDialogModule = LayoutSettingsDialogModule;
 
         // Initialize D-Bus debug interface
-        this._debugInterface = createDebugInterface(this);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this._debugInterface = createDebugInterface(this as any);
         this._debugInterface.init();
         logger.debug('Debug interface initialized');
 
@@ -275,7 +286,8 @@ export default class ZonedExtension extends Extension {
         logger.debug('LayoutSwitcher initialized');
 
         // Add PanelIndicator (top bar menu) - MUST be after LayoutManager and LayoutSwitcher
-        this._panelIndicator = new PanelIndicator(
+        // GObject.registerClass uses _init pattern; TypeScript doesn't know constructor signature
+        this._panelIndicator = new (PanelIndicator as any)(
             this._layoutManager,
             this._conflictDetector,
             this._layoutSwitcher,
@@ -308,17 +320,17 @@ export default class ZonedExtension extends Extension {
         );
 
         // Set initial visibility
-        this._panelIndicator.visible = this._settings.get_boolean('show-panel-indicator');
+        this._panelIndicator!.visible = this._settings.get_boolean('show-panel-indicator');
 
         // Detect keybinding conflicts and update panel indicator
-        this._conflictDetector.detectConflicts();
-        this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
+        this._conflictDetector!.detectConflicts();
+        this._panelIndicator!.setConflictStatus(this._conflictDetector!.hasConflicts());
 
         // Show startup notification if conflicts detected
         if (this._conflictDetector.hasConflicts()) {
             const count = this._settings.get_int('keybinding-conflict-count');
-            this._notificationService.notify(
-                NotifyCategory.WARNINGS,
+            this._notificationService!.notify(
+                NotifyCategory.CONFLICTS,
                 `Warning: ${count} keybinding conflict(s) detected`,
             );
         }
@@ -438,28 +450,62 @@ export default class ZonedExtension extends Extension {
      * Destroy all extension components in proper order
      * @private
      */
-    _destroyComponents() {
-        // Components with destroy() methods, in reverse init order
-        const components = [
-            ['_keybindingManager', 'KeybindingManager'],
-            ['_panelIndicator', 'PanelIndicator'],
-            ['_layoutSwitcher', 'LayoutSwitcher'],
-            ['_templateManager', 'TemplateManager'],
-            ['_notificationService', 'NotificationService'],
-            ['_zoneOverlay', 'ZoneOverlay'],
-            ['_notificationManager', 'NotificationManager'],
-            ['_conflictDetector', 'ConflictDetector'],
-            ['_spatialStateManager', 'SpatialStateManager'],
-            ['_layoutManager', 'LayoutManager'],
-            ['_windowManager', 'WindowManager'],
-        ];
-
-        for (const [prop, name] of components) {
-            if (this[prop]) {
-                this[prop].destroy();
-                this[prop] = null;
-                logger.debug(`${name} destroyed`);
-            }
+    _destroyComponents(): void {
+        // Destroy components in reverse initialization order
+        if (this._keybindingManager) {
+            this._keybindingManager.destroy();
+            this._keybindingManager = null;
+            logger.debug('KeybindingManager destroyed');
+        }
+        if (this._panelIndicator) {
+            this._panelIndicator.destroy();
+            this._panelIndicator = null;
+            logger.debug('PanelIndicator destroyed');
+        }
+        if (this._layoutSwitcher) {
+            this._layoutSwitcher.destroy();
+            this._layoutSwitcher = null;
+            logger.debug('LayoutSwitcher destroyed');
+        }
+        if (this._templateManager) {
+            this._templateManager.destroy();
+            this._templateManager = null;
+            logger.debug('TemplateManager destroyed');
+        }
+        if (this._notificationService) {
+            this._notificationService.destroy();
+            this._notificationService = null;
+            logger.debug('NotificationService destroyed');
+        }
+        if (this._zoneOverlay) {
+            this._zoneOverlay.destroy();
+            this._zoneOverlay = null;
+            logger.debug('ZoneOverlay destroyed');
+        }
+        if (this._notificationManager) {
+            this._notificationManager.destroy();
+            this._notificationManager = null;
+            logger.debug('NotificationManager destroyed');
+        }
+        if (this._conflictDetector) {
+            this._conflictDetector.destroy();
+            this._conflictDetector = null;
+            logger.debug('ConflictDetector destroyed');
+        }
+        if (this._spatialStateManager) {
+            this._spatialStateManager.destroy();
+            this._spatialStateManager = null;
+            logger.debug('SpatialStateManager destroyed');
+        }
+        if (this._layoutManager) {
+            this._layoutManager.destroy();
+            this._layoutManager = null;
+            logger.debug('LayoutManager destroyed');
+        }
+        if (this._windowManager) {
+            this._windowManager.destroy();
+            this._windowManager = null;
+            logger.debug('WindowManager destroyed');
         }
     }
 
@@ -484,8 +530,8 @@ export default class ZonedExtension extends Extension {
      * Signal handler: show-panel-indicator changed
      * @private
      */
-    _onShowIndicatorChanged() {
-        const show = this._settings.get_boolean('show-panel-indicator');
+    _onShowIndicatorChanged(): void {
+        const show = this._settings!.get_boolean('show-panel-indicator');
         logger.debug(`Panel indicator visibility changed to: ${show}`);
         if (this._panelIndicator) {
             this._panelIndicator.visible = show;
@@ -496,10 +542,10 @@ export default class ZonedExtension extends Extension {
      * Signal handler: keybinding-conflict-count changed
      * @private
      */
-    _onConflictCountChanged() {
+    _onConflictCountChanged(): void {
         logger.debug('Conflict count changed by prefs, re-detecting...');
-        this._conflictDetector.detectConflicts();
-        this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
+        this._conflictDetector!.detectConflicts();
+        this._panelIndicator!.setConflictStatus(this._conflictDetector!.hasConflicts());
     }
 
     /**
@@ -507,18 +553,18 @@ export default class ZonedExtension extends Extension {
      * Uses recursion guard to prevent memory leak from signal loop
      * @private
      */
-    _onPreviewChanged() {
+    _onPreviewChanged(): void {
         // Prevent recursive call when we reset the flag
         if (this._handlingPreview) return;
 
-        if (this._settings.get_boolean('center-notification-preview')) {
+        if (this._settings!.get_boolean('center-notification-preview')) {
             this._handlingPreview = true;
             logger.debug('Preview triggered from preferences');
             // Show preview with current settings
-            const duration = this._settings.get_int('notification-duration');
-            this._zoneOverlay.showMessage('Preview Notification', duration);
+            const duration = this._settings!.get_int('notification-duration');
+            this._zoneOverlay!.showMessage('Preview Notification', duration);
             // Reset the flag (won't recurse due to guard)
-            this._settings.set_boolean('center-notification-preview', false);
+            this._settings!.set_boolean('center-notification-preview', false);
             this._handlingPreview = false;
         }
     }
@@ -526,10 +572,15 @@ export default class ZonedExtension extends Extension {
     /**
      * Signal handler: workspace-switched
      * @private
+     * @param _manager - Workspace manager (unused)
+     * @param _from - Previous workspace index (unused)
+     * @param to - New workspace index
+     * @param _direction - Switch direction (unused)
      */
-    _onWorkspaceSwitched(manager, from, to, _direction) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    _onWorkspaceSwitched(_manager: any, _from: number, to: number, _direction: any): void {
         // Only react if workspace mode is enabled
-        const workspaceMode = this._settings.get_boolean('use-per-workspace-layouts');
+        const workspaceMode = this._settings!.get_boolean('use-per-workspace-layouts');
         if (!workspaceMode) {
             return;
         }
@@ -539,29 +590,29 @@ export default class ZonedExtension extends Extension {
 
         // Use SpatialStateManager for per-space state
         try {
-            const spaceKey = this._spatialStateManager.makeKey(
+            const spaceKey = this._spatialStateManager!.makeKey(
                 Main.layoutManager.primaryIndex,
                 toIndex,
             );
 
-            const state = this._spatialStateManager.getState(spaceKey);
+            const state = this._spatialStateManager!.getState(spaceKey);
             const layoutId = state.layoutId;
 
             // Switch to the assigned layout
-            const layout = this._layoutManager.getAllLayouts().find(l => l.id === layoutId);
+            const layout = this._layoutManager!.getAllLayouts().find(l => l.id === layoutId);
             if (layout) {
-                this._layoutManager.setLayout(layoutId);
+                this._layoutManager!.setLayout(layoutId);
                 // Show notification with workspace number (uses notification settings)
-                this._notificationService.notify(
+                this._notificationService!.notify(
                     NotifyCategory.WORKSPACE_CHANGES,
                     `Workspace ${toIndex + 1}: ${layout.name}`,
                 );
             } else {
                 // Layout not found - use fallback
                 const fallbackId = 'halves';
-                this._layoutManager.setLayout(fallbackId);
+                this._layoutManager!.setLayout(fallbackId);
                 logger.warn(`Layout '${layoutId}' not found, using fallback`);
-                this._notificationService.notify(
+                this._notificationService!.notify(
                     NotifyCategory.WORKSPACE_CHANGES,
                     `Workspace ${toIndex + 1}: Halves (fallback)`,
                 );

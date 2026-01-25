@@ -27,6 +27,45 @@ import {SignalTracker} from '../utils/signalTracker';
 
 const logger = createLogger('ZoneEditor');
 
+// Type definitions for internal structures
+interface EdgeLayout {
+    regions: Region[];
+    edges: Edge[];
+}
+
+interface Region {
+    name: string;
+    left: string;
+    right: string;
+    top: string;
+    bottom: string;
+}
+
+interface Edge {
+    id: string;
+    type: 'vertical' | 'horizontal';
+    position: number;
+    start: number;
+    length: number;
+    fixed: boolean;
+}
+
+interface DraggingEdge {
+    edge: Edge;
+    originalPosition: number;
+    affectedRegionIndices: number[];
+}
+
+interface EdgeActor {
+    lineActor: St.Widget;
+    edge: Edge;
+}
+
+interface ResolutionLabel {
+    label: St.Label;
+    regionIndex: number;
+}
+
 /**
  * ZoneEditor - Full-screen visual layout editor (edge-based)
  *
@@ -42,6 +81,35 @@ const logger = createLogger('ZoneEditor');
  *   editor.show();
  */
 export class ZoneEditor {
+    private _edgeLayout: EdgeLayout;
+    // @ts-expect-error - Used in constructor, needed for reference
+    private _layoutManager: any;
+    // @ts-expect-error - Used in constructor, needed for reference
+    private _settings: Gio.Settings;
+    private _onSaveCallback: ((layout: any) => void) | null;
+    private _onCancelCallback: (() => void) | null;
+    private _themeManager: ThemeManager;
+    private _signalTracker: SignalTracker;
+    private _overlay: St.Widget | null;
+    private _regionActors: St.Button[];
+    private _edgeActors: EdgeActor[];
+    private _modalId: number | null;
+    private _draggingEdge: DraggingEdge | null;
+    // @ts-expect-error - Reserved for future use
+    private _currentHandle: any;
+    private _helpTextBox: St.BoxLayout | null;
+    private _toolbar: St.BoxLayout | null;
+    private _resolutionLabels: ResolutionLabel[];
+    private _saveExecuted: boolean;
+    private _cancelExecuted: boolean;
+    public MIN_REGION_SIZE: number;
+    public USE_MAP_COLORS: boolean;
+    private _boundHandleOverlayMotion: ((actor: Clutter.Actor, event: Clutter.Event) => boolean) | null;
+    private _boundHandleOverlayButtonRelease: ((actor: Clutter.Actor, event: Clutter.Event) => boolean) | null;
+    private _boundHandleKeyPress: ((actor: Clutter.Actor, event: Clutter.Event) => boolean) | null;
+    private _boundOnSave: (() => void) | null;
+    private _boundOnCancel: (() => void) | null;
+
     /**
      * Create a new grid editor
      * @param {Object} zoneLayout - Initial zone-based layout to edit
@@ -50,7 +118,7 @@ export class ZoneEditor {
      * @param {Function} onSave - Callback when user saves (receives zone-based layout)
      * @param {Function} onCancel - Callback when user cancels (optional)
      */
-    constructor(zoneLayout, layoutManager, settings, onSave, onCancel = null) {
+    constructor(zoneLayout: any, layoutManager: any, settings: Gio.Settings, onSave: (layout: any) => void, onCancel: (() => void) | null = null) {
         // Handle null layout (new layout with no zones) by creating default split template
         const layoutToEdit = zoneLayout || {
             id: null,
@@ -114,7 +182,7 @@ export class ZoneEditor {
      * @param {string} context - Context label for this log
      * @private
      */
-    _logLayoutState(context) {
+    _logLayoutState(context: string): void {
         logger.debug(`=== ZONE STATE [${context}] ===`);
         logger.debug(`Regions: ${this._edgeLayout.regions.length}, Edges: ${this._edgeLayout.edges.length}`);
 
@@ -154,7 +222,7 @@ export class ZoneEditor {
     /**
      * Show the grid editor
      */
-    show() {
+    show(): void {
         const monitor = Main.layoutManager.currentMonitor;
 
         // Get display scale factor
@@ -195,7 +263,7 @@ export class ZoneEditor {
         Main.uiGroup.add_child(this._overlay);
 
         // Grab modal input
-        this._modalId = Main.pushModal(this._overlay, {
+        this._modalId = (Main as any).pushModal(this._overlay, {
             actionMode: Shell.ActionMode.NORMAL,
         });
 
@@ -212,43 +280,47 @@ export class ZoneEditor {
      * Handle overlay motion event
      * @param {Clutter.Actor} _actor - The overlay actor
      * @param {Clutter.Event} event - The motion event
-     * @returns {number} EVENT_STOP or EVENT_PROPAGATE
+     * @returns {boolean} EVENT_STOP or EVENT_PROPAGATE
      * @private
      */
-    _handleOverlayMotion(_actor, event) {
+    _handleOverlayMotion(_actor: Clutter.Actor, event: Clutter.Event): boolean {
         if (this._draggingEdge) {
             this._onEdgeDragMotion(event);
-            return Clutter.EVENT_STOP;
+            return Clutter.EVENT_STOP as unknown as boolean;
         }
-        return Clutter.EVENT_PROPAGATE;
+        return Clutter.EVENT_PROPAGATE as unknown as boolean;
     }
 
     /**
      * Handle overlay button release event
      * @param {Clutter.Actor} _actor - The overlay actor
      * @param {Clutter.Event} _event - The button release event
-     * @returns {number} EVENT_STOP or EVENT_PROPAGATE
+     * @returns {boolean} EVENT_STOP or EVENT_PROPAGATE
      * @private
      */
-    _handleOverlayButtonRelease(_actor, _event) {
+    _handleOverlayButtonRelease(_actor: Clutter.Actor, _event: Clutter.Event): boolean {
         if (this._draggingEdge) {
             logger.info('[DRAG] Button release - ending drag');
             this._onEdgeDragEnd();
-            return Clutter.EVENT_STOP;
+            return Clutter.EVENT_STOP as unknown as boolean;
         }
-        return Clutter.EVENT_PROPAGATE;
+        return Clutter.EVENT_PROPAGATE as unknown as boolean;
     }
 
     /**
      * Setup global drag event handlers
      * @private
      */
-    _setupDragHandlers() {
+    _setupDragHandlers(): void {
         // Global motion handler - tracks mouse movement during drag - use bound method
-        this._signalTracker.connect(this._overlay, 'motion-event', this._boundHandleOverlayMotion);
+        if (this._boundHandleOverlayMotion) {
+            this._signalTracker.connect(this._overlay as St.Widget, 'motion-event', this._boundHandleOverlayMotion as any);
+        }
 
         // Global button-release handler - ends drag - use bound method
-        this._signalTracker.connect(this._overlay, 'button-release-event', this._boundHandleOverlayButtonRelease);
+        if (this._boundHandleOverlayButtonRelease) {
+            this._signalTracker.connect(this._overlay as St.Widget, 'button-release-event', this._boundHandleOverlayButtonRelease as any);
+        }
 
         logger.debug('Global drag handlers installed on overlay');
     }
@@ -256,13 +328,13 @@ export class ZoneEditor {
     /**
      * Hide the grid editor
      */
-    hide() {
+    hide(): void {
         if (this._overlay) {
             logger.debug('Hiding grid editor');
 
             // Release modal
             if (this._modalId) {
-                Main.popModal(this._modalId);
+                (Main as any).popModal(this._modalId);
                 this._modalId = null;
             }
 
@@ -279,7 +351,9 @@ export class ZoneEditor {
      * Create help text at top of screen
      * @private
      */
-    _createHelpText() {
+    _createHelpText(): void {
+        if (!this._overlay) return;
+
         const themeContext = St.ThemeContext.get_for_stage(global.stage);
         const scaleFactor = themeContext.scale_factor;
         const colors = this._themeManager.getColors();
@@ -314,7 +388,7 @@ export class ZoneEditor {
                 style: `font-size: 11pt; color: ${colors.textSecondary};`,
             });
             label.clutter_text.line_wrap = true;
-            this._helpTextBox.add_child(label);
+            this._helpTextBox!.add_child(label);
         });
 
         this._overlay.add_child(this._helpTextBox);
@@ -324,9 +398,15 @@ export class ZoneEditor {
      * Create region actors
      * @private
      */
-    _createRegions() {
+    _createRegions(): void {
+        if (!this._overlay) {
+            logger.warn('Cannot create regions: overlay not initialized');
+            return;
+        }
+
         const monitor = Main.layoutManager.currentMonitor;
         const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
+        const overlay = this._overlay; // Store reference for TypeScript
 
         this._edgeLayout.regions.forEach((region, index) => {
             const left = edgeMap.get(region.left);
@@ -397,6 +477,7 @@ export class ZoneEditor {
                     border: 3px solid ${colorScheme.border};
                     border-radius: 4px;
                 `;
+                return Clutter.EVENT_PROPAGATE as unknown as boolean;
             });
 
             this._signalTracker.connect(actor, 'leave-event', () => {
@@ -406,9 +487,10 @@ export class ZoneEditor {
                     border: 3px solid ${colorScheme.border};
                     border-radius: 4px;
                 `;
+                return Clutter.EVENT_PROPAGATE as unknown as boolean;
             });
 
-            this._overlay.add_child(actor);
+            overlay.add_child(actor);
             this._regionActors.push(actor);
         });
 
@@ -419,8 +501,14 @@ export class ZoneEditor {
      * Create edge actors for dragging and deletion
      * @private
      */
-    _createEdges() {
+    _createEdges(): void {
+        if (!this._overlay) {
+            logger.warn('Cannot create edges: overlay not initialized');
+            return;
+        }
+
         const monitor = Main.layoutManager.currentMonitor;
+        const overlay = this._overlay; // Store reference for TypeScript
 
         // Get system accent color for edge highlights
         const accentColor = this._getAccentColor();
@@ -483,7 +571,7 @@ export class ZoneEditor {
             });
 
             // Add line actor to overlay
-            this._overlay.add_child(lineActor);
+            overlay.add_child(lineActor);
 
             // Store line actor
             this._edgeActors.push({
@@ -499,7 +587,7 @@ export class ZoneEditor {
      * Handle edge drag begin
      * @private
      */
-    _onEdgeDragBegin(edge, _event) {
+    _onEdgeDragBegin(edge: Edge, _event: Clutter.Event): void {
         // Find all regions affected by this edge
         const affectedRegions = this._findRegionsReferencingEdge(edge.id);
 
@@ -519,14 +607,18 @@ export class ZoneEditor {
      * Create resolution labels for affected regions during edge drag
      * @private
      */
-    _createResolutionLabels() {
+    _createResolutionLabels(): void {
         // Remove any existing labels first
         this._removeResolutionLabels();
 
-        if (!this._draggingEdge || !this._overlay) return;
+        if (!this._draggingEdge || !this._overlay) {
+            logger.debug('Cannot create resolution labels: missing dragging edge or overlay');
+            return;
+        }
 
         const monitor = Main.layoutManager.currentMonitor;
         const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
+        const overlay = this._overlay; // Store reference for TypeScript
 
         // Create labels for each affected region
         this._draggingEdge.affectedRegionIndices.forEach(regionIndex => {
@@ -568,7 +660,7 @@ export class ZoneEditor {
                 regionY + (regionH / 2) + numberOffset,
             );
 
-            this._overlay.add_child(label);
+            overlay.add_child(label);
             this._resolutionLabels.push({label, regionIndex});
         });
 
@@ -579,7 +671,7 @@ export class ZoneEditor {
      * Update resolution labels during drag
      * @private
      */
-    _updateResolutionLabels() {
+    _updateResolutionLabels(): void {
         if (!this._draggingEdge || !this._overlay) return;
 
         const monitor = Main.layoutManager.currentMonitor;
@@ -624,7 +716,7 @@ export class ZoneEditor {
      * Remove resolution labels
      * @private
      */
-    _removeResolutionLabels() {
+    _removeResolutionLabels(): void {
         this._resolutionLabels.forEach(({label}) => {
             if (label && this._overlay && label.get_parent() === this._overlay) {
                 this._overlay.remove_child(label);
@@ -640,7 +732,7 @@ export class ZoneEditor {
      * All regions that reference this edge automatically update.
      * @private
      */
-    _onEdgeDragMotion(event) {
+    _onEdgeDragMotion(event: Clutter.Event): void {
         if (!this._draggingEdge) return;
 
         const [x, y] = event.get_coords();
@@ -723,7 +815,7 @@ export class ZoneEditor {
      * Get constraints for an edge based on adjacent regions
      * @private
      */
-    _getEdgeConstraints(edge) {
+    _getEdgeConstraints(edge: Edge): {minPos: number; maxPos: number} {
         const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
         let minPos = 0;
         let maxPos = 1;
@@ -735,12 +827,12 @@ export class ZoneEditor {
                 const right = edgeMap.get(region.right);
 
                 // Region to the left - edge must be at least MIN_SIZE to the right of its left edge
-                if (region.right === edge.id) {
+                if (region.right === edge.id && left) {
                     minPos = Math.max(minPos, left.position + this.MIN_REGION_SIZE);
                 }
 
                 // Region to the right - edge must be at least MIN_SIZE to the left of its right edge
-                if (region.left === edge.id) {
+                if (region.left === edge.id && right) {
                     maxPos = Math.min(maxPos, right.position - this.MIN_REGION_SIZE);
                 }
             });
@@ -751,12 +843,12 @@ export class ZoneEditor {
                 const bottom = edgeMap.get(region.bottom);
 
                 // Region above - edge must be at least MIN_SIZE below its top edge
-                if (region.bottom === edge.id) {
+                if (region.bottom === edge.id && top) {
                     minPos = Math.max(minPos, top.position + this.MIN_REGION_SIZE);
                 }
 
                 // Region below - edge must be at least MIN_SIZE above its bottom edge
-                if (region.top === edge.id) {
+                if (region.top === edge.id && bottom) {
                     maxPos = Math.min(maxPos, bottom.position - this.MIN_REGION_SIZE);
                 }
             });
@@ -769,7 +861,7 @@ export class ZoneEditor {
      * Handle edge drag end
      * @private
      */
-    _onEdgeDragEnd() {
+    _onEdgeDragEnd(): void {
         if (!this._draggingEdge) return;
 
         logger.debug(`Ended dragging edge ${this._draggingEdge.edge.id}`);
@@ -795,7 +887,7 @@ export class ZoneEditor {
      * @returns {boolean} EVENT_STOP to prevent propagation
      * @private
      */
-    _onRegionClicked(regionIndex, event) {
+    _onRegionClicked(regionIndex: number, event: Clutter.Event): boolean {
         const modifiers = event.get_state();
         const shiftPressed = modifiers & Clutter.ModifierType.SHIFT_MASK;
 
@@ -811,7 +903,7 @@ export class ZoneEditor {
             this._splitHorizontal(regionIndex, clickX);
         }
 
-        return Clutter.EVENT_STOP;
+        return Clutter.EVENT_STOP as unknown as boolean;
     }
 
     /**
@@ -820,7 +912,7 @@ export class ZoneEditor {
      * @param {number} clickX - X coordinate of click (in screen pixels)
      * @private
      */
-    _splitHorizontal(regionIndex, clickX) {
+    _splitHorizontal(regionIndex: number, clickX: number): void {
         const region = this._edgeLayout.regions[regionIndex];
         const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
         const monitor = Main.layoutManager.currentMonitor;
@@ -829,6 +921,11 @@ export class ZoneEditor {
         const right = edgeMap.get(region.right);
         const top = edgeMap.get(region.top);
         const bottom = edgeMap.get(region.bottom);
+
+        if (!left || !right || !top || !bottom) {
+            logger.error(`Region ${regionIndex} has invalid edge references`);
+            return;
+        }
 
         // Convert click position to normalized 0-1 position
         let splitPosition = (clickX - monitor.x) / monitor.width;
@@ -840,12 +937,12 @@ export class ZoneEditor {
 
         // Create new vertical edge at click position, spanning this region's height
         const newEdgeId = `v${Date.now()}`;
-        const newEdge = {
+        const newEdge: Edge = {
             id: newEdgeId,
-            type: 'vertical',
+            type: 'vertical' as const,
             position: splitPosition,
-            start: top.position,
-            length: bottom.position - top.position,
+            start: top!.position,
+            length: bottom!.position - top!.position,
             fixed: false,
         };
 
@@ -888,7 +985,7 @@ export class ZoneEditor {
      * @param {number} clickY - Y coordinate of click (in screen pixels)
      * @private
      */
-    _splitVertical(regionIndex, clickY) {
+    _splitVertical(regionIndex: number, clickY: number): void {
         const region = this._edgeLayout.regions[regionIndex];
         const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
         const monitor = Main.layoutManager.currentMonitor;
@@ -897,6 +994,11 @@ export class ZoneEditor {
         const right = edgeMap.get(region.right);
         const top = edgeMap.get(region.top);
         const bottom = edgeMap.get(region.bottom);
+
+        if (!left || !right || !top || !bottom) {
+            logger.error(`Region ${regionIndex} has invalid edge references`);
+            return;
+        }
 
         // Convert click position to normalized 0-1 position
         let splitPosition = (clickY - monitor.y) / monitor.height;
@@ -908,12 +1010,12 @@ export class ZoneEditor {
 
         // Create new horizontal edge at click position, spanning this region's width
         const newEdgeId = `h${Date.now()}`;
-        const newEdge = {
+        const newEdge: Edge = {
             id: newEdgeId,
-            type: 'horizontal',
+            type: 'horizontal' as const,
             position: splitPosition,
-            start: left.position,
-            length: right.position - left.position,
+            start: left!.position,
+            length: right!.position - left!.position,
             fixed: false,
         };
 
@@ -955,7 +1057,7 @@ export class ZoneEditor {
      * @param {number} regionIndex - Index of region to delete
      * @private
      */
-    _deleteRegion(regionIndex) {
+    _deleteRegion(regionIndex: number): void {
         // Must keep at least one region
         if (this._edgeLayout.regions.length <= 1) {
             logger.warn('Cannot delete last region');
@@ -1012,9 +1114,10 @@ export class ZoneEditor {
      * Get edge with minimum position
      * @private
      */
-    _minEdge(edge1Id, edge2Id, edgeMap) {
+    _minEdge(edge1Id: string, edge2Id: string, edgeMap: Map<string, Edge>): string {
         const e1 = edgeMap.get(edge1Id);
         const e2 = edgeMap.get(edge2Id);
+        if (!e1 || !e2) return edge1Id;
         return e1.position < e2.position ? edge1Id : edge2Id;
     }
 
@@ -1022,9 +1125,10 @@ export class ZoneEditor {
      * Get edge with maximum position
      * @private
      */
-    _maxEdge(edge1Id, edge2Id, edgeMap) {
+    _maxEdge(edge1Id: string, edge2Id: string, edgeMap: Map<string, Edge>): string {
         const e1 = edgeMap.get(edge1Id);
         const e2 = edgeMap.get(edge2Id);
+        if (!e1 || !e2) return edge1Id;
         return e1.position > e2.position ? edge1Id : edge2Id;
     }
 
@@ -1032,7 +1136,7 @@ export class ZoneEditor {
      * Remove edges that are not referenced by any region
      * @private
      */
-    _cleanupUnusedEdges() {
+    _cleanupUnusedEdges(): void {
         const usedEdges = new Set();
 
         this._edgeLayout.regions.forEach(region => {
@@ -1058,7 +1162,7 @@ export class ZoneEditor {
      * This is critical after edge deletion/region merging to ensure edge bounds match their actual extent
      * @private
      */
-    _recalculateEdgeBounds() {
+    _recalculateEdgeBounds(): void {
         const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
 
         // For each non-fixed edge, recalculate its bounds
@@ -1133,7 +1237,7 @@ export class ZoneEditor {
      * @returns {Array} Array of regions referencing this edge
      * @private
      */
-    _findRegionsReferencingEdge(edgeId) {
+    _findRegionsReferencingEdge(edgeId: string): Region[] {
         return this._edgeLayout.regions.filter(region =>
             region.left === edgeId ||
             region.right === edgeId ||
@@ -1149,9 +1253,9 @@ export class ZoneEditor {
      * @returns {Object} {leftOrTop: Array, rightOrBottom: Array}
      * @private
      */
-    _groupRegionsBySide(edge, regions) {
-        const leftOrTop = [];
-        const rightOrBottom = [];
+    _groupRegionsBySide(edge: Edge, regions: Region[]): {leftOrTop: Region[]; rightOrBottom: Region[]} {
+        const leftOrTop: Region[] = [];
+        const rightOrBottom: Region[] = [];
 
         regions.forEach(region => {
             if (edge.type === 'vertical') {
@@ -1174,16 +1278,19 @@ export class ZoneEditor {
      * @returns {boolean} True if any regions overlap vertically
      * @private
      */
-    _hasVerticalOverlap(leftRegions, rightRegions, edgeMap) {
+    _hasVerticalOverlap(leftRegions: Region[], rightRegions: Region[], edgeMap: Map<string, Edge>): boolean {
         for (const leftReg of leftRegions) {
-            const leftTop = edgeMap.get(leftReg.top).position;
-            const leftBottom = edgeMap.get(leftReg.bottom).position;
+            const leftTop = edgeMap.get(leftReg.top);
+            const leftBottom = edgeMap.get(leftReg.bottom);
+            if (!leftTop || !leftBottom) continue;
 
             for (const rightReg of rightRegions) {
-                const rightTop = edgeMap.get(rightReg.top).position;
-                const rightBottom = edgeMap.get(rightReg.bottom).position;
+                const rightTop = edgeMap.get(rightReg.top);
+                const rightBottom = edgeMap.get(rightReg.bottom);
+                if (!rightTop || !rightBottom) continue;
 
-                if (leftTop < rightBottom && leftBottom > rightTop) {
+                if (leftTop.position < rightBottom.position && leftBottom.position > rightTop.position) {
+
                     return true;
                 }
             }
@@ -1199,16 +1306,19 @@ export class ZoneEditor {
      * @returns {boolean} True if any regions overlap horizontally
      * @private
      */
-    _hasHorizontalOverlap(topRegions, bottomRegions, edgeMap) {
+    _hasHorizontalOverlap(topRegions: Region[], bottomRegions: Region[], edgeMap: Map<string, Edge>): boolean {
         for (const topReg of topRegions) {
-            const topLeft = edgeMap.get(topReg.left).position;
-            const topRight = edgeMap.get(topReg.right).position;
+            const topLeft = edgeMap.get(topReg.left);
+            const topRight = edgeMap.get(topReg.right);
+            if (!topLeft || !topRight) continue;
 
             for (const bottomReg of bottomRegions) {
-                const bottomLeft = edgeMap.get(bottomReg.left).position;
-                const bottomRight = edgeMap.get(bottomReg.right).position;
+                const bottomLeft = edgeMap.get(bottomReg.left);
+                const bottomRight = edgeMap.get(bottomReg.right);
+                if (!bottomLeft || !bottomRight) continue;
 
-                if (topLeft < bottomRight && topRight > bottomLeft) {
+                if (topLeft.position < bottomRight.position && topRight.position > bottomLeft.position) {
+
                     return true;
                 }
             }
@@ -1222,7 +1332,7 @@ export class ZoneEditor {
      * @returns {boolean} True if edge can be deleted
      * @private
      */
-    _canDeleteEdge(edge) {
+    _canDeleteEdge(edge: Edge): boolean {
         // Never delete fixed boundary edges
         if (edge.fixed) return false;
 
@@ -1258,7 +1368,7 @@ export class ZoneEditor {
      * @param {Object} edge - Edge to delete
      * @private
      */
-    _deleteEdge(edge) {
+    _deleteEdge(edge: Edge): void {
         // Safety check
         if (!this._canDeleteEdge(edge)) {
             logger.warn(`[EDGE-DELETE] Cannot delete edge ${edge.id}: safety check failed`);
@@ -1279,8 +1389,8 @@ export class ZoneEditor {
         const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
 
         // Group regions by which side of the edge they're on
-        const leftOrTopRegions = [];
-        const rightOrBottomRegions = [];
+        const leftOrTopRegions: Region[] = [];
+        const rightOrBottomRegions: Region[] = [];
 
         regions.forEach(region => {
             if (edge.type === 'vertical') {
@@ -1306,12 +1416,13 @@ export class ZoneEditor {
         // Strategy: Process whichever side has MORE regions (to preserve maximum granularity)
         // Example: 1 left + 2 right → process 2 right regions → 2 merged regions
         // Example: 3 top + 1 bottom → process 3 top regions → 3 merged regions
-        const newRegions = [];
-        const processed = new Set();
+        const newRegions: Region[] = [];
+        const processed = new Set<Region>();
 
         // Determine which side to process (the one with more regions)
-        let primaryRegions, secondaryRegions;
-        let processPrimary; // function to process each primary region
+        let primaryRegions: Region[];
+        let secondaryRegions: Region[];
+        let processPrimary: (reg: Region) => void; // function to process each primary region
 
         if (edge.type === 'vertical') {
             // For vertical edges
@@ -1320,16 +1431,16 @@ export class ZoneEditor {
                 primaryRegions = leftOrTopRegions;
                 secondaryRegions = rightOrBottomRegions;
 
-                processPrimary = (leftReg) => {
-                    const leftTop = edgeMap.get(leftReg.top).position;
-                    const leftBottom = edgeMap.get(leftReg.bottom).position;
+                processPrimary = (leftReg: Region) => {
+                    const leftTop = edgeMap.get(leftReg.top)!.position;
+                    const leftBottom = edgeMap.get(leftReg.bottom)!.position;
 
                     logger.debug(`[EDGE-DELETE] Processing left region: top=${leftTop.toFixed(3)}, bottom=${leftBottom.toFixed(3)}`);
 
                     // Find all right regions that overlap with this left region vertically
                     const matchingRightRegions = secondaryRegions.filter(rightReg => {
-                        const rightTop = edgeMap.get(rightReg.top).position;
-                        const rightBottom = edgeMap.get(rightReg.bottom).position;
+                        const rightTop = edgeMap.get(rightReg.top)!.position;
+                        const rightBottom = edgeMap.get(rightReg.bottom)!.position;
 
                         const overlaps = leftTop < rightBottom && leftBottom > rightTop;
                         logger.debug(`[EDGE-DELETE]   Right region: top=${rightTop.toFixed(3)}, bottom=${rightBottom.toFixed(3)}, overlaps=${overlaps}`);
@@ -1358,16 +1469,16 @@ export class ZoneEditor {
                 primaryRegions = rightOrBottomRegions;
                 secondaryRegions = leftOrTopRegions;
 
-                processPrimary = (rightReg) => {
-                    const rightTop = edgeMap.get(rightReg.top).position;
-                    const rightBottom = edgeMap.get(rightReg.bottom).position;
+                processPrimary = (rightReg: Region) => {
+                    const rightTop = edgeMap.get(rightReg.top)!.position;
+                    const rightBottom = edgeMap.get(rightReg.bottom)!.position;
 
                     logger.debug(`[EDGE-DELETE] Processing right region: top=${rightTop.toFixed(3)}, bottom=${rightBottom.toFixed(3)}`);
 
                     // Find all left regions that overlap with this right region vertically
-                    const matchingLeftRegions = secondaryRegions.filter(leftReg => {
-                        const leftTop = edgeMap.get(leftReg.top).position;
-                        const leftBottom = edgeMap.get(leftReg.bottom).position;
+                    const matchingLeftRegions = secondaryRegions.filter((leftReg: Region) => {
+                        const leftTop = edgeMap.get(leftReg.top)!.position;
+                        const leftBottom = edgeMap.get(leftReg.bottom)!.position;
 
                         const overlaps = leftTop < rightBottom && leftBottom > rightTop;
                         logger.debug(`[EDGE-DELETE]   Left region: top=${leftTop.toFixed(3)}, bottom=${leftBottom.toFixed(3)}, overlaps=${overlaps}`);
@@ -1399,16 +1510,16 @@ export class ZoneEditor {
                 primaryRegions = leftOrTopRegions;
                 secondaryRegions = rightOrBottomRegions;
 
-                processPrimary = (topReg) => {
-                    const topLeft = edgeMap.get(topReg.left).position;
-                    const topRight = edgeMap.get(topReg.right).position;
+                processPrimary = (topReg: Region) => {
+                    const topLeft = edgeMap.get(topReg.left)!.position;
+                    const topRight = edgeMap.get(topReg.right)!.position;
 
                     logger.debug(`[EDGE-DELETE] Processing top region: left=${topLeft.toFixed(3)}, right=${topRight.toFixed(3)}`);
 
                     // Find all bottom regions that overlap with this top region horizontally
-                    const matchingBottomRegions = secondaryRegions.filter(bottomReg => {
-                        const bottomLeft = edgeMap.get(bottomReg.left).position;
-                        const bottomRight = edgeMap.get(bottomReg.right).position;
+                    const matchingBottomRegions = secondaryRegions.filter((bottomReg: Region) => {
+                        const bottomLeft = edgeMap.get(bottomReg.left)!.position;
+                        const bottomRight = edgeMap.get(bottomReg.right)!.position;
 
                         const overlaps = topLeft < bottomRight && topRight > bottomLeft;
                         logger.debug(`[EDGE-DELETE]   Bottom region: left=${bottomLeft.toFixed(3)}, right=${bottomRight.toFixed(3)}, overlaps=${overlaps}`);
@@ -1437,16 +1548,16 @@ export class ZoneEditor {
                 primaryRegions = rightOrBottomRegions;
                 secondaryRegions = leftOrTopRegions;
 
-                processPrimary = (bottomReg) => {
-                    const bottomLeft = edgeMap.get(bottomReg.left).position;
-                    const bottomRight = edgeMap.get(bottomReg.right).position;
+                processPrimary = (bottomReg: Region) => {
+                    const bottomLeft = edgeMap.get(bottomReg.left)!.position;
+                    const bottomRight = edgeMap.get(bottomReg.right)!.position;
 
                     logger.debug(`[EDGE-DELETE] Processing bottom region: left=${bottomLeft.toFixed(3)}, right=${bottomRight.toFixed(3)}`);
 
                     // Find all top regions that overlap with this bottom region horizontally
-                    const matchingTopRegions = secondaryRegions.filter(topReg => {
-                        const topLeft = edgeMap.get(topReg.left).position;
-                        const topRight = edgeMap.get(topReg.right).position;
+                    const matchingTopRegions = secondaryRegions.filter((topReg: Region) => {
+                        const topLeft = edgeMap.get(topReg.left)!.position;
+                        const topRight = edgeMap.get(topReg.right)!.position;
 
                         const overlaps = topLeft < bottomRight && topRight > bottomLeft;
                         logger.debug(`[EDGE-DELETE]   Top region: left=${topLeft.toFixed(3)}, right=${topRight.toFixed(3)}, overlaps=${overlaps}`);
@@ -1521,7 +1632,9 @@ export class ZoneEditor {
      * @param {string} message - Notification message
      * @private
      */
-    _showCenteredNotification(title, message) {
+    _showCenteredNotification(title: string, message: string): void {
+        if (!this._overlay) return;
+
         const monitor = Main.layoutManager.currentMonitor;
         const themeContext = St.ThemeContext.get_for_stage(global.stage);
         const scaleFactor = themeContext.scale_factor;
@@ -1580,7 +1693,7 @@ export class ZoneEditor {
 
         // Auto-remove after 2.5 seconds
         setTimeout(() => {
-            if (this._overlay && notificationBox.get_parent() === this._overlay) {
+            if (this._overlay && this._overlay.get_parent() && notificationBox.get_parent() === this._overlay) {
                 this._overlay.remove_child(notificationBox);
                 notificationBox.destroy();
             }
@@ -1595,7 +1708,7 @@ export class ZoneEditor {
      * @returns {string} Edge ID at that position
      * @private
      */
-    _findEdgeAtPosition(type, position, edgeMap) {
+    _findEdgeAtPosition(type: 'vertical' | 'horizontal', position: number, edgeMap: Map<string, Edge>): string | null {
         for (const [id, edge] of edgeMap) {
             if (edge.type === type && Math.abs(edge.position - position) < 0.001) {
                 return id;
@@ -1610,7 +1723,9 @@ export class ZoneEditor {
      * Refresh display after layout changes
      * @private
      */
-    _refreshDisplay() {
+    _refreshDisplay(): void {
+        if (!this._overlay) return;
+
         logger.debug('[REFRESH] Starting display refresh');
         logger.debug(`[REFRESH] Current state: ${this._regionActors.length} region actors, ${this._edgeActors.length} edge actors`);
         logger.debug(`[REFRESH] Data state: ${this._edgeLayout.regions.length} regions, ${this._edgeLayout.edges.length} edges`);
@@ -1620,14 +1735,14 @@ export class ZoneEditor {
         const oldEdgeCount = this._edgeActors.length;
 
         this._regionActors.forEach(actor => {
-            this._overlay.remove_child(actor);
+            this._overlay!.remove_child(actor);
             actor.destroy();
         });
         this._regionActors = [];
 
         // Remove edge actors (now objects with lineActor only)
         this._edgeActors.forEach(edgeObj => {
-            this._overlay.remove_child(edgeObj.lineActor);
+            this._overlay!.remove_child(edgeObj.lineActor);
             edgeObj.lineActor.destroy();
         });
         this._edgeActors = [];
@@ -1657,7 +1772,9 @@ export class ZoneEditor {
      * Create toolbar with Save/Cancel buttons
      * @private
      */
-    _createToolbar() {
+    _createToolbar(): void {
+        if (!this._overlay) return;
+
         const monitor = Main.layoutManager.currentMonitor;
         const themeContext = St.ThemeContext.get_for_stage(global.stage);
         const scaleFactor = themeContext.scale_factor;
@@ -1685,16 +1802,18 @@ export class ZoneEditor {
             style_class: 'button',
             style: `padding: 8px 24px; background-color: ${colors.accentHex}; color: white; border-radius: 4px; font-weight: bold;`,
         });
-        this._signalTracker.connect(saveButton, 'clicked', this._boundOnSave);
+        if (this._boundOnSave) {
+            this._signalTracker.connect(saveButton, 'clicked', this._boundOnSave);
+        }
 
         // Hover effect for Save button - NOTE: hover effects are transient UI, low memory impact
         this._signalTracker.connect(saveButton, 'enter-event', () => {
             saveButton.style = `padding: 8px 24px; background-color: ${colors.accentHexHover}; color: white; border-radius: 4px; font-weight: bold;`;
-            return Clutter.EVENT_PROPAGATE;
+            return Clutter.EVENT_PROPAGATE as unknown as boolean;
         });
         this._signalTracker.connect(saveButton, 'leave-event', () => {
             saveButton.style = `padding: 8px 24px; background-color: ${colors.accentHex}; color: white; border-radius: 4px; font-weight: bold;`;
-            return Clutter.EVENT_PROPAGATE;
+            return Clutter.EVENT_PROPAGATE as unknown as boolean;
         });
 
         this._toolbar.add_child(saveButton);
@@ -1705,16 +1824,18 @@ export class ZoneEditor {
             style_class: 'button',
             style: `padding: 8px 24px; background-color: ${colors.buttonBg}; color: ${colors.buttonText}; border-radius: 4px;`,
         });
-        this._signalTracker.connect(cancelButton, 'clicked', this._boundOnCancel);
+        if (this._boundOnCancel) {
+            this._signalTracker.connect(cancelButton, 'clicked', this._boundOnCancel);
+        }
 
         // Hover effect for Cancel button - NOTE: hover effects are transient UI, low memory impact
         this._signalTracker.connect(cancelButton, 'enter-event', () => {
             cancelButton.style = `padding: 8px 24px; background-color: ${colors.buttonBgHover}; color: ${colors.buttonText}; border-radius: 4px;`;
-            return Clutter.EVENT_PROPAGATE;
+            return Clutter.EVENT_PROPAGATE as unknown as boolean;
         });
         this._signalTracker.connect(cancelButton, 'leave-event', () => {
             cancelButton.style = `padding: 8px 24px; background-color: ${colors.buttonBg}; color: ${colors.buttonText}; border-radius: 4px;`;
-            return Clutter.EVENT_PROPAGATE;
+            return Clutter.EVENT_PROPAGATE as unknown as boolean;
         });
 
         this._toolbar.add_child(cancelButton);
@@ -1726,24 +1847,24 @@ export class ZoneEditor {
      * Handle key press events
      * @param {Clutter.Actor} _actor - The overlay actor
      * @param {Clutter.Event} event - The key press event
-     * @returns {number} EVENT_STOP or EVENT_PROPAGATE
+     * @returns {boolean} EVENT_STOP or EVENT_PROPAGATE
      * @private
      */
-    _handleKeyPress(_actor, event) {
+    _handleKeyPress(_actor: Clutter.Actor, event: Clutter.Event): boolean {
         const keySymbol = event.get_key_symbol();
 
         switch (keySymbol) {
             case Clutter.KEY_Escape:
                 this._onCancel();
-                return Clutter.EVENT_STOP;
+                return Clutter.EVENT_STOP as unknown as boolean;
 
             case Clutter.KEY_Return:
             case Clutter.KEY_KP_Enter:
                 this._onSave();
-                return Clutter.EVENT_STOP;
+                return Clutter.EVENT_STOP as unknown as boolean;
 
             default:
-                return Clutter.EVENT_PROPAGATE;
+                return Clutter.EVENT_PROPAGATE as unknown as boolean;
         }
     }
 
@@ -1751,16 +1872,20 @@ export class ZoneEditor {
      * Setup keyboard event handlers
      * @private
      */
-    _setupKeyboardHandlers() {
+    _setupKeyboardHandlers(): void {
+        if (!this._overlay) return;
+
         // Use bound method to avoid closure leak
-        this._signalTracker.connect(this._overlay, 'key-press-event', this._boundHandleKeyPress);
+        if (this._boundHandleKeyPress) {
+            this._signalTracker.connect(this._overlay, 'key-press-event', this._boundHandleKeyPress);
+        }
     }
 
     /**
      * Handle save action
      * @private
      */
-    _onSave() {
+    _onSave(): void {
         // One-shot guard: prevent multiple invocations
         if (this._saveExecuted) {
             logger.warn('Save already executed, ignoring duplicate call');
@@ -1771,7 +1896,7 @@ export class ZoneEditor {
         logger.info('Saving grid editor layout');
 
         // Validate edge layout
-        const isValid = validateEdgeLayout(this._edgeLayout);
+        const isValid = validateEdgeLayout(this._edgeLayout as any);
         if (!isValid) {
             logger.error('Layout validation failed');
             this._showCenteredNotification('Invalid Layout', 'This layout cannot be saved');
@@ -1779,7 +1904,7 @@ export class ZoneEditor {
         }
 
         // Convert edge-based back to zone-based
-        const zoneLayout = edgesToZones(this._edgeLayout);
+        const zoneLayout = edgesToZones(this._edgeLayout as any);
 
         logger.debug(`Converted to ${zoneLayout.zones.length} zones`);
 
@@ -1796,7 +1921,7 @@ export class ZoneEditor {
      * Handle cancel action
      * @private
      */
-    _onCancel() {
+    _onCancel(): void {
         // One-shot guard: prevent multiple invocations
         if (this._cancelExecuted) {
             logger.warn('Cancel already executed, ignoring duplicate call');
@@ -1820,12 +1945,12 @@ export class ZoneEditor {
      * Get GNOME system accent color
      * @private
      */
-    _getAccentColor() {
+    _getAccentColor(): {red: number; green: number; blue: number} {
         try {
             const interfaceSettings = new Gio.Settings({schema: 'org.gnome.desktop.interface'});
             const accentColorName = interfaceSettings.get_string('accent-color');
 
-            const accentColors = {
+            const accentColors: Record<string, {red: number; green: number; blue: number}> = {
                 'blue': {red: 0.29, green: 0.56, blue: 0.85},
                 'teal': {red: 0.13, green: 0.63, blue: 0.62},
                 'green': {red: 0.38, green: 0.68, blue: 0.33},
@@ -1848,8 +1973,8 @@ export class ZoneEditor {
      * Convert RGB values (0-1) to hex color string
      * @private
      */
-    _rgbToHex(r, g, b) {
-        const toHex = (val) => {
+    _rgbToHex(r: number, g: number, b: number): string {
+        const toHex = (val: number) => {
             const hex = Math.round(val * 255).toString(16);
             return hex.length === 1 ? '0' + hex : hex;
         };
@@ -1859,13 +1984,13 @@ export class ZoneEditor {
     /**
      * Clean up resources
      */
-    destroy() {
+    destroy(): void {
         this.hide();
 
         // Disconnect all signals
         if (this._signalTracker) {
             this._signalTracker.disconnectAll();
-            this._signalTracker = null;
+            (this._signalTracker as any) = null;
         }
 
         // Release bound function references
@@ -1878,7 +2003,7 @@ export class ZoneEditor {
         // Clean up ThemeManager
         if (this._themeManager) {
             this._themeManager.destroy();
-            this._themeManager = null;
+            (this._themeManager as any) = null;
         }
 
         logger.debug('ZoneEditor destroyed');

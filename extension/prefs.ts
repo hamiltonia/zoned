@@ -21,7 +21,7 @@ import {getExtensionVersion} from './utils/versionUtil.js';
 
 // Debug logging for prefs (console.log goes to journalctl)
 // Reads debug-logging setting to gate verbose output
-let _debugLoggingEnabled = null;
+let _debugLoggingEnabled: boolean | null = null;
 
 function isDebugEnabled() {
     if (_debugLoggingEnabled === null) {
@@ -38,7 +38,7 @@ function isDebugEnabled() {
     return _debugLoggingEnabled;
 }
 
-function log(msg) {
+function log(msg: string): void {
     if (isDebugEnabled()) {
         console.log(`[Zoned Prefs] ${msg}`);
     }
@@ -48,31 +48,53 @@ function log(msg) {
  * Module-level signal handlers (Wave 4: avoid arrow function closures)
  */
 
+// Type alias for ShortcutCaptureRow instance with private fields
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ShortcutCaptureRowInstance = any;
+
+// Type alias for quick layout row with _loadingFromSettings  
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type QuickLayoutRowInstance = any;
+
+// Conflict info interface
+interface ConflictInfo {
+    schema: string;
+    key: string;
+    name: string;
+    binding: string;
+}
+
 // Handler for debug-logging setting change
-function handleDebugLoggingChanged(settings) {
+function handleDebugLoggingChanged(settings: Gio.Settings): void {
     _debugLoggingEnabled = settings.get_boolean('debug-logging');
 }
 
 // ShortcutCaptureRow signal handlers
-function handleWarningButtonClicked(row) {
+function handleWarningButtonClicked(row: ShortcutCaptureRowInstance): void {
     row._showConflictDialog();
 }
 
-function handleResetButtonClicked(row) {
+function handleResetButtonClicked(row: ShortcutCaptureRowInstance): void {
     log(`Reset clicked for ${row._settingsKey}`);
     row._resetToDefault();
 }
 
-function handleModifierToggled(row) {
+function handleModifierToggled(row: ShortcutCaptureRowInstance): void {
     row._onModifierChanged();
 }
 
-function handleRecordButtonClicked(row) {
+function handleRecordButtonClicked(row: ShortcutCaptureRowInstance): void {
     log(`Record clicked for ${row._settingsKey}`);
     row._startCapture();
 }
 
-function handleKeyControllerKeyPressed(row, ctrl, keyval, keycode, state) {
+function handleKeyControllerKeyPressed(
+    row: ShortcutCaptureRowInstance,
+    _ctrl: Gtk.EventControllerKey,
+    keyval: number,
+    keycode: number,
+    state: Gdk.ModifierType
+): boolean {
     log(`key-pressed event: keyval=${keyval}, keycode=${keycode}, state=${state}, capturing=${row._isCapturing}`);
     if (!row._isCapturing) {
         log('Not capturing, propagating event');
@@ -81,31 +103,43 @@ function handleKeyControllerKeyPressed(row, ctrl, keyval, keycode, state) {
     return row._onKeyPressed(keyval, keycode, state);
 }
 
-function handleFocusControllerLeave(row) {
+function handleFocusControllerLeave(row: ShortcutCaptureRowInstance): void {
     log(`Focus LEAVE on record button for ${row._settingsKey}, capturing=${row._isCapturing}`);
     if (row._isCapturing) {
         row._stopCapture();
     }
 }
 
-function handleSettingsChanged(row) {
+function handleSettingsChanged(row: ShortcutCaptureRowInstance): void {
     log(`Settings changed for ${row._settingsKey}`);
     row._loadFromSettings();
 }
 
-function handleConflictCountChanged(row) {
+function handleConflictCountChanged(row: ShortcutCaptureRowInstance): void {
     log(`Conflict count changed externally for ${row._settingsKey}, refreshing display`);
     row._updateDisplay();
 }
 
-function handleDialogResponse(row, conflict, dlg, response) {
+function handleDialogResponse(
+    row: ShortcutCaptureRowInstance,
+    conflict: ConflictInfo,
+    _dlg: Adw.AlertDialog,
+    response: string
+): void {
     if (response === 'fix') {
         row._fixConflict(conflict);
     }
 }
 
 // _createQuickLayoutRow signal handlers
-function handleQuickLayoutResetClicked(row, shiftCheck, ctrlCheck, superCheck, altCheck, saveQuickLayoutShortcuts) {
+function handleQuickLayoutResetClicked(
+    row: QuickLayoutRowInstance,
+    shiftCheck: Gtk.CheckButton,
+    ctrlCheck: Gtk.CheckButton,
+    superCheck: Gtk.CheckButton,
+    altCheck: Gtk.CheckButton,
+    saveQuickLayoutShortcuts: () => void
+): void {
     row._loadingFromSettings = true;
     shiftCheck.set_active(false);
     ctrlCheck.set_active(true);
@@ -115,54 +149,78 @@ function handleQuickLayoutResetClicked(row, shiftCheck, ctrlCheck, superCheck, a
     saveQuickLayoutShortcuts();
 }
 
-function handleQuickLayoutSettingsChanged(loadFromSettings) {
+function handleQuickLayoutSettingsChanged(loadFromSettings: () => void): void {
     loadFromSettings();
 }
 
 // fillPreferencesWindow signal handlers
-function handleThemeRowSelected(prefs, themeMapping, themeRow, settings) {
+function handleThemeRowSelected(
+    prefs: ZonedPreferences,
+    themeMapping: string[],
+    themeRow: Adw.ComboRow,
+    settings: Gio.Settings
+): void {
     const newTheme = themeMapping[themeRow.get_selected()];
     settings.set_string('ui-theme', newTheme);
     // Apply theme immediately to this preferences window
     prefs._applyTheme(newTheme);
 }
 
-function handleTierRowSelected(tierRow, settings) {
+function handleTierRowSelected(tierRow: Adw.ComboRow, settings: Gio.Settings): void {
     const newTier = tierRow.get_selected();
     settings.set_int('option-force-tier', newTier);
 }
 
-function handleDurationRowSelected(durationMapping, durationRow, settings) {
+function handleDurationRowSelected(
+    durationMapping: number[],
+    durationRow: Adw.ComboRow,
+    settings: Gio.Settings
+): void {
     settings.set_int('notification-duration', durationMapping[durationRow.get_selected()]);
 }
 
-function handleSizeRowSelected(sizeMapping, sizeRow, settings) {
+function handleSizeRowSelected(
+    sizeMapping: string[],
+    sizeRow: Adw.ComboRow,
+    settings: Gio.Settings
+): void {
     settings.set_string('center-notification-size', sizeMapping[sizeRow.get_selected()]);
 }
 
-function handleOpacityScaleChanged(opacityScale, settings) {
+function handleOpacityScaleChanged(opacityScale: Gtk.Scale, settings: Gio.Settings): void {
     settings.set_int('center-notification-opacity', Math.round(opacityScale.get_value()));
 }
 
-function handlePreviewButtonClicked(settings) {
+function handlePreviewButtonClicked(settings: Gio.Settings): void {
     log('Preview button clicked - triggering center notification');
     // Trigger preview via GSettings flag (extension will show notification)
     settings.set_boolean('center-notification-preview', true);
 }
 
-function handleCategoryRowSelected(settingsKey, styleMapping, row, settings) {
+function handleCategoryRowSelected(
+    settingsKey: string,
+    styleMapping: string[],
+    row: Adw.ComboRow,
+    settings: Gio.Settings
+): void {
     settings.set_string(settingsKey, styleMapping[row.get_selected()]);
 }
 
-function handleGithubButtonClicked() {
+function handleGithubButtonClicked(): void {
     Gtk.show_uri(null, 'https://github.com/hamiltonia/zoned', Gdk.CURRENT_TIME);
 }
 
-function handleCoffeeButtonClicked() {
+function handleCoffeeButtonClicked(): void {
     Gtk.show_uri(null, 'https://buymeacoffee.com/hamiltonia', Gdk.CURRENT_TIME);
 }
 
-function handleResetDialogResponse(prefs, settings, window, dlg, response) {
+function handleResetDialogResponse(
+    prefs: ZonedPreferences,
+    settings: Gio.Settings,
+    window: Adw.PreferencesWindow,
+    _dlg: Adw.AlertDialog,
+    response: string
+): void {
     if (response === 'reset') {
         log('Resetting all settings to defaults');
         prefs._resetAllSettings(settings);
@@ -171,7 +229,10 @@ function handleResetDialogResponse(prefs, settings, window, dlg, response) {
     }
 }
 
-function handleResetDebugButtonClicked(settings, developerGroup) {
+function handleResetDebugButtonClicked(
+    settings: Gio.Settings,
+    developerGroup: Adw.PreferencesGroup
+): void {
     log('Resetting all debug settings to defaults');
     // Reset all debug settings to their defaults
     settings.reset('debug-logging');
@@ -184,7 +245,14 @@ function handleResetDebugButtonClicked(settings, developerGroup) {
     developerGroup.visible = false;
 }
 
-function handleDevKeyPressed(settings, developerGroup, ctrl, keyval, keycode, state) {
+function handleDevKeyPressed(
+    settings: Gio.Settings,
+    developerGroup: Adw.PreferencesGroup,
+    _ctrl: Gtk.EventControllerKey,
+    keyval: number,
+    _keycode: number,
+    state: Gdk.ModifierType
+): boolean {
     // Check for Ctrl+Shift+D
     const ctrlPressed = (state & Gdk.ModifierType.CONTROL_MASK) !== 0;
     const shiftPressed = (state & Gdk.ModifierType.SHIFT_MASK) !== 0;
@@ -217,7 +285,10 @@ function handleDevKeyPressed(settings, developerGroup, ctrl, keyval, keycode, st
     return false; // Propagate event
 }
 
-function handleScrollTargetChanged(scrollToSection, settings) {
+function handleScrollTargetChanged(
+    scrollToSection: (target: string) => void,
+    settings: Gio.Settings
+): void {
     const newTarget = settings.get_string('prefs-scroll-target');
     if (newTarget) {
         log(`Scroll target changed to: ${newTarget}`);
@@ -226,7 +297,7 @@ function handleScrollTargetChanged(scrollToSection, settings) {
     }
 }
 
-function handleCloseRequestChanged(settings, window) {
+function handleCloseRequestChanged(settings: Gio.Settings, window: Adw.PreferencesWindow): void {
     if (settings.get_boolean('prefs-close-requested')) {
         log('Close requested by extension, closing prefs window');
         // Reset the flag
@@ -236,7 +307,11 @@ function handleCloseRequestChanged(settings, window) {
     }
 }
 
-function handleWindowCloseRequest(settings, closeRequestSignal, scrollTargetSignal) {
+function handleWindowCloseRequest(
+    settings: Gio.Settings,
+    closeRequestSignal: number,
+    scrollTargetSignal: number
+): boolean {
     settings.disconnect(closeRequestSignal);
     settings.disconnect(scrollTargetSignal);
     return false; // Allow window to close
@@ -309,11 +384,20 @@ const KEY_DISPLAY_MAP = {
     'Page_Down': 'Page Down',
 };
 
+// Parsed accelerator result interface
+interface ParsedAccelerator {
+    keyval: number;
+    mods: Gdk.ModifierType;
+}
+
+// KEY_DISPLAY_MAP index signature for TypeScript
+const KEY_DISPLAY_MAP_TYPED: Record<string, string> = KEY_DISPLAY_MAP;
+
 /**
  * Convert Gtk accelerator string to human-readable format
  * e.g., '<Super>Left' -> 'Super + ←'
  */
-function acceleratorToLabel(accelerator) {
+function acceleratorToLabel(accelerator: string | null | undefined): string {
     if (!accelerator || accelerator === '') {
         return 'Disabled';
     }
@@ -326,7 +410,7 @@ function acceleratorToLabel(accelerator) {
     const {keyval, mods} = parsed;
 
     // Build modifier string (keyboard order: Shift, Ctrl, Super, Alt)
-    const parts = [];
+    const parts: string[] = [];
 
     if (mods & Gdk.ModifierType.SHIFT_MASK) parts.push('Shift');
     if (mods & Gdk.ModifierType.CONTROL_MASK) parts.push('Ctrl');
@@ -335,34 +419,33 @@ function acceleratorToLabel(accelerator) {
 
     // Get key name and prettify using lookup table
     const keyName = Gdk.keyval_name(keyval);
-    parts.push(KEY_DISPLAY_MAP[keyName] || keyName);
+    parts.push(KEY_DISPLAY_MAP_TYPED[keyName ?? ''] || keyName || '');
 
     return parts.join(' + ');
 }
 
 /**
  * Parse accelerator string into keyval and modifiers
- * @param {string} accelerator - The accelerator string
- * @returns {Object|null} {keyval, mods} or null if parsing fails
  */
-function parseAccelerator(accelerator) {
+function parseAccelerator(accelerator: string | null | undefined): ParsedAccelerator | null {
     if (!accelerator) return null;
 
-    try {
-        const result = Gtk.accelerator_parse(accelerator);
-        if (Array.isArray(result)) {
-            if (result.length === 3) {
-                const [success, keyval, mods] = result;
-                if (!success || keyval === 0) return null;
-                return {keyval, mods};
-            } else if (result.length === 2) {
-                const [keyval, mods] = result;
-                if (keyval === 0) return null;
-                return {keyval, mods};
+        try {
+            const result = Gtk.accelerator_parse(accelerator);
+            if (Array.isArray(result)) {
+                if (result.length === 3) {
+                    const parsed = result as unknown as [boolean, number, Gdk.ModifierType];
+                    if (!parsed[0] || parsed[1] === 0) return null;
+                    return {keyval: parsed[1], mods: parsed[2]};
+                } else if (result.length === 2) {
+                    const parsed = result as unknown as [number, Gdk.ModifierType];
+                    if (parsed[0] === 0) return null;
+                    return {keyval: parsed[0], mods: parsed[1]};
+                }
             }
-        }
-    } catch (e) {
-        log(`Error parsing accelerator '${accelerator}': ${e.message}`);
+        } catch (e) {
+        const error = e as Error;
+        log(`Error parsing accelerator '${accelerator}': ${error.message}`);
     }
     return null;
 }
@@ -372,11 +455,8 @@ function parseAccelerator(accelerator) {
 /**
  * Check if two accelerators are equivalent (same key + same modifiers)
  * This handles different modifier ordering in strings and key name aliases
- * @param {string} accel1 - First accelerator
- * @param {string} accel2 - Second accelerator
- * @returns {boolean} True if they represent the same shortcut
  */
-function acceleratorsMatch(accel1, accel2) {
+function acceleratorsMatch(accel1: string, accel2: string): boolean {
     // Normalize both accelerators to use canonical key names
     const norm1 = normalizeAccelerator(accel1);
     const norm2 = normalizeAccelerator(accel2);
@@ -406,11 +486,8 @@ function acceleratorsMatch(accel1, accel2) {
 /**
  * Check for keybinding conflicts with GNOME system shortcuts
  * Uses shared GNOME_BINDINGS from utils/keybindingConfig.js
- * @param {string} accelerator - The accelerator to check
- * @param {string} currentKey - The settings key being edited (to exclude self)
- * @returns {Object|null} Conflict info or null
  */
-function checkConflicts(accelerator, _currentKey) {
+function checkConflicts(accelerator: string | null | undefined, _currentKey: string): ConflictInfo | null {
     if (!accelerator) return null;
 
     // Use shared GNOME_BINDINGS from keybindingConfig.js
@@ -439,6 +516,15 @@ function checkConflicts(accelerator, _currentKey) {
     return null;
 }
 
+// ShortcutCaptureRow params interface  
+interface ShortcutCaptureRowParams {
+    title: string;
+    subtitle: string;
+    settings: Gio.Settings;
+    settingsKey: string;
+    defaultAccelerator: string;
+}
+
 /**
  * ShortcutCaptureRow - A preference row for configuring keyboard shortcuts
  * VS Code-style: Modifier checkboxes + key capture button
@@ -447,15 +533,39 @@ function checkConflicts(accelerator, _currentKey) {
 const ShortcutCaptureRow = GObject.registerClass({
     GTypeName: 'ZonedShortcutCaptureRow',
 }, class ShortcutCaptureRow extends Adw.PreferencesRow {
-    /**
-     * @param {Object} params
-     * @param {string} params.title - Row title
-     * @param {string} params.subtitle - Row description
-     * @param {Gio.Settings} params.settings - GSettings object
-     * @param {string} params.settingsKey - The settings key for this keybinding
-     * @param {string} params.defaultAccelerator - Default accelerator value
-     */
-    _init(params) {
+    // Class field declarations
+    declare _settings: Gio.Settings;
+    declare _settingsKey: string;
+    declare _defaultAccelerator: string;
+    declare _isCapturing: boolean;
+    declare _currentKeyval: number;
+    declare _loadingFromSettings: boolean;
+    declare _warningButton: Gtk.Button;
+    declare _resetButton: Gtk.Button;
+    declare _shiftCheck: Gtk.CheckButton;
+    declare _ctrlCheck: Gtk.CheckButton;
+    declare _superCheck: Gtk.CheckButton;
+    declare _altCheck: Gtk.CheckButton;
+    declare _recordButton: Gtk.Button;
+    declare _shortcutLabel: Gtk.Label;
+    declare _conflictBox: Gtk.Box;
+    declare _conflictLabel: Gtk.Label;
+    declare _keyController: Gtk.EventControllerKey;
+    declare _focusController: Gtk.EventControllerFocus;
+    declare _currentConflict: ConflictInfo | null;
+    declare _settingsChangedId: number | null;
+    declare _conflictCountChangedId: number | null;
+    // Bound function references
+    declare _boundWarningClick: (() => void) | null;
+    declare _boundResetClick: (() => void) | null;
+    declare _boundModifierToggled: (() => void) | null;
+    declare _boundRecordClick: (() => void) | null;
+    declare _boundKeyPress: ((ctrl: Gtk.EventControllerKey, keyval: number, keycode: number, state: Gdk.ModifierType) => boolean) | null;
+    declare _boundFocusLeave: (() => void) | null;
+    declare _boundSettingsChanged: (() => void) | null;
+    declare _boundConflictCountChanged: (() => void) | null;
+
+    _init(params: ShortcutCaptureRowParams & Adw.PreferencesRow.ConstructorProps): void {
         const {title, subtitle, settings, settingsKey, defaultAccelerator, ...rest} = params;
 
         super._init(rest);
@@ -673,7 +783,7 @@ const ShortcutCaptureRow = GObject.registerClass({
     /**
      * Save accelerator to settings
      */
-    _setAccelerator(accelerator) {
+    _setAccelerator(accelerator: string | null): void {
         log(`_setAccelerator(${this._settingsKey}): ${accelerator || '(empty)'}`);
         if (accelerator) {
             this._settings.set_strv(this._settingsKey, [accelerator]);
@@ -701,20 +811,23 @@ const ShortcutCaptureRow = GObject.registerClass({
         }
 
         // Parse the accelerator
-        let keyval, mods;
+        let keyval: number;
+        let mods: Gdk.ModifierType;
         try {
             const result = Gtk.accelerator_parse(accelerator);
             if (Array.isArray(result)) {
                 if (result.length === 3) {
-                    const [success, kv, m] = result;
-                    if (!success) {
+                    const parsed = result as unknown as [boolean, number, Gdk.ModifierType];
+                    if (!parsed[0]) {
                         log(`Failed to parse accelerator: ${accelerator}`);
                         return;
                     }
-                    keyval = kv;
-                    mods = m;
+                    keyval = parsed[1];
+                    mods = parsed[2];
                 } else if (result.length === 2) {
-                    [keyval, mods] = result;
+                    const parsed = result as unknown as [number, Gdk.ModifierType];
+                    keyval = parsed[0];
+                    mods = parsed[1];
                 } else {
                     return;
                 }
@@ -722,7 +835,8 @@ const ShortcutCaptureRow = GObject.registerClass({
                 return;
             }
         } catch (e) {
-            log(`Error parsing accelerator '${accelerator}': ${e.message}`);
+            const error = e as Error;
+            log(`Error parsing accelerator '${accelerator}': ${error.message}`);
             return;
         }
 
@@ -836,8 +950,9 @@ const ShortcutCaptureRow = GObject.registerClass({
     /**
      * Prettify key name for display
      */
-    _prettifyKeyName(keyName) {
-        return KEY_DISPLAY_MAP[keyName] || keyName;
+    _prettifyKeyName(keyName: string | null): string {
+        if (!keyName) return '';
+        return KEY_DISPLAY_MAP_TYPED[keyName] || keyName;
     }
 
     /**
@@ -871,7 +986,7 @@ const ShortcutCaptureRow = GObject.registerClass({
      * Handle key press during capture - only captures non-modifier keys
      * Uses keycode to get the base (unshifted) key
      */
-    _onKeyPressed(keyval, keycode, state) {
+    _onKeyPressed(keyval: number, keycode: number, state: Gdk.ModifierType): boolean {
         log(`_onKeyPressed: keyval=${keyval} (${Gdk.keyval_name(keyval)}), keycode=${keycode}, state=${state}`);
 
         // Handle special keys
@@ -900,14 +1015,17 @@ const ShortcutCaptureRow = GObject.registerClass({
         let baseKeyval = keyval;
         try {
             const display = Gdk.Display.get_default();
-            // translate_key returns [success, keyval, effective_group, level, consumed_modifiers]
-            const result = display.translate_key(keycode, 0, 0);
-            if (result && result[0]) {
-                baseKeyval = result[1];
-                log(`Translated keycode ${keycode} to base keyval: ${baseKeyval} (${Gdk.keyval_name(baseKeyval)})`);
+            if (display) {
+                // translate_key returns [success, keyval, effective_group, level, consumed_modifiers]
+                const result = display.translate_key(keycode, 0, 0);
+                if (result && result[0]) {
+                    baseKeyval = result[1];
+                    log(`Translated keycode ${keycode} to base keyval: ${baseKeyval} (${Gdk.keyval_name(baseKeyval)})`);
+                }
             }
         } catch (e) {
-            log(`Could not translate keycode, using original keyval: ${e.message}`);
+            const error = e as Error;
+            log(`Could not translate keycode, using original keyval: ${error.message}`);
         }
 
         // Store the base key
@@ -923,7 +1041,7 @@ const ShortcutCaptureRow = GObject.registerClass({
     /**
      * Check if keyval is a modifier key
      */
-    _isModifierKey(keyval) {
+    _isModifierKey(keyval: number): boolean {
         const modifierKeys = [
             Gdk.KEY_Shift_L, Gdk.KEY_Shift_R,
             Gdk.KEY_Control_L, Gdk.KEY_Control_R,
@@ -987,9 +1105,8 @@ const ShortcutCaptureRow = GObject.registerClass({
 
     /**
      * Fix a single conflict by disabling the GNOME shortcut
-     * @param {Object} conflict - Conflict info object
      */
-    _fixConflict(conflict) {
+    _fixConflict(conflict: ConflictInfo): void {
         log(`Fixing conflict: disabling ${conflict.schema}:${conflict.key}`);
 
         try {
@@ -1008,7 +1125,8 @@ const ShortcutCaptureRow = GObject.registerClass({
                 return GLib.SOURCE_REMOVE;
             });
         } catch (e) {
-            log(`Error fixing conflict: ${e.message}`);
+            const error = e as Error;
+            log(`Error fixing conflict: ${error.message}`);
         }
     }
 
@@ -1044,7 +1162,7 @@ const ShortcutCaptureRow = GObject.registerClass({
     /**
      * Clean up
      */
-    destroy() {
+    vfunc_dispose(): void {
         log(`Destroying ShortcutCaptureRow for ${this._settingsKey}`);
         if (this._settingsChangedId) {
             this._settings.disconnect(this._settingsChangedId);
@@ -1063,17 +1181,15 @@ const ShortcutCaptureRow = GObject.registerClass({
         this._boundFocusLeave = null;
         this._boundSettingsChanged = null;
         this._boundConflictCountChanged = null;
-        super.destroy();
+        super.vfunc_dispose();
     }
 });
 
 export default class ZonedPreferences extends ExtensionPreferences {
     /**
      * Create Quick Layout Switch row with modifier checkboxes and static "1-9" key
-     * @param {Gio.Settings} settings - GSettings object
-     * @returns {Adw.PreferencesRow} The quick layout row widget
      */
-    _createQuickLayoutRow(settings) {
+    _createQuickLayoutRow(settings: Gio.Settings): Adw.PreferencesRow {
         const row = new Adw.PreferencesRow();
 
         // Main content box (vertical)
@@ -1234,34 +1350,43 @@ export default class ZonedPreferences extends ExtensionPreferences {
             const accel = values.length > 0 ? values[0] : DEFAULT_MODIFIERS + '1';
 
             // Parse to get modifiers
-            let mods = 0;
+            let mods: Gdk.ModifierType = 0;
             try {
                 const result = Gtk.accelerator_parse(accel);
                 if (Array.isArray(result)) {
-                    if (result.length === 3 && result[0]) {
-                        mods = result[2];
+                    if (result.length === 3) {
+                        const parsed = result as unknown as [boolean, number, Gdk.ModifierType];
+                        if (parsed[0]) {
+                            mods = parsed[2];
+                        }
                     } else if (result.length === 2) {
-                        mods = result[1];
+                        const parsed = result as unknown as [number, Gdk.ModifierType];
+                        mods = parsed[1];
                     }
                 }
             } catch (e) {
-                log(`Error parsing quick layout accelerator: ${e.message}`);
+                const error = e as Error;
+                log(`Error parsing quick layout accelerator: ${error.message}`);
             }
 
             // Set checkbox states (suppress change handlers)
-            row._loadingFromSettings = true;
+            // Use any type to bypass type checking for dynamic property
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (row as any)._loadingFromSettings = true;
             shiftCheck.set_active((mods & Gdk.ModifierType.SHIFT_MASK) !== 0);
             ctrlCheck.set_active((mods & Gdk.ModifierType.CONTROL_MASK) !== 0);
             superCheck.set_active((mods & Gdk.ModifierType.SUPER_MASK) !== 0);
             altCheck.set_active((mods & Gdk.ModifierType.ALT_MASK) !== 0);
-            row._loadingFromSettings = false;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (row as any)._loadingFromSettings = false;
 
             updateDisplay();
         };
 
         // Connect checkbox changes
         const onModifierChanged = () => {
-            if (row._loadingFromSettings) return;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            if ((row as any)._loadingFromSettings) return;
             saveQuickLayoutShortcuts();
         };
 
@@ -1288,9 +1413,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
 
     /**
      * Reset all settings to their default values
-     * @param {Gio.Settings} settings - GSettings object
      */
-    _resetAllSettings(settings) {
+    _resetAllSettings(settings: Gio.Settings): void {
         // List of all schema keys to reset
         const keysToReset = [
             // Keybindings
@@ -1352,7 +1476,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
                 settings.reset(key);
                 log(`Reset setting: ${key}`);
             } catch (e) {
-                log(`Could not reset ${key}: ${e.message}`);
+                const error = e as Error;
+                log(`Could not reset ${key}: ${error.message}`);
             }
         }
 
@@ -1362,9 +1487,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
     /**
      * Apply theme override to Libadwaita StyleManager
      * This ensures the preferences window honors the ui-theme setting
-     * @param {string} themePref - Theme preference ('system', 'light', 'dark')
      */
-    _applyTheme(themePref) {
+    _applyTheme(themePref: string): void {
         const styleManager = Adw.StyleManager.get_default();
 
         switch (themePref) {
@@ -1386,9 +1510,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
 
     /**
      * Fill preferences window
-     * @param {Adw.PreferencesWindow} window - The preferences window
      */
-    fillPreferencesWindow(window) {
+    fillPreferencesWindow(window: Adw.PreferencesWindow): void {
         log('=== fillPreferencesWindow called ===');
 
         // Get settings first
@@ -1412,11 +1535,14 @@ export default class ZonedPreferences extends ExtensionPreferences {
                 font-weight: bold;
             }
         `, -1);
-        Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(),
-            cssProvider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-        );
+        const display = Gdk.Display.get_default();
+        if (display) {
+            Gtk.StyleContext.add_provider_for_display(
+                display,
+                cssProvider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+            );
+        }
         log('CSS provider added');
 
         // Create a preferences page
@@ -1436,8 +1562,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // UI Theme preference (Light/Dark/System)
         const themeRow = new Adw.ComboRow({
             title: 'UI Theme',
-            subtitle: 'Color scheme for extension dialogs and UI',
         });
+        themeRow.set_subtitle('Color scheme for extension dialogs and UI');
 
         const themeModel = new Gtk.StringList();
         themeModel.splice(0, 0, ['System', 'Light', 'Dark']);
@@ -1465,8 +1591,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // Layout Picker Size (Tier) preference
         const tierRow = new Adw.ComboRow({
             title: 'Layout Picker Size',
-            subtitle: 'Card and dialog size in the layout picker. Auto selects based on screen resolution.',
         });
+        tierRow.set_subtitle('Card and dialog size in the layout picker. Auto selects based on screen resolution.');
 
         const tierModel = new Gtk.StringList();
         tierModel.splice(0, 0, ['Auto', 'Tiny', 'Small', 'Medium', 'Large', 'Extra Large']);
@@ -1592,7 +1718,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
         notifyGroup.add(categoryExpander);
 
         // Helper to create category rows
-        const createCategoryRow = (settingsKey, title, subtitle) => {
+        const createCategoryRow = (settingsKey: string, title: string, subtitle: string): Adw.ComboRow => {
             const row = new Adw.ComboRow({
                 title: title,
                 subtitle: subtitle,
@@ -1695,7 +1821,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
                 settings: settings,
                 settingsKey: binding.key,
                 defaultAccelerator: binding.default,
-            });
+            } as any);
             kbGroup.add(row);
         }
         log('All shortcut rows created');
@@ -1710,9 +1836,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // Use ExpanderRow for collapsible content tied to the enable switch
         const quickLayoutExpander = new Adw.ExpanderRow({
             title: 'Enable Quick Layout Shortcuts',
-            subtitle: 'Switch to layouts that have shortcuts assigned.',
             show_enable_switch: true,
         });
+        quickLayoutExpander.set_subtitle('Switch to layouts that have shortcuts assigned.');
 
         // Bind the enable switch to the setting
         settings.bind(
@@ -1742,9 +1868,9 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // Use ExpanderRow for collapsible content tied to the enable switch
         const enhancedExpander = new Adw.ExpanderRow({
             title: 'Enable Enhanced Windows Management',
-            subtitle: 'Super+Down minimizes (press again to restore). Super+Up restores or toggles maximize.',
             show_enable_switch: true,
         });
+        enhancedExpander.set_subtitle('Super+Down minimizes (press again to restore). Super+Up restores or toggles maximize.');
 
         // Bind the enable switch to the setting
         settings.bind(
@@ -1769,7 +1895,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
                 settings: settings,
                 settingsKey: binding.key,
                 defaultAccelerator: binding.default,
-            });
+            } as any);
             enhancedExpander.add_row(row);
         }
         log('Enhanced shortcut rows created');
@@ -1782,7 +1908,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         page.add(aboutGroup);
 
         // Get version info dynamically
-        const versionInfo = getExtensionVersion(this.path, this.metadata);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const versionInfo = getExtensionVersion(this.path, this.metadata as any);
 
         const aboutRow = new Adw.ActionRow({
             title: 'Zoned',
@@ -1793,8 +1920,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // GitHub link row with icon
         const githubRow = new Adw.ActionRow({
             title: 'GitHub',
-            subtitle: 'View source code and report issues',
         });
+        githubRow.set_subtitle('View source code and report issues');
         const githubButton = new Gtk.Button({
             valign: Gtk.Align.CENTER,
         });
@@ -1809,7 +1936,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
                 githubIcon.set_from_gicon(Gio.FileIcon.new(iconFile));
             }
         } catch (e) {
-            log(`Could not load github icon: ${e.message}`);
+            const error = e as Error;
+            log(`Could not load github icon: ${error.message}`);
         }
         githubButton.set_child(githubIcon);
         githubButton.add_css_class('flat');
@@ -1822,8 +1950,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // Buy Me a Coffee link row with icon
         const coffeeRow = new Adw.ActionRow({
             title: 'Buy Me a Coffee',
-            subtitle: 'Support the development of Zoned',
         });
+        coffeeRow.set_subtitle('Support the development of Zoned');
         const coffeeButton = new Gtk.Button({
             valign: Gtk.Align.CENTER,
         });
@@ -1838,7 +1966,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
                 coffeeIcon.set_from_gicon(Gio.FileIcon.new(iconFile));
             }
         } catch (e) {
-            log(`Could not load bmc icon: ${e.message}`);
+            const error = e as Error;
+            log(`Could not load bmc icon: ${error.message}`);
         }
         coffeeButton.set_child(coffeeIcon);
         coffeeButton.add_css_class('flat');
@@ -1961,7 +2090,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
         window.add_controller(devKeyController);
 
         // Helper function to scroll to a section
-        const scrollToSection = (target) => {
+        const scrollToSection = (target: string): void => {
             log(`Scrolling to section: ${target}`);
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
                 if (target === 'keyboard-shortcuts') {

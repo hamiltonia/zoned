@@ -2,7 +2,7 @@
 
 **Last Updated:** January 24, 2026  
 **Branch:** `infra/typescript-migration`  
-**Status:** Batch 1 Complete, Type Errors Remaining
+**Status:** Batch 2 Complete, Type Errors Remaining
 
 ---
 
@@ -10,11 +10,11 @@
 
 ```
 File Conversion:      [████████████████████] 100%  (32/32 files → .ts)
-TypeScript Errors:    [███░░░░░░░░░░░░░░░░░]  12%  (~1,818 errors remaining)
+TypeScript Errors:    [█████░░░░░░░░░░░░░░░]  22%  (~1,586 errors remaining)
 Build Status:         [████████████████████] 100%  (Rollup compiles successfully)
 ```
 
-**Current State:** All files renamed to `.ts`, Rollup builds without blocking the compilation. Batch 1 quick wins completed (~45 errors fixed). ~1,818 type errors remain for resolution.
+**Current State:** All files renamed to `.ts`, Rollup builds without blocking the compilation. Batch 1 quick wins complete. Batch 2 complete including extension.ts (0 errors). ~1,586 type errors remain for resolution.
 
 ---
 
@@ -121,13 +121,13 @@ Files with <10 errors each - mostly unused variable warnings and import issues:
 - `windowManager.ts` (1 error)
 - `ui/confirmDialog.ts` (3 errors)
 
-**Batch 2: Medium Complexity (4 files, ~243 errors)**
+**Batch 2: Medium Complexity (5 files, ~243 errors) ✅ COMPLETE**
 Layout Switcher subcomponents:
-- `ui/layoutSwitcher/resizeHandler.ts` (33 errors)
-- `ui/layoutSwitcher/sectionFactory.ts` (39 errors)
-- `ui/layoutSwitcher/cardFactory.ts` (51 errors)
-- `ui/layoutSwitcher/topBar.ts` (65 errors)
-- `extension.ts` (55 errors)
+- ✅ `ui/layoutSwitcher/resizeHandler.ts` (33 → 0 errors)
+- ✅ `ui/layoutSwitcher/sectionFactory.ts` (39 → 0 errors)
+- ✅ `ui/layoutSwitcher/cardFactory.ts` (51 → 0 errors)
+- ✅ `ui/layoutSwitcher/topBar.ts` (65 → 0 errors)
+- ✅ `extension.ts` (55 → 0 errors) - Added GNOME Shell ambient declarations, typed all fields and methods
 
 **Batch 3: Core UI (4 files, ~1,581 errors)**
 The largest files requiring class field declarations:

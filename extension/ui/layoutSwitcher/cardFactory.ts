@@ -23,9 +23,57 @@
 
 import Clutter from '@girs/clutter-14';
 import St from '@girs/st-14';
+// Cairo context is not fully typed in @girs, use ambient type
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CairoContext = any;
 import {createLogger} from '../../utils/debug';
+import type {Layout, Zone} from '../../types/layout';
+import type {BuiltinTemplate, LayoutSwitcherContext} from './types';
 
 const logger = createLogger('CardFactory');
+
+/**
+ * Theme colors interface
+ */
+interface ThemeColors {
+    accentHex: string;
+    accentRGBA: (alpha: number) => string;
+    cardBg: string;
+    isDark: boolean;
+}
+
+/**
+ * Extended St.Button with custom properties for card tracking
+ */
+interface CardButton extends St.Button {
+    _layoutRef?: Layout | BuiltinTemplate;
+    _isTemplate?: boolean;
+    _isActive?: boolean;
+}
+
+/**
+ * Extended St.Button with custom properties for edit button
+ */
+interface EditButton extends St.Button {
+    _boundEnter?: () => boolean;
+    _boundLeave?: () => boolean;
+    _boundClick?: () => boolean;
+    _buttonSize?: number;
+}
+
+/**
+ * Extended St.Bin with badge size
+ */
+interface KeybindingBadge extends St.Bin {
+    _badgeSize?: number;
+}
+
+/**
+ * Extended St.DrawingArea with bound repaint handler
+ */
+interface ZoneCanvas extends St.DrawingArea {
+    _boundRepaint?: () => void;
+}
 
 /**
  * Bound method handlers for edit button signals
@@ -34,11 +82,11 @@ const logger = createLogger('CardFactory');
 
 /**
  * Handle edit button hover enter
- * @param {St.Button} button - The edit button
- * @param {St.Icon} icon - The icon within the button
- * @param {string} hoverStyle - Style to apply on hover
+ * @param button - The edit button
+ * @param icon - The icon within the button
+ * @param hoverStyle - Style to apply on hover
  */
-function handleEditButtonEnter(button, icon, hoverStyle) {
+function handleEditButtonEnter(button: St.Button, icon: St.Icon, hoverStyle: string): boolean {
     button.style = hoverStyle;
     icon.style = 'color: white;';
     return Clutter.EVENT_PROPAGATE;
@@ -46,11 +94,11 @@ function handleEditButtonEnter(button, icon, hoverStyle) {
 
 /**
  * Handle edit button hover leave
- * @param {St.Button} button - The edit button
- * @param {St.Icon} icon - The icon within the button
- * @param {string} idleStyle - Style to apply when not hovering
+ * @param button - The edit button
+ * @param icon - The icon within the button
+ * @param idleStyle - Style to apply when not hovering
  */
-function handleEditButtonLeave(button, icon, idleStyle) {
+function handleEditButtonLeave(button: St.Button, icon: St.Icon, idleStyle: string): boolean {
     button.style = idleStyle;
     icon.style = 'color: rgba(255, 255, 255, 0.7);';
     return Clutter.EVENT_PROPAGATE;
@@ -58,28 +106,32 @@ function handleEditButtonLeave(button, icon, idleStyle) {
 
 /**
  * Handle edit button click
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {boolean} isTemplate - Whether this is a template (true) or custom layout (false)
- * @param {Object} layout - The layout object
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param isTemplate - Whether this is a template (true) or custom layout (false)
+ * @param layout - The layout object
  */
-function handleEditButtonClick(ctx, isTemplate, layout) {
+function handleEditButtonClick(
+    ctx: LayoutSwitcherContext,
+    isTemplate: boolean,
+    layout: Layout | BuiltinTemplate
+): boolean {
     if (isTemplate) {
-        ctx._onEditTemplateClicked(layout);
+        ctx._onEditTemplateClicked(layout as BuiltinTemplate);
     } else {
-        ctx._onEditLayoutClicked(layout);
+        ctx._onEditLayoutClicked(layout as Layout);
     }
     return Clutter.EVENT_STOP;
 }
 
 /**
  * Handle canvas repaint for zone preview
- * @param {St.DrawingArea} canvas - The canvas being repainted
- * @param {Array} zones - Array of zone definitions
- * @param {Object} colors - Theme colors
+ * @param canvas - The canvas being repainted
+ * @param zones - Array of zone definitions
+ * @param colors - Theme colors
  */
-function handleCanvasRepaint(canvas, zones, colors) {
+function handleCanvasRepaint(canvas: St.DrawingArea, zones: Zone[], colors: ThemeColors): void {
     try {
-        const cr = canvas.get_context();
+        const cr = canvas.get_context() as CairoContext;
         const [w, h] = canvas.get_surface_size();
 
         // Larger inset for visible transparent gaps between zones
@@ -91,7 +143,7 @@ function handleCanvasRepaint(canvas, zones, colors) {
         // Flat design settings
         const cornerRadius = 4;  // Rounded corners
 
-        zones.forEach((zone) => {
+        zones.forEach((zone: Zone) => {
             // Calculate zone position within the inset area
             const x = inset + (zone.x * drawW);
             const y = inset + (zone.y * drawH);
@@ -130,11 +182,14 @@ function handleCanvasRepaint(canvas, zones, colors) {
  * Create a keybinding badge showing the quick-access shortcut number
  * Subtle, static appearance in lower-right corner (below edit button)
  * Only shown for layouts that have a shortcut assigned (1-9)
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {string|number|null} shortcut - Layout's shortcut value ('1'-'9', 1-9, or null/undefined)
- * @returns {St.Widget|null} The keybinding badge widget, or null if no shortcut
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param shortcut - Layout's shortcut value ('1'-'9', 1-9, or null/undefined)
+ * @returns The keybinding badge widget, or null if no shortcut
  */
-export function createKeybindingBadge(ctx, shortcut) {
+export function createKeybindingBadge(
+    ctx: LayoutSwitcherContext,
+    shortcut: string | number | null | undefined
+): KeybindingBadge | null {
     // Only show badge if a shortcut is assigned
     // Shortcut can be string ('1'-'9') or number (1-9), or null/undefined/'None'
     if (!shortcut || shortcut === 'None') {
@@ -167,7 +222,7 @@ export function createKeybindingBadge(ctx, shortcut) {
     const badge = new St.Bin({
         style: style,
         reactive: false,  // Non-interactive, informational only
-    });
+    }) as KeybindingBadge;
 
     const label = new St.Label({
         text: String(position),
@@ -188,12 +243,16 @@ export function createKeybindingBadge(ctx, shortcut) {
 /**
  * Create a floating circular edit button for overlay positioning
  * Subtle appearance that brightens on hover
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {boolean} isTemplate - True for templates (triggers duplicate), false for custom (triggers edit)
- * @param {Object} layout - Layout object for click handlers
- * @returns {St.Button} The circular edit button
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param isTemplate - True for templates (triggers duplicate), false for custom (triggers edit)
+ * @param layout - Layout object for click handlers
+ * @returns The circular edit button
  */
-export function createFloatingEditButton(ctx, isTemplate, layout) {
+export function createFloatingEditButton(
+    ctx: LayoutSwitcherContext,
+    isTemplate: boolean,
+    layout: Layout | BuiltinTemplate
+): EditButton {
     const colors = ctx._themeManager.getColors();
 
     // Scale button size: ~15% of card width, minimum 24px, maximum 36px
@@ -225,7 +284,7 @@ export function createFloatingEditButton(ctx, isTemplate, layout) {
         style: idleStyle,
         reactive: true,
         track_hover: true,
-    });
+    }) as EditButton;
 
     const icon = new St.Icon({
         icon_name: 'document-edit-symbolic',
@@ -261,12 +320,16 @@ export function createFloatingEditButton(ctx, isTemplate, layout) {
  * Create a template card with full-card grey background
  * Name label at top, zone preview with floating edit button overlay
  * Keybinding badge in lower-right corner if layout has a shortcut assigned
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {Object} template - Template definition (may have .shortcut property)
- * @param {Object} currentLayout - Currently active layout
- * @returns {St.Button} The created card widget
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param template - Template definition (may have .shortcut property)
+ * @param currentLayout - Currently active layout
+ * @returns The created card widget
  */
-export function createTemplateCard(ctx, template, currentLayout) {
+export function createTemplateCard(
+    ctx: LayoutSwitcherContext,
+    template: BuiltinTemplate,
+    currentLayout: Layout | null
+): CardButton {
     const colors = ctx._themeManager.getColors();
     const isActive = ctx._isLayoutActive(template, currentLayout);
     const accentHex = colors.accentHex;
@@ -290,7 +353,7 @@ export function createTemplateCard(ctx, template, currentLayout) {
         reactive: true,
         track_hover: true,
         clip_to_allocation: true,
-    });
+    }) as CardButton;
 
     // Card wrapper with FixedLayout for floating button overlay at card level
     const cardWrapper = new St.Widget({
@@ -311,7 +374,7 @@ export function createTemplateCard(ctx, template, currentLayout) {
     });
 
     // Header with name only
-    const header = createCardHeader(ctx, template.name);
+    const header = createCardHeader(template.name);
     container.add_child(header);
 
     // Calculate preview size proportionally (accounts for scaling and tiers)
@@ -327,7 +390,7 @@ export function createTemplateCard(ctx, template, currentLayout) {
     });
 
     // Zone preview canvas
-    const preview = createZonePreview(ctx, template.zones);
+    const preview = createZonePreview(ctx, template.zones ?? []);
     preview.set_size(previewWidth, previewHeight);
     previewContainer.set_child(preview);
 
@@ -336,7 +399,7 @@ export function createTemplateCard(ctx, template, currentLayout) {
 
     // Floating edit button - positioned in upper right of the CARD (not preview)
     const editButton = createFloatingEditButton(ctx, true, template);
-    const buttonSize = editButton._buttonSize;
+    const buttonSize = editButton._buttonSize ?? 24;
     const buttonOffsetY = 1;  // Offset from top edge
     const buttonOffsetX = 3;  // Offset from right edge (to match visual top offset)
     editButton.set_position(ctx._cardWidth - buttonSize - buttonOffsetX, buttonOffsetY);
@@ -346,7 +409,7 @@ export function createTemplateCard(ctx, template, currentLayout) {
     // Uses the template's shortcut property (set via layout settings dialog)
     const keybindingBadge = createKeybindingBadge(ctx, template.shortcut);
     if (keybindingBadge) {
-        const badgeSize = keybindingBadge._badgeSize;
+        const badgeSize = keybindingBadge._badgeSize ?? 18;
         const badgeOffsetX = 3;  // Offset from right edge
         const badgeOffsetY = 3;  // Offset from bottom edge
         const badgeX = ctx._cardWidth - badgeSize - badgeOffsetX;
@@ -378,12 +441,16 @@ export function createTemplateCard(ctx, template, currentLayout) {
  * Create a custom layout card with theme-aware background
  * Name label at top, zone preview with floating edit button overlay
  * Keybinding badge in lower-right corner if layout has a shortcut assigned
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {Object} layout - Layout definition (may have .shortcut property)
- * @param {Object} currentLayout - Currently active layout
- * @returns {St.Button} The created card widget
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param layout - Layout definition (may have .shortcut property)
+ * @param currentLayout - Currently active layout
+ * @returns The created card widget
  */
-export function createCustomLayoutCard(ctx, layout, currentLayout) {
+export function createCustomLayoutCard(
+    ctx: LayoutSwitcherContext,
+    layout: Layout,
+    currentLayout: Layout | null
+): CardButton {
     const colors = ctx._themeManager.getColors();
     const isActive = ctx._isLayoutActive(layout, currentLayout);
     const accentHex = colors.accentHex;
@@ -406,7 +473,7 @@ export function createCustomLayoutCard(ctx, layout, currentLayout) {
         reactive: true,
         track_hover: true,
         clip_to_allocation: true,
-    });
+    }) as CardButton;
 
     // Card wrapper with FixedLayout for floating button overlay at card level
     const cardWrapper = new St.Widget({
@@ -427,7 +494,7 @@ export function createCustomLayoutCard(ctx, layout, currentLayout) {
     });
 
     // Header with name only
-    const header = createCardHeader(ctx, layout.name);
+    const header = createCardHeader(layout.name);
     container.add_child(header);
 
     // Calculate preview size proportionally (accounts for scaling and tiers)
@@ -452,7 +519,7 @@ export function createCustomLayoutCard(ctx, layout, currentLayout) {
 
     // Floating edit button - positioned in upper right of the CARD (not preview)
     const editButton = createFloatingEditButton(ctx, false, layout);
-    const buttonSize = editButton._buttonSize;
+    const buttonSize = editButton._buttonSize ?? 24;
     const buttonOffsetY = 1;  // Offset from top edge
     const buttonOffsetX = 3;  // Offset from right edge (to match visual top offset)
     editButton.set_position(ctx._cardWidth - buttonSize - buttonOffsetX, buttonOffsetY);
@@ -462,7 +529,7 @@ export function createCustomLayoutCard(ctx, layout, currentLayout) {
     // Uses the layout's shortcut property (set via layout settings dialog)
     const keybindingBadge = createKeybindingBadge(ctx, layout.shortcut);
     if (keybindingBadge) {
-        const badgeSize = keybindingBadge._badgeSize;
+        const badgeSize = keybindingBadge._badgeSize ?? 18;
         const badgeOffsetX = 3;  // Offset from right edge
         const badgeOffsetY = 3;  // Offset from bottom edge
         const badgeX = ctx._cardWidth - badgeSize - badgeOffsetX;
@@ -495,11 +562,10 @@ export function createCustomLayoutCard(ctx, layout, currentLayout) {
 /**
  * Create card header with layout name only
  * Edit button is now a floating circular button over the preview
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance (unused, kept for API consistency)
- * @param {string} name - Layout name to display
- * @returns {St.BoxLayout} The header widget
+ * @param name - Layout name to display
+ * @returns The header widget
  */
-export function createCardHeader(ctx, name) {
+export function createCardHeader(name: string): St.BoxLayout {
     const header = new St.BoxLayout({
         vertical: false,
         x_expand: true,
@@ -521,14 +587,14 @@ export function createCardHeader(ctx, name) {
 
 /**
  * Helper: Draw a rounded rectangle path using Cairo arcs
- * @param {Cairo.Context} cr - Cairo context
- * @param {number} x - X position
- * @param {number} y - Y position
- * @param {number} w - Width
- * @param {number} h - Height
- * @param {number} r - Corner radius
+ * @param cr - Cairo context
+ * @param x - X position
+ * @param y - Y position
+ * @param w - Width
+ * @param h - Height
+ * @param r - Corner radius
  */
-function roundedRect(cr, x, y, w, h, r) {
+function roundedRect(cr: CairoContext, x: number, y: number, w: number, h: number, r: number): void {
     const pi = Math.PI;
     // Clamp radius to half of smallest dimension
     r = Math.min(r, w / 2, h / 2);
@@ -556,11 +622,11 @@ function roundedRect(cr, x, y, w, h, r) {
  * Create visual zone preview using Cairo
  * Flat zone tiles with rounded corners and thin borders
  * Zones are inset to create visible gaps where card background shows through
- * @param {LayoutSwitcher} ctx - Parent LayoutSwitcher instance
- * @param {Array} zones - Array of zone definitions
- * @returns {St.DrawingArea} The preview canvas widget
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param zones - Array of zone definitions
+ * @returns The preview canvas widget
  */
-export function createZonePreview(ctx, zones) {
+export function createZonePreview(ctx: LayoutSwitcherContext, zones: Zone[]): ZoneCanvas {
     const colors = ctx._themeManager.getColors();
 
     // Canvas background is transparent so card accent color shows through on hover/selection
@@ -568,7 +634,7 @@ export function createZonePreview(ctx, zones) {
         style: 'background-color: transparent;',
         x_expand: true,
         y_expand: true,
-    });
+    }) as ZoneCanvas;
 
     // Use bound method with captured parameters to avoid closure leak
     const boundRepaint = handleCanvasRepaint.bind(null, canvas, zones, colors);
