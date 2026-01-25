@@ -274,7 +274,7 @@ export function edgesToZones(edgeLayout: EdgeLayout): ZoneLayout {
 
     // Convert regions to zones
     const zones: Zone[] = [];
-    
+
     edgeLayout.regions.forEach((region, index) => {
         const left = edgeMap.get(region.left);
         const right = edgeMap.get(region.right);

@@ -68,7 +68,7 @@ interface UserLayoutsData {
     layout_order: string[];
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 type ZoneOverlay = any; // Will be typed when UI components are migrated
 
 export class LayoutManager {

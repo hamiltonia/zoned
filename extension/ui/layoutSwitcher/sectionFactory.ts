@@ -36,7 +36,7 @@ function handleSectionScroll(
     ctx: LayoutSwitcherContext,
     sectionScrollView: St.ScrollView | null,
     _actor: Clutter.Actor,
-    event: Clutter.Event
+    event: Clutter.Event,
 ): boolean {
     if (!sectionScrollView) return Clutter.EVENT_PROPAGATE;
 
@@ -80,7 +80,7 @@ function handleScrollViewCaptured(
     ctx: LayoutSwitcherContext,
     scrollView: St.ScrollView,
     _actor: Clutter.Actor,
-    event: Clutter.Event
+    event: Clutter.Event,
 ): boolean {
     if (event.type() === Clutter.EventType.SCROLL) {
         const direction = event.get_scroll_direction();
@@ -138,7 +138,7 @@ function handleCreateButtonEnter(
     horizontalPadding: number,
     accentHexHover: string,
     cardRadius: number,
-    buttonMargin: number
+    buttonMargin: number,
 ): void {
     button.style = `padding: ${verticalPadding}px ${horizontalPadding}px; ` +
                   `background-color: ${accentHexHover}; ` +
@@ -161,7 +161,7 @@ function handleCreateButtonLeave(
     horizontalPadding: number,
     accentHex: string,
     cardRadius: number,
-    buttonMargin: number
+    buttonMargin: number,
 ): void {
     button.style = `padding: ${verticalPadding}px ${horizontalPadding}px; ` +
                   `background-color: ${accentHex}; ` +
@@ -412,7 +412,7 @@ export function createCustomLayoutsSection(ctx: LayoutSwitcherContext): St.BoxLa
 export function createCustomLayoutGrid(
     ctx: LayoutSwitcherContext,
     layouts: Layout[],
-    currentLayout: Layout | null
+    currentLayout: Layout | null,
 ): St.BoxLayout {
     const COLUMNS = ctx._customColumns;  // Always 5 columns
 

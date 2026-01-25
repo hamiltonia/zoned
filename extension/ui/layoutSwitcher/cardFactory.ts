@@ -113,7 +113,7 @@ function handleEditButtonLeave(button: St.Button, icon: St.Icon, idleStyle: stri
 function handleEditButtonClick(
     ctx: LayoutSwitcherContext,
     isTemplate: boolean,
-    layout: Layout | BuiltinTemplate
+    layout: Layout | BuiltinTemplate,
 ): boolean {
     if (isTemplate) {
         ctx._onEditTemplateClicked(layout as BuiltinTemplate);
@@ -188,7 +188,7 @@ function handleCanvasRepaint(canvas: St.DrawingArea, zones: Zone[], colors: Them
  */
 export function createKeybindingBadge(
     ctx: LayoutSwitcherContext,
-    shortcut: string | number | null | undefined
+    shortcut: string | number | null | undefined,
 ): KeybindingBadge | null {
     // Only show badge if a shortcut is assigned
     // Shortcut can be string ('1'-'9') or number (1-9), or null/undefined/'None'
@@ -251,7 +251,7 @@ export function createKeybindingBadge(
 export function createFloatingEditButton(
     ctx: LayoutSwitcherContext,
     isTemplate: boolean,
-    layout: Layout | BuiltinTemplate
+    layout: Layout | BuiltinTemplate,
 ): EditButton {
     const colors = ctx._themeManager.getColors();
 
@@ -328,7 +328,7 @@ export function createFloatingEditButton(
 export function createTemplateCard(
     ctx: LayoutSwitcherContext,
     template: BuiltinTemplate,
-    currentLayout: Layout | null
+    currentLayout: Layout | null,
 ): CardButton {
     const colors = ctx._themeManager.getColors();
     const isActive = ctx._isLayoutActive(template, currentLayout);
@@ -449,7 +449,7 @@ export function createTemplateCard(
 export function createCustomLayoutCard(
     ctx: LayoutSwitcherContext,
     layout: Layout,
-    currentLayout: Layout | null
+    currentLayout: Layout | null,
 ): CardButton {
     const colors = ctx._themeManager.getColors();
     const isActive = ctx._isLayoutActive(layout, currentLayout);

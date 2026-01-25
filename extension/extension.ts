@@ -452,60 +452,45 @@ export default class ZonedExtension extends Extension {
      */
     _destroyComponents(): void {
         // Destroy components in reverse initialization order
-        if (this._keybindingManager) {
-            this._keybindingManager.destroy();
-            this._keybindingManager = null;
-            logger.debug('KeybindingManager destroyed');
-        }
-        if (this._panelIndicator) {
-            this._panelIndicator.destroy();
-            this._panelIndicator = null;
-            logger.debug('PanelIndicator destroyed');
-        }
-        if (this._layoutSwitcher) {
-            this._layoutSwitcher.destroy();
-            this._layoutSwitcher = null;
-            logger.debug('LayoutSwitcher destroyed');
-        }
-        if (this._templateManager) {
-            this._templateManager.destroy();
-            this._templateManager = null;
-            logger.debug('TemplateManager destroyed');
-        }
-        if (this._notificationService) {
-            this._notificationService.destroy();
-            this._notificationService = null;
-            logger.debug('NotificationService destroyed');
-        }
-        if (this._zoneOverlay) {
-            this._zoneOverlay.destroy();
-            this._zoneOverlay = null;
-            logger.debug('ZoneOverlay destroyed');
-        }
-        if (this._notificationManager) {
-            this._notificationManager.destroy();
-            this._notificationManager = null;
-            logger.debug('NotificationManager destroyed');
-        }
-        if (this._conflictDetector) {
-            this._conflictDetector.destroy();
-            this._conflictDetector = null;
-            logger.debug('ConflictDetector destroyed');
-        }
-        if (this._spatialStateManager) {
-            this._spatialStateManager.destroy();
-            this._spatialStateManager = null;
-            logger.debug('SpatialStateManager destroyed');
-        }
-        if (this._layoutManager) {
-            this._layoutManager.destroy();
-            this._layoutManager = null;
-            logger.debug('LayoutManager destroyed');
-        }
-        if (this._windowManager) {
-            this._windowManager.destroy();
-            this._windowManager = null;
-            logger.debug('WindowManager destroyed');
+        this._destroyUIComponents();
+        this._destroyCoreManagers();
+    }
+
+    /**
+     * Destroy UI-related components
+     * @private
+     */
+    _destroyUIComponents(): void {
+        this._destroyComponent('_keybindingManager', 'KeybindingManager');
+        this._destroyComponent('_panelIndicator', 'PanelIndicator');
+        this._destroyComponent('_layoutSwitcher', 'LayoutSwitcher');
+        this._destroyComponent('_templateManager', 'TemplateManager');
+        this._destroyComponent('_notificationService', 'NotificationService');
+        this._destroyComponent('_zoneOverlay', 'ZoneOverlay');
+        this._destroyComponent('_notificationManager', 'NotificationManager');
+        this._destroyComponent('_conflictDetector', 'ConflictDetector');
+    }
+
+    /**
+     * Destroy core manager components
+     * @private
+     */
+    _destroyCoreManagers(): void {
+        this._destroyComponent('_spatialStateManager', 'SpatialStateManager');
+        this._destroyComponent('_layoutManager', 'LayoutManager');
+        this._destroyComponent('_windowManager', 'WindowManager');
+    }
+
+    /**
+     * Destroy a single component if it exists
+     * @private
+     */
+    _destroyComponent(propName: string, logName: string): void {
+        const component = (this as any)[propName];
+        if (component) {
+            component.destroy();
+            (this as any)[propName] = null;
+            logger.debug(`${logName} destroyed`);
         }
     }
 

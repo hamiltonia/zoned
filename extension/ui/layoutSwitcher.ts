@@ -27,9 +27,6 @@ import {ThemeManager} from '../utils/theme';
 import {LayoutPreviewBackground} from './layoutPreviewBackground';
 import type {LayoutSwitcherContext} from './layoutSwitcher/types';
 
-// Import GNOME Shell API augmentations
-import '../types/gnome-shell-augment';
-
 // Import split modules (UI construction delegated to these)
 import {createTemplatesSection, createCustomLayoutsSection, createNewLayoutButton} from './layoutSwitcher/sectionFactory.js';
 import {createTopBar, closeMonitorDropdown, updateWorkspaceThumbnailsDisabledState} from './layoutSwitcher/topBar.js';
@@ -45,13 +42,13 @@ const NAV_RIGHT = 1;
 /**
  * ARCHITECTURE NOTE: Many properties are accessed by external modules (sectionFactory, topBar, resizeHandler).
  * This creates tight coupling and breaks encapsulation.
- * 
+ *
  * TODO: After TypeScript migration is complete, consider refactoring to:
  * - Use dependency injection with proper interfaces
- * - Implement builder pattern for UI construction  
+ * - Implement builder pattern for UI construction
  * - Use getter methods instead of direct property access
  * - Pass only needed data as parameters rather than entire context
- * 
+ *
  * This would provide better encapsulation, testability, and maintainability.
  */
 export class LayoutSwitcher {
@@ -889,15 +886,7 @@ export class LayoutSwitcher {
 
         // Find the active card index among custom layouts only (skip templates)
         const templateCount = this._templateManager.getBuiltinTemplates().length;
-        let activeCustomIndex = -1;
-
-        for (let i = templateCount; i < this._allCards.length; i++) {
-            const cardObj = this._allCards[i];
-            if (this._isLayoutActive(cardObj.layout, currentLayout)) {
-                activeCustomIndex = i - templateCount;
-                break;
-            }
-        }
+        const activeCustomIndex = this._findActiveCustomIndex(templateCount, currentLayout);
 
         if (activeCustomIndex < 0) return;
 
@@ -915,25 +904,61 @@ export class LayoutSwitcher {
 
         // Use timeout to ensure layout is complete
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
-            try {
-        // Get adjustment (try multiple methods for compatibility)
+            this._performScrollToPosition(scrollView, targetScrollY);
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    /**
+     * Find the active custom layout index
+     * @private
+     */
+    _findActiveCustomIndex(templateCount: number, currentLayout: any): number {
+        let activeCustomIndex = -1;
+
+        for (let i = templateCount; i < this._allCards.length; i++) {
+            const cardObj = this._allCards[i];
+            if (this._isLayoutActive(cardObj.layout, currentLayout)) {
+                activeCustomIndex = i - templateCount;
+                break;
+            }
+        }
+
+        return activeCustomIndex;
+    }
+
+    /**
+     * Perform the actual scroll operation to a target position
+     * @private
+     */
+    _performScrollToPosition(scrollView: St.ScrollView | undefined, targetScrollY: number): void {
+        try {
+            const adjustment = this._getScrollAdjustment(scrollView);
+
+            if (adjustment && adjustment.upper && adjustment.page_size !== undefined) {
+                const maxScroll = adjustment.upper - adjustment.page_size;
+                if (maxScroll > 0) {
+                    adjustment.value = Math.min(targetScrollY, maxScroll);
+                }
+            }
+        } catch (e) {
+            logger.error(`Error scrolling to active card: ${(e as Error).message}`);
+        }
+    }
+
+    /**
+     * Get scroll adjustment from ScrollView
+     * @private
+     */
+    _getScrollAdjustment(scrollView: St.ScrollView | undefined): any {
         let adjustment = scrollView?.vadjustment;
+        
         if (!adjustment && scrollView && typeof scrollView.get_vscroll_bar === 'function') {
             const vbar = scrollView.get_vscroll_bar();
             if (vbar) adjustment = vbar.get_adjustment();
         }
 
-        if (adjustment && adjustment.upper && adjustment.page_size !== undefined) {
-                    const maxScroll = adjustment.upper - adjustment.page_size;
-                    if (maxScroll > 0) {
-                        adjustment.value = Math.min(targetScrollY, maxScroll);
-                    }
-                }
-            } catch (e) {
-                logger.error(`Error scrolling to active card: ${(e as Error).message}`);
-            }
-            return GLib.SOURCE_REMOVE;
-        });
+        return adjustment;
     }
 
     /**

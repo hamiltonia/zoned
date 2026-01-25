@@ -45,7 +45,7 @@ declare global {
  */
 declare module 'resource:///org/gnome/shell/ui/main.js' {
     import type St from '@girs/st-14';
-    
+
     /**
      * Push a modal grab
      */

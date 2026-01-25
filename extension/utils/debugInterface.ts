@@ -605,7 +605,7 @@ export class DebugInterface {
         zoneCount: number;
         layoutCount: number;
         layoutIds: string[];
-    } {
+        } {
         return {layoutId: '', layoutName: '', zoneIndex: 0, zoneCount: 0, layoutCount: 0, layoutIds: []};
     }
 
@@ -644,7 +644,7 @@ export class DebugInterface {
         zoneCount: number;
         layoutCount: number;
         layoutIds: string[];
-    } {
+        } {
         const layoutManager = this._extension?._layoutManager;
         if (!layoutManager) {
             return this._getEmptyLayoutData();

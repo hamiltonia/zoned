@@ -64,7 +64,7 @@ function handleResizeHandlePress(
     ctx: LayoutSwitcherContext,
     corner: ResizeCorner,
     _actor: Clutter.Actor,
-    event: Clutter.Event
+    event: Clutter.Event,
 ): boolean {
     if (event.get_button() === 1) { // Left click
         startResize(ctx, corner, event);

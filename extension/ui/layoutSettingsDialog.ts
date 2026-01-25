@@ -173,7 +173,7 @@ export class LayoutSettingsDialog {
     private _onCancelCallback: (() => void) | null;
     private _onZoneEditorOpenCallback: (() => void) | null;
     private _onZoneEditorCloseCallback: ((layout: any) => void) | null;
-    
+
     private _container: St.Widget | null;
     private _dialogCard: St.BoxLayout | null;
     private _nameEntry: St.Entry | null;
@@ -186,14 +186,14 @@ export class LayoutSettingsDialog {
     private _previewContainer: St.BoxLayout | null;
     private _confirmOverlay: St.Widget | null;
     private _confirmBox: St.BoxLayout | null;
-    
+
     private _modal: any;
     private _visible: boolean;
     private _closing: boolean;
-    
+
     private _signalTracker: SignalTracker | null;
     private _idleSourceIds: number[];
-    
+
     private _boundHandleContainerClick: ((actor: Clutter.Actor, event: Clutter.Event) => number) | null;
     private _boundUpdateSaveButton: (() => void) | null;
     private _boundTogglePaddingCheckbox: (() => void) | null;
@@ -1617,16 +1617,37 @@ export class LayoutSettingsDialog {
      * @private
      */
     _showDeleteConfirmation(): void {
-        // Remove any existing confirmation
-        if (this._confirmOverlay) {
-            this._confirmOverlay.destroy();
-            this._confirmOverlay = null;
-        }
+        this._removeExistingConfirmation();
 
         if (!this._themeManager) return;
         const colors = this._themeManager.getColors();
 
-        // Confirmation box
+        const confirmBox = this._createConfirmBox(colors);
+        const wrapper = this._createConfirmWrapper(confirmBox);
+
+        this._attachConfirmOverlay(wrapper);
+        this._centerConfirmBox(confirmBox, wrapper);
+        this._focusConfirmCancel(confirmBox);
+
+        logger.debug('Delete confirmation overlay shown');
+    }
+
+    /**
+     * Remove any existing confirmation overlay
+     * @private
+     */
+    _removeExistingConfirmation(): void {
+        if (this._confirmOverlay) {
+            this._confirmOverlay.destroy();
+            this._confirmOverlay = null;
+        }
+    }
+
+    /**
+     * Create confirmation dialog box
+     * @private
+     */
+    _createConfirmBox(colors: any): St.BoxLayout {
         const confirmBox = new St.BoxLayout({
             vertical: true,
             style: `background-color: ${colors.containerBg}; ` +
@@ -1640,31 +1661,63 @@ export class LayoutSettingsDialog {
             y_expand: false,
         });
 
-        // Title
+        this._addConfirmTitle(confirmBox, colors);
+        this._addConfirmMessage(confirmBox, colors);
+        this._addConfirmButtons(confirmBox, colors);
+
+        this._confirmBox = confirmBox;
+        return confirmBox;
+    }
+
+    /**
+     * Add title to confirmation box
+     * @private
+     */
+    _addConfirmTitle(confirmBox: St.BoxLayout, colors: any): void {
         const title = new St.Label({
             text: 'Delete Layout',
             style: `color: ${colors.textPrimary}; font-size: 16px; font-weight: bold; margin-bottom: 12px;`,
         });
         confirmBox.add_child(title);
+    }
 
-        // Message
+    /**
+     * Add message to confirmation box
+     * @private
+     */
+    _addConfirmMessage(confirmBox: St.BoxLayout, colors: any): void {
         const message = new St.Label({
             text: `Are you sure you want to delete "${this._layout.name}"?\n\nThis action cannot be undone.`,
             style: `color: ${colors.textSecondary}; font-size: 13px; margin-bottom: 20px;`,
         });
         message.clutter_text.line_wrap = true;
         confirmBox.add_child(message);
+    }
 
-        // Buttons
+    /**
+     * Add buttons to confirmation box
+     * @private
+     */
+    _addConfirmButtons(confirmBox: St.BoxLayout, colors: any): void {
         const buttonBox = new St.BoxLayout({
             style: 'spacing: 12px;',
             x_align: Clutter.ActorAlign.END,
         });
 
-        // Store confirmBox for later use
-        this._confirmBox = confirmBox;
+        const cancelBtn = this._createCancelButton(colors);
+        buttonBox.add_child(cancelBtn);
 
-        // Cancel button
+        const deleteBtn = this._createDeleteButton(colors);
+        buttonBox.add_child(deleteBtn);
+
+        confirmBox.add_child(buttonBox);
+    }
+
+    /**
+     * Create cancel button for confirmation
+     * @private
+     */
+    _createCancelButton(colors: any): St.Button {
         const cancelBtn = new St.Button({
             label: 'Cancel',
             style: `background-color: ${colors.buttonBg}; ` +
@@ -1680,9 +1733,14 @@ export class LayoutSettingsDialog {
                 cancelBtn, 'clicked', this._boundHandleDeleteCancelClick,
             );
         }
-        buttonBox.add_child(cancelBtn);
+        return cancelBtn;
+    }
 
-        // Delete button (destructive red)
+    /**
+     * Create delete button for confirmation
+     * @private
+     */
+    _createDeleteButton(colors: any): St.Button {
         const deleteBtn = new St.Button({
             label: 'Delete',
             style: 'background-color: #c01c28; ' +
@@ -1698,11 +1756,14 @@ export class LayoutSettingsDialog {
                 deleteBtn, 'clicked', this._boundHandleDeleteConfirmClick,
             );
         }
-        buttonBox.add_child(deleteBtn);
+        return deleteBtn;
+    }
 
-        confirmBox.add_child(buttonBox);
-
-        // Full-screen wrapper with semi-transparent backdrop
+    /**
+     * Create wrapper for confirmation overlay
+     * @private
+     */
+    _createConfirmWrapper(confirmBox: St.BoxLayout): St.Widget {
         const wrapper = new St.Widget({
             style: 'background-color: rgba(0, 0, 0, 0.5);',
             reactive: true,
@@ -1712,23 +1773,32 @@ export class LayoutSettingsDialog {
             height: this._container?.height ?? 0,
         });
 
-        // Click on backdrop (outside confirm box) to cancel - use bound method
         if (this._signalTracker && this._boundHandleDeleteWrapperClick) {
             this._signalTracker.connect(
                 wrapper, 'button-press-event', this._boundHandleDeleteWrapperClick,
             );
         }
 
-        // Add confirmBox to wrapper
         wrapper.add_child(confirmBox);
+        return wrapper;
+    }
 
-        // Add overlay on top of our container
+    /**
+     * Attach confirmation overlay to container
+     * @private
+     */
+    _attachConfirmOverlay(wrapper: St.Widget): void {
         this._confirmOverlay = wrapper;
         if (this._container) {
             this._container.add_child(wrapper);
         }
+    }
 
-        // Center the confirmation box after layout is complete
+    /**
+     * Center the confirmation box within wrapper
+     * @private
+     */
+    _centerConfirmBox(confirmBox: St.BoxLayout, wrapper: St.Widget): void {
         GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
             if (confirmBox && wrapper) {
                 const [boxW, boxH] = confirmBox.get_size();
@@ -1739,11 +1809,20 @@ export class LayoutSettingsDialog {
             }
             return GLib.SOURCE_REMOVE;
         });
+    }
 
-        // Focus the cancel button
-        cancelBtn.grab_key_focus();
-
-        logger.debug('Delete confirmation overlay shown');
+    /**
+     * Focus the cancel button in confirmation box
+     * @private
+     */
+    _focusConfirmCancel(confirmBox: St.BoxLayout): void {
+        const buttonBox = confirmBox.get_children()[2];
+        if (buttonBox) {
+            const cancelBtn = buttonBox.get_children()[0];
+            if (cancelBtn && 'grab_key_focus' in cancelBtn) {
+                (cancelBtn as St.Button).grab_key_focus();
+            }
+        }
     }
 
     /**

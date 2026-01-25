@@ -103,7 +103,7 @@ declare module 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js' {
 // Ambient declaration for gi://Gdk (GTK4 Gdk)
 declare module 'gi://Gdk' {
     export * from '@girs/gdk-4.0';
-    export { default } from '@girs/gdk-4.0';
+    export {default} from '@girs/gdk-4.0';
 }
 
 declare module 'resource:///org/gnome/shell/ui/popupMenu.js' {

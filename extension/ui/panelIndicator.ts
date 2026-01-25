@@ -49,7 +49,7 @@ export const PanelIndicator = GObject.registerClass(
             zoneOverlay: ZoneOverlay,
             settings: Gio.Settings,
             notificationService: NotificationService,
-            extensionPath: string
+            extensionPath: string,
         ): void {
             super._init(0.0, 'Zoned Indicator', false);
 
