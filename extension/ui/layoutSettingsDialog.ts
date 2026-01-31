@@ -93,7 +93,12 @@ function handleIconButtonHoverEnter(button: St.Button, icon: St.Icon, hoverStyle
  * @param {string} iconNormalColor - The normal color for icon
  * @returns {number} Clutter.EVENT_PROPAGATE as number
  */
-function handleIconButtonHoverLeave(button: St.Button, icon: St.Icon, normalStyle: string, iconNormalColor: string): number {
+function handleIconButtonHoverLeave(
+    button: St.Button,
+    icon: St.Icon,
+    normalStyle: string,
+    iconNormalColor: string,
+): number {
     button.style = normalStyle;
     icon.style = `color: ${iconNormalColor};`;
     return Clutter.EVENT_PROPAGATE as unknown as number;
@@ -107,7 +112,12 @@ function handleIconButtonHoverLeave(button: St.Button, icon: St.Icon, normalStyl
  * @param {number} [step] - Step value for spinner (undefined for dropdown)
  * @returns {void}
  */
-function handleUpButtonClick(container: St.BoxLayout & {_selectedIndex?: number; _value?: number}, valueLabel: St.Label, optionsOrMax: string[] | number, step?: number): void {
+function handleUpButtonClick(
+    container: St.BoxLayout & {_selectedIndex?: number; _value?: number},
+    valueLabel: St.Label,
+    optionsOrMax: string[] | number,
+    step?: number,
+): void {
     if (Array.isArray(optionsOrMax)) {
         // Dropdown: cycle forwards through options
         const currentIndex = container._selectedIndex ?? 0;
@@ -133,7 +143,12 @@ function handleUpButtonClick(container: St.BoxLayout & {_selectedIndex?: number;
  * @param {number} [step] - Step value for spinner (undefined for dropdown)
  * @returns {void}
  */
-function handleDownButtonClick(container: St.BoxLayout & {_selectedIndex?: number; _value?: number; _options?: string[]}, valueLabel: St.Label, optionsOrMin: string[] | number, step?: number): void {
+function handleDownButtonClick(
+    container: St.BoxLayout & {_selectedIndex?: number; _value?: number; _options?: string[]},
+    valueLabel: St.Label,
+    optionsOrMin: string[] | number,
+    step?: number,
+): void {
     if (Array.isArray(optionsOrMin)) {
         // Dropdown: cycle backwards through options
         const options = optionsOrMin;
@@ -178,8 +193,12 @@ export class LayoutSettingsDialog {
     private _dialogCard: St.BoxLayout | null;
     private _nameEntry: St.Entry | null;
     private _paddingCheckbox: (St.Button & {_checked?: boolean}) | null;
-    private _paddingSpinner: (St.BoxLayout & {_valueLabel?: St.Label; _value?: number; _min?: number; _max?: number; _step?: number}) | null;
-    private _shortcutDropdown: (St.BoxLayout & {_valueLabel?: St.Label; _options?: string[]; _selectedIndex?: number}) | null;
+    private _paddingSpinner: (
+        St.BoxLayout & {_valueLabel?: St.Label; _value?: number; _min?: number; _max?: number; _step?: number}
+    ) | null;
+    private _shortcutDropdown: (
+        St.BoxLayout & {_valueLabel?: St.Label; _options?: string[]; _selectedIndex?: number}
+    ) | null;
     private _saveButton: (St.Button & {_normalStyle?: string; _hoverStyle?: string}) | null;
     private _deleteButton: (St.Button & {_normalStyle?: string; _hoverStyle?: string}) | null;
     private _duplicateButton: (St.Button & {_normalStyle?: string; _hoverStyle?: string}) | null;
@@ -201,7 +220,15 @@ export class LayoutSettingsDialog {
     private _boundHandleDeleteConfirmClick: (() => void) | null;
     private _boundHandleDeleteWrapperClick: ((actor: Clutter.Actor, event: Clutter.Event) => number) | null;
 
-    constructor(layout: any, layoutManager: any, settings: any, onSave: (layout: any) => void, onCancel: () => void, onZoneEditorOpen: (() => void) | null = null, onZoneEditorClose: ((layout: any) => void) | null = null) {
+    constructor(
+        layout: any,
+        layoutManager: any,
+        settings: any,
+        onSave: (layout: any) => void,
+        onCancel: () => void,
+        onZoneEditorOpen: (() => void) | null = null,
+        onZoneEditorClose: ((layout: any) => void) | null = null,
+    ) {
         this._isNewLayout = (layout === null);
 
         // Create working copy to avoid mutating input
@@ -1014,9 +1041,21 @@ export class LayoutSettingsDialog {
      * @returns {St.BoxLayout} Dropdown container (matching spinner structure)
      * @private
      */
-    _createDropdown(colors: any, options: string[], selected: string): St.BoxLayout & {_valueLabel?: St.Label; _options?: string[]; _selectedIndex?: number} {
+    _createDropdown(
+        colors: any,
+        options: string[],
+        selected: string,
+    ): St.BoxLayout & {
+        _valueLabel?: St.Label;
+        _options?: string[];
+        _selectedIndex?: number;
+    } {
         // Container matching spinner structure
-        const container: St.BoxLayout & {_valueLabel?: St.Label; _options?: string[]; _selectedIndex?: number} = new St.BoxLayout({
+        const container: St.BoxLayout & {
+            _valueLabel?: St.Label;
+            _options?: string[];
+            _selectedIndex?: number;
+        } = new St.BoxLayout({
             vertical: false,
             style: `
                 background-color: ${colors.inputBg};
@@ -1188,7 +1227,10 @@ export class LayoutSettingsDialog {
      * @returns {St.Entry} Styled entry widget
      * @private
      */
-    _createStyledInput(colors: any, options: {text?: string; hintText?: string; minWidth?: string; disabled?: boolean} = {}): St.Entry {
+    _createStyledInput(
+        colors: any,
+        options: {text?: string; hintText?: string; minWidth?: string; disabled?: boolean} = {},
+    ): St.Entry {
         const {isDisabled, style} = this._computeInputStyle(colors, options);
 
         const entry = new St.Entry({
@@ -1281,13 +1323,28 @@ export class LayoutSettingsDialog {
      * @returns {St.BoxLayout} Spinner container
      * @private
      */
-    _createSpinnerInput(colors: any, options: {value?: number; min?: number; max?: number; step?: number} = {}): St.BoxLayout & {_valueLabel?: St.Label; _value?: number; _min?: number; _max?: number; _step?: number} {
+    _createSpinnerInput(
+        colors: any,
+        options: {value?: number; min?: number; max?: number; step?: number} = {},
+    ): St.BoxLayout & {
+        _valueLabel?: St.Label;
+        _value?: number;
+        _min?: number;
+        _max?: number;
+        _step?: number;
+    } {
         const value = options.value || 0;
         const min = options.min ?? 0;
         const max = options.max ?? 99;
         const step = options.step || 1;
 
-        const container: St.BoxLayout & {_valueLabel?: St.Label; _value?: number; _min?: number; _max?: number; _step?: number} = new St.BoxLayout({
+        const container: St.BoxLayout & {
+            _valueLabel?: St.Label;
+            _value?: number;
+            _min?: number;
+            _max?: number;
+            _step?: number;
+        } = new St.BoxLayout({
             vertical: false,
             style: `
                 background-color: ${colors.inputBg};
@@ -1740,7 +1797,7 @@ export class LayoutSettingsDialog {
      * Create delete button for confirmation
      * @private
      */
-    _createDeleteButton(colors: any): St.Button {
+    _createDeleteButton(_colors: any): St.Button {
         const deleteBtn = new St.Button({
             label: 'Delete',
             style: 'background-color: #c01c28; ' +
@@ -1891,7 +1948,11 @@ export class LayoutSettingsDialog {
      * @returns {St.Button} Hyperlink button
      * @private
      */
-    _createHyperlinkButton(colors: any, text: string, onClick: () => void): St.Button & {_linkLabel?: St.Label} {
+    _createHyperlinkButton(
+        colors: any,
+        text: string,
+        onClick: () => void,
+    ): St.Button & {_linkLabel?: St.Label} {
         const button = new St.Button({
             style: `
                 padding: 4px 8px;
@@ -1980,7 +2041,12 @@ export class LayoutSettingsDialog {
      * @returns {St.Button}
      * @private
      */
-    _createButton(colors: any, label: string, onClick: () => void, options: {padding?: string; accent?: boolean} = {}): St.Button & {_normalStyle?: string; _hoverStyle?: string} {
+    _createButton(
+        colors: any,
+        label: string,
+        onClick: () => void,
+        options: {padding?: string; accent?: boolean} = {},
+    ): St.Button & {_normalStyle?: string; _hoverStyle?: string} {
         const padding = options.padding || '10px 24px';
         const isAccent = options.accent || false;
 

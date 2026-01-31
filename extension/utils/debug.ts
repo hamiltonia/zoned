@@ -136,24 +136,21 @@ export class Logger {
     /**
      * Log error - always shown
      */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    error(message: string, ...args: any[]): void {
+    error(message: string, ...args: unknown[]): void {
         console.error(`${this._prefix} ${message}`, ...args);
     }
 
     /**
      * Log warning - always shown
      */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    warn(message: string, ...args: any[]): void {
+    warn(message: string, ...args: unknown[]): void {
         console.warn(`${this._prefix} ${message}`, ...args);
     }
 
     /**
      * Log info - only when debug-logging enabled
      */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    info(message: string, ...args: any[]): void {
+    info(message: string, ...args: unknown[]): void {
         if (_debugEnabled) {
             // eslint-disable-next-line no-console
             console.log(`${this._prefix} ${message}`, ...args);
@@ -163,8 +160,7 @@ export class Logger {
     /**
      * Log debug - only when debug-logging enabled
      */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    debug(message: string, ...args: any[]): void {
+    debug(message: string, ...args: unknown[]): void {
         if (_debugEnabled) {
             // eslint-disable-next-line no-console
             console.log(`${this._prefix} [DEBUG] ${message}`, ...args);
@@ -175,8 +171,7 @@ export class Logger {
      * Log memory debug - only when memory-debug enabled
      * Extremely verbose memory lifecycle and cleanup logging
      */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    memdebug(message: string, ...args: any[]): void {
+    memdebug(message: string, ...args: unknown[]): void {
         if (_memDebugEnabled) {
             // eslint-disable-next-line no-console
             console.log(`${this._prefix} [MEMDEBUG] ${message}`, ...args);

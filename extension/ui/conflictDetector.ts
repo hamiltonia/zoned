@@ -118,7 +118,12 @@ export class ConflictDetector {
      * @param gnome - GNOME binding definition from GNOME_BINDINGS
      * @returns Conflict object or null
      */
-    private _checkConflict(zonedKey: string, zonedName: string, ourAccel: string, gnome: GnomeBinding): Conflict | null {
+    private _checkConflict(
+        zonedKey: string,
+        zonedName: string,
+        ourAccel: string,
+        gnome: GnomeBinding,
+    ): Conflict | null {
         try {
             const schema = new Gio.Settings({schema: gnome.schema});
             const gnomeBindings = schema.get_strv(gnome.key);

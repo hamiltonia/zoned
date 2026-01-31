@@ -7,7 +7,6 @@
 
 import '@girs/gjs';
 import '@girs/shell-14';
-import type St from '@girs/st-14';
 
 declare global {
     const imports: GjsGiImports;

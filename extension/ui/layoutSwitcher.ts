@@ -952,7 +952,7 @@ export class LayoutSwitcher {
      */
     _getScrollAdjustment(scrollView: St.ScrollView | undefined): any {
         let adjustment = scrollView?.vadjustment;
-        
+
         if (!adjustment && scrollView && typeof scrollView.get_vscroll_bar === 'function') {
             const vbar = scrollView.get_vscroll_bar();
             if (vbar) adjustment = vbar.get_adjustment();

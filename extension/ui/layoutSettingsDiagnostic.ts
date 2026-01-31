@@ -90,7 +90,12 @@ function handleWidgetHoverLeave(widget: St.Widget, normalStyle: string): boolean
     return Clutter.EVENT_PROPAGATE;
 }
 
-function handleUpButtonClick(container: SpinnerContainer | DropdownContainer, valueLabel: St.Label, optionsOrMax: string[] | number, step: number | undefined): void {
+function handleUpButtonClick(
+    container: SpinnerContainer | DropdownContainer,
+    valueLabel: St.Label,
+    optionsOrMax: string[] | number,
+    step: number | undefined,
+): void {
     if (Array.isArray(optionsOrMax)) {
         // Dropdown
         const dropdown = container as DropdownContainer;
@@ -107,7 +112,12 @@ function handleUpButtonClick(container: SpinnerContainer | DropdownContainer, va
     }
 }
 
-function handleDownButtonClick(container: SpinnerContainer | DropdownContainer, valueLabel: St.Label, optionsOrMin: string[] | number, step: number | undefined): void {
+function handleDownButtonClick(
+    container: SpinnerContainer | DropdownContainer,
+    valueLabel: St.Label,
+    optionsOrMin: string[] | number,
+    step: number | undefined,
+): void {
     if (Array.isArray(optionsOrMin)) {
         // Dropdown
         const dropdown = container as DropdownContainer;

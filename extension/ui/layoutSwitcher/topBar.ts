@@ -562,7 +562,12 @@ function getWorkspaceLayout(ctx: LayoutSwitcherContext, workspaceIndex: number):
  * @param isDisabled - Whether thumbnails are disabled (applying globally)
  * @returns The workspace thumbnail button
  */
-function createWorkspaceThumbnail(ctx: LayoutSwitcherContext, workspaceIndex: number, isActive: boolean, isDisabled: boolean): WorkspaceThumbnail {
+function createWorkspaceThumbnail(
+    ctx: LayoutSwitcherContext,
+    workspaceIndex: number,
+    isActive: boolean,
+    isDisabled: boolean,
+): WorkspaceThumbnail {
     const tier = ctx._currentTier;
     const thumbW = tier.workspaceThumb.w;
     const thumbH = tier.workspaceThumb.h;
@@ -703,7 +708,15 @@ export function createWorkspaceThumbnails(ctx: LayoutSwitcherContext): St.BoxLay
  * @param isHovered - Whether the thumbnail is being hovered
  * @returns CSS style string
  */
-function getWorkspaceThumbnailStyle(ctx: LayoutSwitcherContext, isActive: boolean, isDisabled: boolean, width: number, height: number, radius: number, isHovered: boolean = false): string {
+function getWorkspaceThumbnailStyle(
+    ctx: LayoutSwitcherContext,
+    isActive: boolean,
+    isDisabled: boolean,
+    width: number,
+    height: number,
+    radius: number,
+    isHovered: boolean = false,
+): string {
     const colors = ctx._themeManager.getColors();
 
     let baseStyle = `width: ${width}px; height: ${height}px; ` +

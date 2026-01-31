@@ -1,5 +1,3 @@
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * LayoutManager - Manages window layouts and state
  *
@@ -63,13 +61,10 @@ interface LayoutData {
     layouts: Layout[];
 }
 
-interface UserLayoutsData {
+interface _UserLayoutsData {
     layouts: Layout[];
     layout_order: string[];
 }
-
-
-type ZoneOverlay = any; // Will be typed when UI components are migrated
 
 export class LayoutManager {
     private _settings: Gio.Settings;

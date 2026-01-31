@@ -292,7 +292,11 @@ export function calculateDialogDimensions(tier: TierConfig): DialogDimensions {
  * @param {number} screenHeight - Screen height in logical pixels
  * @returns {Object} Validation results with any detected issues
  */
-export function validateDimensions(dims: DialogDimensions, screenWidth: number, screenHeight: number): ValidationResult {
+export function validateDimensions(
+    dims: DialogDimensions,
+    screenWidth: number,
+    screenHeight: number,
+): ValidationResult {
     const issues: string[] = [];
 
     const widthPercent = (dims.dialogWidth / screenWidth * 100).toFixed(1);

@@ -39,7 +39,10 @@ function isDebugEnabled() {
 }
 
 function log(msg: string): void {
+    // Debug logging for prefs goes to journal (viewed with journalctl)
+    // Gated by debug-logging GSettings key
     if (isDebugEnabled()) {
+        // eslint-disable-next-line no-console
         console.log(`[Zoned Prefs] ${msg}`);
     }
 }
@@ -576,7 +579,12 @@ const ShortcutCaptureRow = GObject.registerClass({
     declare _boundResetClick: (() => void) | null;
     declare _boundModifierToggled: (() => void) | null;
     declare _boundRecordClick: (() => void) | null;
-    declare _boundKeyPress: ((ctrl: Gtk.EventControllerKey, keyval: number, keycode: number, state: Gdk.ModifierType) => boolean) | null;
+    declare _boundKeyPress: ((
+        ctrl: Gtk.EventControllerKey,
+        keyval: number,
+        keycode: number,
+        state: Gdk.ModifierType
+    ) => boolean) | null;
     declare _boundFocusLeave: (() => void) | null;
     declare _boundSettingsChanged: (() => void) | null;
     declare _boundConflictCountChanged: (() => void) | null;

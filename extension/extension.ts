@@ -65,7 +65,7 @@ export default class ZonedExtension extends Extension {
     private _boundOnShowIndicatorChanged: (() => void) | null;
     private _boundOnConflictCountChanged: (() => void) | null;
     private _boundOnPreviewChanged: (() => void) | null;
-    private _boundOnWorkspaceSwitched: ((manager: any, from: number, to: number, direction: any) => void) | null;
+    private _boundOnWorkspaceSwitched: ((...args: unknown[]) => void) | null;
 
     // Recursion guard for preview signal handler
     private _handlingPreview: boolean;
@@ -562,8 +562,7 @@ export default class ZonedExtension extends Extension {
      * @param to - New workspace index
      * @param _direction - Switch direction (unused)
      */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    _onWorkspaceSwitched(_manager: any, _from: number, to: number, _direction: any): void {
+    _onWorkspaceSwitched(_manager: unknown, _from: number, to: number, _direction: unknown): void {
         // Only react if workspace mode is enabled
         const workspaceMode = this._settings!.get_boolean('use-per-workspace-layouts');
         if (!workspaceMode) {

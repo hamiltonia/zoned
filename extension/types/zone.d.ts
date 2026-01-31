@@ -11,6 +11,6 @@ export interface Zone {
     h: number;
 }
 
-export type ZoneOverlay = any; //  Placeholder - will be typed when UI is migrated
+export type ZoneOverlay = unknown; //  Placeholder - will be typed when UI is migrated
 
 export {Layout};

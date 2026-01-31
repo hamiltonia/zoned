@@ -118,7 +118,13 @@ export class ZoneEditor {
      * @param {Function} onSave - Callback when user saves (receives zone-based layout)
      * @param {Function} onCancel - Callback when user cancels (optional)
      */
-    constructor(zoneLayout: any, layoutManager: any, settings: Gio.Settings, onSave: (layout: any) => void, onCancel: (() => void) | null = null) {
+    constructor(
+        zoneLayout: any,
+        layoutManager: any,
+        settings: Gio.Settings,
+        onSave: (layout: any) => void,
+        onCancel: (() => void) | null = null,
+    ) {
         // Handle null layout (new layout with no zones) by creating default split template
         const layoutToEdit = zoneLayout || {
             id: null,

@@ -15,7 +15,7 @@ declare module 'resource:///org/gnome/shell/extensions/extension.js' {
         version: number | string;
         'shell-version': string[];
         url?: string;
-        [key: string]: any;
+        [key: string]: unknown;
     }
 
     export class Extension {
@@ -34,24 +34,67 @@ declare module 'resource:///org/gnome/shell/extensions/extension.js' {
 }
 
 declare module 'resource:///org/gnome/shell/ui/main.js' {
-    export const panel: any;
-    export const layoutManager: any;
-    export const uiGroup: any;
-    export const wm: any;
+    import Clutter from '@girs/clutter-14';
+
+    export const panel: {
+        addToStatusArea: (role: string, indicator: unknown, position?: number, box?: string) => void;
+        [key: string]: unknown;
+    };
+
+    export const layoutManager: {
+        primaryIndex: number;
+        monitors: Array<{
+            index: number;
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+        }>;
+        currentMonitor: {
+            index: number;
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+        };
+        [key: string]: unknown;
+    };
+
+    export const uiGroup: Clutter.Actor & {
+        get_n_children: () => number;
+    };
+
+    export const wm: {
+        [key: string]: unknown;
+    };
 }
 
 declare module 'resource:///org/gnome/shell/ui/modalDialog.js' {
     import St from '@girs/st-14';
     import Clutter from '@girs/clutter-14';
 
+    export interface ModalDialogParams {
+        styleClass?: string;
+        destroyOnClose?: boolean;
+        [key: string]: unknown;
+    }
+
+    export interface ButtonInfo {
+        label: string;
+        action: () => void;
+        key?: number;
+        default?: boolean;
+        [key: string]: unknown;
+    }
+
     export class ModalDialog extends St.Widget {
-        constructor(params?: any);
+        constructor(params?: ModalDialogParams);
         contentLayout: St.BoxLayout;
         dialogLayout: St.BoxLayout;
         open(timestamp?: number): boolean;
         close(timestamp?: number): void;
-        setButtons(buttons: any[]): void;
-        addButton(buttonInfo: any): St.Button;
+        setButtons(buttons: ButtonInfo[]): void;
+        addButton(buttonInfo: ButtonInfo): St.Button;
         clearButtons(): void;
         setInitialKeyFocus(actor: Clutter.Actor): void;
     }
@@ -63,7 +106,14 @@ declare module 'resource:///org/gnome/shell/ui/panelMenu.js' {
 
     export class Button extends St.Widget {
         constructor(menuAlignment: number, nameText?: string, dontCreateMenu?: boolean);
-        menu: any;
+        menu: {
+            addMenuItem: (item: unknown, position?: number) => void;
+            removeAll: () => void;
+            open: (animate?: boolean) => void;
+            close: (animate?: boolean) => void;
+            toggle: () => void;
+            [key: string]: unknown;
+        };
         add_child(child: Clutter.Actor): void;
         remove_child(child: Clutter.Actor): void;
         destroy(): void;
@@ -71,7 +121,7 @@ declare module 'resource:///org/gnome/shell/ui/panelMenu.js' {
 
     export class SystemIndicator extends St.BoxLayout {
         constructor();
-        quickSettingsItems: any[];
+        quickSettingsItems: unknown[];
     }
 }
 
@@ -86,7 +136,7 @@ declare module 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js' {
         version: number | string;
         'shell-version': string[];
         url?: string;
-        [key: string]: any;
+        [key: string]: unknown;
     }
 
     export class ExtensionPreferences {
@@ -110,15 +160,24 @@ declare module 'resource:///org/gnome/shell/ui/popupMenu.js' {
     import St from '@girs/st-14';
     import Clutter from '@girs/clutter-14';
 
+    export interface PopupMenuItemParams {
+        reactive?: boolean;
+        activate?: boolean;
+        hover?: boolean;
+        style_class?: string;
+        can_focus?: boolean;
+        [key: string]: unknown;
+    }
+
     export class PopupBaseMenuItem extends St.BoxLayout {
-        constructor(params?: any);
+        constructor(params?: PopupMenuItemParams);
         activate(event?: Clutter.Event): void;
         add_child(child: Clutter.Actor): void;
         setOrnament(ornament: number): void;
     }
 
     export class PopupMenuItem extends PopupBaseMenuItem {
-        constructor(text: string, params?: any);
+        constructor(text: string, params?: PopupMenuItemParams);
         label: St.Label;
     }
 

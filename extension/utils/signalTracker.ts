@@ -25,8 +25,7 @@ import {createLogger} from './debug.js';
 const logger = createLogger('SignalTracker');
 
 interface SignalConnection {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    object: any;
+    object: unknown;
     id: number;
     signal: string;
 }
