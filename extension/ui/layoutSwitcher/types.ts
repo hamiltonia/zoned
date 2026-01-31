@@ -69,8 +69,7 @@ export interface CalculatedSpacing {
     internalMargin: number;
     dialogWidth: number;
     dialogHeight: number;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    _dims?: any;
+    _dims?: Record<string, unknown>;
 }
 
 /**

@@ -456,7 +456,9 @@ export function createCustomLayoutGrid(
 
         const card = createCustomLayoutCard(ctx, layout, currentLayout);
         ctx._addDebugRect(card, 'card', `Custom: ${layout.name}`);
-        currentRow!.add_child(card);
+        if (currentRow) {
+            currentRow.add_child(card);
+        }
         ctx._allCards.push({card, layout, isTemplate: false});
 
         // After the last card, add spacers to fill the row

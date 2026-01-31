@@ -55,7 +55,7 @@ export class WindowManager {
 
         // Get the monitor the window is currently on
         const monitorIndex = window.get_monitor();
-        const workArea = (Main.layoutManager as any).getWorkAreaForMonitor(monitorIndex);
+        const workArea = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
 
         // Calculate absolute pixel coordinates from zone percentages
         const x = Math.round(workArea.x + (zone.x * workArea.width));

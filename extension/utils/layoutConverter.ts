@@ -169,7 +169,10 @@ export function zonesToEdges(zoneLayout: ZoneLayout): EdgeLayout {
         if (!groupedEdges.has(key)) {
             groupedEdges.set(key, []);
         }
-        groupedEdges.get(key)!.push(seg);
+        const group = groupedEdges.get(key);
+        if (group) {
+            group.push(seg);
+        }
     });
 
     // For each group, merge overlapping/adjacent segments

@@ -320,19 +320,25 @@ export default class ZonedExtension extends Extension {
         );
 
         // Set initial visibility
-        this._panelIndicator!.visible = this._settings.get_boolean('show-panel-indicator');
+        if (this._panelIndicator) {
+            this._panelIndicator.visible = this._settings.get_boolean('show-panel-indicator');
+        }
 
         // Detect keybinding conflicts and update panel indicator
-        this._conflictDetector!.detectConflicts();
-        this._panelIndicator!.setConflictStatus(this._conflictDetector!.hasConflicts());
+        if (this._conflictDetector) {
+            this._conflictDetector.detectConflicts();
+            if (this._panelIndicator) {
+                this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
+            }
 
-        // Show startup notification if conflicts detected
-        if (this._conflictDetector.hasConflicts()) {
-            const count = this._settings.get_int('keybinding-conflict-count');
-            this._notificationService!.notify(
-                NotifyCategory.CONFLICTS,
-                `Warning: ${count} keybinding conflict(s) detected`,
-            );
+            // Show startup notification if conflicts detected
+            if (this._conflictDetector.hasConflicts() && this._notificationService) {
+                const count = this._settings.get_int('keybinding-conflict-count');
+                this._notificationService.notify(
+                    NotifyCategory.CONFLICTS,
+                    `Warning: ${count} keybinding conflict(s) detected`,
+                );
+            }
         }
 
         this._keybindingManager = new KeybindingManager(
@@ -516,7 +522,8 @@ export default class ZonedExtension extends Extension {
      * @private
      */
     _onShowIndicatorChanged(): void {
-        const show = this._settings!.get_boolean('show-panel-indicator');
+        if (!this._settings) return;
+        const show = this._settings.get_boolean('show-panel-indicator');
         logger.debug(`Panel indicator visibility changed to: ${show}`);
         if (this._panelIndicator) {
             this._panelIndicator.visible = show;
@@ -529,8 +536,12 @@ export default class ZonedExtension extends Extension {
      */
     _onConflictCountChanged(): void {
         logger.debug('Conflict count changed by prefs, re-detecting...');
-        this._conflictDetector!.detectConflicts();
-        this._panelIndicator!.setConflictStatus(this._conflictDetector!.hasConflicts());
+        if (this._conflictDetector) {
+            this._conflictDetector.detectConflicts();
+            if (this._panelIndicator) {
+                this._panelIndicator.setConflictStatus(this._conflictDetector.hasConflicts());
+            }
+        }
     }
 
     /**
@@ -540,16 +551,18 @@ export default class ZonedExtension extends Extension {
      */
     _onPreviewChanged(): void {
         // Prevent recursive call when we reset the flag
-        if (this._handlingPreview) return;
+        if (this._handlingPreview || !this._settings) return;
 
-        if (this._settings!.get_boolean('center-notification-preview')) {
+        if (this._settings.get_boolean('center-notification-preview')) {
             this._handlingPreview = true;
             logger.debug('Preview triggered from preferences');
             // Show preview with current settings
-            const duration = this._settings!.get_int('notification-duration');
-            this._zoneOverlay!.showMessage('Preview Notification', duration);
+            const duration = this._settings.get_int('notification-duration');
+            if (this._zoneOverlay) {
+                this._zoneOverlay.showMessage('Preview Notification', duration);
+            }
             // Reset the flag (won't recurse due to guard)
-            this._settings!.set_boolean('center-notification-preview', false);
+            this._settings.set_boolean('center-notification-preview', false);
             this._handlingPreview = false;
         }
     }
@@ -564,7 +577,8 @@ export default class ZonedExtension extends Extension {
      */
     _onWorkspaceSwitched(_manager: unknown, _from: number, to: number, _direction: unknown): void {
         // Only react if workspace mode is enabled
-        const workspaceMode = this._settings!.get_boolean('use-per-workspace-layouts');
+        if (!this._settings) return;
+        const workspaceMode = this._settings.get_boolean('use-per-workspace-layouts');
         if (!workspaceMode) {
             return;
         }
@@ -573,30 +587,34 @@ export default class ZonedExtension extends Extension {
         const toIndex = to;
 
         // Use SpatialStateManager for per-space state
+        if (!this._spatialStateManager || !this._layoutManager || !this._notificationService) {
+            return;
+        }
+
         try {
-            const spaceKey = this._spatialStateManager!.makeKey(
+            const spaceKey = this._spatialStateManager.makeKey(
                 Main.layoutManager.primaryIndex,
                 toIndex,
             );
 
-            const state = this._spatialStateManager!.getState(spaceKey);
+            const state = this._spatialStateManager.getState(spaceKey);
             const layoutId = state.layoutId;
 
             // Switch to the assigned layout
-            const layout = this._layoutManager!.getAllLayouts().find(l => l.id === layoutId);
+            const layout = this._layoutManager.getAllLayouts().find(l => l.id === layoutId);
             if (layout) {
-                this._layoutManager!.setLayout(layoutId);
+                this._layoutManager.setLayout(layoutId);
                 // Show notification with workspace number (uses notification settings)
-                this._notificationService!.notify(
+                this._notificationService.notify(
                     NotifyCategory.WORKSPACE_CHANGES,
                     `Workspace ${toIndex + 1}: ${layout.name}`,
                 );
             } else {
                 // Layout not found - use fallback
                 const fallbackId = 'halves';
-                this._layoutManager!.setLayout(fallbackId);
+                this._layoutManager.setLayout(fallbackId);
                 logger.warn(`Layout '${layoutId}' not found, using fallback`);
-                this._notificationService!.notify(
+                this._notificationService.notify(
                     NotifyCategory.WORKSPACE_CHANGES,
                     `Workspace ${toIndex + 1}: Halves (fallback)`,
                 );

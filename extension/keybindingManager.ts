@@ -16,13 +16,14 @@ import {NotifyCategory} from './utils/notificationService.js';
 import type {LayoutManager} from './layoutManager';
 import type {WindowManager} from './windowManager';
 import type {NotificationService} from './utils/notificationService';
+import type {Layout} from './types/layout';
 
 const logger = createLogger('KeybindingManager');
 
 // Placeholder types for UI components not yet migrated
-type NotificationManager = any;
-type LayoutSwitcher = any;
-type ZoneOverlay = any;
+type NotificationManager = unknown;
+type LayoutSwitcher = {show: () => void};
+type ZoneOverlay = unknown;
 
 export class KeybindingManager {
     private _settings: Gio.Settings | null;
@@ -304,13 +305,25 @@ export class KeybindingManager {
         }
 
         const spaceKey = this._getSpaceKeyFromWindow(window);
-        const zone = this._layoutManager?.cycleZone(direction, spaceKey as any);
+        this._performZoneCycleAndMove(window, direction, spaceKey);
+    }
+
+    /**
+     * Perform zone cycle and window move operation
+     * @private
+     */
+    private _performZoneCycleAndMove(
+        window: Meta.Window,
+        direction: number,
+        spaceKey: string | null,
+    ): void {
+        const zone = this._layoutManager?.cycleZone(direction, spaceKey ?? undefined);
         if (!zone) {
             logger.warn(`Failed to cycle to ${direction > 0 ? 'next' : 'previous'} zone`);
             return;
         }
 
-        const layout = this._layoutManager?.getCurrentLayout(spaceKey as any);
+        const layout = this._layoutManager?.getCurrentLayout(spaceKey ?? undefined);
         const padding = layout?.padding || 0;
         this._windowManager?.moveWindowToZone(window, zone, padding);
 
@@ -321,7 +334,7 @@ export class KeybindingManager {
      * Show zone change notification
      * @private
      */
-    private _notifyZoneChange(spaceKey: string | null, layout: any): void {
+    private _notifyZoneChange(spaceKey: string | null, layout: Layout | null | undefined): void {
         if (!this._notificationService || !layout) return;
 
         const zoneIndex = spaceKey
@@ -373,7 +386,7 @@ export class KeybindingManager {
      * Find layout by shortcut key
      * @private
      */
-    private _findLayoutByShortcut(shortcutKey: number): any | null {
+    private _findLayoutByShortcut(shortcutKey: number): Layout | null {
         const layouts = this._layoutManager?.getAllLayoutsOrdered() ?? [];
         return layouts.find(l =>
             l.shortcut === String(shortcutKey) || l.shortcut === shortcutKey,
@@ -384,7 +397,7 @@ export class KeybindingManager {
      * Apply layout based on current mode (global vs per-workspace)
      * @private
      */
-    private _applyLayoutByMode(layout: any): void {
+    private _applyLayoutByMode(layout: Layout): void {
         const perSpaceEnabled = this._settings?.get_boolean('use-per-workspace-layouts') ?? false;
 
         if (perSpaceEnabled) {

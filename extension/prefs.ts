@@ -1845,7 +1845,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
                 settings: settings,
                 settingsKey: binding.key,
                 defaultAccelerator: binding.default,
-            } as any);
+            } as ShortcutCaptureRowParams);
             kbGroup.add(row);
         }
         log('All shortcut rows created');
