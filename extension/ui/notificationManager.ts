@@ -22,6 +22,24 @@ import {createLogger} from '../utils/debug.js';
 
 const logger = createLogger('NotificationManager');
 
+// Type definitions for GNOME Shell interfaces
+interface Monitor {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+interface PanelBox {
+    height: number;
+}
+
+interface LayoutManager {
+    uiGroup: Clutter.Actor;
+    currentMonitor: Monitor;
+    panelBox: PanelBox;
+}
+
 // Extension type placeholder
 type Extension = {
     path: string;
@@ -99,15 +117,16 @@ export class NotificationManager {
             this._notification.add_child(messageLabel);
 
             // Add to UI at top-center
-            (Main.layoutManager as any).uiGroup.add_child(this._notification);
+            const layoutMgr = Main.layoutManager as unknown as LayoutManager;
+            layoutMgr.uiGroup.add_child(this._notification);
 
             // Wait for allocation then position (width won't be available until allocated)
             const allocationId = this._notification.connect('notify::allocation', () => {
                 this._notification?.disconnect(allocationId);
 
                 // Position at top-center of current monitor (below panel)
-                const monitor = (Main.layoutManager as any).currentMonitor;
-                const panel = (Main.layoutManager as any).panelBox;
+                const monitor = layoutMgr.currentMonitor;
+                const panel = layoutMgr.panelBox;
 
                 this._notification?.set_position(
                     monitor.x + (monitor.width - this._notification.width) / 2,
@@ -117,7 +136,7 @@ export class NotificationManager {
 
             // Fade in
             this._notification.opacity = 0;
-            (this._notification as any).ease({
+            (this._notification as unknown as Clutter.Actor).ease({
                 opacity: 255,
                 duration: 150,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
@@ -149,13 +168,14 @@ export class NotificationManager {
 
         // Remove notification with fade out
         if (this._notification) {
-            (this._notification as any).ease({
+            const layoutMgr = Main.layoutManager as unknown as LayoutManager;
+            (this._notification as unknown as Clutter.Actor).ease({
                 opacity: 0,
                 duration: 150,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
                 onComplete: () => {
                     if (this._notification) {
-                        (Main.layoutManager as any).uiGroup.remove_child(this._notification);
+                        layoutMgr.uiGroup.remove_child(this._notification);
                         this._notification.destroy();
                         this._notification = null;
                     }

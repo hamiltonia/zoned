@@ -465,6 +465,7 @@ export function createCustomLayoutGrid(
         if (isLastCard && currentRow) {
             const cardsInRow = col + 1;
             const spacersNeeded = COLUMNS - cardsInRow;
+            const row = currentRow;  // Capture for nested scope
 
             if (spacersNeeded > 0) {
                 logger.debug(`[SPACER] Row ${rowNumber - 1}: Adding ${spacersNeeded} spacers (${cardsInRow} cards)`);
@@ -479,7 +480,7 @@ export function createCustomLayoutGrid(
                             : '',
                         reactive: false,
                     });
-                    currentRow.add_child(spacer);
+                    row.add_child(spacer);
                     ctx._addDebugRect(spacer, 'spacer', `Spacer ${i + 1} of ${spacersNeeded}`);
                 }
             }

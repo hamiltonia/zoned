@@ -23,23 +23,71 @@ import {
 } from './resourceTracker.js';
 import {getExtensionVersion} from './versionUtil.js';
 import {LayoutSettingsDiagnostic} from '../ui/layoutSettingsDiagnostic.js';
+import type {Layout} from '../types/layout';
 
 const logger = createLogger('DebugInterface');
+
+/**
+ * Minimal layout manager interface
+ */
+interface LayoutManager {
+    cycleZone: (direction: number) => void;
+    getCurrentZone: () => unknown;
+    getCurrentLayout: () => Layout | null;
+    getAllLayouts: () => Layout[];
+    setLayout: (layoutId: string) => boolean;
+    getCurrentZoneIndex: () => number;
+}
+
+/**
+ * Minimal window manager interface
+ */
+interface WindowManager {
+    getFocusedWindow: () => unknown;
+    moveWindowToZone: (window: unknown, zone: unknown) => void;
+}
+
+/**
+ * Minimal spatial state manager interface
+ */
+interface SpatialStateManager {
+    getAllSpaceKeys: () => string[];
+    getCurrentSpaceKey: () => string;
+    getState: (key: string) => {layoutId: string; zoneIndex: number};
+}
+
+/**
+ * Minimal layout switcher interface
+ */
+interface LayoutSwitcher {
+    show: () => void;
+    hide: () => void;
+    openLayoutSettings: (layout: Layout) => void;
+    closeLayoutSettings: () => void;
+}
+
+/**
+ * Minimal zone overlay interface
+ */
+interface ZoneOverlay {
+    show: (layoutName: string, zoneIndex: number, totalZones: number) => void;
+    _hide: () => void;
+}
 
 /**
  * Extension interface (minimal type definition for what we need)
  */
 interface Extension {
     path: string;
-    metadata: any;  // Use any to avoid ExtensionMetadata strict typing issues
+    metadata: Record<string, unknown>;
     _settings: Gio.Settings | null;
-    _layoutManager: any;
-    _windowManager: any;
-    _spatialStateManager: any;
-    _layoutSwitcher: any;
-    _zoneOverlay: any;
-    _testLayoutSettingsDialog: any;
-    _diagnosticDialog: any;
+    _layoutManager: LayoutManager | null;
+    _windowManager: WindowManager | null;
+    _spatialStateManager: SpatialStateManager | null;
+    _layoutSwitcher: LayoutSwitcher | null;
+    _zoneOverlay: ZoneOverlay | null;
+    _testLayoutSettingsDialog: unknown;
+    _diagnosticDialog: LayoutSettingsDiagnostic | null;
 }
 
 /**
@@ -148,7 +196,7 @@ function handleSwitchLayout(extension: Extension, params: ActionParams): ActionR
     }
     // Check if layout exists before switching
     const layouts = extension._layoutManager?.getAllLayouts() || [];
-    const layoutExists = layouts.some((l: any) => l.id === layoutId);
+    const layoutExists = layouts.some((l: Layout) => l.id === layoutId);
     if (!layoutExists) {
         return [false, `Layout not found: ${layoutId}`];
     }
@@ -182,7 +230,7 @@ function handleHideZoneOverlay(extension: Extension): ActionResult {
 
 function handleGetLayoutIds(extension: Extension): ActionResult {
     const layouts = extension._layoutManager?.getAllLayouts() || [];
-    return [true, JSON.stringify(layouts.map((l: any) => l.id))];
+    return [true, JSON.stringify(layouts.map((l: Layout) => l.id))];
 }
 
 function handleGetMonitorCount(_extension: Extension): ActionResult {
@@ -293,7 +341,7 @@ function handleGetSpatialState(extension: Extension): ActionResult {
     }
     // Build state object from all space keys
     const spaceKeys = spatialManager.getAllSpaceKeys();
-    const state: Record<string, any> = {};
+    const state: Record<string, {layoutId: string; zoneIndex: number}> = {};
     for (const key of spaceKeys) {
         state[key] = spatialManager.getState(key);
     }
@@ -356,10 +404,10 @@ function handleOpenLayoutSettings(extension: Extension, params: ActionParams): A
         return [false, 'LayoutManager not available'];
     }
 
-    let layout = null;
+    let layout: Layout | undefined;
     if (params.layoutId) {
         const allLayouts = layoutManager.getAllLayouts() || [];
-        layout = allLayouts.find((l: any) => l.id === params.layoutId);
+        layout = allLayouts.find((l: Layout) => l.id === params.layoutId);
         if (!layout) {
             logger.error(`[D-Bus] Layout not found: ${params.layoutId}`);
             return [false, `Layout not found: ${params.layoutId}`];
@@ -368,7 +416,7 @@ function handleOpenLayoutSettings(extension: Extension, params: ActionParams): A
     } else {
         // Use first template as default
         const allLayouts = layoutManager.getAllLayouts() || [];
-        const templates = allLayouts.filter((l: any) => !l.id?.startsWith('layout-'));
+        const templates = allLayouts.filter((l: Layout) => !l.id?.startsWith('layout-'));
         if (templates.length === 0) {
             logger.error('[D-Bus] No templates available');
             return [false, 'No templates available'];
@@ -474,7 +522,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
  */
 export class DebugInterface {
     private _extension: Extension | null;
-    private _dbusExportId: any;
+    private _dbusExportId: unknown;
     private _enabled: boolean;
     private _settingsChangedId: number | null;
     private _boundOnDebugExposeChanged: () => void;
@@ -543,8 +591,9 @@ export class DebugInterface {
 
             this._dbusExportId = dbusImpl;
             logger.info('D-Bus debug interface enabled');
-        } catch (e: any) {
-            logger.error('Failed to enable D-Bus interface:', e.message);
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            logger.error('Failed to enable D-Bus interface:', message);
         }
     }
 
@@ -575,9 +624,25 @@ export class DebugInterface {
      * Build state response object
      */
     private _buildStateResponse(): Record<string, GLib.Variant> {
-        const versionInfo = getExtensionVersion(this._extension!.path, this._extension!.metadata);
+        if (!this._extension) {
+            return {
+                enabled: GLib.Variant.new_boolean(false),
+                extensionVersion: GLib.Variant.new_string('unknown'),
+                layoutId: GLib.Variant.new_string(''),
+                layoutName: GLib.Variant.new_string(''),
+                zoneIndex: GLib.Variant.new_int32(0),
+                zoneCount: GLib.Variant.new_int32(0),
+                layoutCount: GLib.Variant.new_int32(0),
+                layouts: GLib.Variant.new_strv([]),
+                workspaceMode: GLib.Variant.new_boolean(false),
+                debugLogging: GLib.Variant.new_boolean(false),
+                resourceTracking: GLib.Variant.new_boolean(false),
+            };
+        }
+
+        const versionInfo = getExtensionVersion(this._extension.path, this._extension.metadata);
         const layoutData = this._extractLayoutData();
-        const settings = this._extension?._settings;
+        const settings = this._extension._settings;
 
         return {
             enabled: GLib.Variant.new_boolean(true),
@@ -613,7 +678,7 @@ export class DebugInterface {
      * Build layout data from layout manager
      * @private
      */
-    private _buildLayoutData(layoutManager: any): {
+    private _buildLayoutData(layoutManager: LayoutManager): {
         layoutId: string;
         layoutName: string;
         zoneIndex: number;
@@ -630,7 +695,7 @@ export class DebugInterface {
             zoneIndex: layoutManager.getCurrentZoneIndex() ?? 0,
             zoneCount: currentLayout?.zones?.length ?? 0,
             layoutCount: allLayouts.length,
-            layoutIds: allLayouts.map((l: any) => l.id),
+            layoutIds: allLayouts.map((l: Layout) => l.id),
         };
     }
 
@@ -717,21 +782,29 @@ export class DebugInterface {
             if (paramsJson && paramsJson !== '{}') {
                 try {
                     params = JSON.parse(paramsJson);
-                } catch (e: any) {
-                    return [false, `Invalid JSON parameters: ${e.message}`];
+                } catch (e: unknown) {
+                    const message = e instanceof Error ? e.message : String(e);
+                    return [false, `Invalid JSON parameters: ${message}`];
                 }
             }
 
             // Execute handler
-            const [success, error] = handler(this._extension!, params);
+            if (!this._extension) {
+                logger.error('Extension not set for debug interface');
+                this.emitActionCompleted(action, false);
+                return;
+            }
+
+            const [success, error] = handler(this._extension, params);
 
             // Emit signal
             this.emitActionCompleted(action, success);
 
             return [success, error || ''];
-        } catch (e: any) {
-            logger.error(`TriggerAction error for '${action}':`, e.message);
-            return [false, e.message];
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            logger.error(`TriggerAction error for '${action}':`, message);
+            return [false, message];
         }
     }
 
@@ -743,8 +816,9 @@ export class DebugInterface {
         try {
             resetAllTracking();
             return true;
-        } catch (e: any) {
-            logger.error('Failed to reset resource tracking:', e.message);
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            logger.error('Failed to reset resource tracking:', message);
             return false;
         }
     }
@@ -767,11 +841,12 @@ export class DebugInterface {
                 timestamp: GLib.Variant.new_int64(GLib.get_real_time()),
                 pageSize: GLib.Variant.new_int32(4096),
             };
-        } catch (e: any) {
-            logger.error('GetGJSMemory error:', e.message);
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            logger.error('GetGJSMemory error:', message);
             return {
                 timestamp: GLib.Variant.new_int64(GLib.get_real_time()),
-                error: GLib.Variant.new_string(e.message),
+                error: GLib.Variant.new_string(message),
             };
         }
     }
@@ -784,8 +859,9 @@ export class DebugInterface {
     GetActorCount(): number {
         try {
             return Main.uiGroup.get_n_children();
-        } catch (e: any) {
-            logger.error('GetActorCount error:', e.message);
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            logger.error('GetActorCount error:', message);
             return -1;
         }
     }
@@ -807,9 +883,9 @@ export class DebugInterface {
      * Called at the end of extension enable() to signal successful initialization
      */
     emitInitCompleted(success: boolean): void {
-        if (this._dbusExportId) {
+        if (this._dbusExportId && this._extension) {
             // Get version info dynamically
-            const versionInfo = getExtensionVersion(this._extension!.path, this._extension!.metadata);
+            const versionInfo = getExtensionVersion(this._extension.path, this._extension.metadata);
 
             this._dbusExportId.emit_signal(
                 'InitCompleted',

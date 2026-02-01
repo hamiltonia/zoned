@@ -42,8 +42,51 @@ import {SignalTracker} from '../utils/signalTracker';
 import {ThemeManager} from '../utils/theme';
 import {ZoneEditor} from './zoneEditor';
 import {TemplateManager} from '../templateManager.js';
+import type {Layout} from '../types/layout';
 
 const logger = createLogger('LayoutSettingsDialog');
+
+/**
+ * Minimal layout manager interface
+ */
+interface LayoutManager {
+    getAllLayouts: () => Layout[];
+    saveLayout: (layout: Layout) => boolean;
+    deleteLayout: (layoutId: string) => boolean;
+}
+
+/**
+ * GSettings interface
+ */
+interface Settings {
+    get_boolean: (key: string) => boolean;
+    get_int: (key: string) => number;
+}
+
+/**
+ * Theme colors interface
+ */
+interface ThemeColors {
+    containerBg: string;
+    sectionBg: string;
+    sectionBorder: string;
+    textPrimary: string;
+    textSecondary: string;
+    textMuted: string;
+    inputBg: string;
+    inputBorder: string;
+    buttonBg: string;
+    buttonBgHover: string;
+    buttonText: string;
+    accentHex: string;
+    accentHexHover: string;
+    border: string;
+    isDark: boolean;
+    canvasBg: string;
+    zoneFill: string;
+    zoneBorder: string;
+    divider: string;
+}
 
 /**
  * Module-level handler functions to prevent closure leaks
@@ -179,15 +222,15 @@ function handleDownButtonClick(
  */
 export class LayoutSettingsDialog {
     private _isNewLayout: boolean;
-    private _layout: any;
+    private _layout: Layout;
     private _isTemplate: boolean;
-    private _layoutManager: any;
-    private _settings: any;
+    private _layoutManager: LayoutManager;
+    private _settings: Settings;
     private _themeManager: ThemeManager | null;
-    private _onSaveCallback: ((layout: any) => void) | null;
+    private _onSaveCallback: ((layout: Layout | null) => void) | null;
     private _onCancelCallback: (() => void) | null;
     private _onZoneEditorOpenCallback: (() => void) | null;
-    private _onZoneEditorCloseCallback: ((layout: any) => void) | null;
+    private _onZoneEditorCloseCallback: ((layout: Layout) => void) | null;
 
     private _container: St.Widget | null;
     private _dialogCard: St.BoxLayout | null;
@@ -206,7 +249,7 @@ export class LayoutSettingsDialog {
     private _confirmOverlay: St.Widget | null;
     private _confirmBox: St.BoxLayout | null;
 
-    private _modal: any;
+    private _modal: {close: () => void} | null;
     private _visible: boolean;
     private _closing: boolean;
 
@@ -221,13 +264,13 @@ export class LayoutSettingsDialog {
     private _boundHandleDeleteWrapperClick: ((actor: Clutter.Actor, event: Clutter.Event) => number) | null;
 
     constructor(
-        layout: any,
-        layoutManager: any,
-        settings: any,
-        onSave: (layout: any) => void,
+        layout: Layout | null,
+        layoutManager: LayoutManager,
+        settings: Settings,
+        onSave: (layout: Layout | null) => void,
         onCancel: () => void,
         onZoneEditorOpen: (() => void) | null = null,
-        onZoneEditorClose: ((layout: any) => void) | null = null,
+        onZoneEditorClose: ((layout: Layout) => void) | null = null,
     ) {
         this._isNewLayout = (layout === null);
 
@@ -315,7 +358,7 @@ export class LayoutSettingsDialog {
         // Click on container (outside dialog) dismisses - use bound method
         if (this._signalTracker && this._boundHandleContainerClick) {
             this._signalTracker.connect(
-                this._container, 'button-press-event', this._boundHandleContainerClick as any,
+                this._container, 'button-press-event', this._boundHandleContainerClick as unknown,
             );
         }
 
@@ -363,7 +406,7 @@ export class LayoutSettingsDialog {
             }
 
             try {
-                this._modal = (Main as any).pushModal(this._container, {
+                this._modal = (Main as unknown).pushModal(this._container, {
                     actionMode: Shell.ActionMode.NORMAL,
                 });
 
@@ -384,7 +427,7 @@ export class LayoutSettingsDialog {
         // Connect key handler for ESC
         if (this._signalTracker) {
             this._signalTracker.connect(
-                this._container, 'key-press-event', this._handleKeyPress.bind(this) as any,
+                this._container, 'key-press-event', this._handleKeyPress.bind(this) as unknown,
             );
         }
 
@@ -446,7 +489,7 @@ export class LayoutSettingsDialog {
      */
     _cleanupModal(): void {
         if (this._modal) {
-            (Main as any).popModal(this._modal);
+            (Main as unknown).popModal(this._modal);
             this._modal = null;
         }
     }
@@ -478,8 +521,8 @@ export class LayoutSettingsDialog {
         for (const widgetName of widgetNames) {
             const widget = this[widgetName];
             if (widget && typeof widget === 'object' && 'destroy' in widget) {
-                (widget as any).destroy();
-                (this as any)[widgetName] = null;
+                (widget as unknown).destroy();
+                (this as unknown)[widgetName] = null;
             }
         }
 
@@ -583,7 +626,7 @@ export class LayoutSettingsDialog {
      * @returns {St.BoxLayout} Header row widget
      * @private
      */
-    _buildHeaderRow(colors: any): St.BoxLayout {
+    _buildHeaderRow(colors: ThemeColors): St.BoxLayout {
         const headerRow = new St.BoxLayout({
             vertical: false,
             style: 'margin-bottom: 16px;',
@@ -620,7 +663,7 @@ export class LayoutSettingsDialog {
      * @returns {St.BoxLayout} Settings section widget
      * @private
      */
-    _buildSettingsSection(colors: any): St.BoxLayout {
+    _buildSettingsSection(colors: ThemeColors): St.BoxLayout {
         const settingsSection = new St.BoxLayout({
             vertical: true,
             style: `background-color: ${colors.sectionBg}; border: 1px solid ${colors.sectionBorder}; ` +
@@ -647,7 +690,7 @@ export class LayoutSettingsDialog {
      * @returns {St.BoxLayout} Name row widget
      * @private
      */
-    _buildNameRow(colors: any): St.BoxLayout {
+    _buildNameRow(colors: ThemeColors): St.BoxLayout {
         const nameRow = new St.BoxLayout({vertical: false, style: 'margin-bottom: 16px;'});
 
         const nameLabel = new St.Label({
@@ -666,7 +709,7 @@ export class LayoutSettingsDialog {
 
         if (!this._isTemplate && this._signalTracker && this._boundUpdateSaveButton) {
             this._signalTracker.connect(
-                this._nameEntry.clutter_text, 'text-changed', this._boundUpdateSaveButton as any,
+                this._nameEntry.clutter_text, 'text-changed', this._boundUpdateSaveButton as unknown,
             );
         }
         nameRow.add_child(this._nameEntry);
@@ -679,7 +722,7 @@ export class LayoutSettingsDialog {
      * @returns {St.BoxLayout} Padding row widget
      * @private
      */
-    _buildPaddingRow(colors: any): St.BoxLayout {
+    _buildPaddingRow(colors: ThemeColors): St.BoxLayout {
         const paddingRow = new St.BoxLayout({vertical: false, style: 'margin-bottom: 16px;'});
 
         const paddingLabelBox = new St.BoxLayout({
@@ -692,7 +735,7 @@ export class LayoutSettingsDialog {
         // Only allow interaction for custom layouts (not templates)
         if (!this._isTemplate && this._signalTracker && this._boundTogglePaddingCheckbox) {
             this._signalTracker.connect(
-                this._paddingCheckbox, 'clicked', this._boundTogglePaddingCheckbox as any,
+                this._paddingCheckbox, 'clicked', this._boundTogglePaddingCheckbox as unknown,
             );
         } else {
             // Disable checkbox for templates (no save button to persist changes)
@@ -733,7 +776,7 @@ export class LayoutSettingsDialog {
      * @returns {St.BoxLayout} Shortcut row widget
      * @private
      */
-    _buildShortcutRow(colors: any): St.BoxLayout {
+    _buildShortcutRow(colors: ThemeColors): St.BoxLayout {
         const shortcutRow = new St.BoxLayout({vertical: false});
 
         const shortcutLabelBox = new St.BoxLayout({
@@ -771,7 +814,7 @@ export class LayoutSettingsDialog {
      * @returns {St.BoxLayout} Button row widget
      * @private
      */
-    _buildButtonRow(colors: any): St.BoxLayout {
+    _buildButtonRow(colors: ThemeColors): St.BoxLayout {
         const buttonRow = new St.BoxLayout({
             vertical: false, style: 'margin-top: 8px;', x_align: Clutter.ActorAlign.END,
         });
@@ -796,7 +839,7 @@ export class LayoutSettingsDialog {
      * @param {Object} colors - Theme colors
      * @private
      */
-    _buildDialogCard(colors: any): void {
+    _buildDialogCard(colors: ThemeColors): void {
         this._dialogCard = new St.BoxLayout({
             vertical: true,
             reactive: true,
@@ -832,7 +875,7 @@ export class LayoutSettingsDialog {
      * @param {Object} colors - Theme colors
      * @private
      */
-    _buildLayoutPreview(colors: any): void {
+    _buildLayoutPreview(colors: ThemeColors): void {
         // Clear existing preview
         if (!this._previewContainer) return;
         this._previewContainer.destroy_all_children();
@@ -858,7 +901,7 @@ export class LayoutSettingsDialog {
 
         // Draw zones
         const zones = this._layout.zones || [];
-        zones.forEach((zone: any) => {
+        zones.forEach((zone: {x: number; y: number; w: number; h: number}) => {
             const zoneWidget = new St.Widget({
                 x: Math.floor(zone.x * previewWidth),
                 y: Math.floor(zone.y * previewHeight),
@@ -916,7 +959,7 @@ export class LayoutSettingsDialog {
      * @returns {St.Button} The circular edit button
      * @private
      */
-    _createFloatingEditButton(colors: any): St.Button & {_buttonSize?: number} {
+    _createFloatingEditButton(colors: ThemeColors): St.Button & {_buttonSize?: number} {
         // Fixed size for dialog preview (larger than card buttons)
         const buttonSize = 42;
         const iconSize = 20;
@@ -975,7 +1018,7 @@ export class LayoutSettingsDialog {
      * @returns {St.Widget} Divider widget
      * @private
      */
-    _createDivider(colors: any): St.Widget {
+    _createDivider(colors: ThemeColors): St.Widget {
         return new St.Widget({
             style: `
                 height: 1px;
@@ -994,7 +1037,7 @@ export class LayoutSettingsDialog {
      * @returns {St.Button} Icon button
      * @private
      */
-    _createSymbolicIconButton(colors: any, iconName: string, tooltip: string, onClick: () => void): St.Button {
+    _createSymbolicIconButton(colors: ThemeColors, iconName: string, tooltip: string, onClick: () => void): St.Button {
         const normalStyle = `
             padding: 6px 10px;
             background-color: transparent;
@@ -1020,13 +1063,13 @@ export class LayoutSettingsDialog {
         button.set_child(icon);
 
         if (this._signalTracker) {
-            this._signalTracker.connect(button, 'clicked', onClick as any);
+            this._signalTracker.connect(button, 'clicked', onClick as unknown);
 
             // Use module-level handlers to prevent closure leaks
             const boundEnter = handleWidgetHoverEnter.bind(null, button, hoverStyle);
             const boundLeave = handleWidgetHoverLeave.bind(null, button, normalStyle);
-            this._signalTracker.connect(button, 'enter-event', boundEnter as any);
-            this._signalTracker.connect(button, 'leave-event', boundLeave as any);
+            this._signalTracker.connect(button, 'enter-event', boundEnter as unknown);
+            this._signalTracker.connect(button, 'leave-event', boundLeave as unknown);
         }
 
         return button;
@@ -1042,7 +1085,7 @@ export class LayoutSettingsDialog {
      * @private
      */
     _createDropdown(
-        colors: any,
+        colors: ThemeColors,
         options: string[],
         selected: string,
     ): St.BoxLayout & {
@@ -1162,7 +1205,7 @@ export class LayoutSettingsDialog {
      * @returns {St.BoxLayout} Section container
      * @private
      */
-    _createSection(colors: any, title: string | null = null): St.BoxLayout {
+    _createSection(colors: ThemeColors, title: string | null = null): St.BoxLayout {
         const section = new St.BoxLayout({
             vertical: true,
             style: `
@@ -1199,7 +1242,10 @@ export class LayoutSettingsDialog {
      * @returns {Object} Style properties {textColor, bgColor, style}
      * @private
      */
-    _computeInputStyle(colors: any, options: any): {isDisabled: boolean; style: string} {
+    _computeInputStyle(
+        colors: ThemeColors,
+        options: {text?: string; hintText?: string; minWidth?: string; disabled?: boolean},
+    ): {isDisabled: boolean; style: string} {
         const isDisabled = options.disabled || false;
         const textColor = isDisabled ? colors.textMuted : colors.textPrimary;
         const bgColor = isDisabled ? colors.sectionBg : colors.inputBg;
@@ -1228,7 +1274,7 @@ export class LayoutSettingsDialog {
      * @private
      */
     _createStyledInput(
-        colors: any,
+        colors: ThemeColors,
         options: {text?: string; hintText?: string; minWidth?: string; disabled?: boolean} = {},
     ): St.Entry {
         const {isDisabled, style} = this._computeInputStyle(colors, options);
@@ -1256,7 +1302,7 @@ export class LayoutSettingsDialog {
      * @returns {St.Button} Checkbox button
      * @private
      */
-    _createCheckbox(colors: any, checked: boolean = false): St.Button & {_checked?: boolean} {
+    _createCheckbox(colors: ThemeColors, checked: boolean = false): St.Button & {_checked?: boolean} {
         const checkbox: St.Button & {_checked?: boolean} = new St.Button({
             style_class: 'checkbox',
             style: 'width: 18px; height: 18px; ' +
@@ -1289,7 +1335,7 @@ export class LayoutSettingsDialog {
      * @param {Object} colors - Theme colors
      * @private
      */
-    _toggleCheckbox(checkbox: St.Button & {_checked?: boolean}, colors: any): void {
+    _toggleCheckbox(checkbox: St.Button & {_checked?: boolean}, colors: ThemeColors): void {
         checkbox._checked = !checkbox._checked;
 
         // Destroy old child before setting new one
@@ -1324,7 +1370,7 @@ export class LayoutSettingsDialog {
      * @private
      */
     _createSpinnerInput(
-        colors: any,
+        colors: ThemeColors,
         options: {value?: number; min?: number; max?: number; step?: number} = {},
     ): St.BoxLayout & {
         _valueLabel?: St.Label;
@@ -1495,7 +1541,13 @@ export class LayoutSettingsDialog {
      * @returns {Object} Captured state including name, padding, shortcut, and layout data
      * @private
      */
-    _captureDialogState(): any {
+    _captureDialogState(): {
+        name: string;
+        padding: number;
+        paddingEnabled: boolean;
+        shortcut: string | null;
+        layoutData: Layout;
+        } {
         const currentPadding = this._paddingSpinner?._value ?? this._layout.padding ?? 4;
         return {
             name: this._nameEntry?.get_text().trim() ?? '',
@@ -1513,7 +1565,10 @@ export class LayoutSettingsDialog {
      * @returns {Object} Final layout object for saving
      * @private
      */
-    _buildLayoutFromEditorResult(editedLayout: any, state: any): any {
+    _buildLayoutFromEditorResult(
+        editedLayout: Layout,
+        state: {name: string; padding: number; paddingEnabled: boolean; shortcut: string | null; layoutData: Layout},
+    ): Layout {
         return {
             id: state.layoutData.id || `layout-${Date.now()}`,
             name: state.name,
@@ -1561,7 +1616,7 @@ export class LayoutSettingsDialog {
             layoutForEditor,
             layoutManager,
             this._settings,
-            (editedLayout: any) => {
+            (editedLayout: Layout) => {
                 if (saveExecuted) return;
                 saveExecuted = true;
 
@@ -1704,7 +1759,7 @@ export class LayoutSettingsDialog {
      * Create confirmation dialog box
      * @private
      */
-    _createConfirmBox(colors: any): St.BoxLayout {
+    _createConfirmBox(colors: ThemeColors): St.BoxLayout {
         const confirmBox = new St.BoxLayout({
             vertical: true,
             style: `background-color: ${colors.containerBg}; ` +
@@ -1730,7 +1785,7 @@ export class LayoutSettingsDialog {
      * Add title to confirmation box
      * @private
      */
-    _addConfirmTitle(confirmBox: St.BoxLayout, colors: any): void {
+    _addConfirmTitle(confirmBox: St.BoxLayout, colors: ThemeColors): void {
         const title = new St.Label({
             text: 'Delete Layout',
             style: `color: ${colors.textPrimary}; font-size: 16px; font-weight: bold; margin-bottom: 12px;`,
@@ -1742,7 +1797,7 @@ export class LayoutSettingsDialog {
      * Add message to confirmation box
      * @private
      */
-    _addConfirmMessage(confirmBox: St.BoxLayout, colors: any): void {
+    _addConfirmMessage(confirmBox: St.BoxLayout, colors: ThemeColors): void {
         const message = new St.Label({
             text: `Are you sure you want to delete "${this._layout.name}"?\n\nThis action cannot be undone.`,
             style: `color: ${colors.textSecondary}; font-size: 13px; margin-bottom: 20px;`,
@@ -1755,7 +1810,7 @@ export class LayoutSettingsDialog {
      * Add buttons to confirmation box
      * @private
      */
-    _addConfirmButtons(confirmBox: St.BoxLayout, colors: any): void {
+    _addConfirmButtons(confirmBox: St.BoxLayout, colors: ThemeColors): void {
         const buttonBox = new St.BoxLayout({
             style: 'spacing: 12px;',
             x_align: Clutter.ActorAlign.END,
@@ -1774,7 +1829,7 @@ export class LayoutSettingsDialog {
      * Create cancel button for confirmation
      * @private
      */
-    _createCancelButton(colors: any): St.Button {
+    _createCancelButton(colors: ThemeColors): St.Button {
         const cancelBtn = new St.Button({
             label: 'Cancel',
             style: `background-color: ${colors.buttonBg}; ` +
@@ -1797,7 +1852,7 @@ export class LayoutSettingsDialog {
      * Create delete button for confirmation
      * @private
      */
-    _createDeleteButton(_colors: any): St.Button {
+    _createDeleteButton(_colors: ThemeColors): St.Button {
         const deleteBtn = new St.Button({
             label: 'Delete',
             style: 'background-color: #c01c28; ' +
@@ -1949,7 +2004,7 @@ export class LayoutSettingsDialog {
      * @private
      */
     _createHyperlinkButton(
-        colors: any,
+        colors: ThemeColors,
         text: string,
         onClick: () => void,
     ): St.Button & {_linkLabel?: St.Label} {
@@ -1970,7 +2025,7 @@ export class LayoutSettingsDialog {
             `,
         });
         button.set_child(linkLabel);
-        (button as any)._linkLabel = linkLabel;
+        (button as unknown)._linkLabel = linkLabel;
 
         button.connect('clicked', onClick);
 
@@ -2042,7 +2097,7 @@ export class LayoutSettingsDialog {
      * @private
      */
     _createButton(
-        colors: any,
+        colors: ThemeColors,
         label: string,
         onClick: () => void,
         options: {padding?: string; accent?: boolean} = {},
@@ -2088,8 +2143,8 @@ export class LayoutSettingsDialog {
         });
 
         // Store styles for updating later
-        (button as any)._normalStyle = normalStyle;
-        (button as any)._hoverStyle = hoverStyle;
+        (button as unknown)._normalStyle = normalStyle;
+        (button as unknown)._hoverStyle = hoverStyle;
 
         return button;
     }
@@ -2109,7 +2164,7 @@ export class LayoutSettingsDialog {
             this.close();
 
             if (this._onSaveCallback) {
-                this._onSaveCallback(null as any); // Signal deletion
+                this._onSaveCallback(null as unknown); // Signal deletion
             }
         } else {
             logger.error(`Failed to delete layout: ${this._layout.name}`);
@@ -2150,7 +2205,7 @@ export class LayoutSettingsDialog {
      * @returns {Object} Layout object ready for saving
      * @private
      */
-    _buildFinalLayout(): any {
+    _buildFinalLayout(): Layout {
         if (!this._nameEntry) {
             throw new Error('Name entry not initialized');
         }
@@ -2237,7 +2292,7 @@ export class LayoutSettingsDialog {
      * @returns {boolean} True if layout is a template
      * @private
      */
-    _detectIsTemplate(layout: any): boolean {
+    _detectIsTemplate(layout: Layout): boolean {
         if (!layout || !layout.id) {
             return false;
         }
@@ -2281,7 +2336,7 @@ export class LayoutSettingsDialog {
 
         // Get all existing layouts to check for name conflicts
         const existingLayouts = this._layoutManager.getAllLayouts() || [];
-        const existingNames = new Set(existingLayouts.map((l: any) => l.name));
+        const existingNames = new Set(existingLayouts.map((l: Layout) => l.name));
 
         // If base name doesn't exist, use it
         if (!existingNames.has(baseName)) {

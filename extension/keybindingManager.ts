@@ -20,6 +20,22 @@ import type {Layout} from './types/layout';
 
 const logger = createLogger('KeybindingManager');
 
+// Type definitions for GNOME Shell window manager
+interface WindowManagerInterface {
+    addKeybinding(
+        name: string,
+        settings: Gio.Settings | null,
+        flags: Meta.KeyBindingFlags,
+        modes: Shell.ActionMode,
+        handler: () => void
+    ): void;
+    removeKeybinding(name: string): void;
+}
+
+interface MainModule {
+    wm: WindowManagerInterface;
+}
+
 // Placeholder types for UI components not yet migrated
 type NotificationManager = unknown;
 type LayoutSwitcher = {show: () => void};
@@ -172,10 +188,11 @@ export class KeybindingManager {
      * @private
      */
     private _unregisterQuickLayoutShortcuts(): void {
+        const wm = (Main as unknown as MainModule).wm;
         this._quickLayoutKeys.forEach(name => {
             if (this._registeredKeys.includes(name)) {
                 try {
-                    (Main.wm as any).removeKeybinding(name);
+                    wm.removeKeybinding(name);
                     this._registeredKeys = this._registeredKeys.filter(k => k !== name);
                     logger.debug(`Unregistered quick layout keybinding: ${name}`);
                 } catch (error) {
@@ -226,10 +243,11 @@ export class KeybindingManager {
      * @private
      */
     private _unregisterEnhancedWindowManagement(): void {
+        const wm = (Main as unknown as MainModule).wm;
         this._enhancedWindowManagementKeys.forEach(name => {
             if (this._registeredKeys.includes(name)) {
                 try {
-                    (Main.wm as any).removeKeybinding(name);
+                    wm.removeKeybinding(name);
                     this._registeredKeys = this._registeredKeys.filter(k => k !== name);
                     logger.debug(`Unregistered enhanced keybinding: ${name}`);
                 } catch (error) {
@@ -244,8 +262,9 @@ export class KeybindingManager {
      * @private
      */
     private _registerKeybinding(name: string, handler: () => void): void {
+        const wm = (Main as unknown as MainModule).wm;
         try {
-            (Main.wm as any).addKeybinding(
+            wm.addKeybinding(
                 name,
                 this._settings,
                 Meta.KeyBindingFlags.NONE,
@@ -265,9 +284,10 @@ export class KeybindingManager {
     unregisterKeybindings(): void {
         logger.info('Unregistering keybindings...');
 
+        const wm = (Main as unknown as MainModule).wm;
         this._registeredKeys.forEach(name => {
             try {
-                (Main.wm as any).removeKeybinding(name);
+                wm.removeKeybinding(name);
                 logger.debug(`Unregistered keybinding: ${name}`);
             } catch (error) {
                 logger.error(`Failed to unregister keybinding '${name}': ${error}`);

@@ -19,6 +19,30 @@ import {ThemeManager} from '../utils/theme';
 
 const logger = createLogger('LayoutSettingsDiagnostic');
 
+// Interface for Main.layoutManager
+interface LayoutManagerMain {
+    currentMonitor: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
+}
+
+// Interface for Main.uiGroup
+interface UiGroup {
+    add_child(child: St.Widget): void;
+    remove_child(child: St.Widget): void;
+}
+
+// Interface for Main with modal methods
+interface MainWithModal {
+    pushModal(actor: St.Widget, params: {actionMode: Shell.ActionMode}): unknown;
+    popModal(modal: unknown): void;
+    uiGroup: UiGroup;
+    layoutManager: LayoutManagerMain;
+}
+
 // Instance tracking to detect dialog accumulation
 let instanceCounter = 0;
 let activeInstances = 0;
@@ -122,8 +146,9 @@ function handleDownButtonClick(
         // Dropdown
         const dropdown = container as DropdownContainer;
         const options = optionsOrMin;
-        dropdown._selectedIndex = ((dropdown._selectedIndex || 0) - 1 + options.length) % options.length;
-        valueLabel.text = options[dropdown._selectedIndex!];
+        const newIndex = ((dropdown._selectedIndex || 0) - 1 + options.length) % options.length;
+        dropdown._selectedIndex = newIndex;
+        valueLabel.text = options[newIndex];
     } else {
         // Spinner
         const spinner = container as SpinnerContainer;
@@ -144,10 +169,10 @@ export class LayoutSettingsDiagnostic {
     private _widgets: St.Widget[];
     private _signalTracker: SignalTracker | null;
     private _idleSourceIds: number[];
-    private _boundHandlers: ((...args: any[]) => any)[];
+    private _boundHandlers: ((...args: unknown[]) => unknown)[];
     private _container: St.Widget | null;
     private _dialogCard: St.BoxLayout | null;
-    private _modal: any;
+    private _modal: unknown;
     private _visible: boolean;
     private _closing: boolean;
     private _boundHandleContainerClick: ((actor: St.Widget, event: Clutter.Event) => boolean) | null;
@@ -199,7 +224,8 @@ export class LayoutSettingsDiagnostic {
         // Reset bound handlers array at start of each open to prevent accumulation
         this._boundHandlers = [];
 
-        const monitor = (Main.layoutManager as any).currentMonitor;
+        const mainWithModal = Main as unknown as MainWithModal;
+        const monitor = mainWithModal.layoutManager.currentMonitor;
         const colors = this._themeManager ? this._themeManager.getColors() : this._getDefaultColors();
 
         // Create full-screen container
@@ -213,15 +239,19 @@ export class LayoutSettingsDiagnostic {
         });
 
         // Click on container dismisses
-        this._signalTracker!.connect(
-            this._container, 'button-press-event', this._boundHandleContainerClick!,
-        );
+        if (this._signalTracker && this._boundHandleContainerClick) {
+            this._signalTracker.connect(
+                this._container, 'button-press-event', this._boundHandleContainerClick,
+            );
+        }
 
         // Build dialog
         this._buildDialogCard(colors);
 
         // Add to container
-        this._container.add_child(this._dialogCard!);
+        if (this._dialogCard) {
+            this._container.add_child(this._dialogCard);
+        }
 
         // Position and show
         const positionSourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
@@ -237,7 +267,7 @@ export class LayoutSettingsDiagnostic {
             );
 
             this._dialogCard.opacity = 255;
-            (Main.uiGroup as any).add_child(this._container);
+            mainWithModal.uiGroup.add_child(this._container);
 
             return GLib.SOURCE_REMOVE;
         });
@@ -250,7 +280,7 @@ export class LayoutSettingsDiagnostic {
             }
 
             try {
-                this._modal = (Main as any).pushModal(this._container, {
+                this._modal = mainWithModal.pushModal(this._container, {
                     actionMode: Shell.ActionMode.NORMAL,
                 });
                 if (!this._modal) {
@@ -266,9 +296,11 @@ export class LayoutSettingsDiagnostic {
         this._idleSourceIds.push(modalSourceId);
 
         // Connect key handler
-        this._signalTracker!.connect(
-            this._container, 'key-press-event', this._boundHandleKeyPress!,
-        );
+        if (this._signalTracker && this._boundHandleKeyPress) {
+            this._signalTracker.connect(
+                this._container, 'key-press-event', this._boundHandleKeyPress,
+            );
+        }
 
         this._visible = true;
         logger.debug('Diagnostic dialog opened');
@@ -282,7 +314,9 @@ export class LayoutSettingsDiagnostic {
 
         this._cleanupIdleSources();
         this._cleanupModal();
-        this._signalTracker!.disconnectAll();
+        if (this._signalTracker) {
+            this._signalTracker.disconnectAll();
+        }
         this._destroyWidgets();
         this._releaseBoundFunctions();
         this._destroyContainer();
@@ -295,7 +329,7 @@ export class LayoutSettingsDiagnostic {
         logger.debug(`LayoutSettingsDiagnostic #${this._instanceId} closed. Active instances: ${activeInstances}`);
     }
 
-    private _buildDialogCard(colors: any): void {
+    private _buildDialogCard(colors: ColorScheme): void {
         this._dialogCard = new St.BoxLayout({
             vertical: true,
             reactive: true,
@@ -318,12 +352,14 @@ export class LayoutSettingsDiagnostic {
         this._widgets.push(section);
 
         // Close button
-        const closeBtn = this._createButton(colors, 'Close', this._boundOnClose!);
-        this._dialogCard.add_child(closeBtn);
-        this._widgets.push(closeBtn);
+        if (this._boundOnClose) {
+            const closeBtn = this._createButton(colors, 'Close', this._boundOnClose);
+            this._dialogCard.add_child(closeBtn);
+            this._widgets.push(closeBtn);
+        }
     }
 
-    private _createSection(colors: any): St.BoxLayout {
+    private _createSection(colors: ColorScheme): St.BoxLayout {
         const section = new St.BoxLayout({
             vertical: true,
             style: `background-color: ${colors.sectionBg}; border: 1px solid ${colors.sectionBorder}; ` +
@@ -380,7 +416,7 @@ export class LayoutSettingsDiagnostic {
         return section;
     }
 
-    private _createButton(colors: any, label: string, onClick: () => void): St.Button {
+    private _createButton(colors: ColorScheme, label: string, onClick: () => void): St.Button {
         const normalStyle = 'padding: 10px 24px; background-color: ' + colors.buttonBg + '; ' +
                            'color: ' + colors.buttonText + '; border-radius: 6px; border: 1px solid ' + colors.sectionBorder + ';';
         const hoverStyle = 'padding: 10px 24px; background-color: ' + colors.buttonBgHover + '; ' +
@@ -392,20 +428,22 @@ export class LayoutSettingsDiagnostic {
             can_focus: true,
         });
 
-        this._signalTracker!.connect(button, 'clicked', onClick);
+        if (this._signalTracker) {
+            this._signalTracker.connect(button, 'clicked', onClick);
 
-        if (ENABLE_CONTROLS.hoverEffects) {
-            const boundEnter = handleWidgetHoverEnter.bind(null, button, hoverStyle);
-            const boundLeave = handleWidgetHoverLeave.bind(null, button, normalStyle);
-            this._boundHandlers.push(boundEnter, boundLeave);
-            this._signalTracker!.connect(button, 'enter-event', boundEnter);
-            this._signalTracker!.connect(button, 'leave-event', boundLeave);
+            if (ENABLE_CONTROLS.hoverEffects) {
+                const boundEnter = handleWidgetHoverEnter.bind(null, button, hoverStyle);
+                const boundLeave = handleWidgetHoverLeave.bind(null, button, normalStyle);
+                this._boundHandlers.push(boundEnter, boundLeave);
+                this._signalTracker.connect(button, 'enter-event', boundEnter);
+                this._signalTracker.connect(button, 'leave-event', boundLeave);
+            }
         }
 
         return button;
     }
 
-    private _createIconButton(colors: any): St.Button {
+    private _createIconButton(colors: ColorScheme): St.Button {
         const normalStyle = 'padding: 6px 10px; background-color: transparent; border-radius: 6px;';
         const hoverStyle = `padding: 6px 10px; background-color: ${colors.buttonBgHover}; border-radius: 6px;`;
 
@@ -421,20 +459,22 @@ export class LayoutSettingsDiagnostic {
         });
         button.set_child(icon);
 
-        this._signalTracker!.connect(button, 'clicked', handleButtonClick);
+        if (this._signalTracker) {
+            this._signalTracker.connect(button, 'clicked', handleButtonClick);
 
-        if (ENABLE_CONTROLS.hoverEffects) {
-            const boundEnter = handleWidgetHoverEnter.bind(null, button, hoverStyle);
-            const boundLeave = handleWidgetHoverLeave.bind(null, button, normalStyle);
-            this._boundHandlers.push(boundEnter, boundLeave);
-            this._signalTracker!.connect(button, 'enter-event', boundEnter);
-            this._signalTracker!.connect(button, 'leave-event', boundLeave);
+            if (ENABLE_CONTROLS.hoverEffects) {
+                const boundEnter = handleWidgetHoverEnter.bind(null, button, hoverStyle);
+                const boundLeave = handleWidgetHoverLeave.bind(null, button, normalStyle);
+                this._boundHandlers.push(boundEnter, boundLeave);
+                this._signalTracker.connect(button, 'enter-event', boundEnter);
+                this._signalTracker.connect(button, 'leave-event', boundLeave);
+            }
         }
 
         return button;
     }
 
-    private _createCheckbox(colors: any): CheckboxButton {
+    private _createCheckbox(colors: ColorScheme): CheckboxButton {
         const checked = true;
         const checkbox: CheckboxButton = new St.Button({
             style: 'width: 18px; height: 18px; margin-bottom: 8px; ' +
@@ -460,7 +500,7 @@ export class LayoutSettingsDiagnostic {
         return checkbox;
     }
 
-    private _createSpinner(colors: any): SpinnerContainer {
+    private _createSpinner(colors: ColorScheme): SpinnerContainer {
         const container: SpinnerContainer = new St.BoxLayout({
             vertical: false,
             style: `background-color: ${colors.inputBg}; border: 1px solid ${colors.inputBorder}; ` +
@@ -502,7 +542,9 @@ export class LayoutSettingsDiagnostic {
 
         const boundUpClick = handleUpButtonClick.bind(null, container, valueLabel, 10, 1);
         this._boundHandlers.push(boundUpClick);
-        this._signalTracker!.connect(upButton, 'clicked', boundUpClick);
+        if (this._signalTracker) {
+            this._signalTracker.connect(upButton, 'clicked', boundUpClick);
+        }
 
         buttonsBox.add_child(upButton);
         // Don't push upButton to _widgets - it's a child of buttonsBox
@@ -521,7 +563,9 @@ export class LayoutSettingsDiagnostic {
 
         const boundDownClick = handleDownButtonClick.bind(null, container, valueLabel, 0, 1);
         this._boundHandlers.push(boundDownClick);
-        this._signalTracker!.connect(downButton, 'clicked', boundDownClick);
+        if (this._signalTracker) {
+            this._signalTracker.connect(downButton, 'clicked', boundDownClick);
+        }
 
         buttonsBox.add_child(downButton);
         // Don't push downButton to _widgets - it's a child of buttonsBox
@@ -532,7 +576,7 @@ export class LayoutSettingsDiagnostic {
         return container;
     }
 
-    private _createDropdown(colors: any): DropdownContainer {
+    private _createDropdown(colors: ColorScheme): DropdownContainer {
         const options = ['Option 1', 'Option 2', 'Option 3'];
         const container: DropdownContainer = new St.BoxLayout({
             vertical: false,
@@ -573,7 +617,9 @@ export class LayoutSettingsDiagnostic {
 
         const boundUpClick = handleUpButtonClick.bind(null, container, valueLabel, options, undefined);
         this._boundHandlers.push(boundUpClick);
-        this._signalTracker!.connect(upButton, 'clicked', boundUpClick);
+        if (this._signalTracker) {
+            this._signalTracker.connect(upButton, 'clicked', boundUpClick);
+        }
 
         buttonsBox.add_child(upButton);
         // Don't push upButton to _widgets - it's a child of buttonsBox
@@ -592,7 +638,9 @@ export class LayoutSettingsDiagnostic {
 
         const boundDownClick = handleDownButtonClick.bind(null, container, valueLabel, options, undefined);
         this._boundHandlers.push(boundDownClick);
-        this._signalTracker!.connect(downButton, 'clicked', boundDownClick);
+        if (this._signalTracker) {
+            this._signalTracker.connect(downButton, 'clicked', boundDownClick);
+        }
 
         buttonsBox.add_child(downButton);
         // Don't push downButton to _widgets - it's a child of buttonsBox
@@ -664,7 +712,8 @@ export class LayoutSettingsDiagnostic {
 
     private _cleanupModal(): void {
         if (this._modal) {
-            (Main as any).popModal(this._modal);
+            const mainWithModal = Main as unknown as MainWithModal;
+            mainWithModal.popModal(this._modal);
             this._modal = null;
         }
     }
@@ -696,7 +745,8 @@ export class LayoutSettingsDiagnostic {
 
     private _destroyContainer(): void {
         if (this._container) {
-            (Main.uiGroup as any).remove_child(this._container);
+            const mainWithModal = Main as unknown as MainWithModal;
+            mainWithModal.uiGroup.remove_child(this._container);
             this._container.destroy();
             this._container = null;
         }

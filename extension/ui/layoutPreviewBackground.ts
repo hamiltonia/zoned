@@ -41,6 +41,50 @@ interface Monitor {
     index: number;
 }
 
+// Interface for Main.layoutManager
+interface LayoutManagerMain {
+    monitors: Monitor[];
+    currentMonitor: Monitor;
+}
+
+// Interface for Main.uiGroup
+interface UiGroup {
+    add_child(child: St.Widget): void;
+    remove_child(child: St.Widget): void;
+}
+
+// Interface for global object
+interface GlobalWithDebug {
+    workspace_manager: {
+        get_active_workspace_index(): number;
+    };
+    zonedDebug?: {
+        trackInstance(name: string, add?: boolean): void;
+    };
+}
+
+// Interface for LayoutManager with spatial support
+interface LayoutManagerWithSpatial {
+    getSpatialStateManager?(): SpatialStateManager | null;
+    getLayoutForSpace(spaceKey: string): Layout | null;
+}
+
+// Interface for St.Widget with parent access
+interface WidgetWithParent extends St.Widget {
+    get_parent(): St.Widget | null;
+    set_child_below_sibling(child: St.Widget | null, sibling: St.Widget | null): void;
+}
+
+// Interface for Clutter actor with ease animation
+interface ActorWithEase extends St.Widget {
+    ease(params: {
+        opacity: number;
+        duration: number;
+        mode: Clutter.AnimationMode;
+        onComplete?: () => void;
+    }): void;
+}
+
 interface MonitorData {
     overlay: St.Widget;
     zoneActors: St.Widget[];
@@ -80,7 +124,7 @@ export class LayoutPreviewBackground {
      * @param onBackgroundClick - Callback when background is clicked (to dismiss dialog)
      */
     constructor(settings: Gio.Settings, onBackgroundClick: (() => void) | null) {
-        (global as any).zonedDebug?.trackInstance('LayoutPreviewBackground');
+        (global as unknown as GlobalWithDebug).zonedDebug?.trackInstance('LayoutPreviewBackground');
         this._settings = settings;
         this._themeManager = new ThemeManager(settings);
         this._onBackgroundClick = onBackgroundClick;
@@ -109,7 +153,8 @@ export class LayoutPreviewBackground {
      */
     setLayoutManager(layoutManager: LayoutManager): void {
         this._layoutManager = layoutManager;
-        this._spatialStateManager = (layoutManager as any)?.getSpatialStateManager?.() || null;
+        const layoutMgrSpatial = layoutManager as unknown as LayoutManagerWithSpatial;
+        this._spatialStateManager = layoutMgrSpatial.getSpatialStateManager?.() || null;
     }
 
     /**
@@ -122,14 +167,20 @@ export class LayoutPreviewBackground {
             return;
         }
 
-        const colors = this._themeManager!.getColors();
-        const monitors = (Main.layoutManager as any).monitors as Monitor[];
+        if (!this._themeManager) {
+            logger.warn('ThemeManager not available');
+            return;
+        }
+
+        const colors = this._themeManager.getColors();
+        const layoutManager = Main.layoutManager as unknown as LayoutManagerMain;
+        const monitors = layoutManager.monitors;
 
         // Determine selected monitor
         if (selectedMonitorIndex !== null) {
             this._selectedMonitorIndex = selectedMonitorIndex;
         } else {
-            this._selectedMonitorIndex = (Main.layoutManager as any).currentMonitor.index;
+            this._selectedMonitorIndex = layoutManager.currentMonitor.index;
         }
 
         // Create overlay for each monitor
@@ -148,10 +199,13 @@ export class LayoutPreviewBackground {
 
             // Click on any overlay to dismiss (Wave 3: bound method)
             const boundButtonPress = handleOverlayButtonPress.bind(null, this._onBackgroundClick);
-            this._signalTracker!.connect(overlay, 'button-press-event', boundButtonPress);
+            if (this._signalTracker) {
+                this._signalTracker.connect(overlay, 'button-press-event', boundButtonPress);
+            }
 
             // Add to uiGroup
-            (Main.uiGroup as any).add_child(overlay);
+            const uiGroup = Main.uiGroup as unknown as UiGroup;
+            uiGroup.add_child(overlay);
 
             this._monitorOverlays.push({
                 overlay: overlay,
@@ -189,11 +243,12 @@ export class LayoutPreviewBackground {
         }
 
         // Clean up all monitor overlays
+        const uiGroup = Main.uiGroup as unknown as UiGroup;
         for (const monitorData of this._monitorOverlays) {
             this._clearZonesForMonitor(monitorData);
 
             if (monitorData.overlay.get_parent()) {
-                (Main.uiGroup as any).remove_child(monitorData.overlay);
+                uiGroup.remove_child(monitorData.overlay);
             }
             monitorData.overlay.destroy();
         }
@@ -243,9 +298,11 @@ export class LayoutPreviewBackground {
             }
 
             // Get the layout for this monitor's space
-            const workspaceIndex = (global as any).workspace_manager.get_active_workspace_index();
+            const globalObj = global as unknown as GlobalWithDebug;
+            const workspaceIndex = globalObj.workspace_manager.get_active_workspace_index();
             const spaceKey = this._spatialStateManager.makeKey(monitorData.monitorIndex, workspaceIndex);
-            const layout = (this._layoutManager as any).getLayoutForSpace(spaceKey);
+            const layoutMgr = this._layoutManager as unknown as LayoutManagerWithSpatial;
+            const layout = layoutMgr.getLayoutForSpace(spaceKey);
 
             if (layout) {
                 this._setLayoutForMonitorImmediate(monitorData, layout);
@@ -348,9 +405,14 @@ export class LayoutPreviewBackground {
      * @private
      */
     private _createZonesForMonitor(monitorData: MonitorData, zones: Zone[]): void {
+        if (!this._themeManager) {
+            logger.warn('ThemeManager not available');
+            return;
+        }
+
         const monitor = monitorData.monitor;
         const isSelected = (monitorData.monitorIndex === this._selectedMonitorIndex);
-        const colors = this._themeManager!.getColors();
+        const colors = this._themeManager.getColors();
         const accentHex = colors.accentHex;
 
         // Non-selected monitors get dimmed zones
@@ -442,7 +504,7 @@ export class LayoutPreviewBackground {
      */
     private _fadeInZonesForMonitor(monitorData: MonitorData): void {
         monitorData.zoneActors.forEach(actor => {
-            (actor as any).ease({
+            (actor as unknown as ActorWithEase).ease({
                 opacity: 255,
                 duration: FADE_DURATION_MS,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
@@ -466,7 +528,7 @@ export class LayoutPreviewBackground {
         const total = monitorData.zoneActors.length;
 
         monitorData.zoneActors.forEach(actor => {
-            (actor as any).ease({
+            (actor as unknown as ActorWithEase).ease({
                 opacity: 0,
                 duration: FADE_DURATION_MS / 2,
                 mode: Clutter.AnimationMode.EASE_IN_QUAD,
@@ -487,8 +549,8 @@ export class LayoutPreviewBackground {
     raise(): void {
         for (const monitorData of this._monitorOverlays) {
             if (monitorData.overlay && monitorData.overlay.get_parent()) {
-                const parent = monitorData.overlay.get_parent();
-                (parent as any).set_child_below_sibling(monitorData.overlay, null);
+                const parent = monitorData.overlay.get_parent() as unknown as WidgetWithParent;
+                parent.set_child_below_sibling(monitorData.overlay, null);
             }
         }
     }
@@ -527,7 +589,7 @@ export class LayoutPreviewBackground {
                 this._themeManager = null;
             }
 
-            (global as any).zonedDebug?.trackInstance('LayoutPreviewBackground', false);
+            (global as unknown as GlobalWithDebug).zonedDebug?.trackInstance('LayoutPreviewBackground', false);
         } finally {
             // Always reset the flag, even if an error occurred
             this._isDestroying = false;

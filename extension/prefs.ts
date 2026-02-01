@@ -1394,23 +1394,19 @@ export default class ZonedPreferences extends ExtensionPreferences {
             }
 
             // Set checkbox states (suppress change handlers)
-            // Use any type to bypass type checking for dynamic property
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (row as any)._loadingFromSettings = true;
+            (row as unknown as QuickLayoutRowInstance)._loadingFromSettings = true;
             shiftCheck.set_active((mods & Gdk.ModifierType.SHIFT_MASK) !== 0);
             ctrlCheck.set_active((mods & Gdk.ModifierType.CONTROL_MASK) !== 0);
             superCheck.set_active((mods & Gdk.ModifierType.SUPER_MASK) !== 0);
             altCheck.set_active((mods & Gdk.ModifierType.ALT_MASK) !== 0);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (row as any)._loadingFromSettings = false;
+            (row as unknown as QuickLayoutRowInstance)._loadingFromSettings = false;
 
             updateDisplay();
         };
 
         // Connect checkbox changes
         const onModifierChanged = () => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            if ((row as any)._loadingFromSettings) return;
+            if ((row as unknown as QuickLayoutRowInstance)._loadingFromSettings) return;
             saveQuickLayoutShortcuts();
         };
 
@@ -1919,7 +1915,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
                 settings: settings,
                 settingsKey: binding.key,
                 defaultAccelerator: binding.default,
-            } as any);
+            } as ShortcutCaptureRowParams);
             enhancedExpander.add_row(row);
         }
         log('Enhanced shortcut rows created');

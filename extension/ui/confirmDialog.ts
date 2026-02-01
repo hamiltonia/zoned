@@ -29,6 +29,22 @@ interface ConfirmDialogOptions {
     onCancel?: () => void;
 }
 
+// Interface for GNOME's ModalDialog internal structure
+interface ModalDialogInternal {
+    dialogLayout: St.Widget & {
+        get_style(): string;
+        set_style(style: string): void;
+        add_style_class_name(className: string): void;
+    };
+    contentLayout: St.Widget & {
+        add_child(child: St.Widget): void;
+    };
+    buttonLayout: St.Widget & {
+        get_children(): St.Widget[];
+    };
+    setButtons(buttons: unknown[]): void;
+}
+
 /**
  * Handle enter-event on destructive confirm button for hover styling
  * Module-level handler (Wave 3: avoid arrow function closure)
@@ -128,11 +144,12 @@ export const ConfirmDialog = GObject.registerClass(
             }
 
             const colors = this._themeManager.getColors();
+            const dialog = this as unknown as ModalDialogInternal;
 
             // Use dialogLayout instead of _dialog (which doesn't exist in GNOME's ModalDialog)
-            if ((this as any).dialogLayout) {
-                const style = (this as any).dialogLayout.get_style();
-                (this as any).dialogLayout.set_style(
+            if (dialog.dialogLayout) {
+                const style = dialog.dialogLayout.get_style();
+                dialog.dialogLayout.set_style(
                     (style || '') +
                 `--zoned-container-bg: ${colors.containerBg}; ` +
                 `--zoned-card-bg: ${colors.cardBg}; ` +
@@ -149,7 +166,7 @@ export const ConfirmDialog = GObject.registerClass(
 
                 // Apply theme class
                 const themeClass = colors.isDark ? 'zoned-theme-dark' : 'zoned-theme-light';
-                (this as any).dialogLayout.add_style_class_name(themeClass);
+                dialog.dialogLayout.add_style_class_name(themeClass);
             }
         }
 
@@ -174,12 +191,14 @@ export const ConfirmDialog = GObject.registerClass(
             // Apply CSS custom properties to dialog root for stylesheet
             this._applyCSSVariables();
 
+            const dialog = this as unknown as ModalDialogInternal;
+
             // Add title
             const titleLabel = new St.Label({
                 text: this._title,
                 style: 'font-weight: bold; font-size: 14pt; margin-bottom: 12px;',
             });
-            (this as any).contentLayout.add_child(titleLabel);
+            dialog.contentLayout.add_child(titleLabel);
 
             // Add message
             const messageLabel = new St.Label({
@@ -187,10 +206,10 @@ export const ConfirmDialog = GObject.registerClass(
                 style: 'line-height: 1.4;',
             });
             messageLabel.clutter_text.line_wrap = true;
-            (this as any).contentLayout.add_child(messageLabel);
+            dialog.contentLayout.add_child(messageLabel);
 
             // Add buttons using ModalDialog's button system
-            (this as any).setButtons([
+            dialog.setButtons([
                 {
                     label: this._options.cancelLabel,
                     action: () => {
@@ -217,10 +236,10 @@ export const ConfirmDialog = GObject.registerClass(
 
             // Apply destructive styling to confirm button if requested
             // The confirm button is the second button in the button layout
-            if (this._options.destructive && (this as any).buttonLayout) {
-                const buttons = (this as any).buttonLayout.get_children();
+            if (this._options.destructive && dialog.buttonLayout) {
+                const buttons = dialog.buttonLayout.get_children();
                 if (buttons.length >= 2) {
-                    const confirmButton = buttons[1];
+                    const confirmButton = buttons[1] as St.Button;
                     // Red destructive styling matching layoutSwitcher's delete confirmation
                     confirmButton.style = `
                     background-color: #c01c28;
@@ -230,8 +249,10 @@ export const ConfirmDialog = GObject.registerClass(
                     // Also style on hover (Wave 3: bound methods)
                     const boundEnter = handleConfirmButtonEnter.bind(null, confirmButton);
                     const boundLeave = handleConfirmButtonLeave.bind(null, confirmButton);
-                    this._signalTracker!.connect(confirmButton, 'enter-event', boundEnter);
-                    this._signalTracker!.connect(confirmButton, 'leave-event', boundLeave);
+                    if (this._signalTracker) {
+                        this._signalTracker.connect(confirmButton, 'enter-event', boundEnter);
+                        this._signalTracker.connect(confirmButton, 'leave-event', boundLeave);
+                    }
                 }
             }
         }

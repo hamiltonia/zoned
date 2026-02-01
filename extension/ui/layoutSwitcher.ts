@@ -32,8 +32,49 @@ import {createTemplatesSection, createCustomLayoutsSection, createNewLayoutButto
 import {createTopBar, closeMonitorDropdown, updateWorkspaceThumbnailsDisabledState} from './layoutSwitcher/topBar.js';
 import {addResizeHandles, rebuildWithNewSize} from './layoutSwitcher/resizeHandler.js';
 import {selectTier, calculateDialogDimensions, validateDimensions, generateDebugText, TIER_NAMES} from './layoutSwitcher/tierConfig.js';
+import type {Layout} from '../types/layout';
 
 const logger = createLogger('LayoutSwitcher');
+
+/**
+ * Minimal layout manager interface
+ */
+interface LayoutManager {
+    getCurrentLayout: () => Layout | null;
+    getAllLayouts: () => Layout[];
+    setLayout: (layoutId: string) => boolean;
+    deleteLayout: (layoutId: string) => boolean;
+    registerLayoutTemporary: (layout: Layout) => void;
+    getSpatialStateManager: () => SpatialStateManager | null;
+    getLayoutForSpace: (spaceKey: string) => Layout | null;
+    setLayoutForSpace: (spaceKey: string, layoutId: string) => void;
+}
+
+/**
+ * Minimal spatial state manager interface
+ */
+interface SpatialStateManager {
+    makeKey: (monitorIndex: number, workspaceIndex: number) => string;
+}
+
+/**
+ * Minimal zone overlay interface
+ */
+interface ZoneOverlay {
+    showMessage: (message: string) => void;
+}
+
+/**
+ * GSettings interface
+ */
+interface Settings {
+    get_boolean: (key: string) => boolean;
+    get_int: (key: string) => number;
+    set_boolean: (key: string, value: boolean) => void;
+    set_int: (key: string, value: number) => void;
+    connect: (signal: string, callback: () => void) => number;
+    disconnect: (id: number) => void;
+}
 
 // Navigation delta constants for keyboard navigation
 const NAV_LEFT = -1;
@@ -52,22 +93,22 @@ const NAV_RIGHT = 1;
  * This would provide better encapsulation, testability, and maintainability.
  */
 export class LayoutSwitcher {
-    _layoutManager: any;
-    private _zoneOverlay: any;
-    _settings: any;
+    _layoutManager: LayoutManager;
+    private _zoneOverlay: ZoneOverlay;
+    _settings: Settings;
     _templateManager: TemplateManager;
     _themeManager: ThemeManager;
     _dialog: St.Widget | null = null;
     _currentWorkspace: number = 0;
     private _workspaceMode: boolean = false;
-    _workspaceButtons: any[] = [];
-    _allCards: any[] = [];
+    _workspaceButtons: St.Button[] = [];
+    _allCards: Array<{card: St.Widget; layout: Layout; isTemplate: boolean}> = [];
     _selectedCardIndex: number = -1;
-    private _activeSettingsDialog: any = null;
+    private _activeSettingsDialog: LayoutSettingsDialog | null = null;
     private _isHiding: boolean = false;
     private _reacquiringModal: boolean = false;
     _debugMode: boolean = false;
-    private _DEBUG_COLORS: {[key: string]: string};
+    private _DEBUG_COLORS: Record<string, string>;
     _MIN_DIALOG_WIDTH: number;
     _MIN_DIALOG_HEIGHT: number;
     _isResizing: boolean = false;
@@ -80,16 +121,16 @@ export class LayoutSwitcher {
     _currentDialogHeight: number | null = null;
     _signalTracker: SignalTracker;
     private _timeoutIds: number[] = [];
-    private _boundHandleBackgroundClick: (actor: any, event: any) => boolean;
-    private _boundHandleKeyPress: (actor: any, event: any) => boolean;
+    private _boundHandleBackgroundClick: (actor: St.Widget, event: Clutter.Event) => boolean;
+    private _boundHandleKeyPress: (actor: St.Widget, event: Clutter.Event) => boolean;
     private _boundHandleContainerClick: () => boolean;
     private _boundHandleDeleteCancelClick: () => void;
     private _boundHandleDeleteConfirmClick: () => void;
-    private _boundHandleDeleteWrapperClick: (actor: any, event: any) => boolean;
+    private _boundHandleDeleteWrapperClick: (actor: St.Widget, event: Clutter.Event) => boolean;
     private _boundHideDialog: () => void;
-    _boundHandleCardClick: (card: any) => boolean;
-    _boundHandleCardEnter: (card: any) => boolean;
-    _boundHandleCardLeave: (card: any) => boolean;
+    _boundHandleCardClick: (card: St.Widget) => boolean;
+    _boundHandleCardEnter: (card: St.Widget) => boolean;
+    _boundHandleCardLeave: (card: St.Widget) => boolean;
     _boundHandleCardScroll: () => boolean;
     _selectedMonitorIndex: number | undefined = undefined;
     _previewBackground?: LayoutPreviewBackground;
@@ -98,8 +139,8 @@ export class LayoutSwitcher {
     _applyGloballyCheckbox?: St.Bin;
     _applyGlobally: boolean | undefined = undefined;
     // @ts-expect-error - Tracked internally for preview background updates
-    private _hoveredLayout: any = null;
-    private _modalGrabbed: any = null;
+    private _hoveredLayout: Layout | null = null;
+    private _modalGrabbed: unknown = null;
     // @ts-expect-error - Tracked for signal cleanup
     private _keyPressId: number | null = null;
     // @ts-expect-error - Tracked for signal cleanup
@@ -112,12 +153,28 @@ export class LayoutSwitcher {
     _previewHeight: number = 0;
     _customColumns: number = 5;
     _cardRadius: number = 0;
-    _currentTier: any;
-    _calculatedSpacing: any;
+    _currentTier: {name: string; cardRadius: number; workspaceThumb: {w: number; h: number}};
+    _calculatedSpacing: {
+        containerPadding: number;
+        sectionPadding: number;
+        sectionGap: number;
+        cardGap: number;
+        rowGap: number;
+        scrollbarReserve: number;
+        topBarHeight: number;
+        sectionHeaderHeight: number;
+        sectionHeaderMargin: number;
+        createButtonHeight: number;
+        createButtonMargin: number;
+        internalMargin: number;
+        dialogWidth: number;
+        dialogHeight: number;
+        _dims?: Record<string, unknown>;
+    };
     private _logicalScreenWidth: number = 0;
     private _logicalScreenHeight: number = 0;
     private _scaleFactor: number = 1;
-    private _lastValidation: any;
+    private _lastValidation: {valid: boolean; issues: string[]};
     private _CONTAINER_PADDING_LEFT: number = 0;
     private _CONTAINER_PADDING_RIGHT: number = 0;
     private _CONTAINER_PADDING_TOP: number = 0;
@@ -141,17 +198,17 @@ export class LayoutSwitcher {
     private _debugOverlay?: St.BoxLayout;
     _dialogWrapper?: St.Widget;
     private _confirmOverlay?: St.Bin;
-    private _deleteTargetLayout: any = null;
+    private _deleteTargetLayout: Layout | null = null;
     private _deleteConfirmBox?: St.BoxLayout;
-    private _pendingPreviewLayout: any = null;
+    private _pendingPreviewLayout: Layout | null = null;
     _resizeMotionId?: number;
     _resizeButtonReleaseId?: number;
     _monitorMenu?: St.BoxLayout;
     _resizeHandles: Record<string, St.Widget> = {};
-    _boundHandleWorkspaceScroll?: (actor: any, event: any) => number;
-    _boundHandleMonitorPillEnter?: (pill: any) => number;
-    _boundHandleMonitorPillLeave?: (pill: any) => number;
-    _boundHandleMonitorPillClick?: (pill: any) => number;
+    _boundHandleWorkspaceScroll?: (actor: St.Widget, event: Clutter.Event) => number;
+    _boundHandleMonitorPillEnter?: (pill: St.Widget) => number;
+    _boundHandleMonitorPillLeave?: (pill: St.Widget) => number;
+    _boundHandleMonitorPillClick?: (pill: St.Widget) => number;
     _boundHandleGlobalCheckboxLabelClick?: () => number;
     _boundHandleGlobalCheckboxClick?: () => number;
     _monitorPillBtn?: St.Button;
@@ -167,7 +224,7 @@ export class LayoutSwitcher {
      * @param zoneOverlay - Zone overlay instance for notifications
      * @param settings - GSettings instance
      */
-    constructor(layoutManager: any, zoneOverlay: any, settings: any) {
+    constructor(layoutManager: LayoutManager, zoneOverlay: ZoneOverlay, settings: Settings) {
         global.zonedDebug?.trackInstance('LayoutSwitcher');
         this._layoutManager = layoutManager;
         this._zoneOverlay = zoneOverlay;
@@ -229,7 +286,7 @@ export class LayoutSwitcher {
      * @param {string} type - Type of element
      * @param {string} [label] - Optional label to display
      */
-    _addDebugRect(actor: any, type: string, label: string = '') {
+    _addDebugRect(actor: St.Widget, type: string, label: string = '') {
         if (!this._debugMode) return;
 
         const color = this._DEBUG_COLORS[type] || 'rgba(128, 128, 128, 0.8)';
@@ -450,12 +507,12 @@ export class LayoutSwitcher {
                 !key.startsWith('_bound') &&
                 !constructorProps.has(key)) {
                 // Null properties created in show()
-                const value = (this as any)[key];
+                const value = (this as Record<string, unknown>)[key];
                 const type = typeof value;
                 const hasDestroy = value?.destroy !== undefined;
 
                 logger.memdebug(`  Nulling ${key}: ${type}${hasDestroy ? ' (has destroy)' : ''}`);
-                (this as any)[key] = null;
+                (this as Record<string, unknown>)[key] = null;
             }
         }
         logger.memdebug('Nullification complete');
@@ -468,11 +525,11 @@ export class LayoutSwitcher {
     _cleanupResize() {
         if (this._resizeMotionId) {
             global.stage.disconnect(this._resizeMotionId);
-            (this._resizeMotionId as any) = undefined;
+            (this._resizeMotionId as unknown) = undefined;
         }
         if (this._resizeButtonReleaseId) {
             global.stage.disconnect(this._resizeButtonReleaseId);
-            (this._resizeButtonReleaseId as any) = undefined;
+            (this._resizeButtonReleaseId as unknown) = undefined;
         }
         this._isResizing = false;
     }
@@ -542,7 +599,7 @@ export class LayoutSwitcher {
      * - 16:9 cards (the aesthetic that matters)
      * - Predictable, testable layouts per resolution tier
      */
-    _calculateCardDimensions(monitor: any) {
+    _calculateCardDimensions(monitor: {width: number; height: number}) {
         const themeContext = St.ThemeContext.get_for_stage(global.stage);
         const scaleFactor = themeContext.scale_factor;
 
@@ -641,8 +698,8 @@ export class LayoutSwitcher {
      * Create debug overlay showing tier info and measurements
      * @returns {St.BoxLayout} The debug overlay widget
      */
-    _createDebugOverlay() {
-        const dims = this._calculatedSpacing._dims;
+    _createDebugOverlay(): St.BoxLayout {
+        const dims = this._calculatedSpacing._dims as Record<string, number>;
         const validation = this._lastValidation;
         const forceTier = this._settings.get_int('option-force-tier');
         const tierMode = forceTier === 0 ? 'auto' : 'forced';
@@ -787,21 +844,21 @@ export class LayoutSwitcher {
         this._signalTracker.connect(container, 'button-press-event', this._boundHandleContainerClick);
 
         // Create sections using modules
-        const topBar = createTopBar(this as any as LayoutSwitcherContext);
+        const topBar = createTopBar(this as unknown as LayoutSwitcherContext);
         this._addDebugRect(topBar, 'section', 'Top Bar');
         container.add_child(topBar);
 
-        const templatesSection = createTemplatesSection(this as any as LayoutSwitcherContext);
+        const templatesSection = createTemplatesSection(this as unknown as LayoutSwitcherContext);
         templatesSection.style += ` margin-top: ${this._SECTION_GAP}px;`;
         this._addDebugRect(templatesSection, 'section', 'Templates Section');
         container.add_child(templatesSection);
 
-        const customSection = createCustomLayoutsSection(this as any as LayoutSwitcherContext);
+        const customSection = createCustomLayoutsSection(this as unknown as LayoutSwitcherContext);
         customSection.style += ` margin-top: ${this._SECTION_GAP}px;`;
         this._addDebugRect(customSection, 'section', 'Custom Layouts Section');
         container.add_child(customSection);
 
-        const createButton = createNewLayoutButton(this as any as LayoutSwitcherContext);
+        const createButton = createNewLayoutButton(this as unknown as LayoutSwitcherContext);
         this._addDebugRect(createButton, 'section', 'Create Button');
         container.add_child(createButton);
 
@@ -913,7 +970,7 @@ export class LayoutSwitcher {
      * Find the active custom layout index
      * @private
      */
-    _findActiveCustomIndex(templateCount: number, currentLayout: any): number {
+    _findActiveCustomIndex(templateCount: number, currentLayout: Layout | null): number {
         let activeCustomIndex = -1;
 
         for (let i = templateCount; i < this._allCards.length; i++) {
@@ -950,7 +1007,9 @@ export class LayoutSwitcher {
      * Get scroll adjustment from ScrollView
      * @private
      */
-    _getScrollAdjustment(scrollView: St.ScrollView | undefined): any {
+    _getScrollAdjustment(
+        scrollView: St.ScrollView | undefined,
+    ): {value: number; upper: number; page_size: number} | null {
         let adjustment = scrollView?.vadjustment;
 
         if (!adjustment && scrollView && typeof scrollView.get_vscroll_bar === 'function') {
@@ -1008,16 +1067,16 @@ export class LayoutSwitcher {
     /**
      * Get all custom (user-created) layouts
      */
-    _getCustomLayouts() {
+    _getCustomLayouts(): Layout[] {
         const allLayouts = this._layoutManager.getAllLayouts();
-        return allLayouts.filter((layout: any) => layout.id && layout.id.startsWith('layout-'));
+        return allLayouts.filter(layout => layout.id && layout.id.startsWith('layout-'));
     }
 
     /**
      * Check if a layout is currently active
      * Handles both custom layouts and templates
      */
-    _isLayoutActive(layout: any, currentLayout: any) {
+    _isLayoutActive(layout: Layout, currentLayout: Layout | null): boolean {
         if (!currentLayout || !layout) return false;
 
         // Direct match (custom layouts or already-applied templates)
@@ -1035,7 +1094,7 @@ export class LayoutSwitcher {
     /**
      * Handle template click - apply immediately
      */
-    _onTemplateClicked(template: any) {
+    _onTemplateClicked(template: Layout): void {
         logger.info(`Template clicked: ${template.name}`);
 
         const layout = this._templateManager.createLayoutFromTemplate(template.id);
@@ -1048,10 +1107,10 @@ export class LayoutSwitcher {
         this._zoneOverlay.showMessage(`Switched to: ${template.name}`);
 
         // Only close dialog if modifying the current workspace/monitor
-        // When configuring a different workspace/monitor, keep dialog open for continued configuration
+        // When configuring a different workspace/monitor, keep dialog open
         const activeWorkspace = global.workspace_manager.get_active_workspace_index();
         const currentMonitor = Main.layoutManager.currentMonitor.index;
-        const isCurrentWorkspace = this._applyGlobally || (this._currentWorkspace === activeWorkspace);
+        const isCurrentWorkspace = this._applyGlobally || this._currentWorkspace === activeWorkspace;
         const isCurrentMonitor = this._selectedMonitorIndex === currentMonitor;
 
         if (isCurrentWorkspace && isCurrentMonitor) {
@@ -1065,7 +1124,7 @@ export class LayoutSwitcher {
     /**
      * Handle custom layout click - apply immediately
      */
-    _onLayoutClicked(layout: any) {
+    _onLayoutClicked(layout: Layout): void {
         logger.info(`Layout clicked: ${layout.name}`);
 
         this._applyLayout(layout);
@@ -1090,7 +1149,7 @@ export class LayoutSwitcher {
      * Handle edit layout click - open settings dialog
      * Keeps switcher visible but releases modal to settings dialog
      */
-    _onEditLayoutClicked(layout: any) {
+    _onEditLayoutClicked(layout: Layout): void {
         logger.info(`Edit layout clicked: ${layout.name}`);
 
         // Release modal but keep UI visible - settings dialog will have its own modal
@@ -1132,7 +1191,7 @@ export class LayoutSwitcher {
      * Stores reference in extension for test control
      * @param {Object} layout - Layout to edit (template or custom)
      */
-    openLayoutSettings(layout: any) {
+    openLayoutSettings(layout: Layout): void {
         if (!this._dialog) {
             // Dialog not shown, can't open settings
             logger.warn('Cannot open layout settings: LayoutSwitcher not active');
@@ -1172,7 +1231,7 @@ export class LayoutSwitcher {
      * @param {Object} layout - Layout to edit
      * @private
      */
-    _onEditLayoutClickedForTest(layout: any) {
+    _onEditLayoutClickedForTest(layout: Layout): void {
         logger.info(`[Test] Edit layout clicked: ${layout.name}`);
 
         // Release modal but keep UI visible
@@ -1221,7 +1280,7 @@ export class LayoutSwitcher {
      * @param {Object} template - Template to view
      * @private
      */
-    _onEditTemplateClickedForTest(template: any) {
+    _onEditTemplateClickedForTest(template: Layout): void {
         logger.info(`[Test] Edit template clicked: ${template.name}`);
 
         // Release modal but keep UI visible
@@ -1273,7 +1332,7 @@ export class LayoutSwitcher {
      * Templates show Duplicate button only (no Save/Delete, disabled Name)
      * Keeps switcher visible but releases modal to settings dialog
      */
-    _onEditTemplateClicked(template: any) {
+    _onEditTemplateClicked(template: Layout): void {
         logger.info(`Edit template clicked: ${template.name}`);
 
         // Pass template directly - don't create duplicate until user clicks Duplicate
@@ -1319,7 +1378,7 @@ export class LayoutSwitcher {
      * Handle delete layout click - show inline confirmation
      * Uses simple overlay instead of ModalDialog to avoid modal conflicts
      */
-    _onDeleteClicked(layout: any) {
+    _onDeleteClicked(layout: Layout): void {
         logger.info(`Delete clicked for layout: ${layout.name}`);
 
         // Create confirmation overlay
@@ -1330,7 +1389,7 @@ export class LayoutSwitcher {
      * Show inline delete confirmation dialog
      * @param {Object} layout - Layout to delete
      */
-    _showDeleteConfirmation(layout: any) {
+    _showDeleteConfirmation(layout: Layout): void {
         // Remove any existing confirmation
         if (this._confirmOverlay) {
             this._confirmOverlay.destroy();
@@ -1489,7 +1548,7 @@ export class LayoutSwitcher {
      * @returns {number} Clutter.EVENT_STOP
      * @private
      */
-    _handleDeleteWrapperClick(_actor: any, event: any) {
+    _handleDeleteWrapperClick(_actor: St.Widget, event: Clutter.Event): number {
         const [clickX, clickY] = event.get_coords();
         const confirmBox = this._deleteConfirmBox;
 
@@ -1531,7 +1590,7 @@ export class LayoutSwitcher {
     /**
      * Apply a layout to the current context (workspace or global)
      */
-    _applyLayout(layout: any) {
+    _applyLayout(layout: Layout): void {
         if (this._workspaceMode) {
             try {
                 // Use SpatialStateManager for per-space layout storage
@@ -1605,7 +1664,7 @@ export class LayoutSwitcher {
      * @returns {Clutter.EVENT_STOP|Clutter.EVENT_PROPAGATE}
      * @private
      */
-    _handleBackgroundClick(event: any) {
+    _handleBackgroundClick(_actor: St.Widget, event: Clutter.Event): number {
         // CRITICAL: Guard against recursive calls during modal re-acquisition
         // Prevents Fedora 43 infinite loop when stray click events leak through
         if (this._reacquiringModal) {
@@ -1639,7 +1698,11 @@ export class LayoutSwitcher {
      * @returns {boolean} True if outside bounds
      * @private
      */
-    _isOutsideBounds(x: number, y: number, bounds: any) {
+    _isOutsideBounds(
+        x: number,
+        y: number,
+        bounds: {origin: {x: number; y: number}; size: {width: number; height: number}},
+    ): boolean {
         return x < bounds.origin.x ||
                x > bounds.origin.x + bounds.size.width ||
                y < bounds.origin.y ||
@@ -1677,7 +1740,7 @@ export class LayoutSwitcher {
      * @returns {Clutter.EVENT_STOP|Clutter.EVENT_PROPAGATE}
      * @private
      */
-    _handleKeyPress(_actor: any, event: any) {
+    _handleKeyPress(_actor: St.Widget, event: Clutter.Event): number {
         const symbol = event.get_key_symbol();
         const modifiers = event.get_state();
         const ctrlPressed = (modifiers & Clutter.ModifierType.CONTROL_MASK) !== 0;
@@ -1849,7 +1912,7 @@ export class LayoutSwitcher {
             const shortcutKey = symbol - Clutter.KEY_1 + 1;  // 1-9
 
             // Find card with matching shortcut assignment
-            const cardIndex = this._allCards.findIndex((cardObj: any) => {
+            const cardIndex = this._allCards.findIndex(cardObj => {
                 const shortcut = cardObj.layout?.shortcut;
                 return shortcut === String(shortcutKey) || shortcut === shortcutKey;
             });
@@ -1903,7 +1966,7 @@ export class LayoutSwitcher {
         const accentRGBAFocus = colors.accentRGBA(0.4);
         const cardRadius = this._cardRadius;
 
-        this._allCards.forEach((cardObj: any, index: number) => {
+        this._allCards.forEach((cardObj, index: number) => {
             const isFocused = index === this._selectedCardIndex;
             const currentLayout = this._getCurrentLayout();
             const isActive = this._isLayoutActive(cardObj.layout, currentLayout);
@@ -1933,7 +1996,7 @@ export class LayoutSwitcher {
      * Called when hovering over cards or navigating with keyboard
      * @param {Object} layout - Layout to preview (with zones array)
      */
-    _updatePreviewBackground(layout: any) {
+    _updatePreviewBackground(layout: Layout): void {
         if (!this._previewBackground) return;
 
         this._hoveredLayout = layout;
@@ -1945,7 +2008,7 @@ export class LayoutSwitcher {
      * Called from cardFactory when mouse enters a card
      * @param {Object} layout - Layout being hovered
      */
-    _onCardHover(layout: any) {
+    _onCardHover(layout: Layout): void {
         this._updatePreviewBackground(layout);
     }
 
@@ -2005,8 +2068,8 @@ export class LayoutSwitcher {
         logger.memdebug(`Clearing ${this._allCards.length} card references...`);
 
         // NULL layout references to break reference cycles
-        this._allCards.forEach((cardObj: any) => {
-            cardObj.layout = null;
+        this._allCards.forEach(cardObj => {
+            (cardObj as {layout: Layout | null}).layout = null;
         });
 
         // Clear the array - this releases our references to the card objects
@@ -2252,7 +2315,7 @@ export class LayoutSwitcher {
      * @returns {number} Clutter.EVENT_STOP
      * @private
      */
-    _handleCardClick(card: any) {
+    _handleCardClick(card: St.Widget & {_layoutRef: Layout; _isTemplate: boolean}): number {
         const layout = card._layoutRef;
         const isTemplate = card._isTemplate;
 
@@ -2271,7 +2334,7 @@ export class LayoutSwitcher {
      * @returns {number} Clutter.EVENT_PROPAGATE
      * @private
      */
-    _handleCardEnter(card: any) {
+    _handleCardEnter(card: St.Widget & {_layoutRef: Layout; _isActive: boolean}): number {
         const isActive = card._isActive;
 
         if (!isActive) {
@@ -2298,7 +2361,7 @@ export class LayoutSwitcher {
      * @returns {number} Clutter.EVENT_PROPAGATE
      * @private
      */
-    _handleCardLeave(card: any) {
+    _handleCardLeave(card: St.Widget & {_layoutRef: Layout; _isActive: boolean}): number {
         const isActive = card._isActive;
 
         if (!isActive) {
@@ -2334,17 +2397,17 @@ export class LayoutSwitcher {
         this.hide();
 
         // Release bound function references to prevent memory leaks
-        (this._boundHandleBackgroundClick as any) = undefined;
-        (this._boundHandleKeyPress as any) = undefined;
-        (this._boundHandleContainerClick as any) = undefined;
-        (this._boundHandleDeleteCancelClick as any) = undefined;
-        (this._boundHandleDeleteConfirmClick as any) = undefined;
-        (this._boundHandleDeleteWrapperClick as any) = undefined;
-        (this._boundHideDialog as any) = undefined;
-        (this._boundHandleCardClick as any) = undefined;
-        (this._boundHandleCardEnter as any) = undefined;
-        (this._boundHandleCardLeave as any) = undefined;
-        (this._boundHandleCardScroll as any) = undefined;
+        (this._boundHandleBackgroundClick as unknown) = undefined;
+        (this._boundHandleKeyPress as unknown) = undefined;
+        (this._boundHandleContainerClick as unknown) = undefined;
+        (this._boundHandleDeleteCancelClick as unknown) = undefined;
+        (this._boundHandleDeleteConfirmClick as unknown) = undefined;
+        (this._boundHandleDeleteWrapperClick as unknown) = undefined;
+        (this._boundHideDialog as unknown) = undefined;
+        (this._boundHandleCardClick as unknown) = undefined;
+        (this._boundHandleCardEnter as unknown) = undefined;
+        (this._boundHandleCardLeave as unknown) = undefined;
+        (this._boundHandleCardScroll as unknown) = undefined;
 
         // Release topBar bound function references (Wave 3)
         this._boundHandleWorkspaceScroll = undefined;
@@ -2357,13 +2420,13 @@ export class LayoutSwitcher {
         // Clean up TemplateManager
         if (this._templateManager) {
             this._templateManager.destroy();
-            (this._templateManager as any) = undefined;
+            (this._templateManager as unknown) = undefined;
         }
 
         // Clean up ThemeManager
         if (this._themeManager) {
             this._themeManager.destroy();
-            (this._themeManager as any) = undefined;
+            (this._themeManager as unknown) = undefined;
         }
 
         global.zonedDebug?.trackInstance('LayoutSwitcher', false);

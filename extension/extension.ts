@@ -287,7 +287,7 @@ export default class ZonedExtension extends Extension {
 
         // Add PanelIndicator (top bar menu) - MUST be after LayoutManager and LayoutSwitcher
         // GObject.registerClass uses _init pattern; TypeScript doesn't know constructor signature
-        this._panelIndicator = new (PanelIndicator as any)(
+        this._panelIndicator = new (PanelIndicator as unknown as new (...args: unknown[]) => PanelIndicatorInstance)(
             this._layoutManager,
             this._conflictDetector,
             this._layoutSwitcher,
@@ -492,10 +492,14 @@ export default class ZonedExtension extends Extension {
      * @private
      */
     _destroyComponent(propName: string, logName: string): void {
-        const component = (this as any)[propName];
+        interface DestroyableComponent {
+            destroy(): void;
+        }
+        const components = this as unknown as Record<string, DestroyableComponent | null>;
+        const component = components[propName];
         if (component) {
             component.destroy();
-            (this as any)[propName] = null;
+            components[propName] = null;
             logger.debug(`${logName} destroyed`);
         }
     }

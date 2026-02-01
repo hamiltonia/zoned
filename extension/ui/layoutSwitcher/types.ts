@@ -123,7 +123,7 @@ export interface LayoutSwitcherContext {
         set_int: (key: string, value: number) => void;
     };
     _signalTracker: {
-        connect: (obj: unknown, signal: string, callback: (...args: any[]) => unknown) => number | null;
+        connect: (obj: unknown, signal: string, callback: (...args: unknown[]) => unknown) => number | null;
         disconnect: (id: number) => void;
     };
 

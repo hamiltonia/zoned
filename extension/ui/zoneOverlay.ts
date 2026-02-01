@@ -16,8 +16,30 @@ import {createLogger} from '../utils/debug.js';
 
 const logger = createLogger('ZoneOverlay');
 
+// Type definitions for GNOME Shell interfaces
+interface Monitor {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+interface LayoutManager {
+    uiGroup: Clutter.Actor;
+    currentMonitor: Monitor;
+}
+
+// Size configuration interface
+interface SizeConfig {
+    container: number;
+    icon: number;
+    titleFont: number;
+    messageFont: number;
+    padding: string;
+}
+
 // Size configurations: small, medium, large
-const SIZE_CONFIG = {
+const SIZE_CONFIG: Record<string, SizeConfig> = {
     small: {container: 256, icon: 256, titleFont: 14, messageFont: 12, padding: '14px 20px'},
     medium: {container: 384, icon: 384, titleFont: 16, messageFont: 14, padding: '18px 26px'},
     large: {container: 512, icon: 512, titleFont: 18, messageFont: 16, padding: '20px 32px'},
@@ -77,7 +99,7 @@ export class ZoneOverlay {
      * Create background icon for overlay
      * @private
      */
-    private _createBackgroundIcon(config: any, bgOpacity: number): St.Icon | null {
+    private _createBackgroundIcon(config: SizeConfig, bgOpacity: number): St.Icon | null {
         try {
             const iconPath = (this._extension?.path || '') + '/icons/zoned-watermark.svg';
             const iconFile = Gio.File.new_for_path(iconPath);
@@ -110,7 +132,7 @@ export class ZoneOverlay {
      * @private
      */
     private _createContentBox(
-        config: any,
+        config: SizeConfig,
         bgOpacity: number,
         titleText: string | null,
         messageText: string,
@@ -156,8 +178,9 @@ export class ZoneOverlay {
      * Calculate overlay position on screen
      * @private
      */
-    private _calculateOverlayPosition(config: any): {x: number; y: number} {
-        const monitor = (Main.layoutManager as any).currentMonitor;
+    private _calculateOverlayPosition(config: SizeConfig): {x: number; y: number} {
+        const layoutMgr = Main.layoutManager as unknown as LayoutManager;
+        const monitor = layoutMgr.currentMonitor;
         const calcX = Math.floor(monitor.x + (monitor.width - config.container) / 2);
         const targetPillY = Math.floor(monitor.height * 0.50);
         const calcY = Math.floor(monitor.y + targetPillY - (config.container / 2));
@@ -196,7 +219,8 @@ export class ZoneOverlay {
             container.add_child(contentBox);
 
             this._overlay = container;
-            (Main as any).uiGroup.add_child(this._overlay);
+            const layoutMgr = Main.layoutManager as unknown as LayoutManager;
+            layoutMgr.uiGroup.add_child(this._overlay);
 
             const position = this._calculateOverlayPosition(config);
             this._overlay.set_position(position.x, position.y);
@@ -226,7 +250,8 @@ export class ZoneOverlay {
 
         // Remove overlay
         if (this._overlay) {
-            (Main as any).uiGroup.remove_child(this._overlay);
+            const layoutMgr = Main.layoutManager as unknown as LayoutManager;
+            layoutMgr.uiGroup.remove_child(this._overlay);
             this._overlay.destroy();
             this._overlay = null;
         }

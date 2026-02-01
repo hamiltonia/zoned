@@ -25,26 +25,37 @@ import type {NotificationService} from '../utils/notificationService';
 
 const logger = createLogger('PanelIndicator');
 
+// Type definitions for GObject properties
+interface LayoutSwitcher {
+    show(): void;
+}
+
+interface PanelMenuButton extends PanelMenu.Button {
+    menu: PopupMenu.PopupMenu;
+    add_child(actor: St.Widget): void;
+    style: string;
+}
+
 export const PanelIndicator = GObject.registerClass(
     class ZonedPanelIndicator extends PanelMenu.Button {
         private _layoutManager: LayoutManager;
         private _conflictDetector: ConflictDetector;
-        private _layoutSwitcher: any;
+        private _layoutSwitcher: LayoutSwitcher;
         private _notificationManager: NotificationManager;
         private _zoneOverlay: ZoneOverlay;
         private _settings: Gio.Settings;
         private _notificationService: NotificationService;
         private _hasConflicts: boolean;
         private _signalTracker: SignalTracker | null;
-        private _boundOnMenuOpenStateChanged: ((menu: any, isOpen: boolean) => void) | null;
+        private _boundOnMenuOpenStateChanged: ((menu: PopupMenu.PopupMenu, isOpen: boolean) => void) | null;
         private _extensionPath: string;
         private _icon!: St.Icon;
-        private _conflictWarningItem?: any;
+        private _conflictWarningItem?: PopupMenu.PopupMenuItem;
 
         _init(
             layoutManager: LayoutManager,
             conflictDetector: ConflictDetector,
-            layoutEditor: any,
+            layoutEditor: LayoutSwitcher,
             notificationManager: NotificationManager,
             zoneOverlay: ZoneOverlay,
             settings: Gio.Settings,
@@ -76,16 +87,17 @@ export const PanelIndicator = GObject.registerClass(
                 style_class: 'system-status-icon',
                 icon_size: 16,
             });
-            (this as any).add_child(this._icon);
+            (this as unknown as PanelMenuButton).add_child(this._icon);
 
             // Reduce padding on the button itself
-            (this as any).style = 'padding: 0 4px;';
+            (this as unknown as PanelMenuButton).style = 'padding: 0 4px;';
 
             // Build menu
             this._buildMenu();
 
             // Re-detect conflicts every time the menu opens
-            this._signalTracker.connect((this as any).menu, 'open-state-changed', this._boundOnMenuOpenStateChanged);
+            const menu = (this as unknown as PanelMenuButton).menu;
+            this._signalTracker.connect(menu, 'open-state-changed', this._boundOnMenuOpenStateChanged);
         }
 
         /**
@@ -94,7 +106,7 @@ export const PanelIndicator = GObject.registerClass(
          * @param isOpen - Whether menu is open
          * @private
          */
-        private _onMenuOpenStateChanged(_menu: any, isOpen: boolean): void {
+        private _onMenuOpenStateChanged(_menu: PopupMenu.PopupMenu, isOpen: boolean): void {
             if (isOpen) {
                 this._conflictDetector.detectConflicts();
                 this.setConflictStatus(this._conflictDetector.hasConflicts());
@@ -106,6 +118,8 @@ export const PanelIndicator = GObject.registerClass(
          * @private
          */
         private _buildMenu(): void {
+            const menu = (this as unknown as PanelMenuButton).menu;
+
             // Current layout section
             const currentLayout = this._layoutManager.getCurrentLayout();
             if (currentLayout) {
@@ -114,9 +128,9 @@ export const PanelIndicator = GObject.registerClass(
                     {reactive: false},
                 );
                 currentItem.label.style = 'font-weight: bold;';
-                (this as any).menu.addMenuItem(currentItem);
+                menu.addMenuItem(currentItem);
 
-                (this as any).menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+                menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
             }
 
             // Quick switch submenu
@@ -135,25 +149,25 @@ export const PanelIndicator = GObject.registerClass(
                 layoutsSubmenu.menu.addMenuItem(layoutItem);
             });
 
-            (this as any).menu.addMenuItem(layoutsSubmenu);
+            menu.addMenuItem(layoutsSubmenu);
 
-            (this as any).menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
             // Full layout switcher (LayoutSwitcher)
             const layoutsItem = new PopupMenu.PopupMenuItem('Layout Switcher');
             layoutsItem.connect('activate', () => {
                 this._openLayoutSwitcher();
             });
-            (this as any).menu.addMenuItem(layoutsItem);
+            menu.addMenuItem(layoutsItem);
 
             // Settings (Extensions app preferences)
             const settingsItem = new PopupMenu.PopupMenuItem('Settings');
             settingsItem.connect('activate', () => {
                 this._openSettings();
             });
-            (this as any).menu.addMenuItem(settingsItem);
+            menu.addMenuItem(settingsItem);
 
-            (this as any).menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
             // Conflict warning and fix option (if applicable)
             if (this._hasConflicts) {
@@ -165,16 +179,16 @@ export const PanelIndicator = GObject.registerClass(
                 this._conflictWarningItem.connect('activate', () => {
                     this._showConflictDetails();
                 });
-                (this as any).menu.addMenuItem(this._conflictWarningItem);
+                menu.addMenuItem(this._conflictWarningItem);
 
                 // Add "Fix Conflicts" button
                 const fixItem = new PopupMenu.PopupMenuItem('Fix Conflicts Automatically');
                 fixItem.connect('activate', () => {
                     this._autoFixConflicts();
                 });
-                (this as any).menu.addMenuItem(fixItem);
+                menu.addMenuItem(fixItem);
 
-                (this as any).menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+                menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
             }
         }
 
@@ -182,7 +196,8 @@ export const PanelIndicator = GObject.registerClass(
          * Update the menu (rebuild it)
          */
         updateMenu(): void {
-            (this as any).menu.removeAll();
+            const menu = (this as unknown as PanelMenuButton).menu;
+            menu.removeAll();
             this._buildMenu();
         }
 
@@ -220,7 +235,8 @@ export const PanelIndicator = GObject.registerClass(
             logger.debug('Opening layout switcher...');
 
             // Close menu first to release keyboard grab
-            (this as any).menu.close();
+            const menu = (this as unknown as PanelMenuButton).menu;
+            menu.close();
 
             if (this._layoutSwitcher) {
                 this._layoutSwitcher.show();
@@ -257,9 +273,13 @@ export const PanelIndicator = GObject.registerClass(
          * @private
          */
         private _onLayoutSelected(layoutId: string): void {
-            // Use shared helper that handles both layout switching and notification (center-screen for user action)
-            (this._layoutManager as any).setLayoutWithNotification(layoutId, this._zoneOverlay);
-            this.updateMenu();
+        // Use shared helper that handles both layout switching and notification (center-screen for user action)
+        interface LayoutManagerWithNotification extends LayoutManager {
+            setLayoutWithNotification(layoutId: string, zoneOverlay: ZoneOverlay): void;
+        }
+        const layoutMgr = this._layoutManager as unknown as LayoutManagerWithNotification;
+        layoutMgr.setLayoutWithNotification(layoutId, this._zoneOverlay);
+        this.updateMenu();
         }
 
         /**
@@ -274,9 +294,11 @@ export const PanelIndicator = GObject.registerClass(
             if (results.fixed.length > 0) {
                 // Show success notification (uses user's notify-conflicts setting)
                 if (this._notificationService) {
+                    const count = results.fixed.length;
+                    const plural = count !== 1 ? 's' : '';
                     this._notificationService.notify(
                         NotifyCategory.CONFLICTS,
-                        `✓ Fixed ${results.fixed.length} conflict${results.fixed.length !== 1 ? 's' : ''}`,
+                        `✓ Fixed ${count} conflict${plural}`,
                     );
                 }
 
@@ -296,9 +318,11 @@ export const PanelIndicator = GObject.registerClass(
             if (results.failed.length > 0) {
                 // Show error notification (uses user's notify-conflicts setting)
                 if (this._notificationService) {
+                    const count = results.failed.length;
+                    const plural = count !== 1 ? 's' : '';
                     this._notificationService.notify(
                         NotifyCategory.CONFLICTS,
-                        `Failed to fix ${results.failed.length} conflict${results.failed.length !== 1 ? 's' : ''}`,
+                        `Failed to fix ${count} conflict${plural}`,
                         {duration: 3000},
                     );
                 }
@@ -331,10 +355,11 @@ export const PanelIndicator = GObject.registerClass(
 
             // Set scroll target so prefs opens at the keyboard shortcuts section
             if (this._settings) {
-                // Determine which section to scroll to based on first conflict
+            // Determine which section to scroll to based on first conflict
                 const firstConflict = conflicts[0];
-                const isEnhancedConflict = firstConflict.zonedAction === 'minimize-window' ||
-                                       firstConflict.zonedAction === 'maximize-window';
+                const isEnhancedConflict =
+                firstConflict.zonedAction === 'minimize-window' ||
+                firstConflict.zonedAction === 'maximize-window';
                 const scrollTarget = isEnhancedConflict ? 'enhanced-shortcuts' : 'keyboard-shortcuts';
 
                 this._settings.set_string('prefs-scroll-target', scrollTarget);
