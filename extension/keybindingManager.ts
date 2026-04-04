@@ -337,13 +337,13 @@ export class KeybindingManager {
         direction: number,
         spaceKey: string | null,
     ): void {
-        const zone = this._layoutManager?.cycleZone(direction, spaceKey ?? undefined);
+        const zone = this._layoutManager?.cycleZone(direction, spaceKey);
         if (!zone) {
             logger.warn(`Failed to cycle to ${direction > 0 ? 'next' : 'previous'} zone`);
             return;
         }
 
-        const layout = this._layoutManager?.getCurrentLayout(spaceKey ?? undefined);
+        const layout = this._layoutManager?.getCurrentLayout(spaceKey);
         const padding = layout?.padding || 0;
         this._windowManager?.moveWindowToZone(window, zone, padding);
 

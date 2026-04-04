@@ -45,6 +45,16 @@ type Extension = {
     path: string;
 };
 
+// Interface for actors with ease() animation (available at GNOME Shell runtime)
+interface EaseableActor {
+    ease(params: {
+        opacity?: number;
+        duration: number;
+        mode?: Clutter.AnimationMode;
+        onComplete?: () => void;
+    }): void;
+}
+
 export class NotificationManager {
     private _extension: Extension;
     private _notification: St.BoxLayout | null;
@@ -136,7 +146,7 @@ export class NotificationManager {
 
             // Fade in
             this._notification.opacity = 0;
-            (this._notification as unknown as Clutter.Actor).ease({
+            (this._notification as unknown as EaseableActor).ease({
                 opacity: 255,
                 duration: 150,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
@@ -169,7 +179,7 @@ export class NotificationManager {
         // Remove notification with fade out
         if (this._notification) {
             const layoutMgr = Main.layoutManager as unknown as LayoutManager;
-            (this._notification as unknown as Clutter.Actor).ease({
+            (this._notification as unknown as EaseableActor).ease({
                 opacity: 0,
                 duration: 150,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,

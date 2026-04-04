@@ -15,15 +15,16 @@
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
+import Meta from '@girs/meta-14';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from './debug.js';
 import {
     getAggregatedReport,
     resetAllTracking,
 } from './resourceTracker.js';
-import {getExtensionVersion} from './versionUtil.js';
+import {getExtensionVersion, type ExtensionMetadata} from './versionUtil.js';
 import {LayoutSettingsDiagnostic} from '../ui/layoutSettingsDiagnostic.js';
-import type {Layout} from '../types/layout';
+import type {Layout, Zone} from '../types/layout';
 
 const logger = createLogger('DebugInterface');
 
@@ -256,7 +257,7 @@ function handleGetFocusedWindowGeometry(extension: Extension): ActionResult {
     if (!window) {
         return [false, 'No focused window'];
     }
-    const rect = window.get_frame_rect();
+    const rect = (window as Meta.Window).get_frame_rect();
     return [true, JSON.stringify({
         x: rect.x,
         y: rect.y,
@@ -275,11 +276,12 @@ function handleGetCurrentZoneGeometry(extension: Extension): ActionResult {
     const monitor = global.display.get_primary_monitor();
     const workarea = Main.layoutManager.getWorkAreaForMonitor(monitor);
 
+    const z = zone as Zone;
     return [true, JSON.stringify({
-        x: Math.round(workarea.x + zone.x * workarea.width),
-        y: Math.round(workarea.y + zone.y * workarea.height),
-        width: Math.round(zone.w * workarea.width),
-        height: Math.round(zone.h * workarea.height),
+        x: Math.round(workarea.x + z.x * workarea.width),
+        y: Math.round(workarea.y + z.y * workarea.height),
+        width: Math.round(z.w * workarea.width),
+        height: Math.round(z.h * workarea.height),
     })];
 }
 
@@ -315,7 +317,7 @@ function handleMoveWindowToWorkspace(extension: Extension, params: ActionParams)
     if (!window) {
         return [false, 'No focused window'];
     }
-    window.change_workspace_by_index(targetIndex, false);
+    (window as Meta.Window).change_workspace_by_index(targetIndex, false);
     return [true, ''];
 }
 
@@ -522,7 +524,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
  */
 export class DebugInterface {
     private _extension: Extension | null;
-    private _dbusExportId: unknown;
+    private _dbusExportId: Gio.DBusExportedObject | null;
     private _enabled: boolean;
     private _settingsChangedId: number | null;
     private _boundOnDebugExposeChanged: () => void;
@@ -640,7 +642,7 @@ export class DebugInterface {
             };
         }
 
-        const versionInfo = getExtensionVersion(this._extension.path, this._extension.metadata);
+        const versionInfo = getExtensionVersion(this._extension.path, this._extension.metadata as ExtensionMetadata);
         const layoutData = this._extractLayoutData();
         const settings = this._extension._settings;
 
@@ -792,7 +794,7 @@ export class DebugInterface {
             if (!this._extension) {
                 logger.error('Extension not set for debug interface');
                 this.emitActionCompleted(action, false);
-                return;
+                return [false, 'Extension not set for debug interface'];
             }
 
             const [success, error] = handler(this._extension, params);
@@ -885,7 +887,9 @@ export class DebugInterface {
     emitInitCompleted(success: boolean): void {
         if (this._dbusExportId && this._extension) {
             // Get version info dynamically
-            const versionInfo = getExtensionVersion(this._extension.path, this._extension.metadata);
+            const versionInfo = getExtensionVersion(
+                this._extension.path, this._extension.metadata as ExtensionMetadata,
+            );
 
             this._dbusExportId.emit_signal(
                 'InitCompleted',

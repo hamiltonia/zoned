@@ -35,28 +35,30 @@ declare module 'resource:///org/gnome/shell/extensions/extension.js' {
 
 declare module 'resource:///org/gnome/shell/ui/main.js' {
     import Clutter from '@girs/clutter-14';
+    import Meta from '@girs/meta-14';
+    import St from '@girs/st-14';
+
+    interface MonitorInfo {
+        index: number;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        connector?: string;
+    }
 
     export const panel: {
         addToStatusArea: (role: string, indicator: unknown, position?: number, box?: string) => void;
+        height: number;
         [key: string]: unknown;
     };
 
     export const layoutManager: {
         primaryIndex: number;
-        monitors: Array<{
-            index: number;
-            x: number;
-            y: number;
-            width: number;
-            height: number;
-        }>;
-        currentMonitor: {
-            index: number;
-            x: number;
-            y: number;
-            width: number;
-            height: number;
-        };
+        monitors: MonitorInfo[];
+        currentMonitor: MonitorInfo;
+        getWorkAreaForMonitor: (monitorIndex: number) => Meta.Rectangle;
+        uiGroup: Clutter.Actor;
         [key: string]: unknown;
     };
 
@@ -65,8 +67,16 @@ declare module 'resource:///org/gnome/shell/ui/main.js' {
     };
 
     export const wm: {
+        addKeybinding: (
+            name: string, settings: unknown, flags: number,
+            modes: number, handler: (...args: unknown[]) => void,
+        ) => void;
+        removeKeybinding: (name: string) => void;
         [key: string]: unknown;
     };
+
+    export function pushModal(actor: St.Widget | Clutter.Actor, params?: {actionMode?: number}): unknown;
+    export function popModal(grab: unknown): void;
 }
 
 declare module 'resource:///org/gnome/shell/ui/modalDialog.js' {
@@ -199,6 +209,18 @@ declare module 'resource:///org/gnome/shell/ui/popupMenu.js' {
         constructor();
         addMenuItem(menuItem: PopupBaseMenuItem, position?: number): void;
         removeAll(): void;
+    }
+
+    export class PopupMenu {
+        constructor(sourceActor: Clutter.Actor, arrowAlignment: number, arrowSide: St.Side);
+        addMenuItem(menuItem: PopupBaseMenuItem, position?: number): void;
+        removeAll(): void;
+        open(animate?: boolean): void;
+        close(animate?: boolean): void;
+        toggle(): void;
+        connect(signal: string, callback: (...args: unknown[]) => void): number;
+        disconnect(id: number): void;
+        [key: string]: unknown;
     }
 
     export const Ornament: {

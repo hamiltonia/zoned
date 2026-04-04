@@ -30,7 +30,7 @@ interface LayoutSwitcher {
     show(): void;
 }
 
-interface PanelMenuButton extends PanelMenu.Button {
+interface PanelMenuButton {
     menu: PopupMenu.PopupMenu;
     add_child(actor: St.Widget): void;
     style: string;
@@ -274,7 +274,7 @@ export const PanelIndicator = GObject.registerClass(
          */
         private _onLayoutSelected(layoutId: string): void {
         // Use shared helper that handles both layout switching and notification (center-screen for user action)
-        interface LayoutManagerWithNotification extends LayoutManager {
+        interface LayoutManagerWithNotification {
             setLayoutWithNotification(layoutId: string, zoneOverlay: ZoneOverlay): void;
         }
         const layoutMgr = this._layoutManager as unknown as LayoutManagerWithNotification;

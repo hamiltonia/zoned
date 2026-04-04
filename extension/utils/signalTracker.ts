@@ -25,9 +25,14 @@ import {createLogger} from './debug.js';
 const logger = createLogger('SignalTracker');
 
 interface SignalConnection {
-    object: unknown;
+    object: GObjectWithSignals;
     id: number;
     signal: string;
+}
+
+interface GObjectWithSignals {
+    connect(signal: string, handler: (...args: unknown[]) => unknown): number;
+    disconnect(id: number): void;
 }
 
 export class SignalTracker {
@@ -53,7 +58,7 @@ export class SignalTracker {
      * @returns Signal ID (can be used for manual disconnect if needed)
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    connect(object: unknown, signal: string, handler: (...args: any[]) => void): number | null {
+    connect(object: GObjectWithSignals, signal: string, handler: (...args: any[]) => void): number | null {
         if (!object || !signal || !handler) {
             logger.error(`${this._componentName}: Invalid connect() call - object, signal, and handler required`);
             return null;
@@ -64,8 +69,7 @@ export class SignalTracker {
         const signalId = (object as any).connect(signal, handler);
 
         this._connections.push({
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            object: object as any,
+            object: object,
             id: signalId,
             signal: signal,
         });

@@ -11,6 +11,7 @@ import type {ThemeManager} from '../../utils/theme';
 import type {LayoutPreviewBackground} from '../layoutPreviewBackground';
 import type {Layout} from '../../types/layout';
 import type {Zone} from '../../types/zone';
+import type {DialogDimensions} from './tierConfig';
 
 /**
  * Builtin template definition
@@ -69,7 +70,7 @@ export interface CalculatedSpacing {
     internalMargin: number;
     dialogWidth: number;
     dialogHeight: number;
-    _dims?: Record<string, unknown>;
+    _dims?: DialogDimensions;
 }
 
 /**
@@ -123,7 +124,8 @@ export interface LayoutSwitcherContext {
         set_int: (key: string, value: number) => void;
     };
     _signalTracker: {
-        connect: (obj: unknown, signal: string, callback: (...args: unknown[]) => unknown) => number | null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        connect: (obj: any, signal: string, callback: (...args: any[]) => any) => number | null;
         disconnect: (id: number) => void;
     };
 

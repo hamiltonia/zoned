@@ -70,9 +70,12 @@ interface LayoutManagerWithSpatial {
 }
 
 // Interface for St.Widget with parent access
-interface WidgetWithParent extends St.Widget {
+interface WidgetWithParent {
     get_parent(): St.Widget | null;
     set_child_below_sibling(child: St.Widget | null, sibling: St.Widget | null): void;
+    add_child(child: St.Widget): void;
+    remove_child(child: St.Widget): void;
+    destroy(): void;
 }
 
 // Interface for Clutter actor with ease animation

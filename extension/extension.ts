@@ -45,6 +45,8 @@ export default class ZonedExtension extends Extension {
     private _windowManager: WindowManager | null;
     private _layoutManager: LayoutManager | null;
     private _spatialStateManager: SpatialStateManager | null;
+    // Managed via _destroyComponent() dynamic access
+    // @ts-expect-error TS6133: read dynamically in _destroyComponent via string key
     private _templateManager: TemplateManager | null;
     private _notificationManager: NotificationManager | null;
     private _notificationService: NotificationService | null;
@@ -65,7 +67,8 @@ export default class ZonedExtension extends Extension {
     private _boundOnShowIndicatorChanged: (() => void) | null;
     private _boundOnConflictCountChanged: (() => void) | null;
     private _boundOnPreviewChanged: (() => void) | null;
-    private _boundOnWorkspaceSwitched: ((...args: unknown[]) => void) | null;
+    private _boundOnWorkspaceSwitched:
+        ((_manager: unknown, _from: number, to: number, _direction: unknown) => void) | null;
 
     // Recursion guard for preview signal handler
     private _handlingPreview: boolean;

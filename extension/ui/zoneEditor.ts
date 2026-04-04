@@ -21,17 +21,13 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import Shell from '@girs/shell-14';
 import Gio from '@girs/gio-2.0';
 import {createLogger} from '../utils/debug';
-import {zonesToEdges, edgesToZones, validateEdgeLayout} from '../utils/layoutConverter';
+import {zonesToEdges, edgesToZones, validateEdgeLayout, EdgeLayout} from '../utils/layoutConverter';
 import {ThemeManager} from '../utils/theme';
 import {SignalTracker} from '../utils/signalTracker';
 
 const logger = createLogger('ZoneEditor');
 
 // Type definitions for internal structures
-interface EdgeLayout {
-    regions: Region[];
-    edges: Edge[];
-}
 
 interface Region {
     name: string;
@@ -92,7 +88,7 @@ export class ZoneEditor {
     private _layoutManager: unknown;
     // @ts-expect-error - Used in constructor, needed for reference
     private _settings: Gio.Settings;
-    private _onSaveCallback: ((layout: {zones: unknown[]}) => void) | null;
+    private _onSaveCallback: ((layout: ZoneLayout) => void) | null;
     private _onCancelCallback: (() => void) | null;
     private _themeManager: ThemeManager;
     private _signalTracker: SignalTracker;
@@ -275,7 +271,8 @@ export class ZoneEditor {
         Main.uiGroup.add_child(this._overlay);
 
         // Grab modal input
-        this._modalId = (Main as unknown).pushModal(this._overlay, {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this._modalId = (Main as any).pushModal(this._overlay, {
             actionMode: Shell.ActionMode.NORMAL,
         });
 
@@ -326,12 +323,14 @@ export class ZoneEditor {
     _setupDragHandlers(): void {
         // Global motion handler - tracks mouse movement during drag - use bound method
         if (this._boundHandleOverlayMotion) {
-            this._signalTracker.connect(this._overlay as St.Widget, 'motion-event', this._boundHandleOverlayMotion as unknown);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this._signalTracker.connect(this._overlay as St.Widget, 'motion-event', this._boundHandleOverlayMotion as (...args: any[]) => void);
         }
 
         // Global button-release handler - ends drag - use bound method
         if (this._boundHandleOverlayButtonRelease) {
-            this._signalTracker.connect(this._overlay as St.Widget, 'button-release-event', this._boundHandleOverlayButtonRelease as unknown);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this._signalTracker.connect(this._overlay as St.Widget, 'button-release-event', this._boundHandleOverlayButtonRelease as (...args: any[]) => void);
         }
 
         logger.debug('Global drag handlers installed on overlay');
@@ -346,7 +345,8 @@ export class ZoneEditor {
 
             // Release modal
             if (this._modalId) {
-                (Main as unknown).popModal(this._modalId);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (Main as any).popModal(this._modalId);
                 this._modalId = null;
             }
 
@@ -1912,7 +1912,7 @@ export class ZoneEditor {
         logger.info('Saving grid editor layout');
 
         // Validate edge layout
-        const isValid = validateEdgeLayout(this._edgeLayout as unknown);
+        const isValid = validateEdgeLayout(this._edgeLayout as EdgeLayout);
         if (!isValid) {
             logger.error('Layout validation failed');
             this._showCenteredNotification('Invalid Layout', 'This layout cannot be saved');
@@ -1920,7 +1920,7 @@ export class ZoneEditor {
         }
 
         // Convert edge-based back to zone-based
-        const zoneLayout = edgesToZones(this._edgeLayout as unknown);
+        const zoneLayout = edgesToZones(this._edgeLayout as EdgeLayout);
 
         logger.debug(`Converted to ${zoneLayout.zones.length} zones`);
 
@@ -1929,7 +1929,7 @@ export class ZoneEditor {
 
         // Call save callback with zone-based layout
         if (this._onSaveCallback) {
-            this._onSaveCallback(zoneLayout);
+            this._onSaveCallback(zoneLayout as ZoneLayout);
         }
     }
 

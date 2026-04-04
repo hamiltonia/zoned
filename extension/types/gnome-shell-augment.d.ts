@@ -39,21 +39,23 @@ declare global {
     }
 }
 
-/**
- * Augment the Main module from GNOME Shell
- */
-declare module 'resource:///org/gnome/shell/ui/main.js' {
-    import type St from '@girs/st-14';
-
-    /**
-     * Push a modal grab
-     */
-    export function pushModal(actor: St.Widget, params?: {actionMode?: number}): St.Widget | null;
-
-    /**
-     * Pop a modal grab
-     */
-    export function popModal(grab: St.Widget): void;
-}
-
 export {};
+
+// Augment Clutter.Actor with ease() method available at GNOME Shell runtime
+declare module '@girs/clutter-14' {
+    namespace Clutter {
+        interface Actor {
+            ease(params: {
+                opacity?: number;
+                x?: number;
+                y?: number;
+                width?: number;
+                height?: number;
+                duration: number;
+                mode?: Clutter.AnimationMode;
+                onComplete?: () => void;
+                onStopped?: () => void;
+            }): void;
+        }
+    }
+}

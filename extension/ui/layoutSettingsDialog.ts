@@ -292,7 +292,8 @@ export class LayoutSettingsDialog {
 
         this._layoutManager = layoutManager;
         this._settings = settings;
-        this._themeManager = new ThemeManager(settings);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this._themeManager = new ThemeManager(settings as any);
         this._onSaveCallback = onSave;
         this._onCancelCallback = onCancel;
         this._onZoneEditorOpenCallback = onZoneEditorOpen;
@@ -358,7 +359,8 @@ export class LayoutSettingsDialog {
         // Click on container (outside dialog) dismisses - use bound method
         if (this._signalTracker && this._boundHandleContainerClick) {
             this._signalTracker.connect(
-                this._container, 'button-press-event', this._boundHandleContainerClick as unknown,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                this._container, 'button-press-event', this._boundHandleContainerClick as (...args: any[]) => void,
             );
         }
 
@@ -406,9 +408,9 @@ export class LayoutSettingsDialog {
             }
 
             try {
-                this._modal = (Main as unknown).pushModal(this._container, {
+                this._modal = Main.pushModal(this._container, {
                     actionMode: Shell.ActionMode.NORMAL,
-                });
+                }) as {close: () => void} | null;
 
                 if (!this._modal) {
                     logger.error('Failed to acquire modal - dialog will not be interactive!');
@@ -427,7 +429,8 @@ export class LayoutSettingsDialog {
         // Connect key handler for ESC
         if (this._signalTracker) {
             this._signalTracker.connect(
-                this._container, 'key-press-event', this._handleKeyPress.bind(this) as unknown,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                this._container, 'key-press-event', this._handleKeyPress.bind(this) as (...args: any[]) => void,
             );
         }
 
@@ -489,7 +492,7 @@ export class LayoutSettingsDialog {
      */
     _cleanupModal(): void {
         if (this._modal) {
-            (Main as unknown).popModal(this._modal);
+            Main.popModal(this._modal);
             this._modal = null;
         }
     }
@@ -521,8 +524,8 @@ export class LayoutSettingsDialog {
         for (const widgetName of widgetNames) {
             const widget = this[widgetName];
             if (widget && typeof widget === 'object' && 'destroy' in widget) {
-                (widget as unknown).destroy();
-                (this as unknown)[widgetName] = null;
+                (widget as St.Widget).destroy();
+                (this as Record<string, unknown>)[widgetName] = null;
             }
         }
 
@@ -709,7 +712,8 @@ export class LayoutSettingsDialog {
 
         if (!this._isTemplate && this._signalTracker && this._boundUpdateSaveButton) {
             this._signalTracker.connect(
-                this._nameEntry.clutter_text, 'text-changed', this._boundUpdateSaveButton as unknown,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                this._nameEntry.clutter_text, 'text-changed', this._boundUpdateSaveButton as (...args: any[]) => void,
             );
         }
         nameRow.add_child(this._nameEntry);
@@ -735,7 +739,8 @@ export class LayoutSettingsDialog {
         // Only allow interaction for custom layouts (not templates)
         if (!this._isTemplate && this._signalTracker && this._boundTogglePaddingCheckbox) {
             this._signalTracker.connect(
-                this._paddingCheckbox, 'clicked', this._boundTogglePaddingCheckbox as unknown,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                this._paddingCheckbox, 'clicked', this._boundTogglePaddingCheckbox as (...args: any[]) => void,
             );
         } else {
             // Disable checkbox for templates (no save button to persist changes)
@@ -794,7 +799,7 @@ export class LayoutSettingsDialog {
         this._shortcutDropdown = this._createDropdown(
             colors,
             ['None', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-            this._layout.shortcut || 'None',
+            String(this._layout.shortcut || 'None'),
         );
 
         // Disable dropdown for templates (no save button to persist changes)
@@ -1063,13 +1068,15 @@ export class LayoutSettingsDialog {
         button.set_child(icon);
 
         if (this._signalTracker) {
-            this._signalTracker.connect(button, 'clicked', onClick as unknown);
+            /* eslint-disable @typescript-eslint/no-explicit-any */
+            this._signalTracker.connect(button, 'clicked', onClick as (...args: any[]) => void);
 
             // Use module-level handlers to prevent closure leaks
             const boundEnter = handleWidgetHoverEnter.bind(null, button, hoverStyle);
             const boundLeave = handleWidgetHoverLeave.bind(null, button, normalStyle);
-            this._signalTracker.connect(button, 'enter-event', boundEnter as unknown);
-            this._signalTracker.connect(button, 'leave-event', boundLeave as unknown);
+            this._signalTracker.connect(button, 'enter-event', boundEnter as (...args: any[]) => void);
+            this._signalTracker.connect(button, 'leave-event', boundLeave as (...args: any[]) => void);
+            /* eslint-enable @typescript-eslint/no-explicit-any */
         }
 
         return button;
@@ -1573,7 +1580,7 @@ export class LayoutSettingsDialog {
             id: state.layoutData.id || `layout-${Date.now()}`,
             name: state.name,
             zones: editedLayout.zones,
-            padding: state.paddingEnabled ? (parseInt(state.padding) || 4) : 0,
+            padding: state.paddingEnabled ? (parseInt(String(state.padding)) || 4) : 0,
             shortcut: state.shortcut,
             metadata: {
                 createdDate: state.layoutData.metadata?.createdDate || Date.now(),
@@ -1613,10 +1620,12 @@ export class LayoutSettingsDialog {
         let cancelExecuted = false;
 
         const editor = new ZoneEditor(
-            layoutForEditor,
+            // eslint-disable-next-line max-len
+            layoutForEditor as {id?: string | null; name?: string; zones: Array<{name: string; x: number; y: number; w: number; h: number}>} | null,
             layoutManager,
-            this._settings,
-            (editedLayout: Layout) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this._settings as any,
+            ((editedLayout: Layout) => {
                 if (saveExecuted) return;
                 saveExecuted = true;
 
@@ -1633,7 +1642,8 @@ export class LayoutSettingsDialog {
                 if (savedOnSave) {
                     savedOnSave(finalLayout);
                 }
-            },
+            // eslint-disable-next-line max-len
+            }) as (layout: {id?: string | null; name?: string; zones: Array<{name: string; x: number; y: number; w: number; h: number}>}) => void,
             () => {
                 if (cancelExecuted) return;
                 cancelExecuted = true;
@@ -2025,7 +2035,7 @@ export class LayoutSettingsDialog {
             `,
         });
         button.set_child(linkLabel);
-        (button as unknown)._linkLabel = linkLabel;
+        (button as St.Button & {_linkLabel: St.Label})._linkLabel = linkLabel;
 
         button.connect('clicked', onClick);
 
@@ -2143,8 +2153,8 @@ export class LayoutSettingsDialog {
         });
 
         // Store styles for updating later
-        (button as unknown)._normalStyle = normalStyle;
-        (button as unknown)._hoverStyle = hoverStyle;
+        (button as St.Button & {_normalStyle: string; _hoverStyle: string})._normalStyle = normalStyle;
+        (button as St.Button & {_normalStyle: string; _hoverStyle: string})._hoverStyle = hoverStyle;
 
         return button;
     }
@@ -2164,7 +2174,7 @@ export class LayoutSettingsDialog {
             this.close();
 
             if (this._onSaveCallback) {
-                this._onSaveCallback(null as unknown); // Signal deletion
+                this._onSaveCallback(null as Layout | null); // Signal deletion
             }
         } else {
             logger.error(`Failed to delete layout: ${this._layout.name}`);

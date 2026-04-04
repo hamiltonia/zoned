@@ -61,7 +61,7 @@ interface LayoutData {
     layouts: Layout[];
 }
 
-interface _UserLayoutsData {
+interface UserLayoutsData {
     layouts: Layout[];
     layout_order: string[];
 }
@@ -336,7 +336,7 @@ export class LayoutManager {
      * @param {string|null} spaceKey - Optional space key for per-space mode
      * @returns {Object|null} The current layout
      */
-    getCurrentLayout(spaceKey = null) {
+    getCurrentLayout(spaceKey: string | null = null) {
         // Check if per-workspace mode is enabled and we have spatial state manager
         const perSpaceEnabled = this._settings.get_boolean('use-per-workspace-layouts');
 
@@ -354,7 +354,7 @@ export class LayoutManager {
      * @param {string} spaceKey - Space key (connector:workspace)
      * @returns {Object|null} The layout for the space
      */
-    getLayoutForSpace(spaceKey) {
+    getLayoutForSpace(spaceKey: string) {
         if (!this._spatialStateManager) {
             return this._currentLayout;
         }
@@ -396,7 +396,7 @@ export class LayoutManager {
      * @param {string} layoutId - Layout ID to assign
      * @returns {boolean} True if set successfully
      */
-    setLayoutForSpace(spaceKey, layoutId) {
+    setLayoutForSpace(spaceKey: string, layoutId: string) {
         if (!this._spatialStateManager) {
             logger.warn('SpatialStateManager not initialized');
             return false;
@@ -419,7 +419,7 @@ export class LayoutManager {
      * @param {string} spaceKey - Space key
      * @returns {number} Zone index
      */
-    getZoneIndexForSpace(spaceKey) {
+    getZoneIndexForSpace(spaceKey: string) {
         if (!this._spatialStateManager) {
             return this._currentZoneIndex;
         }
@@ -440,7 +440,7 @@ export class LayoutManager {
      * @param {string} spaceKey - Space key
      * @returns {Object|null} The zone geometry
      */
-    getZoneForSpace(spaceKey) {
+    getZoneForSpace(spaceKey: string) {
         const layout = this.getLayoutForSpace(spaceKey);
         if (!layout || !layout.zones) return null;
 
@@ -473,7 +473,7 @@ export class LayoutManager {
      * @param {string} layoutId - The layout ID to activate
      * @returns {boolean} True if layout was found and set
      */
-    setLayout( layoutId) {
+    setLayout(layoutId: string) {
         const layout = this._layouts.find(p => p.id === layoutId);
 
         if (!layout) {
@@ -497,7 +497,7 @@ export class LayoutManager {
      * @param {ZoneOverlay} zoneOverlay - Zone overlay instance for center-screen notification
      * @returns {boolean} True if layout was found and set
      */
-    setLayoutWithNotification(layoutId, zoneOverlay) {
+    setLayoutWithNotification(layoutId: string, zoneOverlay: { showMessage(message: string): void } | null) {
         logger.debug(`setLayoutWithNotification called with layoutId: ${layoutId}, zoneOverlay: ${zoneOverlay ? 'present' : 'NULL'}`);
 
         const layout = this._layouts.find(p => p.id === layoutId);
@@ -532,7 +532,7 @@ export class LayoutManager {
      * @param {string|null} spaceKey - Optional space key for per-space mode
      * @returns {Object|null} The new current zone
      */
-    cycleZone(direction, spaceKey = null) {
+    cycleZone(direction: number, spaceKey: string | null = null) {
         // Check if per-workspace mode is enabled
         const perSpaceEnabled = this._settings.get_boolean('use-per-workspace-layouts');
 
@@ -564,7 +564,7 @@ export class LayoutManager {
      * @param {string} spaceKey - Space key (connector:workspace)
      * @returns {Object|null} The new current zone
      */
-    cycleZoneForSpace(direction, spaceKey) {
+    cycleZoneForSpace(direction: number, spaceKey: string) {
         if (!this._spatialStateManager) {
             logger.warn('SpatialStateManager not initialized');
             return null;
@@ -618,7 +618,7 @@ export class LayoutManager {
      * @returns {boolean} True if template was restored successfully
      * @private
      */
-    _tryRestoreTemplateLayout(savedLayoutId, savedZoneIndex) {
+    _tryRestoreTemplateLayout(savedLayoutId: string, savedZoneIndex: number) {
         const templateId = savedLayoutId.replace('template-', '');
         try {
             const templateManager = new TemplateManager();
@@ -643,7 +643,7 @@ export class LayoutManager {
      * @returns {number} Valid zone index (0 if out of range)
      * @private
      */
-    _clampZoneIndex(zoneIndex, zonesLength) {
+    _clampZoneIndex(zoneIndex: number, zonesLength: number) {
         return (zoneIndex >= 0 && zoneIndex < zonesLength) ? zoneIndex : 0;
     }
 
@@ -670,7 +670,8 @@ export class LayoutManager {
 
         // Try to restore saved layout from persistent layouts first
         if (savedLayoutId && this.setLayout(savedLayoutId)) {
-            this._currentZoneIndex = this._clampZoneIndex(savedZoneIndex, this._currentLayout.zones.length);
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            this._currentZoneIndex = this._clampZoneIndex(savedZoneIndex, this._currentLayout!.zones.length);
             logger.info(`Restored state: ${savedLayoutId}, zone ${this._currentZoneIndex}`);
             return;
         }
@@ -735,7 +736,7 @@ export class LayoutManager {
      * Write user layouts file to disk
      * @private
      */
-    _writeUserLayoutsFile(file, layouts, layoutOrder) {
+    _writeUserLayoutsFile(file: Gio.File, layouts: Layout[], layoutOrder: string[]) {
         const data = {
             layouts: layouts,
             layout_order: layoutOrder,
@@ -760,7 +761,7 @@ export class LayoutManager {
      * Custom layouts have prefixed IDs like: layout-*, custom_*
      * @private
      */
-    _isTemplateId(layoutId) {
+    _isTemplateId(layoutId: string) {
         // Custom layout patterns
         if (layoutId.startsWith('layout-')) return false;
         if (layoutId.startsWith('custom_')) return false;
@@ -774,7 +775,7 @@ export class LayoutManager {
      * Migrate templates to new version while preserving user custom layouts
      * @private
      */
-    _migrateTemplates(defaultData) {
+    _migrateTemplates(defaultData: LayoutData) {
         try {
             // Backup existing layouts
             this._backupUserLayouts();
@@ -843,7 +844,7 @@ export class LayoutManager {
         }
 
         // Reorder layouts based on custom order
-        const ordered = [];
+        const ordered: Layout[] = [];
         const remaining = [...this._layouts];
 
         customOrder.forEach(id => {
@@ -873,7 +874,7 @@ export class LayoutManager {
      * Load user layouts data structure (with layout_order)
      * @private
      */
-    _loadUserLayoutsData() {
+    _loadUserLayoutsData(): UserLayoutsData {
         try {
             const layoutsPath = this._getUserLayoutsPath();
             const file = Gio.File.new_for_path(layoutsPath);
@@ -900,7 +901,7 @@ export class LayoutManager {
      * Save user layouts to disk
      * @private
      */
-    _saveUserLayouts(layouts, layoutOrder = null) {
+    _saveUserLayouts(layouts: Layout[], layoutOrder: string[] | null = null) {
         try {
             const layoutsPath = this._getUserLayoutsPath();
             const file = Gio.File.new_for_path(layoutsPath);
@@ -972,7 +973,7 @@ export class LayoutManager {
      * @param {Object} layout - The layout to save
      * @returns {boolean} True if saved successfully
      */
-    saveLayout(layout) {
+    saveLayout(layout: Layout) {
         try {
             // Validate layout structure
             if (!this._validateLayout(layout)) {
@@ -1015,7 +1016,7 @@ export class LayoutManager {
      * @param {string} layoutId - The layout ID to delete
      * @returns {boolean} True if deleted successfully
      */
-    deleteLayout(layoutId) {
+    deleteLayout(layoutId: string) {
         try {
             // Create backup first
             this._backupUserLayouts();
@@ -1065,7 +1066,7 @@ export class LayoutManager {
      * @param {string} newName - Name for the new layout
      * @returns {Object|null} The new layout if successful, null otherwise
      */
-    duplicateLayout( layoutId, newName) {
+    duplicateLayout(layoutId: string, newName: string) {
         try {
             // Find source layout
             const sourceLayout = this._layouts.find(p => p.id === layoutId);
@@ -1139,7 +1140,7 @@ export class LayoutManager {
      * @param {Array} orderedIds - Array of layout IDs in desired order
      * @returns {boolean} True if saved successfully
      */
-    setLayoutOrder(orderedIds) {
+    setLayoutOrder(orderedIds: string[]) {
         try {
             // Update GSettings
             this._settings.set_strv('layout-order', orderedIds);
@@ -1165,7 +1166,7 @@ export class LayoutManager {
      * @param {Object} layout - Layout object with zones array
      * @returns {boolean} True if updated successfully
      */
-    updateCurrentLayout(layout) {
+    updateCurrentLayout(layout: Layout) {
         try {
             if (!this._currentLayout) {
                 logger.error('No current layout to update');
@@ -1190,7 +1191,7 @@ export class LayoutManager {
                 logger.info(`Updated layout for layout '${this._currentLayout.id}'`);
 
                 // Update in-memory current layout reference
-                this._currentLayout = this._layouts.find(p => p.id === this._currentLayout.id);
+                this._currentLayout = this._layouts.find(p => p.id === updatedLayout.id) ?? null;
 
                 // Reset zone index to first zone
                 this._currentZoneIndex = 0;
@@ -1221,7 +1222,7 @@ export class LayoutManager {
      * @param {Object} layout - The layout to register
      * @returns {boolean} True if registered successfully
      */
-    registerLayoutTemporary(layout) {
+    registerLayoutTemporary(layout: Layout) {
         // Validate layout structure
         if (!this._validateLayout(layout)) {
             logger.error('Cannot register invalid layout');
@@ -1251,8 +1252,10 @@ export class LayoutManager {
         this._layouts = [];
         this._currentLayout = null;
         this._currentZoneIndex = 0;
-        this._settings = null;
-        this._extensionPath = null;
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        this._settings = null!;
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        this._extensionPath = null!;
         this._spatialStateManager = null;
     }
 }

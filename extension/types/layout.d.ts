@@ -24,7 +24,12 @@ export interface Layout {
     editable?: boolean;
     isTemplate?: boolean;
     padding?: number;      // Optional padding in pixels
-    shortcut?: string | number;  // Optional quick layout shortcut (1-9)
+    shortcut?: string | number | null;  // Optional quick layout shortcut (1-9)
+    metadata?: {
+        createdDate?: number;
+        modifiedDate?: number;
+        [key: string]: unknown;
+    };
 }
 
 /**

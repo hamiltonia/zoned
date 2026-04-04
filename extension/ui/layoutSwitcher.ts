@@ -32,6 +32,7 @@ import {createTemplatesSection, createCustomLayoutsSection, createNewLayoutButto
 import {createTopBar, closeMonitorDropdown, updateWorkspaceThumbnailsDisabledState} from './layoutSwitcher/topBar.js';
 import {addResizeHandles, rebuildWithNewSize} from './layoutSwitcher/resizeHandler.js';
 import {selectTier, calculateDialogDimensions, validateDimensions, generateDebugText, TIER_NAMES} from './layoutSwitcher/tierConfig.js';
+import type {DialogDimensions} from './layoutSwitcher/tierConfig.js';
 import type {Layout} from '../types/layout';
 
 const logger = createLogger('LayoutSwitcher');
@@ -48,6 +49,8 @@ interface LayoutManager {
     getSpatialStateManager: () => SpatialStateManager | null;
     getLayoutForSpace: (spaceKey: string) => Layout | null;
     setLayoutForSpace: (spaceKey: string, layoutId: string) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [key: string]: any;
 }
 
 /**
@@ -74,6 +77,8 @@ interface Settings {
     set_int: (key: string, value: number) => void;
     connect: (signal: string, callback: () => void) => number;
     disconnect: (id: number) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [key: string]: any;
 }
 
 // Navigation delta constants for keyboard navigation
@@ -128,9 +133,12 @@ export class LayoutSwitcher {
     private _boundHandleDeleteConfirmClick: () => void;
     private _boundHandleDeleteWrapperClick: (actor: St.Widget, event: Clutter.Event) => boolean;
     private _boundHideDialog: () => void;
-    _boundHandleCardClick: (card: St.Widget) => boolean;
-    _boundHandleCardEnter: (card: St.Widget) => boolean;
-    _boundHandleCardLeave: (card: St.Widget) => boolean;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    _boundHandleCardClick: (card: any) => boolean;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    _boundHandleCardEnter: (card: any) => boolean;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    _boundHandleCardLeave: (card: any) => boolean;
     _boundHandleCardScroll: () => boolean;
     _selectedMonitorIndex: number | undefined = undefined;
     _previewBackground?: LayoutPreviewBackground;
@@ -169,12 +177,12 @@ export class LayoutSwitcher {
         internalMargin: number;
         dialogWidth: number;
         dialogHeight: number;
-        _dims?: Record<string, unknown>;
+        _dims?: DialogDimensions;
     };
     private _logicalScreenWidth: number = 0;
     private _logicalScreenHeight: number = 0;
     private _scaleFactor: number = 1;
-    private _lastValidation: {valid: boolean; issues: string[]};
+    private _lastValidation: {valid: boolean; issues: string[]; screenPercent: {width: string; height: string}};
     private _CONTAINER_PADDING_LEFT: number = 0;
     private _CONTAINER_PADDING_RIGHT: number = 0;
     private _CONTAINER_PADDING_TOP: number = 0;
@@ -230,7 +238,8 @@ export class LayoutSwitcher {
         this._zoneOverlay = zoneOverlay;
         this._settings = settings;
         this._templateManager = new TemplateManager();
-        this._themeManager = new ThemeManager(settings);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this._themeManager = new ThemeManager(settings as any);
 
         this._workspaceButtons = [];
         this._allCards = [];
@@ -355,9 +364,11 @@ export class LayoutSwitcher {
 
         // Create preview background BEFORE the dialog (so it's behind)
         const currentLayout = this._getCurrentLayout();
-        this._previewBackground = new LayoutPreviewBackground(this._settings, this._boundHideDialog);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this._previewBackground = new LayoutPreviewBackground(this._settings as any, this._boundHideDialog);
         // Set layout manager reference for per-space layout lookups
-        this._previewBackground.setLayoutManager(this._layoutManager);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this._previewBackground.setLayoutManager(this._layoutManager as any);
         // Show preview on the current monitor (where dialog was invoked)
         this._previewBackground.show(currentLayout, this._selectedMonitorIndex);
 
@@ -509,7 +520,7 @@ export class LayoutSwitcher {
                 // Null properties created in show()
                 const value = (this as Record<string, unknown>)[key];
                 const type = typeof value;
-                const hasDestroy = value?.destroy !== undefined;
+                const hasDestroy = (value as Record<string, unknown>)?.destroy !== undefined;
 
                 logger.memdebug(`  Nulling ${key}: ${type}${hasDestroy ? ' (has destroy)' : ''}`);
                 (this as Record<string, unknown>)[key] = null;
@@ -699,7 +710,8 @@ export class LayoutSwitcher {
      * @returns {St.BoxLayout} The debug overlay widget
      */
     _createDebugOverlay(): St.BoxLayout {
-        const dims = this._calculatedSpacing._dims as Record<string, number>;
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const dims = this._calculatedSpacing._dims!;
         const validation = this._lastValidation;
         const forceTier = this._settings.get_int('option-force-tier');
         const tierMode = forceTier === 0 ? 'auto' : 'forced';
@@ -884,7 +896,7 @@ export class LayoutSwitcher {
         });
 
         wrapper.add_child(container);
-        addResizeHandles(this, wrapper);
+        addResizeHandles(this as unknown as LayoutSwitcherContext, wrapper);
 
         // Store wrapper reference for dropdown menus (they need to be inside modal grab)
         this._dialogWrapper = wrapper;
@@ -1017,14 +1029,14 @@ export class LayoutSwitcher {
             if (vbar) adjustment = vbar.get_adjustment();
         }
 
-        return adjustment;
+        return adjustment ?? null;
     }
 
     /**
      * Rebuild the dialog with new dimensions
      */
     _rebuildWithNewSize(newWidth: number, newHeight: number) {
-        rebuildWithNewSize(this, newWidth, newHeight);
+        rebuildWithNewSize(this as unknown as LayoutSwitcherContext, newWidth, newHeight);
     }
 
     /**
@@ -1157,8 +1169,10 @@ export class LayoutSwitcher {
 
         const settingsDialog = new LayoutSettingsDialog(
             layout,
-            this._layoutManager,
-            this._settings,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this._layoutManager as any,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this._settings as any,
             () => {
                 // Refresh and re-acquire modal
                 this._refreshAfterSettings();
@@ -1240,8 +1254,10 @@ export class LayoutSwitcher {
         logger.info('[Test] Creating LayoutSettingsDialog with callbacks');
         const settingsDialog = new LayoutSettingsDialog(
             layout,
-            this._layoutManager,
-            this._settings,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this._layoutManager as any,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this._settings as any,
             () => {
                 logger.info('[Test] onSave callback triggered');
                 this._activeSettingsDialog = null;
@@ -1289,8 +1305,10 @@ export class LayoutSwitcher {
         logger.info('[Test] Creating LayoutSettingsDialog with callbacks');
         const settingsDialog = new LayoutSettingsDialog(
             template,
-            this._layoutManager,
-            this._settings,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this._layoutManager as any,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this._settings as any,
             (newLayout) => {
                 logger.info('[Test] onSave callback triggered');
                 if (newLayout) {
@@ -1343,8 +1361,10 @@ export class LayoutSwitcher {
 
         const settingsDialog = new LayoutSettingsDialog(
             template,  // Pass template directly, not a duplicate
-            this._layoutManager,
-            this._settings,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this._layoutManager as any,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this._settings as any,
             (newLayout) => {
                 // If a layout was created (via Duplicate), refresh to show it
                 if (newLayout) {
@@ -1545,10 +1565,10 @@ export class LayoutSwitcher {
      * Handle delete wrapper click to check if clicking outside confirmation box
      * @param {Clutter.Actor} actor - The wrapper actor
      * @param {Clutter.Event} event - The click event
-     * @returns {number} Clutter.EVENT_STOP
+     * @returns {boolean} Clutter.EVENT_STOP
      * @private
      */
-    _handleDeleteWrapperClick(_actor: St.Widget, event: Clutter.Event): number {
+    _handleDeleteWrapperClick(_actor: St.Widget, event: Clutter.Event): boolean {
         const [clickX, clickY] = event.get_coords();
         const confirmBox = this._deleteConfirmBox;
 
@@ -1654,17 +1674,19 @@ export class LayoutSwitcher {
      */
     _connectKeyEvents() {
         // Use SignalTracker for proper cleanup (prevents memory leak)
-        this._keyPressId = this._signalTracker.connect(this._dialog, 'key-press-event', this._boundHandleKeyPress);
+        if (this._dialog) {
+            this._keyPressId = this._signalTracker.connect(this._dialog, 'key-press-event', this._boundHandleKeyPress);
+        }
     }
 
     /**
      * Handle background click to dismiss dialog
      * Checks if click is outside container and not on floating menus
      * @param {Clutter.Event} event - The button press event
-     * @returns {Clutter.EVENT_STOP|Clutter.EVENT_PROPAGATE}
+     * @returns {boolean} Clutter.EVENT_STOP|Clutter.EVENT_PROPAGATE
      * @private
      */
-    _handleBackgroundClick(_actor: St.Widget, event: Clutter.Event): number {
+    _handleBackgroundClick(_actor: St.Widget, event: Clutter.Event): boolean {
         // CRITICAL: Guard against recursive calls during modal re-acquisition
         // Prevents Fedora 43 infinite loop when stray click events leak through
         if (this._reacquiringModal) {
@@ -1737,10 +1759,10 @@ export class LayoutSwitcher {
      * Handle key press events for keyboard navigation and debug shortcuts
      * @param {Clutter.Actor} actor - The actor that received the event
      * @param {Clutter.Event} event - The key press event
-     * @returns {Clutter.EVENT_STOP|Clutter.EVENT_PROPAGATE}
+     * @returns {boolean} Clutter.EVENT_STOP|Clutter.EVENT_PROPAGATE
      * @private
      */
-    _handleKeyPress(_actor: St.Widget, event: Clutter.Event): number {
+    _handleKeyPress(_actor: St.Widget, event: Clutter.Event): boolean {
         const symbol = event.get_key_symbol();
         const modifiers = event.get_state();
         const ctrlPressed = (modifiers & Clutter.ModifierType.CONTROL_MASK) !== 0;
@@ -2023,7 +2045,9 @@ export class LayoutSwitcher {
             this._updatePreviewBackground(selectedLayout);
         } else {
             const currentLayout = this._getCurrentLayout();
-            this._updatePreviewBackground(currentLayout);
+            if (currentLayout) {
+                this._updatePreviewBackground(currentLayout);
+            }
         }
     }
 
@@ -2091,8 +2115,10 @@ export class LayoutSwitcher {
 
         const settingsDialog = new LayoutSettingsDialog(
             null,
-            this._layoutManager,
-            this._settings,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this._layoutManager as any,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this._settings as any,
             (newLayout) => {
                 if (newLayout) {
                     logger.info(`New layout created: ${newLayout.name}`);
@@ -2167,7 +2193,9 @@ export class LayoutSwitcher {
             logger.info('    >>> Preview is visible, updating');
             this._previewBackground.setVisibility(true);
             logger.info('    >>> Set visibility true');
-            this._previewBackground.setLayout(layoutToShow);
+            if (layoutToShow) {
+                this._previewBackground.setLayout(layoutToShow);
+            }
             logger.info('    >>> Set layout complete');
         } else {
             logger.info('    >>> Preview not visible, showing');
@@ -2312,10 +2340,10 @@ export class LayoutSwitcher {
      * Handle card click event (bound method, no closures!)
      * Card stores layout reference in card._layoutRef to avoid closure leak
      * @param {St.Button} card - The card that was clicked
-     * @returns {number} Clutter.EVENT_STOP
+     * @returns {boolean} Clutter.EVENT_STOP
      * @private
      */
-    _handleCardClick(card: St.Widget & {_layoutRef: Layout; _isTemplate: boolean}): number {
+    _handleCardClick(card: St.Widget & {_layoutRef: Layout; _isTemplate: boolean}): boolean {
         const layout = card._layoutRef;
         const isTemplate = card._isTemplate;
 
@@ -2331,10 +2359,10 @@ export class LayoutSwitcher {
     /**
      * Handle card enter event (hover start)
      * @param {St.Button} card - The card being hovered
-     * @returns {number} Clutter.EVENT_PROPAGATE
+     * @returns {boolean} Clutter.EVENT_PROPAGATE
      * @private
      */
-    _handleCardEnter(card: St.Widget & {_layoutRef: Layout; _isActive: boolean}): number {
+    _handleCardEnter(card: St.Widget & {_layoutRef: Layout; _isActive: boolean}): boolean {
         const isActive = card._isActive;
 
         if (!isActive) {
@@ -2358,10 +2386,10 @@ export class LayoutSwitcher {
     /**
      * Handle card leave event (hover end)
      * @param {St.Button} card - The card no longer being hovered
-     * @returns {number} Clutter.EVENT_PROPAGATE
+     * @returns {boolean} Clutter.EVENT_PROPAGATE
      * @private
      */
-    _handleCardLeave(card: St.Widget & {_layoutRef: Layout; _isActive: boolean}): number {
+    _handleCardLeave(card: St.Widget & {_layoutRef: Layout; _isActive: boolean}): boolean {
         const isActive = card._isActive;
 
         if (!isActive) {
@@ -2383,10 +2411,10 @@ export class LayoutSwitcher {
 
     /**
      * Handle card scroll event (propagate to ScrollView)
-     * @returns {number} Clutter.EVENT_PROPAGATE
+     * @returns {boolean} Clutter.EVENT_PROPAGATE
      * @private
      */
-    _handleCardScroll() {
+    _handleCardScroll(): boolean {
         return Clutter.EVENT_PROPAGATE;
     }
 

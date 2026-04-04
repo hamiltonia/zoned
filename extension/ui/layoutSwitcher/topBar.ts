@@ -760,7 +760,7 @@ export function onWorkspaceThumbnailClicked(ctx: LayoutSwitcherContext, workspac
     }
 
     // If clicking the already-selected workspace, switch to that actual GNOME workspace
-    if (ctx._currentWorkspace === workspaceIndex) {
+    if (workspaceIndex !== undefined && ctx._currentWorkspace === workspaceIndex) {
         const workspace = global.workspace_manager.get_workspace_by_index(workspaceIndex);
         if (workspace) {
             workspace.activate(global.get_current_time());
