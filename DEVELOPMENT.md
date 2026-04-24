@@ -319,3 +319,50 @@ git push origin <branch>
 
 - 🐛 [Report issues](https://github.com/hamiltonia/zoned/issues)
 - 💬 [Discussions](https://github.com/hamiltonia/zoned/discussions)
+
+## Squad (AI Agent Team)
+
+Zoned uses [Squad](https://github.com/bradygaster/squad) for AI-assisted development via GitHub Copilot. The team lives in `.squad/` and persists across sessions.
+
+### Team Members
+
+| Agent | Role | Domain |
+|-------|------|--------|
+| keaton | Lead / Architect | Scope, priorities, code review, triage |
+| fenster | GNOME/GJS Specialist | GObject, Clutter, Meta/Mutter, extension lifecycle |
+| edie | TypeScript Engineer | Types, Rollup build, `@girs/*` imports |
+| hockney | Tester | VM integration tests, D-Bus debug, memory leaks |
+| verbal | UI/UX Developer | Zone editor, layout switcher, panel indicator, CSS |
+| mcmanus | Documentation | README, CONTRIBUTING, DEVELOPMENT, docs/ |
+| baer | Security & CI | ESLint, GitHub Actions, security patterns, releases |
+| kobayashi | Multi-monitor & Wayland | Display config, X11/Wayland compat, workspaces |
+
+### Usage
+
+Open GitHub Copilot and select the Squad agent:
+
+```bash
+copilot --agent squad
+```
+
+Or in VS Code, select Squad from the agent list in Copilot Chat.
+
+### Issue Triage
+
+Label an issue with `squad` to trigger automatic triage. keaton (Lead) will analyze the issue and assign it to the right team member via `squad:{name}` labels.
+
+Ralph's watch mode can also auto-triage on a schedule:
+
+```bash
+npx squad triage                    # One-shot triage
+npx squad triage --execute          # Triage + dispatch agents
+npx squad triage --interval 10      # Poll every 10 minutes
+```
+
+### Key Commands
+
+```bash
+npx squad status    # Check team status
+npx squad doctor    # Diagnose setup issues
+npx squad nap       # Compress/prune session logs
+```
