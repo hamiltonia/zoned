@@ -1,20 +1,19 @@
 /**
- * Global type definitions for Zoned extension
+ * GJS Global accessor
  *
- * Defines types for GJS runtime globals and extension-specific globals
+ * Provides typed access to GJS runtime's `global` object.
+ * Uses type assertion to work around TypeScript's module system limitations.
  */
 
 import type Meta from '@girs/meta-14';
 import type Clutter from '@girs/clutter-14';
 
-// Workspace interface matching Meta.Workspace runtime API
 interface MetaWorkspace {
     list_windows(): Meta.Window[];
     activate(timestamp: number): void;
     index(): number;
 }
 
-// GJS global object type - provided by GJS runtime environment
 interface ZonedDebugAPI {
     instances: Map<string, number>;
     signals: Map<string, Array<{
@@ -47,10 +46,6 @@ interface GlobalObject {
     zonedDebug: ZonedDebugAPI | null;
 }
 
-// Augment global scope with GJS-specific global object
-declare global {
-    var global: GlobalObject;
-}
-
-// Export empty object to make this a module that can augment global scope
-export {};
+// Export typed global object - accessed via (globalThis as any).global at runtime
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- GJS global requires runtime cast
+export const global: GlobalObject = (globalThis as any).global;

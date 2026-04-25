@@ -18,6 +18,7 @@ import GLib from '@girs/glib-2.0';
 import Meta from '@girs/meta-14';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from './debug.js';
+import {global} from '../types/gjsGlobal';
 import {
     getAggregatedReport,
     resetAllTracking,

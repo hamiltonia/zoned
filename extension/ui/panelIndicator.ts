@@ -83,7 +83,8 @@ export const PanelIndicator = GObject.registerClass(
             this._extensionPath = extensionPath;
             const iconPath = `${this._extensionPath}/icons/zoned-symbolic.svg`;
             this._icon = new St.Icon({
-                gicon: Gio.icon_new_for_string(iconPath),
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+                gicon: Gio.icon_new_for_string(iconPath) as any,
                 style_class: 'system-status-icon',
                 icon_size: 16,
             });
@@ -214,11 +215,13 @@ export const PanelIndicator = GObject.registerClass(
                     // Swap icon file when conflicts exist
                     if (hasConflicts) {
                         const warningIconPath = `${this._extensionPath}/icons/zoned-warning.svg`;
-                        this._icon.gicon = Gio.icon_new_for_string(warningIconPath);
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+                        this._icon.gicon = Gio.icon_new_for_string(warningIconPath) as any;
                         logger.debug('Switching to warning icon (conflicts detected)');
                     } else {
                         const normalIconPath = `${this._extensionPath}/icons/zoned-symbolic.svg`;
-                        this._icon.gicon = Gio.icon_new_for_string(normalIconPath);
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+                        this._icon.gicon = Gio.icon_new_for_string(normalIconPath) as any;
                         logger.debug('Switching to normal icon (no conflicts)');
                     }
 

@@ -22,6 +22,6 @@
       "gi://*": ["./node_modules/@girs/*"]
     }
   },
-  "include": ["extension/**/*.ts"],
+  "include": ["extension/**/*.ts", "extension/**/*.d.ts"],
   "exclude": ["node_modules", "build", "dist", "scripts", "tests"]
 }

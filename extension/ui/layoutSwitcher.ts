@@ -23,6 +23,7 @@ import {createLogger} from '../utils/debug';
 import {SignalTracker} from '../utils/signalTracker';
 import {TemplateManager} from '../templateManager.js';
 import {LayoutSettingsDialog} from './layoutSettingsDialog';
+import {global} from '../types/gjsGlobal';
 import {ThemeManager} from '../utils/theme';
 import {LayoutPreviewBackground} from './layoutPreviewBackground';
 import type {LayoutSwitcherContext} from './layoutSwitcher/types';

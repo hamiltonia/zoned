@@ -17,6 +17,7 @@ import St from '@girs/st-14';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from '../../utils/debug';
 import {createZonePreview} from './cardFactory.js';
+import {global} from '../../types/gjsGlobal';
 
 const logger = createLogger('TopBar');
 

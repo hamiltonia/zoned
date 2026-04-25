@@ -758,7 +758,8 @@ const ShortcutCaptureRow = GObject.registerClass({
         subtitleLabel.add_css_class('caption');
         mainBox.append(subtitleLabel);
 
-        this.set_child(mainBox);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+        this.set_child(mainBox as any);
 
         // Event controller for key capture - attach to the record button
         this._keyController = new Gtk.EventControllerKey();
@@ -1322,7 +1323,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         subtitleLabel.add_css_class('caption');
         mainBox.append(subtitleLabel);
 
-        row.set_child(mainBox);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+        row.set_child(mainBox as any);
 
         // Default modifiers: Ctrl + Super + Alt
         const DEFAULT_MODIFIERS = '<Control><Super><Alt>';
@@ -1558,7 +1560,7 @@ export default class ZonedPreferences extends ExtensionPreferences {
         const display = Gdk.Display.get_default();
         if (display) {
             Gtk.StyleContext.add_provider_for_display(
-                display,
+                display as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- @girs type conflict
                 cssProvider,
                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
             );
@@ -1710,7 +1712,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // Wave 4: bound method
         const boundOpacityChanged = handleOpacityScaleChanged.bind(null, opacityScale, settings);
         opacityScale.connect('value-changed', boundOpacityChanged);
-        opacityRow.add_suffix(opacityScale);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+        opacityRow.add_suffix(opacityScale as any);
         notifyGroup.add(opacityRow);
 
         // Preview button row
@@ -1727,7 +1730,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // Wave 4: bound method
         const boundPreviewClicked = handlePreviewButtonClicked.bind(null, settings);
         previewButton.connect('clicked', boundPreviewClicked);
-        previewRow.add_suffix(previewButton);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+        previewRow.add_suffix(previewButton as any);
         notifyGroup.add(previewRow);
 
         // Category settings expander
@@ -1953,7 +1957,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
             const iconPath = GLib.build_filenamev([this.path, 'icons', 'github-symbolic.svg']);
             const iconFile = Gio.File.new_for_path(iconPath);
             if (iconFile.query_exists(null)) {
-                githubIcon.set_from_gicon(Gio.FileIcon.new(iconFile));
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+                githubIcon.set_from_gicon(Gio.FileIcon.new(iconFile) as any);
             }
         } catch (e) {
             const error = e as Error;
@@ -1964,7 +1969,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // Wave 4: bound method
         const boundGithubClicked = handleGithubButtonClicked.bind(null);
         githubButton.connect('clicked', boundGithubClicked);
-        githubRow.add_suffix(githubButton);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+        githubRow.add_suffix(githubButton as any);
         aboutGroup.add(githubRow);
 
         // Buy Me a Coffee link row with icon
@@ -1983,7 +1989,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
             const iconPath = GLib.build_filenamev([this.path, 'icons', 'bmc-symbolic.svg']);
             const iconFile = Gio.File.new_for_path(iconPath);
             if (iconFile.query_exists(null)) {
-                coffeeIcon.set_from_gicon(Gio.FileIcon.new(iconFile));
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+                coffeeIcon.set_from_gicon(Gio.FileIcon.new(iconFile) as any);
             }
         } catch (e) {
             const error = e as Error;
@@ -1994,7 +2001,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // Wave 4: bound method
         const boundCoffeeClicked = handleCoffeeButtonClicked.bind(null);
         coffeeButton.connect('clicked', boundCoffeeClicked);
-        coffeeRow.add_suffix(coffeeButton);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+        coffeeRow.add_suffix(coffeeButton as any);
         aboutGroup.add(coffeeRow);
 
         // ========================================
@@ -2033,7 +2041,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
 
             dialog.present(window);
         });
-        resetRow.add_suffix(resetButton);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+        resetRow.add_suffix(resetButton as any);
         resetGroup.add(resetRow);
 
         // ========================================
@@ -2097,7 +2106,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         resetDebugBox.append(resetDebugButton);
 
         const resetDebugRow = new Adw.PreferencesRow();
-        resetDebugRow.set_child(resetDebugBox);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+        resetDebugRow.set_child(resetDebugBox as any);
         developerGroup.add(resetDebugRow);
 
         // ========================================
@@ -2107,7 +2117,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
         // Wave 4: bound method
         const boundDevKeyPressed = handleDevKeyPressed.bind(null, settings, developerGroup);
         devKeyController.connect('key-pressed', boundDevKeyPressed);
-        window.add_controller(devKeyController);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+        window.add_controller(devKeyController as any);
 
         // Helper function to scroll to a section
         const scrollToSection = (target: string): void => {

@@ -16,6 +16,7 @@
 
 import Gio from '@girs/gio-2.0';
 import {createLogger} from './debug.js';
+import {global} from '../types/gjsGlobal';
 
 const logger = createLogger('ThemeManager');
 

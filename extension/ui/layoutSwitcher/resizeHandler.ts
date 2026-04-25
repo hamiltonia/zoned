@@ -15,6 +15,7 @@ import St from '@girs/st-14';
 import Meta from 'gi://Meta';
 import {createLogger} from '../../utils/debug';
 import type {LayoutSwitcherContext} from './types';
+import {global} from '../../types/gjsGlobal';
 
 const logger = createLogger('ResizeHandler');
 

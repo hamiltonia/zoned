@@ -20,6 +20,7 @@
  *   }
  */
 
+import {global} from '../types/gjsGlobal';
 import {createLogger} from './debug.js';
 
 const logger = createLogger('SignalTracker');

@@ -23,6 +23,7 @@ import Gio from '@girs/gio-2.0';
 import {createLogger} from '../utils/debug';
 import {zonesToEdges, edgesToZones, validateEdgeLayout, EdgeLayout} from '../utils/layoutConverter';
 import {ThemeManager} from '../utils/theme';
+import {global} from '../types/gjsGlobal';
 import {SignalTracker} from '../utils/signalTracker';
 
 const logger = createLogger('ZoneEditor');

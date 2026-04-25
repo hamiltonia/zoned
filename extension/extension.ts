@@ -33,6 +33,7 @@ import {createLogger, initDebugSettings, destroyDebugSettings} from './utils/deb
 import {NotificationService, NotifyCategory} from './utils/notificationService';
 import {initResourceTracking, destroyResourceTracking} from './utils/resourceTracker';
 import {createDebugInterface, DebugInterface} from './utils/debugInterface';
+import {global} from './types/gjsGlobal';
 
 const logger = createLogger('Extension');
 

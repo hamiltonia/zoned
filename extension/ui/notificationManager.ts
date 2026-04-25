@@ -98,7 +98,8 @@ export class NotificationManager {
 
                 if (iconFile.query_exists(null)) {
                     const icon = new St.Icon({
-                        gicon: Gio.icon_new_for_string(iconPath),
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+                        gicon: Gio.icon_new_for_string(iconPath) as any,
                         icon_size: 36,
                     });
                     this._notification.add_child(icon);

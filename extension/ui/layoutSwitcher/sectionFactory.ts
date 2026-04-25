@@ -313,7 +313,8 @@ export function createCustomLayoutsSection(ctx: LayoutSwitcherContext): St.BoxLa
 
             if (iconFile.query_exists(null)) {
                 const icon = new St.Icon({
-                    gicon: Gio.icon_new_for_string(iconPath),
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+                    gicon: Gio.icon_new_for_string(iconPath) as any,
                     icon_size: 72,
                     style: `color: ${colors.textMuted}; opacity: 0.5;`,
                     y_align: Clutter.ActorAlign.CENTER,

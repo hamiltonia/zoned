@@ -17,6 +17,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import Gio from '@girs/gio-2.0';
 import Meta from '@girs/meta-14';
 import {createLogger} from './utils/debug.js';
+import {global} from './types/gjsGlobal';
 
 const logger = createLogger('SpatialStateManager');
 

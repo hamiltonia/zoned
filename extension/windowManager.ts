@@ -12,6 +12,7 @@ import Meta from '@girs/meta-14';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {createLogger} from './utils/debug.js';
 import type {Zone} from './types/zone';
+import {global} from './types/gjsGlobal';
 
 const logger = createLogger('WindowManager');
 

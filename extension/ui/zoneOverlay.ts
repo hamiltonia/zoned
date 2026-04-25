@@ -110,7 +110,8 @@ export class ZoneOverlay {
 
             const iconOpacity = Math.floor(30 + 450 * (bgOpacity - 0.5));
             const backgroundIcon = new St.Icon({
-                gicon: Gio.icon_new_for_string(iconPath),
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transitive @girs type conflict
+                gicon: Gio.icon_new_for_string(iconPath) as any,
                 icon_size: config.icon,
                 opacity: iconOpacity,
                 x_align: Clutter.ActorAlign.CENTER,

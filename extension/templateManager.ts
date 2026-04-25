@@ -8,6 +8,7 @@
 
 import {createLogger} from './utils/debug.js';
 import type {Zone, Layout, BuiltinTemplate} from './types/layout';
+import {global} from './types/gjsGlobal';
 
 const logger = createLogger('TemplateManager');
 
