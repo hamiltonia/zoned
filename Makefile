@@ -135,8 +135,12 @@ compile-schema:
 	fi
 
 test:
-	@printf "$(COLOR_INFO)Running tests...$(COLOR_RESET)\n"
-	@printf "$(COLOR_WARN)⚠ No tests implemented yet$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)Running unit tests...$(COLOR_RESET)\n"
+	@if [ ! -d "node_modules" ]; then \
+		printf "$(COLOR_WARN)Installing npm dependencies...$(COLOR_RESET)\n"; \
+		npm install --silent; \
+	fi
+	@npx vitest run
 
 lint:
 	@printf "$(COLOR_INFO)Running ESLint on extension code...$(COLOR_RESET)\n"
