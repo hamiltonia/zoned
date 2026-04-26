@@ -1,6 +1,6 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean build \
         vm-install clean-install vm-clean-install lint lint-strict lint-fix dev reinstall dev-version test-release \
-        changelog changelog-since build-ts watch-ts clean-ts typecheck lint-ts
+        changelog changelog-since build-ts watch-ts clean-ts typecheck lint-ts setup-hooks
 
 # Detect OS for sed compatibility
 UNAME_S := $(shell uname -s)
@@ -41,7 +41,8 @@ help:
 	@printf "  make dev            - Full development setup (install + compile + enable)\n"
 	@printf "  make lint           - Run ESLint on extension code\n"
 	@printf "  make lint-fix       - Run ESLint and auto-fix issues\n"
-	@printf "  make test           - Run tests\n"
+	@printf "  make test           - Run unit tests\n"
+	@printf "  make setup-hooks    - Install git pre-commit hook (runs tests)\n"
 	@printf "\n"
 	@printf "$(COLOR_SUCCESS)VM Development:$(COLOR_RESET)\n"
 	@printf "  make vm-install     - Install extension to VM (lint + sync + enable)\n"
@@ -141,6 +142,13 @@ test:
 		npm install --silent; \
 	fi
 	@npx vitest run
+
+setup-hooks:
+	@printf "$(COLOR_INFO)Installing git hooks...$(COLOR_RESET)\n"
+	@cp scripts/hooks/pre-commit .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@printf "$(COLOR_SUCCESS)✓ Pre-commit hook installed (runs lint + unit tests before each commit)$(COLOR_RESET)\n"
+	@printf "$(COLOR_INFO)  Bypass with: git commit --no-verify$(COLOR_RESET)\n"
 
 lint:
 	@printf "$(COLOR_INFO)Running ESLint on extension code...$(COLOR_RESET)\n"
