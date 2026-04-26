@@ -61,19 +61,19 @@ jobs:
           echo "Running security pattern checks..."
           
           # Check for dangerous eval patterns
-          if grep -r "eval(" extension/ --include="*.js" 2>/dev/null; then
+          if grep -r "eval(" extension/ --include="*.ts" 2>/dev/null; then
             echo "Error: Found eval() usage"
             exit 1
           fi
           
           # Check for Function constructor
-          if grep -r "Function(" extension/ --include="*.js" 2>/dev/null; then
+          if grep -r "Function(" extension/ --include="*.ts" 2>/dev/null; then
             echo "Error: Found Function() constructor"
             exit 1
           fi
           
           # Check for child_process/exec (GJS equivalent would be Gio.Subprocess with shell)
-          if grep -r "Gio.Subprocess.new.*SHELL" extension/ --include="*.js" 2>/dev/null; then
+          if grep -r "Gio.Subprocess.new.*SHELL" extension/ --include="*.ts" 2>/dev/null; then
             echo "Warning: Found shell subprocess execution"
           fi
           
@@ -84,12 +84,12 @@ jobs:
           echo "Checking for deprecated API usage..."
           
           # Clutter deprecated methods
-          if grep -r "show_all\|hide_all" extension/ --include="*.js" 2>/dev/null; then
+          if grep -r "show_all\|hide_all" extension/ --include="*.ts" 2>/dev/null; then
             echo "Warning: Found potentially deprecated Clutter methods"
           fi
           
           # Old import style (extensions should use ESM)
-          if grep -r "const.*=.*imports\." extension/ --include="*.js" 2>/dev/null; then
+          if grep -r "const.*=.*imports\." extension/ --include="*.ts" 2>/dev/null; then
             echo "Warning: Found old-style imports (should use ESM import/export)"
           fi
           
@@ -100,7 +100,7 @@ jobs:
           echo "Checking required extension files..."
           
           required_files=(
-            "extension/extension.js"
+            "extension/extension.ts"
             "extension/metadata.json"
             "extension/schemas/org.gnome.shell.extensions.zoned.gschema.xml"
           )
