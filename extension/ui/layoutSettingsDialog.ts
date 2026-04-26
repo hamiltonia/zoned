@@ -1,0 +1,2364 @@
+/**
+ * LayoutSettingsDialog - Gateway for all layout operations
+ *
+ * ARCHITECTURE NOTE:
+ * - This is the entry point for creating/editing layouts
+ * - Handles METADATA (name, settings) separate from GEOMETRY (zones)
+ * - Uses ZoneEditor for geometry editing
+ * - Enforces settings-first approach (name required before save)
+ * - Uses custom UI framework (not ModalDialog) for z-order control
+ *
+ * Modes:
+ * - Create: layout=null (new layout, starts with no zones)
+ * - Edit: layout=existing (modify existing layout)
+ *
+ * Template vs Custom Layout Behavior:
+ * - Templates (id starts with 'template-'): View-only (all controls disabled), Duplicate only
+ * - Custom layouts: Full editing capability with Save, Delete, Duplicate
+ *
+ * Settings Dialog UI Design:
+ * - Header: "Edit layout" title with action icons (Duplicate, Delete)
+ * - Layout Preview: Visual zone preview centered below header with floating edit button
+ * - Floating Edit Button: Circular button centered over preview, opens zone editor
+ * - Settings Section:
+ *   - Name field (disabled for templates)
+ *   - Show Space Around Zones: Checkbox + number input (padding)
+ *   - Select a Key (1-9): Dropdown for quick-access shortcut
+ * - Button Row: Cancel (always), Save (custom layouts only)
+ *
+ * Duplicate Behavior:
+ * - Creates in-place transformation (dialog stays open)
+ * - Name changes to "{Name} Copy"
+ * - UI updates to custom layout mode
+ */
+
+import Clutter from '@girs/clutter-14';
+import St from '@girs/st-14';
+import GLib from '@girs/glib-2.0';
+import Shell from '@girs/shell-14';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import {createLogger} from '../utils/debug';
+import {SignalTracker} from '../utils/signalTracker';
+import {ThemeManager} from '../utils/theme';
+import {ZoneEditor} from './zoneEditor';
+import {TemplateManager} from '../templateManager.js';
+import type {Layout} from '../types/layout';
+
+const logger = createLogger('LayoutSettingsDialog');
+
+/**
+ * Minimal layout manager interface
+ */
+interface LayoutManager {
+    getAllLayouts: () => Layout[];
+    saveLayout: (layout: Layout) => boolean;
+    deleteLayout: (layoutId: string) => boolean;
+}
+
+/**
+ * GSettings interface
+ */
+interface Settings {
+    get_boolean: (key: string) => boolean;
+    get_int: (key: string) => number;
+}
+
+/**
+ * Theme colors interface
+ */
+interface ThemeColors {
+    containerBg: string;
+    sectionBg: string;
+    sectionBorder: string;
+    textPrimary: string;
+    textSecondary: string;
+    textMuted: string;
+    inputBg: string;
+    inputBorder: string;
+    buttonBg: string;
+    buttonBgHover: string;
+    buttonText: string;
+    accentHex: string;
+    accentHexHover: string;
+    border: string;
+    isDark: boolean;
+    canvasBg: string;
+    zoneFill: string;
+    zoneBorder: string;
+    divider: string;
+}
+
+/**
+ * Module-level handler functions to prevent closure leaks
+ * Following LayoutSwitcher's proven pattern - no arrow functions, no closures
+ */
+
+/**
+ * Generic hover enter handler for widgets with style changes
+ * @param {St.Widget} widget - The widget to update
+ * @param {string} hoverStyle - The hover style to apply
+ * @returns {number} Clutter.EVENT_PROPAGATE as number
+ */
+function handleWidgetHoverEnter(widget: St.Widget, hoverStyle: string): number {
+    widget.style = hoverStyle;
+    return Clutter.EVENT_PROPAGATE as unknown as number;
+}
+
+/**
+ * Generic hover leave handler for widgets with style changes
+ * @param {St.Widget} widget - The widget to update
+ * @param {string} normalStyle - The normal style to apply
+ * @returns {number} Clutter.EVENT_PROPAGATE as number
+ */
+function handleWidgetHoverLeave(widget: St.Widget, normalStyle: string): number {
+    widget.style = normalStyle;
+    return Clutter.EVENT_PROPAGATE as unknown as number;
+}
+
+/**
+ * Icon button hover enter handler (updates both button and icon)
+ * @param {St.Button} button - The button to update
+ * @param {St.Icon} icon - The icon child to update
+ * @param {string} hoverStyle - The hover style for button
+ * @returns {number} Clutter.EVENT_PROPAGATE as number
+ */
+function handleIconButtonHoverEnter(button: St.Button, icon: St.Icon, hoverStyle: string): number {
+    button.style = hoverStyle;
+    icon.style = 'color: white;';
+    return Clutter.EVENT_PROPAGATE as unknown as number;
+}
+
+/**
+ * Icon button hover leave handler (updates both button and icon)
+ * @param {St.Button} button - The button to update
+ * @param {St.Icon} icon - The icon child to update
+ * @param {string} normalStyle - The normal style for button
+ * @param {string} iconNormalColor - The normal color for icon
+ * @returns {number} Clutter.EVENT_PROPAGATE as number
+ */
+function handleIconButtonHoverLeave(
+    button: St.Button,
+    icon: St.Icon,
+    normalStyle: string,
+    iconNormalColor: string,
+): number {
+    button.style = normalStyle;
+    icon.style = `color: ${iconNormalColor};`;
+    return Clutter.EVENT_PROPAGATE as unknown as number;
+}
+
+/**
+ * Dropdown/Spinner up button handler
+ * @param {St.BoxLayout} container - The dropdown/spinner container
+ * @param {St.Label} valueLabel - The value display label
+ * @param {Array|number} optionsOrMax - Options array (dropdown) or max value (spinner)
+ * @param {number} [step] - Step value for spinner (undefined for dropdown)
+ * @returns {void}
+ */
+function handleUpButtonClick(
+    container: St.BoxLayout & {_selectedIndex?: number; _value?: number},
+    valueLabel: St.Label,
+    optionsOrMax: string[] | number,
+    step?: number,
+): void {
+    if (Array.isArray(optionsOrMax)) {
+        // Dropdown: cycle forwards through options
+        const currentIndex = container._selectedIndex ?? 0;
+        container._selectedIndex = (currentIndex + 1) % optionsOrMax.length;
+        valueLabel.text = optionsOrMax[container._selectedIndex];
+    } else {
+        // Spinner: increment value
+        const max = optionsOrMax;
+        const currentValue = container._value ?? 0;
+        const stepValue = step ?? 1;
+        if (currentValue < max) {
+            container._value = Math.min(max, currentValue + stepValue);
+            valueLabel.text = String(container._value);
+        }
+    }
+}
+
+/**
+ * Dropdown/Spinner down button handler
+ * @param {St.BoxLayout} container - The dropdown/spinner container
+ * @param {St.Label} valueLabel - The value display label
+ * @param {Array|number} optionsOrMin - Options array (dropdown) or min value (spinner)
+ * @param {number} [step] - Step value for spinner (undefined for dropdown)
+ * @returns {void}
+ */
+function handleDownButtonClick(
+    container: St.BoxLayout & {_selectedIndex?: number; _value?: number; _options?: string[]},
+    valueLabel: St.Label,
+    optionsOrMin: string[] | number,
+    step?: number,
+): void {
+    if (Array.isArray(optionsOrMin)) {
+        // Dropdown: cycle backwards through options
+        const options = optionsOrMin;
+        const currentIndex = container._selectedIndex ?? 0;
+        container._selectedIndex = (currentIndex - 1 + options.length) % options.length;
+        valueLabel.text = options[container._selectedIndex];
+    } else {
+        // Spinner: decrement value
+        const min = optionsOrMin;
+        const currentValue = container._value ?? 0;
+        const stepValue = step ?? 1;
+        if (currentValue > min) {
+            container._value = Math.max(min, currentValue - stepValue);
+            valueLabel.text = String(container._value);
+        }
+    }
+}
+
+/**
+ * LayoutSettingsDialog - Gateway dialog for layout management
+ *
+ * Separates metadata editing (name, padding, shortcut) from geometry editing (zones).
+ * This enforces a settings-first approach where users must name their layout
+ * before saving.
+ *
+ * Uses custom UI framework (Main.uiGroup + pushModal) for full z-order control,
+ * allowing layout preview background to show behind the dialog.
+ */
+export class LayoutSettingsDialog {
+    private _isNewLayout: boolean;
+    private _layout: Layout;
+    private _isTemplate: boolean;
+    private _layoutManager: LayoutManager;
+    private _settings: Settings;
+    private _themeManager: ThemeManager | null;
+    private _onSaveCallback: ((layout: Layout | null) => void) | null;
+    private _onCancelCallback: (() => void) | null;
+    private _onZoneEditorOpenCallback: (() => void) | null;
+    private _onZoneEditorCloseCallback: ((layout: Layout) => void) | null;
+
+    private _container: St.Widget | null;
+    private _dialogCard: St.BoxLayout | null;
+    private _nameEntry: St.Entry | null;
+    private _paddingCheckbox: (St.Button & {_checked?: boolean}) | null;
+    private _paddingSpinner: (
+        St.BoxLayout & {_valueLabel?: St.Label; _value?: number; _min?: number; _max?: number; _step?: number}
+    ) | null;
+    private _shortcutDropdown: (
+        St.BoxLayout & {_valueLabel?: St.Label; _options?: string[]; _selectedIndex?: number}
+    ) | null;
+    private _saveButton: (St.Button & {_normalStyle?: string; _hoverStyle?: string}) | null;
+    private _deleteButton: (St.Button & {_normalStyle?: string; _hoverStyle?: string}) | null;
+    private _duplicateButton: (St.Button & {_normalStyle?: string; _hoverStyle?: string}) | null;
+    private _previewContainer: St.BoxLayout | null;
+    private _confirmOverlay: St.Widget | null;
+    private _confirmBox: St.BoxLayout | null;
+
+    private _modal: {close: () => void} | null;
+    private _visible: boolean;
+    private _closing: boolean;
+
+    private _signalTracker: SignalTracker | null;
+    private _idleSourceIds: number[];
+
+    private _boundHandleContainerClick: ((actor: Clutter.Actor, event: Clutter.Event) => number) | null;
+    private _boundUpdateSaveButton: (() => void) | null;
+    private _boundTogglePaddingCheckbox: (() => void) | null;
+    private _boundHandleDeleteCancelClick: (() => void) | null;
+    private _boundHandleDeleteConfirmClick: (() => void) | null;
+    private _boundHandleDeleteWrapperClick: ((actor: Clutter.Actor, event: Clutter.Event) => number) | null;
+
+    constructor(
+        layout: Layout | null,
+        layoutManager: LayoutManager,
+        settings: Settings,
+        onSave: (layout: Layout | null) => void,
+        onCancel: () => void,
+        onZoneEditorOpen: (() => void) | null = null,
+        onZoneEditorClose: ((layout: Layout) => void) | null = null,
+    ) {
+        this._isNewLayout = (layout === null);
+
+        // Create working copy to avoid mutating input
+        this._layout = layout ? JSON.parse(JSON.stringify(layout)) : {
+            zones: [],
+            padding: 0,  // Default: padding off (use 4 when enabled)
+            name: this._generateDefaultName(),  // Always start with a default name
+        };
+
+        // Ensure existing layouts have a name
+        if (!this._layout.name) {
+            this._layout.name = this._generateDefaultName();
+        }
+
+        // Detect if this is a template (immutable built-in layout)
+        // Check both: ID prefix AND if it matches a built-in template ID
+        this._isTemplate = this._detectIsTemplate(this._layout);
+
+        this._layoutManager = layoutManager;
+        this._settings = settings;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this._themeManager = new ThemeManager(settings as any);
+        this._onSaveCallback = onSave;
+        this._onCancelCallback = onCancel;
+        this._onZoneEditorOpenCallback = onZoneEditorOpen;
+        this._onZoneEditorCloseCallback = onZoneEditorClose;
+
+        // UI elements
+        this._container = null;
+        this._dialogCard = null;
+        this._nameEntry = null;
+        this._paddingCheckbox = null;
+        this._shortcutDropdown = null;
+        this._saveButton = null;
+        this._deleteButton = null;
+        this._duplicateButton = null;
+        this._previewContainer = null;
+
+        this._modal = null;
+        this._visible = false;
+        this._closing = false;  // Re-entrance guard
+
+        // Signal tracking for cleanup
+        this._signalTracker = new SignalTracker('LayoutSettingsDialog');
+
+        // Track GLib sources for cleanup (prevent memory leaks)
+        this._idleSourceIds = [];
+
+        // Bind methods to avoid closure leaks
+        this._boundHandleContainerClick = this._handleContainerClick.bind(this);
+        this._boundUpdateSaveButton = this._updateSaveButton.bind(this);
+        this._boundTogglePaddingCheckbox = this._onTogglePaddingCheckbox.bind(this);
+        this._boundHandleDeleteCancelClick = this._hideDeleteConfirmation.bind(this);
+        this._boundHandleDeleteConfirmClick = this._onDeleteConfirmClick.bind(this);
+        this._boundHandleDeleteWrapperClick = this._handleDeleteWrapperClick.bind(this);
+
+        logger.debug(`LayoutSettingsDialog created (${this._isNewLayout ? 'CREATE' : 'EDIT'} mode, template: ${this._isTemplate})`);
+    }
+
+    /**
+     * Open the dialog
+     */
+    open(): void {
+        if (this._visible) {
+            logger.warn('LayoutSettingsDialog already visible');
+            return;
+        }
+
+        const monitor = Main.layoutManager.currentMonitor;
+        if (!this._themeManager) return;
+        const colors = this._themeManager.getColors();
+
+        // Create full-screen container (transparent, catches clicks outside dialog)
+        // NOTE: Preview background is provided by the parent (e.g., LayoutSwitcher)
+        // when opened from there, so this container should be transparent
+        this._container = new St.Widget({
+            reactive: true,
+            x: monitor.x,
+            y: monitor.y,
+            width: monitor.width,
+            height: monitor.height,
+            style: 'background-color: transparent;',
+        });
+
+        // Click on container (outside dialog) dismisses - use bound method
+        if (this._signalTracker && this._boundHandleContainerClick) {
+            this._signalTracker.connect(
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                this._container, 'button-press-event', this._boundHandleContainerClick as (...args: any[]) => void,
+            );
+        }
+
+        // Build the dialog card
+        this._buildDialogCard(colors);
+
+        // Add dialog to container (but don't add to UI yet)
+        if (this._dialogCard) {
+            this._container.add_child(this._dialogCard);
+        }
+
+        // Position and show dialog after layout is complete
+        // This ensures the dialog appears centered without any visible repositioning
+        const positionSourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            // Guard: verify dialog is still alive
+            if (this._closing || !this._visible || !this._container || !this._dialogCard) {
+                return GLib.SOURCE_REMOVE;
+            }
+
+            // Position the dialog before making it visible
+            const actualHeight = this._dialogCard.get_height();
+            const actualWidth = this._dialogCard.get_width();
+            this._dialogCard.set_position(
+                Math.floor((monitor.width - actualWidth) / 2),
+                Math.floor((monitor.height - actualHeight) / 2),
+            );
+
+            // Make dialog visible
+            this._dialogCard.opacity = 255;
+
+            // Now add to UI (dialog is already positioned)
+            Main.uiGroup.add_child(this._container);
+
+            return GLib.SOURCE_REMOVE;
+        });
+        this._idleSourceIds.push(positionSourceId);
+
+        // Push modal to capture input - use proper Shell.ActionMode constant
+        // Defer modal acquisition to avoid conflict with LayoutSwitcher's modal release
+        const modalSourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            // Guard: verify dialog is still alive
+            if (this._closing || !this._visible || !this._container) {
+                logger.warn('Container destroyed before modal acquisition');
+                return GLib.SOURCE_REMOVE;
+            }
+
+            try {
+                this._modal = Main.pushModal(this._container, {
+                    actionMode: Shell.ActionMode.NORMAL,
+                }) as {close: () => void} | null;
+
+                if (!this._modal) {
+                    logger.error('Failed to acquire modal - dialog will not be interactive!');
+                } else {
+                    logger.debug('Modal acquired successfully');
+                }
+            } catch (e) {
+                logger.error(`Exception acquiring modal: ${(e as Error).message}`);
+                this._modal = null;
+            }
+
+            return GLib.SOURCE_REMOVE;
+        });
+        this._idleSourceIds.push(modalSourceId);
+
+        // Connect key handler for ESC
+        if (this._signalTracker) {
+            this._signalTracker.connect(
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                this._container, 'key-press-event', this._handleKeyPress.bind(this) as (...args: any[]) => void,
+            );
+        }
+
+        this._visible = true;
+
+        // Focus the name entry after dialog is shown
+        const focusSourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            // Guard: verify dialog is still alive
+            if (this._closing || !this._visible || !this._nameEntry) {
+                return GLib.SOURCE_REMOVE;
+            }
+
+            this._nameEntry.grab_key_focus();
+            return GLib.SOURCE_REMOVE;
+        });
+        this._idleSourceIds.push(focusSourceId);
+
+        logger.debug('LayoutSettingsDialog opened');
+    }
+
+    /**
+     * Close the dialog
+     */
+    close(): void {
+        if (!this._visible || this._closing) {
+            return;
+        }
+        this._closing = true;
+
+        this._cleanupIdleSources();
+        this._cleanupModal();
+        if (this._signalTracker) {
+            this._signalTracker.disconnectAll();
+        }
+        this._destroyWidgets();
+        this._releaseBoundFunctions();
+        this._destroyContainer();
+        this._cleanupThemeManager();
+
+        this._visible = false;
+        logger.debug('LayoutSettingsDialog closed');
+    }
+
+    /**
+     * Clean up all pending GLib idle sources
+     * @private
+     */
+    _cleanupIdleSources(): void {
+        logger.debug(`Removing ${this._idleSourceIds.length} idle sources`);
+        for (const sourceId of this._idleSourceIds) {
+            GLib.Source.remove(sourceId);
+        }
+        this._idleSourceIds = [];
+    }
+
+    /**
+     * Clean up modal state
+     * @private
+     */
+    _cleanupModal(): void {
+        if (this._modal) {
+            Main.popModal(this._modal);
+            this._modal = null;
+        }
+    }
+
+    /**
+     * Destroy all widgets to break reference cycles
+     * @private
+     */
+    _destroyWidgets(): void {
+        // FIRST: Break circular references in composite widgets
+        this._clearSpinnerReferences();
+        this._clearDropdownReferences();
+        this._clearButtonStyles();
+        this._clearCheckboxReferences();
+
+        // THEN: Destroy widgets in reverse order of creation
+        const widgetNames = [
+            '_saveButton',
+            '_deleteButton',
+            '_duplicateButton',
+            '_nameEntry',
+            '_paddingCheckbox',
+            '_paddingSpinner',
+            '_shortcutDropdown',
+            '_previewContainer',
+            '_dialogCard',
+        ] as const;
+
+        for (const widgetName of widgetNames) {
+            const widget = this[widgetName];
+            if (widget && typeof widget === 'object' && 'destroy' in widget) {
+                (widget as St.Widget).destroy();
+                (this as Record<string, unknown>)[widgetName] = null;
+            }
+        }
+
+        // Null the SignalTracker after disconnecting
+        this._signalTracker = null;
+    }
+
+    /**
+     * Clear spinner internal references to break cycles
+     * @private
+     */
+    _clearSpinnerReferences(): void {
+        if (this._paddingSpinner) {
+            this._paddingSpinner._valueLabel = undefined;
+            this._paddingSpinner._value = undefined;
+            this._paddingSpinner._min = undefined;
+            this._paddingSpinner._max = undefined;
+            this._paddingSpinner._step = undefined;
+        }
+    }
+
+    /**
+     * Clear dropdown internal references to break cycles
+     * @private
+     */
+    _clearDropdownReferences(): void {
+        if (this._shortcutDropdown) {
+            this._shortcutDropdown._valueLabel = undefined;
+            this._shortcutDropdown._options = undefined;
+            this._shortcutDropdown._selectedIndex = undefined;
+        }
+    }
+
+    /**
+     * Clear button style references
+     * @private
+     */
+    _clearButtonStyles(): void {
+        const buttons = [this._saveButton, this._deleteButton, this._duplicateButton];
+        for (const button of buttons) {
+            if (button) {
+                button._normalStyle = undefined;
+                button._hoverStyle = undefined;
+            }
+        }
+    }
+
+    /**
+     * Clear checkbox references (destroy child label before nulling)
+     * @private
+     */
+    _clearCheckboxReferences(): void {
+        if (this._paddingCheckbox) {
+            const checkboxChild = this._paddingCheckbox.get_child();
+            if (checkboxChild) {
+                checkboxChild.destroy();
+            }
+            this._paddingCheckbox._checked = undefined;
+        }
+    }
+
+    /**
+     * Release all bound function references
+     * @private
+     */
+    _releaseBoundFunctions(): void {
+        this._boundHandleContainerClick = null;
+        this._boundUpdateSaveButton = null;
+        this._boundTogglePaddingCheckbox = null;
+        this._boundHandleDeleteCancelClick = null;
+        this._boundHandleDeleteConfirmClick = null;
+        this._boundHandleDeleteWrapperClick = null;
+    }
+
+    /**
+     * Destroy the main container
+     * @private
+     */
+    _destroyContainer(): void {
+        if (this._container) {
+            Main.uiGroup.remove_child(this._container);
+            this._container.destroy();
+            this._container = null;
+        }
+    }
+
+    /**
+     * Clean up ThemeManager
+     * @private
+     */
+    _cleanupThemeManager(): void {
+        if (this._themeManager) {
+            this._themeManager.destroy();
+            this._themeManager = null;
+        }
+    }
+
+    /**
+     * Build header row with title and action icons
+     * @param {Object} colors - Theme colors
+     * @returns {St.BoxLayout} Header row widget
+     * @private
+     */
+    _buildHeaderRow(colors: ThemeColors): St.BoxLayout {
+        const headerRow = new St.BoxLayout({
+            vertical: false,
+            style: 'margin-bottom: 16px;',
+        });
+
+        const titleLabel = new St.Label({
+            text: 'Edit layout',
+            style: `font-weight: bold; font-size: 14pt; color: ${colors.textPrimary};`,
+            x_expand: true,
+        });
+        headerRow.add_child(titleLabel);
+
+        const iconsBox = new St.BoxLayout({vertical: false, style: 'spacing: 8px;'});
+
+        this._duplicateButton = this._createSymbolicIconButton(
+            colors, 'edit-copy-symbolic', 'Duplicate layout', () => this._onDuplicate(),
+        );
+        iconsBox.add_child(this._duplicateButton);
+
+        if (!this._isTemplate && !this._isNewLayout) {
+            this._deleteButton = this._createSymbolicIconButton(
+                colors, 'user-trash-symbolic', 'Delete layout', () => this._onDelete(),
+            );
+            iconsBox.add_child(this._deleteButton);
+        }
+
+        headerRow.add_child(iconsBox);
+        return headerRow;
+    }
+
+    /**
+     * Build settings section with name, padding, and shortcut fields
+     * @param {Object} colors - Theme colors
+     * @returns {St.BoxLayout} Settings section widget
+     * @private
+     */
+    _buildSettingsSection(colors: ThemeColors): St.BoxLayout {
+        const settingsSection = new St.BoxLayout({
+            vertical: true,
+            style: `background-color: ${colors.sectionBg}; border: 1px solid ${colors.sectionBorder}; ` +
+                   'border-radius: 12px; padding: 16px; margin-bottom: 16px;',
+        });
+
+        // Name row
+        settingsSection.add_child(this._buildNameRow(colors));
+        settingsSection.add_child(this._createDivider(colors));
+
+        // Padding row
+        settingsSection.add_child(this._buildPaddingRow(colors));
+        settingsSection.add_child(this._createDivider(colors));
+
+        // Shortcut row
+        settingsSection.add_child(this._buildShortcutRow(colors));
+
+        return settingsSection;
+    }
+
+    /**
+     * Build name field row
+     * @param {Object} colors - Theme colors
+     * @returns {St.BoxLayout} Name row widget
+     * @private
+     */
+    _buildNameRow(colors: ThemeColors): St.BoxLayout {
+        const nameRow = new St.BoxLayout({vertical: false, style: 'margin-bottom: 16px;'});
+
+        const nameLabel = new St.Label({
+            text: 'Name',
+            style: `font-size: 11pt; color: ${colors.textPrimary}; min-width: 160px;`,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        nameRow.add_child(nameLabel);
+
+        this._nameEntry = this._createStyledInput(colors, {
+            text: this._layout.name || '',
+            hintText: this._isTemplate ? '' : 'Enter layout name',
+            minWidth: '200px',
+            disabled: this._isTemplate,
+        });
+
+        if (!this._isTemplate && this._signalTracker && this._boundUpdateSaveButton) {
+            this._signalTracker.connect(
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                this._nameEntry.clutter_text, 'text-changed', this._boundUpdateSaveButton as (...args: any[]) => void,
+            );
+        }
+        nameRow.add_child(this._nameEntry);
+        return nameRow;
+    }
+
+    /**
+     * Build padding checkbox and spinner row
+     * @param {Object} colors - Theme colors
+     * @returns {St.BoxLayout} Padding row widget
+     * @private
+     */
+    _buildPaddingRow(colors: ThemeColors): St.BoxLayout {
+        const paddingRow = new St.BoxLayout({vertical: false, style: 'margin-bottom: 16px;'});
+
+        const paddingLabelBox = new St.BoxLayout({
+            vertical: false, x_expand: true, y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        const isChecked = Boolean(this._layout.padding && this._layout.padding > 0);
+        this._paddingCheckbox = this._createCheckbox(colors, isChecked);
+
+        // Only allow interaction for custom layouts (not templates)
+        if (!this._isTemplate && this._signalTracker && this._boundTogglePaddingCheckbox) {
+            this._signalTracker.connect(
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                this._paddingCheckbox, 'clicked', this._boundTogglePaddingCheckbox as (...args: any[]) => void,
+            );
+        } else {
+            // Disable checkbox for templates (no save button to persist changes)
+            this._paddingCheckbox.reactive = false;
+            this._paddingCheckbox.opacity = 128;
+        }
+        paddingLabelBox.add_child(this._paddingCheckbox);
+
+        const paddingLabel = new St.Label({
+            text: 'Show space around zones',
+            style: `font-size: 11pt; color: ${colors.textPrimary}; margin-left: 8px;`,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        paddingLabelBox.add_child(paddingLabel);
+        paddingRow.add_child(paddingLabelBox);
+
+        this._paddingSpinner = this._createSpinnerInput(colors, {
+            value: this._layout.padding || 4, min: 0, max: 16, step: 1,
+        });
+
+        if (this._isTemplate) {
+            // Templates: spinner always disabled (no save button to persist changes)
+            this._paddingSpinner.reactive = false;
+            this._paddingSpinner.opacity = 128;
+        } else {
+            // Custom layouts: spinner enabled based on checkbox state
+            this._paddingSpinner.reactive = isChecked;
+            this._paddingSpinner.opacity = isChecked ? 255 : 128;
+        }
+        paddingRow.add_child(this._paddingSpinner);
+
+        return paddingRow;
+    }
+
+    /**
+     * Build shortcut dropdown row
+     * @param {Object} colors - Theme colors
+     * @returns {St.BoxLayout} Shortcut row widget
+     * @private
+     */
+    _buildShortcutRow(colors: ThemeColors): St.BoxLayout {
+        const shortcutRow = new St.BoxLayout({vertical: false});
+
+        const shortcutLabelBox = new St.BoxLayout({
+            vertical: false, x_expand: true, y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        const shortcutLabel = new St.Label({
+            text: 'Quick access shortcut',
+            style: `font-size: 11pt; color: ${colors.textPrimary};`,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        shortcutLabelBox.add_child(shortcutLabel);
+        shortcutRow.add_child(shortcutLabelBox);
+
+        this._shortcutDropdown = this._createDropdown(
+            colors,
+            ['None', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+            String(this._layout.shortcut || 'None'),
+        );
+
+        // Disable dropdown for templates (no save button to persist changes)
+        if (this._isTemplate) {
+            this._shortcutDropdown.reactive = false;
+            this._shortcutDropdown.opacity = 128;
+        }
+
+        shortcutRow.add_child(this._shortcutDropdown);
+
+        return shortcutRow;
+    }
+
+    /**
+     * Build button row with Cancel and Save buttons
+     * @param {Object} colors - Theme colors
+     * @returns {St.BoxLayout} Button row widget
+     * @private
+     */
+    _buildButtonRow(colors: ThemeColors): St.BoxLayout {
+        const buttonRow = new St.BoxLayout({
+            vertical: false, style: 'margin-top: 8px;', x_align: Clutter.ActorAlign.END,
+        });
+
+        buttonRow.add_child(new St.Widget({x_expand: true}));
+
+        const buttonsContainer = new St.BoxLayout({vertical: false, style: 'spacing: 12px;'});
+
+        buttonsContainer.add_child(this._createButton(colors, 'Cancel', () => this._onCancel()));
+
+        if (!this._isTemplate) {
+            this._saveButton = this._createButton(colors, 'Save', () => this._onSave(), {accent: true});
+            buttonsContainer.add_child(this._saveButton);
+        }
+
+        buttonRow.add_child(buttonsContainer);
+        return buttonRow;
+    }
+
+    /**
+     * Build the dialog card UI
+     * @param {Object} colors - Theme colors
+     * @private
+     */
+    _buildDialogCard(colors: ThemeColors): void {
+        this._dialogCard = new St.BoxLayout({
+            vertical: true,
+            reactive: true,
+            style: `background-color: ${colors.containerBg}; border-radius: 16px; ` +
+                   'padding: 24px; min-width: 420px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); ' +
+                   'opacity: 0;',  // Start invisible, will be shown after positioning
+        });
+
+        // Header
+        this._dialogCard.add_child(this._buildHeaderRow(colors));
+
+        // Layout Preview with floating edit button
+        this._previewContainer = new St.BoxLayout({
+            vertical: true,
+            style: `background-color: ${colors.sectionBg}; border: 1px solid ${colors.sectionBorder}; ` +
+                   'border-radius: 12px; padding: 16px; margin-bottom: 16px;',
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+        this._buildLayoutPreview(colors);
+        this._dialogCard.add_child(this._previewContainer);
+
+        // Settings Section (no hyperlink - floating button is on preview)
+        this._dialogCard.add_child(this._buildSettingsSection(colors));
+
+        // Button Row
+        this._dialogCard.add_child(this._buildButtonRow(colors));
+
+        this._updateSaveButton();
+    }
+
+    /**
+     * Build the layout preview visualization with floating edit button centered
+     * @param {Object} colors - Theme colors
+     * @private
+     */
+    _buildLayoutPreview(colors: ThemeColors): void {
+        // Clear existing preview
+        if (!this._previewContainer) return;
+        this._previewContainer.destroy_all_children();
+
+        const previewWidth = 280;
+        const previewHeight = 160;
+
+        // Wrapper with FixedLayout for floating button overlay
+        const previewWrapper = new St.Widget({
+            layout_manager: new Clutter.FixedLayout(),
+            width: previewWidth,
+            height: previewHeight,
+        });
+
+        const previewArea = new St.Widget({
+            width: previewWidth,
+            height: previewHeight,
+            style: `
+                background-color: ${colors.canvasBg};
+                border-radius: 8px;
+            `,
+        });
+
+        // Draw zones
+        const zones = this._layout.zones || [];
+        zones.forEach((zone: {x: number; y: number; w: number; h: number}) => {
+            const zoneWidget = new St.Widget({
+                x: Math.floor(zone.x * previewWidth),
+                y: Math.floor(zone.y * previewHeight),
+                width: Math.floor(zone.w * previewWidth) - 2,
+                height: Math.floor(zone.h * previewHeight) - 2,
+                style: `
+                    background-color: ${colors.zoneFill};
+                    border: 2px solid ${colors.zoneBorder};
+                    border-radius: 4px;
+                `,
+            });
+            previewArea.add_child(zoneWidget);
+        });
+
+        // Show empty state if no zones
+        if (zones.length === 0) {
+            const emptyLabel = new St.Label({
+                text: 'No zones defined',
+                style: `
+                    font-size: 10pt;
+                    color: ${colors.textMuted};
+                `,
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+                x_expand: true,
+                y_expand: true,
+            });
+            previewArea.add_child(emptyLabel);
+        }
+
+        previewWrapper.add_child(previewArea);
+
+        // Floating circular edit button - centered over preview
+        // Only show for custom layouts (templates cannot have zones modified)
+        if (!this._isTemplate) {
+            const editButton = this._createFloatingEditButton(colors);
+            // Button size is fixed at 42px (defined in _createFloatingEditButton)
+            const buttonSize = 42;
+            // Center the button
+            const buttonX = Math.floor((previewWidth - buttonSize) / 2);
+            const buttonY = Math.floor((previewHeight - buttonSize) / 2);
+            editButton.set_position(buttonX, buttonY);
+            previewWrapper.add_child(editButton);
+        }
+
+        if (this._previewContainer) {
+            this._previewContainer.add_child(previewWrapper);
+        }
+    }
+
+    /**
+     * Create a floating circular edit button for the layout preview
+     * Centered over the preview, opens zone editor on click
+     * @param {Object} colors - Theme colors
+     * @returns {St.Button} The circular edit button
+     * @private
+     */
+    _createFloatingEditButton(colors: ThemeColors): St.Button & {_buttonSize?: number} {
+        // Fixed size for dialog preview (larger than card buttons)
+        const buttonSize = 42;
+        const iconSize = 20;
+
+        // Idle state: subtle, semi-transparent
+        const idleStyle = `
+            width: ${buttonSize}px;
+            height: ${buttonSize}px;
+            border-radius: ${buttonSize / 2}px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        `;
+
+        // Hover state: accent background, more prominent
+        const hoverStyle = `
+            width: ${buttonSize}px;
+            height: ${buttonSize}px;
+            border-radius: ${buttonSize / 2}px;
+            background-color: ${colors.accentHex};
+            border: 1px solid ${colors.accentHex};
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        `;
+
+        const button = new St.Button({
+            style_class: 'floating-edit-button',
+            style: idleStyle,
+            reactive: true,
+            track_hover: true,
+        });
+
+        const icon = new St.Icon({
+            icon_name: 'document-edit-symbolic',
+            icon_size: iconSize,
+            style: 'color: rgba(255, 255, 255, 0.8);',
+        });
+        button.set_child(icon);
+
+        // Use module-level handlers to prevent closure leaks
+        const boundEnter = handleIconButtonHoverEnter.bind(null, button, icon, hoverStyle);
+        const boundLeave = handleIconButtonHoverLeave.bind(null, button, icon, idleStyle, 'rgba(255, 255, 255, 0.8)');
+        button.connect('enter-event', boundEnter);
+        button.connect('leave-event', boundLeave);
+
+        // Click opens zone editor
+        button.connect('clicked', () => {
+            this._openZoneEditor();
+        });
+
+        return button;
+    }
+
+    /**
+     * Create a divider line
+     * @param {Object} colors - Theme colors
+     * @returns {St.Widget} Divider widget
+     * @private
+     */
+    _createDivider(colors: ThemeColors): St.Widget {
+        return new St.Widget({
+            style: `
+                height: 1px;
+                background-color: ${colors.divider};
+                margin: 8px 0;
+            `,
+        });
+    }
+
+    /**
+     * Create a symbolic icon button for the header (using GNOME symbolic icons)
+     * @param {Object} colors - Theme colors
+     * @param {string} iconName - Symbolic icon name (e.g., 'edit-copy-symbolic')
+     * @param {string} tooltip - Tooltip text (for accessibility)
+     * @param {Function} onClick - Click handler
+     * @returns {St.Button} Icon button
+     * @private
+     */
+    _createSymbolicIconButton(colors: ThemeColors, iconName: string, tooltip: string, onClick: () => void): St.Button {
+        const normalStyle = `
+            padding: 6px 10px;
+            background-color: transparent;
+            border-radius: 6px;
+        `;
+        const hoverStyle = `
+            padding: 6px 10px;
+            background-color: ${colors.buttonBgHover};
+            border-radius: 6px;
+        `;
+
+        const button = new St.Button({
+            style: normalStyle,
+            can_focus: true,
+            accessible_name: tooltip,
+        });
+
+        const icon = new St.Icon({
+            icon_name: iconName,
+            icon_size: 16,
+            style: `color: ${colors.textPrimary};`,
+        });
+        button.set_child(icon);
+
+        if (this._signalTracker) {
+            /* eslint-disable @typescript-eslint/no-explicit-any */
+            this._signalTracker.connect(button, 'clicked', onClick as (...args: any[]) => void);
+
+            // Use module-level handlers to prevent closure leaks
+            const boundEnter = handleWidgetHoverEnter.bind(null, button, hoverStyle);
+            const boundLeave = handleWidgetHoverLeave.bind(null, button, normalStyle);
+            this._signalTracker.connect(button, 'enter-event', boundEnter as (...args: any[]) => void);
+            this._signalTracker.connect(button, 'leave-event', boundLeave as (...args: any[]) => void);
+            /* eslint-enable @typescript-eslint/no-explicit-any */
+        }
+
+        return button;
+    }
+
+    /**
+     * Create a dropdown selector matching spinner visual style
+     * Has up/down arrows like the spinner for visual consistency
+     * @param {Object} colors - Theme colors
+     * @param {Array} options - Array of option strings
+     * @param {string} selected - Currently selected value
+     * @returns {St.BoxLayout} Dropdown container (matching spinner structure)
+     * @private
+     */
+    _createDropdown(
+        colors: ThemeColors,
+        options: string[],
+        selected: string,
+    ): St.BoxLayout & {
+        _valueLabel?: St.Label;
+        _options?: string[];
+        _selectedIndex?: number;
+    } {
+        // Container matching spinner structure
+        const container: St.BoxLayout & {
+            _valueLabel?: St.Label;
+            _options?: string[];
+            _selectedIndex?: number;
+        } = new St.BoxLayout({
+            vertical: false,
+            style: `
+                background-color: ${colors.inputBg};
+                border: 1px solid ${colors.inputBorder};
+                border-radius: 6px;
+            `,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        // Value display (matching spinner value label style)
+        const valueLabel = new St.Label({
+            text: selected,
+            style: `
+                font-size: 11pt;
+                color: ${colors.textPrimary};
+                min-width: 32px;
+                text-align: center;
+                padding: 6px 8px;
+            `,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        container.add_child(valueLabel);
+        container._valueLabel = valueLabel;
+        container._options = options;
+        container._selectedIndex = options.indexOf(selected);
+        if (container._selectedIndex < 0) container._selectedIndex = 0;
+
+        // Buttons container (vertical) - matching spinner exactly
+        const buttonsBox = new St.BoxLayout({
+            vertical: true,
+            style: `
+                border-left: 1px solid ${colors.inputBorder};
+            `,
+        });
+
+        // Up button - increment value
+        const upButton = new St.Button({
+            style: `
+                padding: 2px 6px;
+                background-color: transparent;
+                border-radius: 0 6px 0 0;
+            `,
+            can_focus: true,
+        });
+        const upIcon = new St.Icon({
+            icon_name: 'pan-up-symbolic',
+            icon_size: 10,
+            style: `color: ${colors.textMuted};`,
+        });
+        upButton.set_child(upIcon);
+
+        // Use module-level handlers to prevent closure leaks
+        const upHoverStyle = `padding: 2px 6px; background-color: ${colors.buttonBgHover}; border-radius: 0 6px 0 0;`;
+        const upNormalStyle = 'padding: 2px 6px; background-color: transparent; border-radius: 0 6px 0 0;';
+        const boundUpClick = handleUpButtonClick.bind(null, container, valueLabel, options, undefined);
+        const boundUpEnter = handleWidgetHoverEnter.bind(null, upButton, upHoverStyle);
+        const boundUpLeave = handleWidgetHoverLeave.bind(null, upButton, upNormalStyle);
+
+        upButton.connect('clicked', boundUpClick);
+        upButton.connect('enter-event', boundUpEnter);
+        upButton.connect('leave-event', boundUpLeave);
+
+        buttonsBox.add_child(upButton);
+
+        // Down button - decrement value
+        const downButton = new St.Button({
+            style: `
+                padding: 2px 6px;
+                background-color: transparent;
+                border-radius: 0 0 6px 0;
+                border-top: 1px solid ${colors.inputBorder};
+            `,
+            can_focus: true,
+        });
+        const downIcon = new St.Icon({
+            icon_name: 'pan-down-symbolic',
+            icon_size: 10,
+            style: `color: ${colors.textMuted};`,
+        });
+        downButton.set_child(downIcon);
+
+        // Use module-level handlers to prevent closure leaks
+        const downHoverStyle = `padding: 2px 6px; background-color: ${colors.buttonBgHover}; border-radius: 0 0 6px 0; border-top: 1px solid ${colors.inputBorder};`;
+        const downNormalStyle = `padding: 2px 6px; background-color: transparent; border-radius: 0 0 6px 0; border-top: 1px solid ${colors.inputBorder};`;
+        const boundDownClick = handleDownButtonClick.bind(null, container, valueLabel, options, undefined);
+        const boundDownEnter = handleWidgetHoverEnter.bind(null, downButton, downHoverStyle);
+        const boundDownLeave = handleWidgetHoverLeave.bind(null, downButton, downNormalStyle);
+
+        downButton.connect('clicked', boundDownClick);
+        downButton.connect('enter-event', boundDownEnter);
+        downButton.connect('leave-event', boundDownLeave);
+
+        buttonsBox.add_child(downButton);
+        container.add_child(buttonsBox);
+
+        return container;
+    }
+
+    /**
+     * Create a section card container
+     * @param {Object} colors - Theme colors
+     * @param {string} title - Optional section title
+     * @returns {St.BoxLayout} Section container
+     * @private
+     */
+    _createSection(colors: ThemeColors, title: string | null = null): St.BoxLayout {
+        const section = new St.BoxLayout({
+            vertical: true,
+            style: `
+                background-color: ${colors.sectionBg};
+                border: 1px solid ${colors.sectionBorder};
+                border-radius: 12px;
+                padding: 16px;
+                margin-bottom: 12px;
+            `,
+        });
+
+        if (title) {
+            const titleLabel = new St.Label({
+                text: title,
+                style: `
+                    font-size: 9pt;
+                    font-weight: 600;
+                    color: ${colors.textMuted};
+                    margin-bottom: 12px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                `,
+            });
+            section.add_child(titleLabel);
+        }
+
+        return section;
+    }
+
+    /**
+     * Compute input field style based on disabled state
+     * @param {Object} colors - Theme colors
+     * @param {Object} options - Input options
+     * @returns {Object} Style properties {textColor, bgColor, style}
+     * @private
+     */
+    _computeInputStyle(
+        colors: ThemeColors,
+        options: {text?: string; hintText?: string; minWidth?: string; disabled?: boolean},
+    ): {isDisabled: boolean; style: string} {
+        const isDisabled = options.disabled || false;
+        const textColor = isDisabled ? colors.textMuted : colors.textPrimary;
+        const bgColor = isDisabled ? colors.sectionBg : colors.inputBg;
+        const minWidth = options.minWidth || '200px';
+        const opacityRule = isDisabled ? 'opacity: 0.7;' : '';
+
+        return {
+            isDisabled,
+            style: `
+                min-width: ${minWidth};
+                background-color: ${bgColor};
+                color: ${textColor};
+                border: 1px solid ${colors.inputBorder};
+                border-radius: 6px;
+                padding: 8px 12px;
+                ${opacityRule}
+            `,
+        };
+    }
+
+    /**
+     * Create a styled input field with inset appearance
+     * @param {Object} colors - Theme colors
+     * @param {Object} options - Input options (text, hintText, minWidth, disabled)
+     * @returns {St.Entry} Styled entry widget
+     * @private
+     */
+    _createStyledInput(
+        colors: ThemeColors,
+        options: {text?: string; hintText?: string; minWidth?: string; disabled?: boolean} = {},
+    ): St.Entry {
+        const {isDisabled, style} = this._computeInputStyle(colors, options);
+
+        const entry = new St.Entry({
+            text: options.text || '',
+            hint_text: options.hintText || '',
+            can_focus: !isDisabled,
+            reactive: !isDisabled,
+            style,
+        });
+
+        if (isDisabled && entry.clutter_text) {
+            entry.clutter_text.editable = false;
+        }
+
+        return entry;
+    }
+
+    /**
+     * Create a styled checkbox matching topBar.js design
+     * Uses accent color when checked, transparent when unchecked
+     * @param {Object} colors - Theme colors
+     * @param {boolean} checked - Initial checked state
+     * @returns {St.Button} Checkbox button
+     * @private
+     */
+    _createCheckbox(colors: ThemeColors, checked: boolean = false): St.Button & {_checked?: boolean} {
+        const checkbox: St.Button & {_checked?: boolean} = new St.Button({
+            style_class: 'checkbox',
+            style: 'width: 18px; height: 18px; ' +
+                   `border: 2px solid ${checked ? colors.accentHex : colors.textMuted}; ` +
+                   'border-radius: 3px; ' +
+                   `background-color: ${checked ? colors.accentHex : 'transparent'};`,
+            reactive: true,
+            track_hover: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        // Add checkmark when checked
+        if (checked) {
+            const checkmark = new St.Label({
+                text: '✓',
+                style: `color: ${colors.isDark ? '#1a202c' : 'white'}; font-size: 12px; font-weight: bold;`,
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            checkbox.set_child(checkmark);
+        }
+
+        checkbox._checked = checked;
+        return checkbox;
+    }
+
+    /**
+     * Toggle checkbox state and update appearance
+     * @param {St.Button} checkbox - The checkbox button
+     * @param {Object} colors - Theme colors
+     * @private
+     */
+    _toggleCheckbox(checkbox: St.Button & {_checked?: boolean}, colors: ThemeColors): void {
+        checkbox._checked = !checkbox._checked;
+
+        // Destroy old child before setting new one
+        const oldChild = checkbox.get_child();
+        if (oldChild) {
+            oldChild.destroy();
+        }
+
+        checkbox.style = 'width: 18px; height: 18px; ' +
+               `border: 2px solid ${checkbox._checked ? colors.accentHex : colors.textMuted}; ` +
+               'border-radius: 3px; ' +
+               `background-color: ${checkbox._checked ? colors.accentHex : 'transparent'};`;
+
+        if (checkbox._checked) {
+            const checkmark = new St.Label({
+                text: '✓',
+                style: `color: ${colors.isDark ? '#1a202c' : 'white'}; font-size: 12px; font-weight: bold;`,
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            checkbox.set_child(checkmark);
+        } else {
+            checkbox.set_child(null);
+        }
+    }
+
+    /**
+     * Create a spinner input with up/down buttons
+     * @param {Object} colors - Theme colors
+     * @param {Object} options - Spinner options (value, min, max, step)
+     * @returns {St.BoxLayout} Spinner container
+     * @private
+     */
+    _createSpinnerInput(
+        colors: ThemeColors,
+        options: {value?: number; min?: number; max?: number; step?: number} = {},
+    ): St.BoxLayout & {
+        _valueLabel?: St.Label;
+        _value?: number;
+        _min?: number;
+        _max?: number;
+        _step?: number;
+    } {
+        const value = options.value || 0;
+        const min = options.min ?? 0;
+        const max = options.max ?? 99;
+        const step = options.step || 1;
+
+        const container: St.BoxLayout & {
+            _valueLabel?: St.Label;
+            _value?: number;
+            _min?: number;
+            _max?: number;
+            _step?: number;
+        } = new St.BoxLayout({
+            vertical: false,
+            style: `
+                background-color: ${colors.inputBg};
+                border: 1px solid ${colors.inputBorder};
+                border-radius: 6px;
+            `,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        // Value display
+        const valueLabel = new St.Label({
+            text: String(value),
+            style: `
+                font-size: 11pt;
+                color: ${colors.textPrimary};
+                min-width: 32px;
+                text-align: center;
+                padding: 6px 8px;
+            `,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        container.add_child(valueLabel);
+        container._valueLabel = valueLabel;
+        container._value = value;
+        container._min = min;
+        container._max = max;
+        container._step = step;
+
+        // Buttons container (vertical)
+        const buttonsBox = new St.BoxLayout({
+            vertical: true,
+            style: `
+                border-left: 1px solid ${colors.inputBorder};
+            `,
+        });
+
+        // Up button
+        const upButton = new St.Button({
+            style: `
+                padding: 2px 6px;
+                background-color: transparent;
+                border-radius: 0 6px 0 0;
+            `,
+            can_focus: true,
+        });
+        const upIcon = new St.Icon({
+            icon_name: 'pan-up-symbolic',
+            icon_size: 10,
+            style: `color: ${colors.textMuted};`,
+        });
+        upButton.set_child(upIcon);
+
+        // Use module-level handlers to prevent closure leaks
+        const upHoverStyle = `padding: 2px 6px; background-color: ${colors.buttonBgHover}; border-radius: 0 6px 0 0;`;
+        const upNormalStyle = 'padding: 2px 6px; background-color: transparent; border-radius: 0 6px 0 0;';
+        const boundUpClick = handleUpButtonClick.bind(null, container, valueLabel, max, step);
+        const boundUpEnter = handleWidgetHoverEnter.bind(null, upButton, upHoverStyle);
+        const boundUpLeave = handleWidgetHoverLeave.bind(null, upButton, upNormalStyle);
+
+        upButton.connect('clicked', boundUpClick);
+        upButton.connect('enter-event', boundUpEnter);
+        upButton.connect('leave-event', boundUpLeave);
+
+        buttonsBox.add_child(upButton);
+
+        // Down button
+        const downButton = new St.Button({
+            style: `
+                padding: 2px 6px;
+                background-color: transparent;
+                border-radius: 0 0 6px 0;
+                border-top: 1px solid ${colors.inputBorder};
+            `,
+            can_focus: true,
+        });
+        const downIcon = new St.Icon({
+            icon_name: 'pan-down-symbolic',
+            icon_size: 10,
+            style: `color: ${colors.textMuted};`,
+        });
+        downButton.set_child(downIcon);
+
+        // Use module-level handlers to prevent closure leaks
+        const downHoverStyle = `padding: 2px 6px; background-color: ${colors.buttonBgHover}; border-radius: 0 0 6px 0; border-top: 1px solid ${colors.inputBorder};`;
+        const downNormalStyle = `padding: 2px 6px; background-color: transparent; border-radius: 0 0 6px 0; border-top: 1px solid ${colors.inputBorder};`;
+        const boundDownClick = handleDownButtonClick.bind(null, container, valueLabel, min, step);
+        const boundDownEnter = handleWidgetHoverEnter.bind(null, downButton, downHoverStyle);
+        const boundDownLeave = handleWidgetHoverLeave.bind(null, downButton, downNormalStyle);
+
+        downButton.connect('clicked', boundDownClick);
+        downButton.connect('enter-event', boundDownEnter);
+        downButton.connect('leave-event', boundDownLeave);
+
+        buttonsBox.add_child(downButton);
+        container.add_child(buttonsBox);
+
+        return container;
+    }
+
+    /**
+     * Get layout status text
+     * @returns {string} Status text describing zone count
+     * @private
+     */
+    _getLayoutStatus(): string {
+        const zoneCount = this._layout.zones?.length || 0;
+        if (zoneCount === 0) {
+            return 'No zones defined';
+        }
+        return `${zoneCount} zone${zoneCount !== 1 ? 's' : ''} defined`;
+    }
+
+    /**
+     * Validate if layout can be saved
+     * @returns {boolean} True if layout is valid for saving
+     * @private
+     */
+    _validateForSave(): boolean {
+        const name = this._nameEntry?.get_text().trim();
+        if (!name) {
+            return false;
+        }
+
+        if (!this._layout.zones || this._layout.zones.length === 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Update save button enabled state
+     * @private
+     */
+    _updateSaveButton(): void {
+        if (!this._saveButton) return;
+
+        const canSave = this._validateForSave();
+        this._saveButton.reactive = canSave;
+        this._saveButton.opacity = canSave ? 255 : 128;
+
+        logger.debug(`Validation: ${canSave ? 'can save' : 'cannot save'}`);
+    }
+
+    /**
+     * Capture current dialog state for zone editor handoff
+     * @returns {Object} Captured state including name, padding, shortcut, and layout data
+     * @private
+     */
+    _captureDialogState(): {
+        name: string;
+        padding: number;
+        paddingEnabled: boolean;
+        shortcut: string | null;
+        layoutData: Layout;
+        } {
+        const currentPadding = this._paddingSpinner?._value ?? this._layout.padding ?? 4;
+        return {
+            name: this._nameEntry?.get_text().trim() ?? '',
+            padding: currentPadding,
+            paddingEnabled: this._paddingCheckbox?._checked ?? (currentPadding > 0),
+            shortcut: this._collectShortcutValue(),
+            layoutData: JSON.parse(JSON.stringify(this._layout)),
+        };
+    }
+
+    /**
+     * Build layout object from zone editor result and saved state
+     * @param {Object} editedLayout - Layout returned from zone editor
+     * @param {Object} state - Captured dialog state
+     * @returns {Object} Final layout object for saving
+     * @private
+     */
+    _buildLayoutFromEditorResult(
+        editedLayout: Layout,
+        state: {name: string; padding: number; paddingEnabled: boolean; shortcut: string | null; layoutData: Layout},
+    ): Layout {
+        return {
+            id: state.layoutData.id || `layout-${Date.now()}`,
+            name: state.name,
+            zones: editedLayout.zones,
+            padding: state.paddingEnabled ? (parseInt(String(state.padding)) || 4) : 0,
+            shortcut: state.shortcut,
+            metadata: {
+                createdDate: state.layoutData.metadata?.createdDate || Date.now(),
+                modifiedDate: Date.now(),
+            },
+        };
+    }
+
+    /**
+     * Open ZoneEditor to edit geometry
+     *
+     * BEHAVIOR CHANGE: Zone editor now returns directly to LayoutSwitcher
+     * instead of reopening LayoutSettingsDialog. This simplifies the flow
+     * and fixes z-order issues:
+     * - Save: saves the layout and returns to LayoutSwitcher
+     * - Cancel: discards changes and returns to LayoutSwitcher
+     * @private
+     */
+    _openZoneEditor(): void {
+        logger.info('Opening ZoneEditor from LayoutSettingsDialog');
+
+        // Capture current state before closing
+        const state = this._captureDialogState();
+
+        // Store callbacks before closing
+        const savedOnSave = this._onSaveCallback;
+        const savedOnCancel = this._onCancelCallback;
+        const savedOnZoneEditorClose = this._onZoneEditorCloseCallback;
+        const layoutManager = this._layoutManager;
+
+        this.close();
+
+        const layoutForEditor = (state.layoutData.zones.length > 0) ? state.layoutData : null;
+
+        // One-shot callback guards
+        let saveExecuted = false;
+        let cancelExecuted = false;
+
+        const editor = new ZoneEditor(
+            // eslint-disable-next-line max-len
+            layoutForEditor as {id?: string | null; name?: string; zones: Array<{name: string; x: number; y: number; w: number; h: number}>} | null,
+            layoutManager,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this._settings as any,
+            ((editedLayout: Layout) => {
+                if (saveExecuted) return;
+                saveExecuted = true;
+
+                logger.info(`ZoneEditor save: ${editedLayout.zones.length} zones`);
+
+                const finalLayout = this._buildLayoutFromEditorResult(editedLayout, state);
+                const success = layoutManager.saveLayout(finalLayout);
+
+                logger.info(success ? `Layout saved: ${finalLayout.name}` : `Save failed: ${finalLayout.name}`);
+
+                if (savedOnZoneEditorClose) {
+                    savedOnZoneEditorClose(finalLayout);
+                }
+                if (savedOnSave) {
+                    savedOnSave(finalLayout);
+                }
+            // eslint-disable-next-line max-len
+            }) as (layout: {id?: string | null; name?: string; zones: Array<{name: string; x: number; y: number; w: number; h: number}>}) => void,
+            () => {
+                if (cancelExecuted) return;
+                cancelExecuted = true;
+
+                logger.info('ZoneEditor canceled');
+
+                if (savedOnZoneEditorClose) {
+                    savedOnZoneEditorClose(state.layoutData);
+                }
+                if (savedOnCancel) {
+                    savedOnCancel();
+                }
+            },
+        );
+
+        if (this._onZoneEditorOpenCallback) {
+            this._onZoneEditorOpenCallback();
+        }
+
+        editor.show();
+    }
+
+    /**
+     * Record keyboard shortcut (placeholder)
+     * @private
+     */
+    _recordShortcut(): void {
+        logger.info('Shortcut recorder not yet implemented');
+        // TODO: Implement keyboard shortcut recording
+        // This will involve capturing key press events and storing the combination
+    }
+
+    /**
+     * Handle duplicate action - creates a copy and transforms dialog in-place
+     * @private
+     */
+    _onDuplicate(): void {
+        logger.info(`Duplicate requested for layout: ${this._layout.name}`);
+
+        // Create duplicated layout data
+        const duplicatedLayout = {
+            id: this._generateId(),  // New unique ID
+            name: `${this._layout.name} Copy`,
+            zones: JSON.parse(JSON.stringify(this._layout.zones || [])),
+            padding: this._layout.padding || 0,  // Preserve padding; default off
+            shortcut: null,  // Don't copy shortcut to avoid conflicts
+            metadata: {
+                createdDate: Date.now(),
+                modifiedDate: Date.now(),
+            },
+        };
+
+        // Store current callbacks and managers
+        const savedOnSave = this._onSaveCallback;
+        const savedOnCancel = this._onCancelCallback;
+        const layoutManager = this._layoutManager;
+        const settings = this._settings;
+
+        // Close current dialog
+        this.close();
+
+        // Open new dialog with duplicated layout (now a custom layout, not template)
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            const newDialog = new LayoutSettingsDialog(
+                duplicatedLayout,
+                layoutManager,
+                settings,
+                savedOnSave ?? (() => {}),
+                savedOnCancel ?? (() => {}),
+            );
+            newDialog.open();
+            return GLib.SOURCE_REMOVE;
+        });
+
+        logger.info(`Created duplicate: ${duplicatedLayout.name} (${duplicatedLayout.id})`);
+    }
+
+    /**
+     * Handle delete action
+     * Shows inline confirmation overlay (avoids modal conflicts with LayoutPreviewBackground)
+     * @private
+     */
+    _onDelete(): void {
+        logger.info(`Delete requested for layout: ${this._layout.name}`);
+
+        // Show inline confirmation overlay
+        this._showDeleteConfirmation();
+    }
+
+    /**
+     * Show inline delete confirmation overlay
+     * Uses same pattern as LayoutSwitcher for consistency and modal compatibility
+     * @private
+     */
+    _showDeleteConfirmation(): void {
+        this._removeExistingConfirmation();
+
+        if (!this._themeManager) return;
+        const colors = this._themeManager.getColors();
+
+        const confirmBox = this._createConfirmBox(colors);
+        const wrapper = this._createConfirmWrapper(confirmBox);
+
+        this._attachConfirmOverlay(wrapper);
+        this._centerConfirmBox(confirmBox, wrapper);
+        this._focusConfirmCancel(confirmBox);
+
+        logger.debug('Delete confirmation overlay shown');
+    }
+
+    /**
+     * Remove any existing confirmation overlay
+     * @private
+     */
+    _removeExistingConfirmation(): void {
+        if (this._confirmOverlay) {
+            this._confirmOverlay.destroy();
+            this._confirmOverlay = null;
+        }
+    }
+
+    /**
+     * Create confirmation dialog box
+     * @private
+     */
+    _createConfirmBox(colors: ThemeColors): St.BoxLayout {
+        const confirmBox = new St.BoxLayout({
+            vertical: true,
+            style: `background-color: ${colors.containerBg}; ` +
+                   'border-radius: 12px; ' +
+                   'padding: 24px; ' +
+                   'min-width: 300px; ' +
+                   `border: 1px solid ${colors.border};`,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: false,
+            y_expand: false,
+        });
+
+        this._addConfirmTitle(confirmBox, colors);
+        this._addConfirmMessage(confirmBox, colors);
+        this._addConfirmButtons(confirmBox, colors);
+
+        this._confirmBox = confirmBox;
+        return confirmBox;
+    }
+
+    /**
+     * Add title to confirmation box
+     * @private
+     */
+    _addConfirmTitle(confirmBox: St.BoxLayout, colors: ThemeColors): void {
+        const title = new St.Label({
+            text: 'Delete Layout',
+            style: `color: ${colors.textPrimary}; font-size: 16px; font-weight: bold; margin-bottom: 12px;`,
+        });
+        confirmBox.add_child(title);
+    }
+
+    /**
+     * Add message to confirmation box
+     * @private
+     */
+    _addConfirmMessage(confirmBox: St.BoxLayout, colors: ThemeColors): void {
+        const message = new St.Label({
+            text: `Are you sure you want to delete "${this._layout.name}"?\n\nThis action cannot be undone.`,
+            style: `color: ${colors.textSecondary}; font-size: 13px; margin-bottom: 20px;`,
+        });
+        message.clutter_text.line_wrap = true;
+        confirmBox.add_child(message);
+    }
+
+    /**
+     * Add buttons to confirmation box
+     * @private
+     */
+    _addConfirmButtons(confirmBox: St.BoxLayout, colors: ThemeColors): void {
+        const buttonBox = new St.BoxLayout({
+            style: 'spacing: 12px;',
+            x_align: Clutter.ActorAlign.END,
+        });
+
+        const cancelBtn = this._createCancelButton(colors);
+        buttonBox.add_child(cancelBtn);
+
+        const deleteBtn = this._createDeleteButton(colors);
+        buttonBox.add_child(deleteBtn);
+
+        confirmBox.add_child(buttonBox);
+    }
+
+    /**
+     * Create cancel button for confirmation
+     * @private
+     */
+    _createCancelButton(colors: ThemeColors): St.Button {
+        const cancelBtn = new St.Button({
+            label: 'Cancel',
+            style: `background-color: ${colors.buttonBg}; ` +
+                   `color: ${colors.buttonText}; ` +
+                   'padding: 8px 20px; ' +
+                   'border-radius: 6px; ' +
+                   'font-weight: 500;',
+            reactive: true,
+            track_hover: true,
+        });
+        if (this._signalTracker && this._boundHandleDeleteCancelClick) {
+            this._signalTracker.connect(
+                cancelBtn, 'clicked', this._boundHandleDeleteCancelClick,
+            );
+        }
+        return cancelBtn;
+    }
+
+    /**
+     * Create delete button for confirmation
+     * @private
+     */
+    _createDeleteButton(_colors: ThemeColors): St.Button {
+        const deleteBtn = new St.Button({
+            label: 'Delete',
+            style: 'background-color: #c01c28; ' +
+                   'color: white; ' +
+                   'padding: 8px 20px; ' +
+                   'border-radius: 6px; ' +
+                   'font-weight: 500;',
+            reactive: true,
+            track_hover: true,
+        });
+        if (this._signalTracker && this._boundHandleDeleteConfirmClick) {
+            this._signalTracker.connect(
+                deleteBtn, 'clicked', this._boundHandleDeleteConfirmClick,
+            );
+        }
+        return deleteBtn;
+    }
+
+    /**
+     * Create wrapper for confirmation overlay
+     * @private
+     */
+    _createConfirmWrapper(confirmBox: St.BoxLayout): St.Widget {
+        const wrapper = new St.Widget({
+            style: 'background-color: rgba(0, 0, 0, 0.5);',
+            reactive: true,
+            x: 0,
+            y: 0,
+            width: this._container?.width ?? 0,
+            height: this._container?.height ?? 0,
+        });
+
+        if (this._signalTracker && this._boundHandleDeleteWrapperClick) {
+            this._signalTracker.connect(
+                wrapper, 'button-press-event', this._boundHandleDeleteWrapperClick,
+            );
+        }
+
+        wrapper.add_child(confirmBox);
+        return wrapper;
+    }
+
+    /**
+     * Attach confirmation overlay to container
+     * @private
+     */
+    _attachConfirmOverlay(wrapper: St.Widget): void {
+        this._confirmOverlay = wrapper;
+        if (this._container) {
+            this._container.add_child(wrapper);
+        }
+    }
+
+    /**
+     * Center the confirmation box within wrapper
+     * @private
+     */
+    _centerConfirmBox(confirmBox: St.BoxLayout, wrapper: St.Widget): void {
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            if (confirmBox && wrapper) {
+                const [boxW, boxH] = confirmBox.get_size();
+                confirmBox.set_position(
+                    Math.floor((wrapper.width - boxW) / 2),
+                    Math.floor((wrapper.height - boxH) / 2),
+                );
+            }
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    /**
+     * Focus the cancel button in confirmation box
+     * @private
+     */
+    _focusConfirmCancel(confirmBox: St.BoxLayout): void {
+        const buttonBox = confirmBox.get_children()[2];
+        if (buttonBox) {
+            const cancelBtn = buttonBox.get_children()[0];
+            if (cancelBtn && 'grab_key_focus' in cancelBtn) {
+                (cancelBtn as St.Button).grab_key_focus();
+            }
+        }
+    }
+
+    /**
+     * Handle container click to check if clicking outside dialog card
+     * @param {Clutter.Actor} actor - The container actor
+     * @param {Clutter.Event} event - The click event
+     * @returns {number} Clutter.EVENT_STOP or Clutter.EVENT_PROPAGATE
+     * @private
+     */
+    _handleContainerClick(_actor: Clutter.Actor, event: Clutter.Event): number {
+        const [clickX, clickY] = event.get_coords();
+        const cardAlloc = this._dialogCard?.get_transformed_extents();
+
+        if (cardAlloc) {
+            // Check if click is outside the dialog card bounds
+            const isOutside = clickX < cardAlloc.origin.x ||
+                              clickX > cardAlloc.origin.x + cardAlloc.size.width ||
+                              clickY < cardAlloc.origin.y ||
+                              clickY > cardAlloc.origin.y + cardAlloc.size.height;
+
+            if (isOutside) {
+                this._onCancel();
+                return Clutter.EVENT_STOP as unknown as number;
+            }
+        }
+        return Clutter.EVENT_PROPAGATE as unknown as number;
+    }
+
+    /**
+     * Handle key press events
+     * @param {Clutter.Actor} actor - The container actor
+     * @param {Clutter.Event} event - The key press event
+     * @returns {number} Clutter.EVENT_STOP or Clutter.EVENT_PROPAGATE
+     * @private
+     */
+    _handleKeyPress(_actor: Clutter.Actor, event: Clutter.Event): number {
+        const symbol = event.get_key_symbol();
+        if (symbol === Clutter.KEY_Escape) {
+            this._onCancel();
+            return Clutter.EVENT_STOP as unknown as number;
+        }
+        return Clutter.EVENT_PROPAGATE as unknown as number;
+    }
+
+    /**
+     * Handle padding checkbox toggle
+     * @private
+     */
+    _onTogglePaddingCheckbox(): void {
+        if (!this._themeManager || !this._paddingCheckbox) return;
+        const colors = this._themeManager.getColors();
+        this._toggleCheckbox(this._paddingCheckbox, colors);
+        const isEnabled = this._paddingCheckbox._checked ?? false;
+        if (this._paddingSpinner) {
+            this._paddingSpinner.reactive = isEnabled;
+            this._paddingSpinner.opacity = isEnabled ? 255 : 128;
+        }
+        this._updateSaveButton();
+    }
+
+    /**
+     * Create a hyperlink-style button
+     * @param {Object} colors - Theme colors
+     * @param {string} text - Link text
+     * @param {Function} onClick - Click handler
+     * @returns {St.Button} Hyperlink button
+     * @private
+     */
+    _createHyperlinkButton(
+        colors: ThemeColors,
+        text: string,
+        onClick: () => void,
+    ): St.Button & {_linkLabel?: St.Label} {
+        const button = new St.Button({
+            style: `
+                padding: 4px 8px;
+                background-color: transparent;
+            `,
+            can_focus: true,
+        });
+
+        const linkLabel = new St.Label({
+            text: text,
+            style: `
+                font-size: 11pt;
+                color: ${colors.accentHex};
+                text-decoration: underline;
+            `,
+        });
+        button.set_child(linkLabel);
+        (button as St.Button & {_linkLabel: St.Label})._linkLabel = linkLabel;
+
+        button.connect('clicked', onClick);
+
+        button.connect('enter-event', () => {
+            linkLabel.style = `
+                font-size: 11pt;
+                color: ${colors.accentHexHover};
+                text-decoration: underline;
+            `;
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        button.connect('leave-event', () => {
+            linkLabel.style = `
+                font-size: 11pt;
+                color: ${colors.accentHex};
+                text-decoration: underline;
+            `;
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        return button;
+    }
+
+    /**
+     * Hide the delete confirmation overlay
+     * @private
+     */
+    _hideDeleteConfirmation(): void {
+        if (this._confirmOverlay) {
+            this._confirmOverlay.destroy();
+            this._confirmOverlay = null;
+            logger.debug('Delete confirmation overlay hidden');
+        }
+
+        this._confirmBox = null;
+
+        // Return focus to dialog
+        this._dialogCard?.grab_key_focus();
+    }
+
+    /**
+     * Collect current padding value from UI
+     * @returns {number} Padding value (0 if disabled)
+     * @private
+     */
+    _collectPaddingValue(): number {
+        const paddingEnabled = this._paddingCheckbox?._checked;
+        return paddingEnabled ? (this._paddingSpinner?._value ?? 4) : 0;
+    }
+
+    /**
+     * Collect current shortcut value from UI
+     * @returns {string|null} Shortcut value or null if 'None'
+     * @private
+     */
+    _collectShortcutValue(): string | null {
+        const shortcutValue = this._shortcutDropdown?._valueLabel?.text;
+        return (shortcutValue && shortcutValue !== 'None') ? shortcutValue : null;
+    }
+
+    /**
+     * Create a styled button with hover effects
+     * @param {Object} colors - Theme colors
+     * @param {string} label - Button label
+     * @param {Function} onClick - Click handler
+     * @param {Object} options - Optional styling options
+     * @returns {St.Button}
+     * @private
+     */
+    _createButton(
+        colors: ThemeColors,
+        label: string,
+        onClick: () => void,
+        options: {padding?: string; accent?: boolean} = {},
+    ): St.Button & {_normalStyle?: string; _hoverStyle?: string} {
+        const padding = options.padding || '10px 24px';
+        const isAccent = options.accent || false;
+
+        const normalBg = isAccent ? colors.accentHex : colors.buttonBg;
+        const hoverBg = isAccent ? colors.accentHexHover : colors.buttonBgHover;
+        const textColor = isAccent ? 'white' : colors.buttonText;
+
+        const normalStyle = `
+            padding: ${padding}; 
+            background-color: ${normalBg}; 
+            color: ${textColor}; 
+            border-radius: 6px;
+            border: 1px solid ${colors.sectionBorder};
+        `;
+        const hoverStyle = `
+            padding: ${padding}; 
+            background-color: ${hoverBg}; 
+            color: ${textColor}; 
+            border-radius: 6px;
+            border: 1px solid ${colors.sectionBorder};
+        `;
+
+        const button = new St.Button({
+            label: label,
+            style_class: 'button',
+            style: normalStyle,
+            can_focus: true,
+        });
+
+        button.connect('clicked', onClick);
+
+        button.connect('enter-event', () => {
+            button.style = hoverStyle;
+            return Clutter.EVENT_PROPAGATE;
+        });
+        button.connect('leave-event', () => {
+            button.style = normalStyle;
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        // Store styles for updating later
+        (button as St.Button & {_normalStyle: string; _hoverStyle: string})._normalStyle = normalStyle;
+        (button as St.Button & {_normalStyle: string; _hoverStyle: string})._hoverStyle = hoverStyle;
+
+        return button;
+    }
+
+    /**
+     * Handle delete confirm button click
+     * @private
+     */
+    _onDeleteConfirmClick(): void {
+        this._hideDeleteConfirmation();
+
+        // Perform delete
+        const success = this._layoutManager.deleteLayout(this._layout.id);
+
+        if (success) {
+            logger.info(`Layout deleted: ${this._layout.name}`);
+            this.close();
+
+            if (this._onSaveCallback) {
+                this._onSaveCallback(null as Layout | null); // Signal deletion
+            }
+        } else {
+            logger.error(`Failed to delete layout: ${this._layout.name}`);
+        }
+    }
+
+    /**
+     * Handle delete wrapper click to check if clicking outside confirmation box
+     * @param {Clutter.Actor} actor - The wrapper actor
+     * @param {Clutter.Event} event - The click event
+     * @returns {number} Clutter.EVENT_STOP
+     * @private
+     */
+    _handleDeleteWrapperClick(_actor: Clutter.Actor, event: Clutter.Event): number {
+        const [clickX, clickY] = event.get_coords();
+        const confirmBox = this._confirmBox;
+
+        if (!confirmBox) {
+            return Clutter.EVENT_STOP as unknown as number;
+        }
+
+        const boxAlloc = confirmBox.get_transformed_extents();
+        const isOutside = clickX < boxAlloc.origin.x ||
+                          clickX > boxAlloc.origin.x + boxAlloc.size.width ||
+                          clickY < boxAlloc.origin.y ||
+                          clickY > boxAlloc.origin.y + boxAlloc.size.height;
+
+        if (isOutside) {
+            this._hideDeleteConfirmation();
+            return Clutter.EVENT_STOP as unknown as number;
+        }
+
+        return Clutter.EVENT_PROPAGATE as unknown as number;
+    }
+
+    /**
+     * Build final layout object from current UI state
+     * @returns {Object} Layout object ready for saving
+     * @private
+     */
+    _buildFinalLayout(): Layout {
+        if (!this._nameEntry) {
+            throw new Error('Name entry not initialized');
+        }
+        return {
+            id: this._layout.id || this._generateId(),
+            name: this._nameEntry.get_text().trim(),
+            zones: this._layout.zones,
+            padding: this._collectPaddingValue(),
+            shortcut: this._collectShortcutValue(),
+            metadata: {
+                createdDate: this._layout.metadata?.createdDate || Date.now(),
+                modifiedDate: Date.now(),
+            },
+        };
+    }
+
+    /**
+     * Handle save action
+     * @private
+     */
+    _onSave(): void {
+        if (!this._validateForSave()) {
+            logger.warn('Cannot save: validation failed');
+            return;
+        }
+
+        const finalLayout = this._buildFinalLayout();
+
+        // Clear duplicate shortcuts from other layouts before saving
+        if (finalLayout.shortcut) {
+            const allLayouts = this._layoutManager.getAllLayouts();
+            for (const layout of allLayouts) {
+                if (layout.id !== finalLayout.id && layout.shortcut === finalLayout.shortcut) {
+                    logger.info(`Clearing duplicate shortcut ${layout.shortcut} from layout: ${layout.name}`);
+                    layout.shortcut = null;
+                    this._layoutManager.saveLayout(layout);
+                }
+            }
+        }
+
+        logger.info(`Saving layout: ${finalLayout.name} (${finalLayout.id}), padding: ${finalLayout.padding}, shortcut: ${finalLayout.shortcut}`);
+
+        const success = this._layoutManager.saveLayout(finalLayout);
+
+        if (success) {
+            logger.info('Layout saved successfully');
+            this.close();
+            if (this._onSaveCallback) {
+                this._onSaveCallback(finalLayout);
+            }
+        } else {
+            logger.error('Failed to save layout');
+        }
+    }
+
+    /**
+     * Handle cancel action
+     * @private
+     */
+    _onCancel(): void {
+        // Prevent multiple invocations
+        if (this._closing || !this._visible) {
+            return;
+        }
+
+        logger.info('LayoutSettingsDialog canceled');
+
+        // Save callback before closing (since close clears state)
+        const callback = this._onCancelCallback;
+
+        this.close();
+
+        if (callback) {
+            callback();
+        }
+    }
+
+    /**
+     * Detect if a layout is a built-in template (immutable)
+     * Templates can be identified by:
+     * 1. ID starting with 'template-' (e.g., 'template-halves')
+     * 2. ID matching a built-in template ID (e.g., 'halves', 'thirds')
+     * @param {Object} layout - The layout to check
+     * @returns {boolean} True if layout is a template
+     * @private
+     */
+    _detectIsTemplate(layout: Layout): boolean {
+        if (!layout || !layout.id) {
+            return false;
+        }
+
+        // Check for template- prefix
+        if (layout.id.startsWith('template-')) {
+            return true;
+        }
+
+        // Check if ID matches a built-in template
+        try {
+            const templateManager = new TemplateManager();
+            return templateManager.hasTemplate(layout.id);
+        } catch (e) {
+            logger.warn('Could not check template manager:', (e as Error).message);
+            return false;
+        }
+    }
+
+    /**
+     * Generate a unique layout ID
+     * @returns {string} Unique ID
+     * @private
+     */
+    _generateId(): string {
+        return `layout-${Date.now()}`;
+    }
+
+    /**
+     * Generate a default name for new layouts
+     * @returns {string} Default name like "Custom Layout" or "Custom Layout 2"
+     * @private
+     */
+    _generateDefaultName(): string {
+        const baseName = 'Custom Layout';
+
+        // If we don't have a layout manager yet, just return the base name
+        if (!this._layoutManager) {
+            return baseName;
+        }
+
+        // Get all existing layouts to check for name conflicts
+        const existingLayouts = this._layoutManager.getAllLayouts() || [];
+        const existingNames = new Set(existingLayouts.map((l: Layout) => l.name));
+
+        // If base name doesn't exist, use it
+        if (!existingNames.has(baseName)) {
+            return baseName;
+        }
+
+        // Otherwise find the next available number
+        let counter = 2;
+        while (existingNames.has(`${baseName} ${counter}`)) {
+            counter++;
+        }
+
+        return `${baseName} ${counter}`;
+    }
+}

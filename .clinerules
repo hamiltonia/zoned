@@ -1,113 +1,37 @@
-## Communication Style
-- Provide clear, technical explanations without unnecessary conversational fluff
-- Offer command-line solutions when available
-- Cross-reference related memory bank entries when relevant
-- Be direct and to-the-point while being thorough
-
-## Project Workflow
-- Update memory bank context files when system state changes
-- Document new scripts and configurations
-- Maintain clean, organized file structure
-- Use git for version control and change tracking
-- Prefer automation and reproducible setups
-
-## Code Standards
-- Use consistent markdown formatting in memory bank
-- Include timestamps in documentation
-- Add cross-references between related topics
-- Use descriptive filenames and directory structure
-- Comment shell scripts and configurations clearly
-
-## VM Script Output Standards
-- **CRITICAL**: Any command running via SSH on the VM MUST be visually distinguished
-- **Visual Indicators Required**:
-  - Use colored output (e.g., YELLOW for VM operations)
-  - Prefix output with `[VM]` tag
-  - Example: `echo -e "${YELLOW}  [VM]${NC} Checking source files..."`
-- **Rationale**: Makes it immediately clear where operations are executing (host vs VM)
-- **Apply to**: All scripts in `scripts/vm-*`, `scripts/user/vm-*`, `scripts/util/vm-*`
-- **Existing Pattern**: Already used in `vm-install` - use as reference
+# Zoned Project Rules
 
 ## Code Attribution Policy
 - **NEVER** include "Created by Cline" or "Modified by Cline" in source code files
 - Code attribution belongs in git commit messages, not in code comments
 - **Rationale**: 99.99% of this code is written by Cline; inline attribution is redundant and clutters the codebase
 - **Exception**: Documentation files (*.md) may reference Cline when contextually appropriate
-- **Git history is the source of truth**: All attribution is preserved in commit messages where it belongs
-
-## Git Workflow and Attribution
-- **CRITICAL**: Do NOT ask about committing until user explicitly requests a commit
-- **CRITICAL**: Do NOT push without explicit user request
-- **CRITICAL**: After completing a commit, STOP and RESET to default state - wait for explicit user request before any subsequent commits
-- **CRITICAL**: NEVER use `requires_approval=true` for git commit - ALWAYS use `ask_followup_question` workflow
-
-### When User Requests a Commit:
-1. **Stage ALL modified/new/deleted files** with `git add -A`
-2. **Determine what needs inspection**:
-   - For files I worked on in this session: Use existing context from the conversation (no re-inspection needed)
-   - For files I don't have context about: Inspect those files to understand the changes
-3. **Prepare comprehensive commit message** covering ALL staged changes
-   - Include "Created by Cline" or "Modified by Cline" attribution in commit BODY (not title)
-4. **Use `ask_followup_question`** (NOT `requires_approval=true`) to:
-   - Present the staged changes
-   - Present the proposed commit message
-   - Explicitly request approval to commit
-5. **Wait for user approval** - Do not proceed until user explicitly approves
-6. **Execute `git commit`** ONLY after receiving approval
-7. **STOP and RESET** - Return to default state, do not proceed with any further work
-
-### Multi-Commit Tasks:
-- After commit #1 completes: **STOP immediately**
-- Wait for user to explicitly request next piece of work
-- User may continue the same task context and request commit #2
-- Each commit requires the same approval workflow (steps 1-7 above)
-- **Never auto-proceed** to next commit or next piece of work
-- The workflow is: work → user requests commit → commit → **STOP** → user requests more work → work → user requests commit → commit → **STOP** (repeat)
-
-### Rationale:
-- User controls the commit workflow to review changes before they're committed
-- After each commit, user may want to test, review, or change direction
-- Continuing work without explicit request can lead to unwanted commits
-
-### Example Commit Message Format:
-```
-Add Debian support for shell scripts
-
-Modified by Cline
-```
-
-**Efficiency Note**: Skip redundant file inspection when context is already known from the current session
 
 ## Pull Request Workflow
-- **Branch Naming**: PRs must be created from properly named branches
-  - **Format**: `<type>/<description>` where type is one of:
-    - `fix/` - Bug fixes
-    - `feature/` - New features
-    - `infra/` - Infrastructure/tooling changes
-    - `docs/` - Documentation updates
-    - `refactor/` - Code refactoring
-  - **Example**: `feature/add-zone-templates`, `fix/memory-leak-overlay`
+- **Branch Naming Format**: `<type>/<description>`
+  - `fix/` - Bug fixes
+  - `feature/` - New features
+  - `infra/` - Infrastructure/tooling changes
+  - `docs/` - Documentation updates
+  - `refactor/` - Code refactoring
 - **When User Requests a PR**:
-  1. **Verify/Create branch**: Check current branch follows naming convention
-     - If on `main` or incorrectly named branch, create a properly named branch automatically
-     - Use context from the work done to generate appropriate branch name
-  2. **Ensure clean commit**: Follow the standard commit workflow rules
-     - Wait for user to request the commit (don't auto-commit just because PR was requested)
-     - User must explicitly request commit before PR can be created
-  3. **Push to remote**: After commit is made and user confirms, push with `git push -u origin <branch-name>`
-  4. **Prepare PR using `gh` CLI**:
-     - Generate a descriptive PR title from the commit message(s)
-     - Generate PR body that includes:
-       - Summary of changes
-       - Testing done (if applicable)
-       - Any breaking changes or special notes
-     - Present the proposed `gh pr create` command to user for approval
-     - Only execute after user approves
+  1. Verify/Create branch with proper naming convention
+  2. Follow standard commit workflow rules
+  3. Push with `git push -u origin <branch-name>` after commit confirmed
+  4. Prepare PR using `gh` CLI - present command to user for approval
 - **CRITICAL**: Do NOT push or create PR without explicit user approval
-- **Rationale**: Main branch is protected and requires PR workflow; proper branch naming maintains repository organization
+- **Rationale**: Main branch is protected; proper branch naming maintains repository organization
+
+## VM Script Output Standards
+- **CRITICAL**: Any command running via SSH on the VM MUST be visually distinguished
+- **Visual Indicators**:
+  - Use colored output (e.g., YELLOW for VM operations)
+  - Prefix output with `[VM]` tag
+  - Example: `echo -e "${YELLOW}  [VM]${NC} Checking source files..."`
+- **Apply to**: `scripts/vm-*`, `scripts/user/vm-*`, `scripts/util/vm-*`
+- **Reference**: `vm-install` script
 
 ## Testing and Deployment
-- **CRITICAL**: NEVER execute `make install`, `make compile-schema`, or any deployment commands without explicit user permission
+- **CRITICAL**: NEVER execute `make install`, `make compile-schema`, or deployment commands without explicit user permission
 - **Testing Location**: All testing is done in the VM environment, not locally
 - **Deployment Workflow**:
   1. Make code changes as requested
@@ -115,9 +39,3 @@ Modified by Cline
   3. Wait for user to deploy to VM and test
   4. Do NOT automatically run install/build commands
 - **Rationale**: User controls when and where code is deployed to avoid disrupting local system
-
-## Notes
-- Always check existing memory bank entries before creating new ones
-- Update system state documentation after major changes
-- Maintain the balance between comprehensive documentation and usability
-- Remember that this repository serves as both personal configuration and learning resource

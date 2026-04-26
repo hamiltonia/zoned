@@ -1,0 +1,386 @@
+[36mRunning ESLint on extension code...[0m
+
+> zoned@1.0.0 lint
+> eslint extension/
+
+
+/home/hamiltonia/GitHub/zoned/extension/extension.ts
+  290:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  323:9   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  326:9   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  327:9   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  327:49  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  332:13  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  489:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  492:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  519:22  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  532:9   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  533:9   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  533:49  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  545:13  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  549:30  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  550:13  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  552:13  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  567:31  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  577:30  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  582:27  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  586:28  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  588:17  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  590:17  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  597:17  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  599:17  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+
+/home/hamiltonia/GitHub/zoned/extension/keybindingManager.ts
+   23:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   24:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   25:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  177:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  231:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  247:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  269:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  307:76  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  313:74  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  324:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  376:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  387:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/hamiltonia/GitHub/zoned/extension/prefs.ts
+  1848:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1922:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/hamiltonia/GitHub/zoned/extension/ui/confirmDialog.ts
+  133:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  134:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  135:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  152:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  182:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  190:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  193:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  220:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  221:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  233:21  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  234:21  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+
+/home/hamiltonia/GitHub/zoned/extension/ui/layoutPreviewBackground.ts
+   83:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  112:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  125:24  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  126:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  132:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  151:13  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  154:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  196:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  246:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  248:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  353:24  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  445:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  469:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  491:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  530:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/hamiltonia/GitHub/zoned/extension/ui/layoutSettingsDiagnostic.ts
+  126:35  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  147:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  147:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  150:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  202:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  216:9   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  217:52  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  224:35  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  240:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  253:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  269:9   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  270:49  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  285:9   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  298:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  321:62  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  326:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  383:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  395:9   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  401:13  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  402:13  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  408:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  424:9   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  430:13  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  431:13  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  437:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  463:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  505:9   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  524:9   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  535:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  576:9   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  595:9   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  667:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  699:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/hamiltonia/GitHub/zoned/extension/ui/layoutSettingsDialog.ts
+   182:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   184:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   185:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   187:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   190:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   209:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   224:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   225:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   226:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   227:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   230:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   318:91  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   366:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   387:88  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   449:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   481:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   482:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   586:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   623:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   650:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   669:94  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   682:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   695:87  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   736:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   774:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   799:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   835:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   861:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   919:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   978:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   997:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1023:71  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1028:78  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1029:78  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1045:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1165:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1202:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1202:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1231:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1259:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1292:73  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1327:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1498:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1516:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1516:60  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1516:66  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1564:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1707:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1733:56  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1745:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1758:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1777:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1800:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1952:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1973:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2045:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2091:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2092:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2112:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2153:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2240:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2284:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/hamiltonia/GitHub/zoned/extension/ui/layoutSwitcher.ts
+    55:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    56:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    57:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    63:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    64:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    66:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    83:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    83:62  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    84:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    84:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    88:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    88:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    90:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    91:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    92:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   101:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   102:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   115:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   116:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   120:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   144:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   146:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   151:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   151:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   152:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   153:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   154:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   170:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   170:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   170:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   232:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   453:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   458:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   471:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   475:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   545:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   790:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   794:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   799:66  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   804:60  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   916:66  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   953:66  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1013:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1020:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1020:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1038:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1068:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1093:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1135:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1175:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1224:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1276:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1322:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1333:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1492:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1492:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1534:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1608:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1642:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1680:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1680:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1852:66  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1906:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1936:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1948:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2008:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2255:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2274:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2301:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2337:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2338:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2339:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2340:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2341:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2342:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2343:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2344:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2345:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2346:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2347:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2360:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2366:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/hamiltonia/GitHub/zoned/extension/ui/layoutSwitcher/sectionFactory.ts
+  459:9  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+/home/hamiltonia/GitHub/zoned/extension/ui/layoutSwitcher/types.ts
+  127:69  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/hamiltonia/GitHub/zoned/extension/ui/notificationManager.ts
+  102:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  109:56  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  110:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  120:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  152:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  158:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/hamiltonia/GitHub/zoned/extension/ui/panelIndicator.ts
+   32:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   39:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   42:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   47:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   79:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   82:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   88:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   97:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  117:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  119:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  138:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  140:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  147:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  154:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  156:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  168:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  175:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  177:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  185:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  223:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  261:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/hamiltonia/GitHub/zoned/extension/ui/zoneEditor.ts
+    86:29   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    89:40   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    99:29   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   122:21   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   123:24   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   125:26   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   272:34   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   323:119  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   328:134  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   343:26   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   397:13   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+   950:20   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+   951:21   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+   951:40   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1023:20   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1024:21   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1024:39   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1441:37   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1442:40   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1448:42   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1449:45   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1479:38   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1480:41   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1486:41   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1487:44   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1520:37   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1521:38   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1527:44   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1528:45   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1558:40   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1559:41   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1565:41   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1566:42   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1744:13   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1751:13   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  1905:64   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1913:61   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1999:37   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2012:36   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/hamiltonia/GitHub/zoned/extension/ui/zoneOverlay.ts
+   80:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  113:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  159:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  160:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  199:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  229:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/hamiltonia/GitHub/zoned/extension/utils/debugInterface.ts
+   34:15  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   36:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   37:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   38:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   39:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   40:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   41:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   42:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  151:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  185:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  296:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  362:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  371:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  477:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  546:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  578:49  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  578:72  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  616:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  633:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  720:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  726:46  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  732:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  746:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  770:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  787:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  812:53  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  812:76  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+
+/home/hamiltonia/GitHub/zoned/extension/utils/layoutConverter.ts
+  172:9  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+/home/hamiltonia/GitHub/zoned/extension/windowManager.ts
+  58:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 344 problems (0 errors, 344 warnings)
+

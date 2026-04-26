@@ -1,0 +1,655 @@
+/**
+ * CardFactory - Creates layout card UI elements
+ *
+ * Card Design:
+ * - Full grey background (rgba(68, 68, 68, 1))
+ * - Layout name label at top
+ * - Zone preview: 85% width, 75% height, centered below header
+ * - Floating circular edit button in upper-right corner of card
+ * - Keybinding badge in lower-right corner showing shortcut number (1-9)
+ * - Click card to apply, click edit button to edit/duplicate
+ * - Hover effects: card border accent, edit button brightens
+ *
+ * Responsible for:
+ * - Template cards (built-in layouts with duplicate button)
+ * - Custom layout cards (user layouts with edit button)
+ * - Card headers with layout name
+ * - Floating circular edit buttons
+ * - Keybinding badges (per-layout quick-access shortcuts from layout.shortcut)
+ * - Zone preview rendering (Cairo canvas)
+ *
+ * Part of the LayoutSwitcher module split for maintainability.
+ */
+
+import Clutter from '@girs/clutter-14';
+import St from '@girs/st-14';
+// Cairo context is not fully typed in @girs, use ambient type
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CairoContext = any;
+import {createLogger} from '../../utils/debug';
+import type {Layout, Zone} from '../../types/layout';
+import type {BuiltinTemplate, LayoutSwitcherContext} from './types';
+
+const logger = createLogger('CardFactory');
+
+/**
+ * Theme colors interface
+ */
+interface ThemeColors {
+    accentHex: string;
+    accentRGBA: (alpha: number) => string;
+    cardBg: string;
+    isDark: boolean;
+}
+
+/**
+ * Extended St.Button with custom properties for card tracking
+ */
+interface CardButton extends St.Button {
+    _layoutRef?: Layout | BuiltinTemplate;
+    _isTemplate?: boolean;
+    _isActive?: boolean;
+}
+
+/**
+ * Extended St.Button with custom properties for edit button
+ */
+interface EditButton extends St.Button {
+    _boundEnter?: () => boolean;
+    _boundLeave?: () => boolean;
+    _boundClick?: () => boolean;
+    _buttonSize?: number;
+}
+
+/**
+ * Extended St.Bin with badge size
+ */
+interface KeybindingBadge extends St.Bin {
+    _badgeSize?: number;
+}
+
+/**
+ * Extended St.DrawingArea with bound repaint handler
+ */
+interface ZoneCanvas extends St.DrawingArea {
+    _boundRepaint?: () => void;
+}
+
+/**
+ * Bound method handlers for edit button signals
+ * These avoid closure leaks from arrow functions
+ */
+
+/**
+ * Handle edit button hover enter
+ * @param button - The edit button
+ * @param icon - The icon within the button
+ * @param hoverStyle - Style to apply on hover
+ */
+function handleEditButtonEnter(button: St.Button, icon: St.Icon, hoverStyle: string): boolean {
+    button.style = hoverStyle;
+    icon.style = 'color: white;';
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Handle edit button hover leave
+ * @param button - The edit button
+ * @param icon - The icon within the button
+ * @param idleStyle - Style to apply when not hovering
+ */
+function handleEditButtonLeave(button: St.Button, icon: St.Icon, idleStyle: string): boolean {
+    button.style = idleStyle;
+    icon.style = 'color: rgba(255, 255, 255, 0.7);';
+    return Clutter.EVENT_PROPAGATE;
+}
+
+/**
+ * Handle edit button click
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param isTemplate - Whether this is a template (true) or custom layout (false)
+ * @param layout - The layout object
+ */
+function handleEditButtonClick(
+    ctx: LayoutSwitcherContext,
+    isTemplate: boolean,
+    layout: Layout | BuiltinTemplate,
+): boolean {
+    if (isTemplate) {
+        ctx._onEditTemplateClicked(layout as BuiltinTemplate);
+    } else {
+        ctx._onEditLayoutClicked(layout as Layout);
+    }
+    return Clutter.EVENT_STOP;
+}
+
+/**
+ * Handle canvas repaint for zone preview
+ * @param canvas - The canvas being repainted
+ * @param zones - Array of zone definitions
+ * @param colors - Theme colors
+ */
+function handleCanvasRepaint(canvas: St.DrawingArea, zones: Zone[], colors: ThemeColors): void {
+    try {
+        const cr = canvas.get_context() as CairoContext;
+        const [w, h] = canvas.get_surface_size();
+
+        // Larger inset for visible transparent gaps between zones
+        // Card background color shows through these gaps
+        const inset = 8;
+        const drawW = w - (inset * 2);  // Available width for zones
+        const drawH = h - (inset * 2);  // Available height for zones
+
+        // Flat design settings
+        const cornerRadius = 4;  // Rounded corners
+
+        zones.forEach((zone: Zone) => {
+            // Calculate zone position within the inset area
+            const x = inset + (zone.x * drawW);
+            const y = inset + (zone.y * drawH);
+            const zoneW = zone.w * drawW;
+            const zoneH = zone.h * drawH;
+
+            // Gap between zones for transparent edge effect
+            const gap = 2;
+            const zx = x + gap;
+            const zy = y + gap;
+            const zw = zoneW - (gap * 2);
+            const zh = zoneH - (gap * 2);
+
+            // 1. Flat zone fill (single solid color)
+            const fillGrey = colors.isDark ? 0.45 : 0.55;
+            const fillAlpha = colors.isDark ? 0.9 : 0.85;
+            cr.setSourceRGBA(fillGrey, fillGrey, fillGrey, fillAlpha);
+            roundedRect(cr, zx, zy, zw, zh, cornerRadius);
+            cr.fill();
+
+            // 2. Thin border for definition
+            const borderGrey = colors.isDark ? 0.35 : 0.4;
+            cr.setSourceRGBA(borderGrey, borderGrey, borderGrey, 1.0);
+            cr.setLineWidth(1.0);
+            roundedRect(cr, zx, zy, zw, zh, cornerRadius);
+            cr.stroke();
+        });
+
+        cr.$dispose();
+    } catch (e) {
+        logger.error('Error drawing zone preview:', e);
+    }
+}
+
+/**
+ * Create a keybinding badge showing the quick-access shortcut number
+ * Subtle, static appearance in lower-right corner (below edit button)
+ * Only shown for layouts that have a shortcut assigned (1-9)
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param shortcut - Layout's shortcut value ('1'-'9', 1-9, or null/undefined)
+ * @returns The keybinding badge widget, or null if no shortcut
+ */
+export function createKeybindingBadge(
+    ctx: LayoutSwitcherContext,
+    shortcut: string | number | null | undefined,
+): KeybindingBadge | null {
+    // Only show badge if a shortcut is assigned
+    // Shortcut can be string ('1'-'9') or number (1-9), or null/undefined/'None'
+    if (!shortcut || shortcut === 'None') {
+        return null;
+    }
+
+    // Convert to number for validation
+    const position = typeof shortcut === 'string' ? parseInt(shortcut, 10) : shortcut;
+
+    // Validate it's a valid shortcut key (1-9)
+    if (isNaN(position) || position < 1 || position > 9) {
+        return null;
+    }
+
+    // Scale button size: ~75% of edit button size, minimum 18px, maximum 28px
+    const badgeSize = Math.max(18, Math.min(28, Math.floor(ctx._cardWidth * 0.12)));
+
+    // Static, subtle appearance (more transparent than edit button)
+    const style = `
+        width: ${badgeSize}px;
+        height: ${badgeSize}px;
+        border-radius: ${badgeSize / 2}px;
+        background-color: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+    `;
+
+    // Scale font size proportionally
+    const fontSize = Math.max(9, Math.floor(badgeSize * 0.55));
+
+    const badge = new St.Bin({
+        style: style,
+        reactive: false,  // Non-interactive, informational only
+    }) as KeybindingBadge;
+
+    const label = new St.Label({
+        text: String(position),
+        style: `color: rgba(255, 255, 255, 0.6); font-size: ${fontSize}px; font-weight: 500;`,
+        x_align: Clutter.ActorAlign.CENTER,
+        y_align: Clutter.ActorAlign.CENTER,
+        x_expand: true,
+        y_expand: true,
+    });
+    badge.set_child(label);
+
+    // Store size for positioning
+    badge._badgeSize = badgeSize;
+
+    return badge;
+}
+
+/**
+ * Create a floating circular edit button for overlay positioning
+ * Subtle appearance that brightens on hover
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param isTemplate - True for templates (triggers duplicate), false for custom (triggers edit)
+ * @param layout - Layout object for click handlers
+ * @returns The circular edit button
+ */
+export function createFloatingEditButton(
+    ctx: LayoutSwitcherContext,
+    isTemplate: boolean,
+    layout: Layout | BuiltinTemplate,
+): EditButton {
+    const colors = ctx._themeManager.getColors();
+
+    // Scale button size: ~15% of card width, minimum 24px, maximum 36px
+    const buttonSize = Math.max(24, Math.min(36, Math.floor(ctx._cardWidth * 0.15)));
+    const iconSize = Math.floor(buttonSize * 0.55);
+
+    // Idle state: subtle, semi-transparent
+    const idleStyle = `
+        width: ${buttonSize}px;
+        height: ${buttonSize}px;
+        border-radius: ${buttonSize / 2}px;
+        background-color: rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    `;
+
+    // Hover state: accent background, more prominent
+    const hoverStyle = `
+        width: ${buttonSize}px;
+        height: ${buttonSize}px;
+        border-radius: ${buttonSize / 2}px;
+        background-color: ${colors.accentHex};
+        border: 1px solid ${colors.accentHex};
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    `;
+
+    const button = new St.Button({
+        style_class: 'floating-edit-button',
+        style: idleStyle,
+        reactive: true,
+        track_hover: true,
+    }) as EditButton;
+
+    const icon = new St.Icon({
+        icon_name: 'document-edit-symbolic',
+        icon_size: iconSize,
+        style: 'color: rgba(255, 255, 255, 0.7);',
+    });
+    button.set_child(icon);
+
+    // Hover effects - use bound methods with captured parameters
+    const boundEnter = handleEditButtonEnter.bind(null, button, icon, hoverStyle);
+    const boundLeave = handleEditButtonLeave.bind(null, button, icon, idleStyle);
+    const boundClick = handleEditButtonClick.bind(null, ctx, isTemplate, layout);
+
+    // Use parent's SignalTracker for proper cleanup
+    ctx._signalTracker.connect(button, 'enter-event', boundEnter);
+    ctx._signalTracker.connect(button, 'leave-event', boundLeave);
+
+    // Click handler - use button-press-event to stop propagation to parent card
+    ctx._signalTracker.connect(button, 'button-press-event', boundClick);
+
+    // Store bound handlers for potential cleanup
+    button._boundEnter = boundEnter;
+    button._boundLeave = boundLeave;
+    button._boundClick = boundClick;
+
+    // Store size for positioning
+    button._buttonSize = buttonSize;
+
+    return button;
+}
+
+/**
+ * Create a template card with full-card grey background
+ * Name label at top, zone preview with floating edit button overlay
+ * Keybinding badge in lower-right corner if layout has a shortcut assigned
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param template - Template definition (may have .shortcut property)
+ * @param currentLayout - Currently active layout
+ * @returns The created card widget
+ */
+export function createTemplateCard(
+    ctx: LayoutSwitcherContext,
+    template: BuiltinTemplate,
+    currentLayout: Layout | null,
+): CardButton {
+    const colors = ctx._themeManager.getColors();
+    const isActive = ctx._isLayoutActive(template, currentLayout);
+    const accentHex = colors.accentHex;
+    const accentRGBA = colors.accentRGBA(0.3);
+    const cardRadius = ctx._cardRadius;
+    const sf = ctx._scaleFactor;
+
+    // Theme-aware card background (dark grey for dark theme, light grey for light theme)
+    const cardBg = colors.cardBg;
+
+    // Use St.Widget with FixedLayout so we can position floating button over entire card
+    // CSS width/height are in logical pixels (auto-scaled by St for HiDPI)
+    const card = new St.Button({
+        style_class: 'template-card',
+        style: 'padding: 0; ' +
+               `border-radius: ${cardRadius}px; ` +
+               `width: ${ctx._cardWidth}px; ` +
+               `height: ${ctx._cardHeight}px; ` +
+               'overflow: hidden; ' +
+               `${isActive ?
+                   `background-color: ${accentRGBA}; border: 2px solid ${accentHex};` :
+                   `background-color: ${cardBg}; border: 2px solid transparent;`}`,
+        reactive: true,
+        track_hover: true,
+        clip_to_allocation: true,
+    }) as CardButton;
+
+    // Card wrapper with FixedLayout for floating button overlay at card level
+    // Clutter properties use physical/stage pixels
+    const cardWrapper = new St.Widget({
+        layout_manager: new Clutter.FixedLayout(),
+        width: ctx._cardWidth * sf,
+        height: ctx._cardHeight * sf,
+    });
+
+    // Content container for vertical stacking (header + preview area)
+    const container = new St.BoxLayout({
+        vertical: true,
+        x_expand: true,
+        y_expand: true,
+        clip_to_allocation: true,
+        style: `border-radius: ${cardRadius}px; padding: 6px 8px 8px 8px;`,
+        width: ctx._cardWidth * sf,
+        height: ctx._cardHeight * sf,
+    });
+
+    // Header with name only
+    const header = createCardHeader(template.name);
+    container.add_child(header);
+
+    // Calculate preview size proportionally (accounts for scaling and tiers)
+    const previewWidth = Math.floor(ctx._cardWidth * 0.85);
+    const previewHeight = Math.floor(ctx._cardHeight * 0.75);
+
+    // Preview container centered
+    const previewContainer = new St.Bin({
+        x_align: Clutter.ActorAlign.CENTER,
+        y_align: Clutter.ActorAlign.CENTER,
+        x_expand: true,
+        y_expand: true,
+    });
+
+    // Zone preview canvas — set_size uses physical/stage pixels
+    const preview = createZonePreview(ctx, template.zones ?? []);
+    preview.set_size(previewWidth * sf, previewHeight * sf);
+    previewContainer.set_child(preview);
+
+    container.add_child(previewContainer);
+    cardWrapper.add_child(container);
+
+    // Floating edit button - positioned in upper right of the CARD (not preview)
+    // set_position uses physical/stage pixels within the FixedLayout wrapper
+    const editButton = createFloatingEditButton(ctx, true, template);
+    const buttonSize = editButton._buttonSize ?? 24;
+    const buttonOffsetY = 1 * sf;
+    const buttonOffsetX = 3 * sf;
+    editButton.set_position(ctx._cardWidth * sf - buttonSize * sf - buttonOffsetX, buttonOffsetY);
+    cardWrapper.add_child(editButton);
+
+    // Keybinding badge - positioned in lower right of the CARD (below edit button)
+    // Uses the template's shortcut property (set via layout settings dialog)
+    const keybindingBadge = createKeybindingBadge(ctx, template.shortcut);
+    if (keybindingBadge) {
+        const badgeSize = keybindingBadge._badgeSize ?? 18;
+        const badgeOffsetX = 3 * sf;
+        const badgeOffsetY = 3 * sf;
+        const badgeX = ctx._cardWidth * sf - badgeSize * sf - badgeOffsetX;
+        const badgeY = ctx._cardHeight * sf - badgeSize * sf - badgeOffsetY;
+        keybindingBadge.set_position(badgeX, badgeY);
+        cardWrapper.add_child(keybindingBadge);
+    }
+
+    card.set_child(cardWrapper);
+
+    // CRITICAL FIX: Store layout reference on card to avoid closure leaks
+    // Arrow functions create closures that hold references even after signal disconnect
+    card._layoutRef = template;
+    card._isTemplate = true;
+
+    // Use parent's SignalTracker for proper cleanup - all card signals tracked centrally
+    ctx._signalTracker.connect(card, 'clicked', ctx._boundHandleCardClick);
+
+    card._isActive = isActive;
+
+    // Hover effects for card border only - use bound methods
+    ctx._signalTracker.connect(card, 'enter-event', ctx._boundHandleCardEnter);
+    ctx._signalTracker.connect(card, 'leave-event', ctx._boundHandleCardLeave);
+
+    return card;
+}
+
+/**
+ * Create a custom layout card with theme-aware background
+ * Name label at top, zone preview with floating edit button overlay
+ * Keybinding badge in lower-right corner if layout has a shortcut assigned
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param layout - Layout definition (may have .shortcut property)
+ * @param currentLayout - Currently active layout
+ * @returns The created card widget
+ */
+export function createCustomLayoutCard(
+    ctx: LayoutSwitcherContext,
+    layout: Layout,
+    currentLayout: Layout | null,
+): CardButton {
+    const colors = ctx._themeManager.getColors();
+    const isActive = ctx._isLayoutActive(layout, currentLayout);
+    const accentHex = colors.accentHex;
+    const accentRGBA = colors.accentRGBA(0.3);
+    const cardRadius = ctx._cardRadius;
+    const sf = ctx._scaleFactor;
+
+    // Theme-aware card background (dark grey for dark theme, light grey for light theme)
+    const cardBg = colors.cardBg;
+
+    // CSS width/height are in logical pixels (auto-scaled by St for HiDPI)
+    const card = new St.Button({
+        style_class: 'custom-layout-card',
+        style: 'padding: 0; ' +
+               `border-radius: ${cardRadius}px; ` +
+               `width: ${ctx._cardWidth}px; ` +
+               `height: ${ctx._cardHeight}px; ` +
+               'overflow: hidden; ' +
+               `${isActive ?
+                   `background-color: ${accentRGBA}; border: 2px solid ${accentHex};` :
+                   `background-color: ${cardBg}; border: 2px solid transparent;`}`,
+        reactive: true,
+        track_hover: true,
+        clip_to_allocation: true,
+    }) as CardButton;
+
+    // Card wrapper with FixedLayout for floating button overlay at card level
+    // Clutter properties use physical/stage pixels
+    const cardWrapper = new St.Widget({
+        layout_manager: new Clutter.FixedLayout(),
+        width: ctx._cardWidth * sf,
+        height: ctx._cardHeight * sf,
+    });
+
+    // Content container for vertical stacking (header + preview area)
+    const container = new St.BoxLayout({
+        vertical: true,
+        x_expand: true,
+        y_expand: true,
+        clip_to_allocation: true,
+        style: `border-radius: ${cardRadius}px; padding: 6px 8px 8px 8px;`,
+        width: ctx._cardWidth * sf,
+        height: ctx._cardHeight * sf,
+    });
+
+    // Header with name only
+    const header = createCardHeader(layout.name);
+    container.add_child(header);
+
+    // Calculate preview size proportionally (accounts for scaling and tiers)
+    const previewWidth = Math.floor(ctx._cardWidth * 0.85);
+    const previewHeight = Math.floor(ctx._cardHeight * 0.75);
+
+    // Preview container centered
+    const previewContainer = new St.Bin({
+        x_align: Clutter.ActorAlign.CENTER,
+        y_align: Clutter.ActorAlign.CENTER,
+        x_expand: true,
+        y_expand: true,
+    });
+
+    // Zone preview canvas — set_size uses physical/stage pixels
+    const preview = createZonePreview(ctx, layout.zones);
+    preview.set_size(previewWidth * sf, previewHeight * sf);
+    previewContainer.set_child(preview);
+
+    container.add_child(previewContainer);
+    cardWrapper.add_child(container);
+
+    // Floating edit button - positioned in upper right of the CARD (not preview)
+    // set_position uses physical/stage pixels within the FixedLayout wrapper
+    const editButton = createFloatingEditButton(ctx, false, layout);
+    const buttonSize = editButton._buttonSize ?? 24;
+    const buttonOffsetY = 1 * sf;
+    const buttonOffsetX = 3 * sf;
+    editButton.set_position(ctx._cardWidth * sf - buttonSize * sf - buttonOffsetX, buttonOffsetY);
+    cardWrapper.add_child(editButton);
+
+    // Keybinding badge - positioned in lower right of the CARD (below edit button)
+    // Uses the layout's shortcut property (set via layout settings dialog)
+    const keybindingBadge = createKeybindingBadge(ctx, layout.shortcut);
+    if (keybindingBadge) {
+        const badgeSize = keybindingBadge._badgeSize ?? 18;
+        const badgeOffsetX = 3 * sf;
+        const badgeOffsetY = 3 * sf;
+        const badgeX = ctx._cardWidth * sf - badgeSize * sf - badgeOffsetX;
+        const badgeY = ctx._cardHeight * sf - badgeSize * sf - badgeOffsetY;
+        keybindingBadge.set_position(badgeX, badgeY);
+        cardWrapper.add_child(keybindingBadge);
+    }
+
+    card.set_child(cardWrapper);
+
+    // CRITICAL FIX: Store layout reference on card to avoid closure leaks
+    card._layoutRef = layout;
+    card._isTemplate = false;
+
+    // Use parent's SignalTracker for proper cleanup - all card signals tracked centrally
+    ctx._signalTracker.connect(card, 'clicked', ctx._boundHandleCardClick);
+
+    // Propagate scroll events to parent ScrollView - use bound method
+    ctx._signalTracker.connect(card, 'scroll-event', ctx._boundHandleCardScroll);
+
+    card._isActive = isActive;
+
+    // Hover effects for card border only - use bound methods
+    ctx._signalTracker.connect(card, 'enter-event', ctx._boundHandleCardEnter);
+    ctx._signalTracker.connect(card, 'leave-event', ctx._boundHandleCardLeave);
+
+    return card;
+}
+
+/**
+ * Create card header with layout name only
+ * Edit button is now a floating circular button over the preview
+ * @param name - Layout name to display
+ * @returns The header widget
+ */
+export function createCardHeader(name: string): St.BoxLayout {
+    const header = new St.BoxLayout({
+        vertical: false,
+        x_expand: true,
+        y_align: Clutter.ActorAlign.START,
+    });
+
+    // Name label (left-aligned, takes full width now)
+    const nameLabel = new St.Label({
+        text: name,
+        style: 'color: white; font-size: 11px; font-weight: 500;',
+        x_align: Clutter.ActorAlign.START,
+        y_align: Clutter.ActorAlign.CENTER,
+        x_expand: true,
+    });
+    header.add_child(nameLabel);
+
+    return header;
+}
+
+/**
+ * Helper: Draw a rounded rectangle path using Cairo arcs
+ * @param cr - Cairo context
+ * @param x - X position
+ * @param y - Y position
+ * @param w - Width
+ * @param h - Height
+ * @param r - Corner radius
+ */
+function roundedRect(cr: CairoContext, x: number, y: number, w: number, h: number, r: number): void {
+    const pi = Math.PI;
+    // Clamp radius to half of smallest dimension
+    r = Math.min(r, w / 2, h / 2);
+
+    cr.newPath();
+    // Top-left corner
+    cr.arc(x + r, y + r, r, pi, 1.5 * pi);
+    // Top edge
+    cr.lineTo(x + w - r, y);
+    // Top-right corner
+    cr.arc(x + w - r, y + r, r, 1.5 * pi, 2 * pi);
+    // Right edge
+    cr.lineTo(x + w, y + h - r);
+    // Bottom-right corner
+    cr.arc(x + w - r, y + h - r, r, 0, 0.5 * pi);
+    // Bottom edge
+    cr.lineTo(x + r, y + h);
+    // Bottom-left corner
+    cr.arc(x + r, y + h - r, r, 0.5 * pi, pi);
+    // Left edge
+    cr.closePath();
+}
+
+/**
+ * Create visual zone preview using Cairo
+ * Flat zone tiles with rounded corners and thin borders
+ * Zones are inset to create visible gaps where card background shows through
+ * @param ctx - Parent LayoutSwitcher instance
+ * @param zones - Array of zone definitions
+ * @returns The preview canvas widget
+ */
+export function createZonePreview(ctx: LayoutSwitcherContext, zones: Zone[]): ZoneCanvas {
+    const colors = ctx._themeManager.getColors();
+
+    // Canvas background is transparent so card accent color shows through on hover/selection
+    const canvas = new St.DrawingArea({
+        style: 'background-color: transparent;',
+        x_expand: true,
+        y_expand: true,
+    }) as ZoneCanvas;
+
+    // Use bound method with captured parameters to avoid closure leak
+    const boundRepaint = handleCanvasRepaint.bind(null, canvas, zones, colors);
+    canvas.connect('repaint', boundRepaint);
+
+    // Store bound handler for potential cleanup
+    canvas._boundRepaint = boundRepaint;
+
+    return canvas;
+}
