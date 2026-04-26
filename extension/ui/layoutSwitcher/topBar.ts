@@ -587,10 +587,12 @@ function createWorkspaceThumbnail(
     });
 
     // Container for layering (preview + badge)
+    // Clutter properties use physical/stage pixels
+    const sf = ctx._scaleFactor;
     const thumbContainer = new St.Widget({
         layout_manager: new Clutter.BinLayout(),
-        width: thumbW,
-        height: thumbH,
+        width: thumbW * sf,
+        height: thumbH * sf,
         clip_to_allocation: true,
         style: `border-radius: ${thumbRadius}px;`,
     });
@@ -610,7 +612,7 @@ function createWorkspaceThumbnail(
     const zones = (workspaceLayout as any)?.zones || [];
 
     const preview = createZonePreview(ctx, zones);
-    preview.set_size(thumbW, thumbH);
+    preview.set_size(thumbW * ctx._scaleFactor, thumbH * ctx._scaleFactor);
     previewContainer.set_child(preview);
     thumbContainer.add_child(previewContainer);
 

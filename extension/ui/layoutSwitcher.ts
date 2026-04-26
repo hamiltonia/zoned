@@ -162,7 +162,10 @@ export class LayoutSwitcher {
     _previewHeight: number = 0;
     _customColumns: number = 5;
     _cardRadius: number = 0;
-    _currentTier: {name: string; cardRadius: number; workspaceThumb: {w: number; h: number}};
+    _currentTier: {
+        name: string; cardRadius: number;
+        workspaceThumb: {w: number; h: number}; workspaceThumbGap?: number;
+    };
     _calculatedSpacing: {
         containerPadding: number;
         sectionPadding: number;
@@ -182,7 +185,7 @@ export class LayoutSwitcher {
     };
     private _logicalScreenWidth: number = 0;
     private _logicalScreenHeight: number = 0;
-    private _scaleFactor: number = 1;
+    _scaleFactor: number = 1;
     private _lastValidation: {valid: boolean; issues: string[]; screenPercent: {width: string; height: string}};
     private _CONTAINER_PADDING_LEFT: number = 0;
     private _CONTAINER_PADDING_RIGHT: number = 0;
@@ -632,10 +635,10 @@ export class LayoutSwitcher {
         const tier = selectTier(logicalHeight, forceTier);
         this._currentTier = tier;
 
-        // Calculate dialog dimensions from tier
+        // Calculate dialog dimensions from tier (in logical/CSS pixels)
         const dims = calculateDialogDimensions(tier);
 
-        // Validate against screen bounds
+        // Validate against logical screen bounds
         const validation = validateDimensions(dims, logicalWidth, logicalHeight);
         this._lastValidation = validation;
 
@@ -644,7 +647,7 @@ export class LayoutSwitcher {
         }
 
         // Store calculated spacing for use by other components
-        // Map tier values to the expected _calculatedSpacing format
+        // All values are in logical/CSS pixels (St auto-scales for HiDPI)
         this._calculatedSpacing = {
             containerPadding: dims.containerPadding,
             sectionPadding: dims.sectionPadding,
@@ -909,9 +912,13 @@ export class LayoutSwitcher {
         this._dialog.set_size(monitor.width, monitor.height);
 
         // With FixedLayout, we must position wrapper to center it
-        // Calculate center position within dialog (which covers the full monitor)
-        const wrapperX = Math.floor((monitor.width - dialogWidth) / 2);
-        const wrapperY = Math.floor((monitor.height - dialogHeight) / 2);
+        // monitor dimensions are in stage/physical pixels; dialogWidth/Height are in
+        // CSS logical pixels (auto-scaled by St for HiDPI). Account for scale factor
+        // so the rendered dialog is visually centered on screen.
+        const renderedWidth = dialogWidth * this._scaleFactor;
+        const renderedHeight = dialogHeight * this._scaleFactor;
+        const wrapperX = Math.floor((monitor.width - renderedWidth) / 2);
+        const wrapperY = Math.floor((monitor.height - renderedHeight) / 2);
         wrapper.set_position(wrapperX, wrapperY);
 
         // Add debug overlay to uiGroup (outside dialog for clean screenshots)

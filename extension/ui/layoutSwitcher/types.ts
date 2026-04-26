@@ -147,6 +147,7 @@ export interface LayoutSwitcherContext {
     _customColumns: number;
     _currentTier: TierConfig;
     _calculatedSpacing: CalculatedSpacing;
+    _scaleFactor: number;
 
     // Spacing constants (exposed for external modules)
     _SECTION_BORDER_RADIUS: number;

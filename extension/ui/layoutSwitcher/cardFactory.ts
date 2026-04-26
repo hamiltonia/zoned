@@ -335,11 +335,13 @@ export function createTemplateCard(
     const accentHex = colors.accentHex;
     const accentRGBA = colors.accentRGBA(0.3);
     const cardRadius = ctx._cardRadius;
+    const sf = ctx._scaleFactor;
 
     // Theme-aware card background (dark grey for dark theme, light grey for light theme)
     const cardBg = colors.cardBg;
 
     // Use St.Widget with FixedLayout so we can position floating button over entire card
+    // CSS width/height are in logical pixels (auto-scaled by St for HiDPI)
     const card = new St.Button({
         style_class: 'template-card',
         style: 'padding: 0; ' +
@@ -356,10 +358,11 @@ export function createTemplateCard(
     }) as CardButton;
 
     // Card wrapper with FixedLayout for floating button overlay at card level
+    // Clutter properties use physical/stage pixels
     const cardWrapper = new St.Widget({
         layout_manager: new Clutter.FixedLayout(),
-        width: ctx._cardWidth,
-        height: ctx._cardHeight,
+        width: ctx._cardWidth * sf,
+        height: ctx._cardHeight * sf,
     });
 
     // Content container for vertical stacking (header + preview area)
@@ -369,8 +372,8 @@ export function createTemplateCard(
         y_expand: true,
         clip_to_allocation: true,
         style: `border-radius: ${cardRadius}px; padding: 6px 8px 8px 8px;`,
-        width: ctx._cardWidth,
-        height: ctx._cardHeight,
+        width: ctx._cardWidth * sf,
+        height: ctx._cardHeight * sf,
     });
 
     // Header with name only
@@ -389,20 +392,21 @@ export function createTemplateCard(
         y_expand: true,
     });
 
-    // Zone preview canvas
+    // Zone preview canvas — set_size uses physical/stage pixels
     const preview = createZonePreview(ctx, template.zones ?? []);
-    preview.set_size(previewWidth, previewHeight);
+    preview.set_size(previewWidth * sf, previewHeight * sf);
     previewContainer.set_child(preview);
 
     container.add_child(previewContainer);
     cardWrapper.add_child(container);
 
     // Floating edit button - positioned in upper right of the CARD (not preview)
+    // set_position uses physical/stage pixels within the FixedLayout wrapper
     const editButton = createFloatingEditButton(ctx, true, template);
     const buttonSize = editButton._buttonSize ?? 24;
-    const buttonOffsetY = 1;  // Offset from top edge
-    const buttonOffsetX = 3;  // Offset from right edge (to match visual top offset)
-    editButton.set_position(ctx._cardWidth - buttonSize - buttonOffsetX, buttonOffsetY);
+    const buttonOffsetY = 1 * sf;
+    const buttonOffsetX = 3 * sf;
+    editButton.set_position(ctx._cardWidth * sf - buttonSize * sf - buttonOffsetX, buttonOffsetY);
     cardWrapper.add_child(editButton);
 
     // Keybinding badge - positioned in lower right of the CARD (below edit button)
@@ -410,10 +414,10 @@ export function createTemplateCard(
     const keybindingBadge = createKeybindingBadge(ctx, template.shortcut);
     if (keybindingBadge) {
         const badgeSize = keybindingBadge._badgeSize ?? 18;
-        const badgeOffsetX = 3;  // Offset from right edge
-        const badgeOffsetY = 3;  // Offset from bottom edge
-        const badgeX = ctx._cardWidth - badgeSize - badgeOffsetX;
-        const badgeY = ctx._cardHeight - badgeSize - badgeOffsetY;
+        const badgeOffsetX = 3 * sf;
+        const badgeOffsetY = 3 * sf;
+        const badgeX = ctx._cardWidth * sf - badgeSize * sf - badgeOffsetX;
+        const badgeY = ctx._cardHeight * sf - badgeSize * sf - badgeOffsetY;
         keybindingBadge.set_position(badgeX, badgeY);
         cardWrapper.add_child(keybindingBadge);
     }
@@ -456,10 +460,12 @@ export function createCustomLayoutCard(
     const accentHex = colors.accentHex;
     const accentRGBA = colors.accentRGBA(0.3);
     const cardRadius = ctx._cardRadius;
+    const sf = ctx._scaleFactor;
 
     // Theme-aware card background (dark grey for dark theme, light grey for light theme)
     const cardBg = colors.cardBg;
 
+    // CSS width/height are in logical pixels (auto-scaled by St for HiDPI)
     const card = new St.Button({
         style_class: 'custom-layout-card',
         style: 'padding: 0; ' +
@@ -476,10 +482,11 @@ export function createCustomLayoutCard(
     }) as CardButton;
 
     // Card wrapper with FixedLayout for floating button overlay at card level
+    // Clutter properties use physical/stage pixels
     const cardWrapper = new St.Widget({
         layout_manager: new Clutter.FixedLayout(),
-        width: ctx._cardWidth,
-        height: ctx._cardHeight,
+        width: ctx._cardWidth * sf,
+        height: ctx._cardHeight * sf,
     });
 
     // Content container for vertical stacking (header + preview area)
@@ -489,8 +496,8 @@ export function createCustomLayoutCard(
         y_expand: true,
         clip_to_allocation: true,
         style: `border-radius: ${cardRadius}px; padding: 6px 8px 8px 8px;`,
-        width: ctx._cardWidth,
-        height: ctx._cardHeight,
+        width: ctx._cardWidth * sf,
+        height: ctx._cardHeight * sf,
     });
 
     // Header with name only
@@ -509,20 +516,21 @@ export function createCustomLayoutCard(
         y_expand: true,
     });
 
-    // Zone preview canvas
+    // Zone preview canvas — set_size uses physical/stage pixels
     const preview = createZonePreview(ctx, layout.zones);
-    preview.set_size(previewWidth, previewHeight);
+    preview.set_size(previewWidth * sf, previewHeight * sf);
     previewContainer.set_child(preview);
 
     container.add_child(previewContainer);
     cardWrapper.add_child(container);
 
     // Floating edit button - positioned in upper right of the CARD (not preview)
+    // set_position uses physical/stage pixels within the FixedLayout wrapper
     const editButton = createFloatingEditButton(ctx, false, layout);
     const buttonSize = editButton._buttonSize ?? 24;
-    const buttonOffsetY = 1;  // Offset from top edge
-    const buttonOffsetX = 3;  // Offset from right edge (to match visual top offset)
-    editButton.set_position(ctx._cardWidth - buttonSize - buttonOffsetX, buttonOffsetY);
+    const buttonOffsetY = 1 * sf;
+    const buttonOffsetX = 3 * sf;
+    editButton.set_position(ctx._cardWidth * sf - buttonSize * sf - buttonOffsetX, buttonOffsetY);
     cardWrapper.add_child(editButton);
 
     // Keybinding badge - positioned in lower right of the CARD (below edit button)
@@ -530,10 +538,10 @@ export function createCustomLayoutCard(
     const keybindingBadge = createKeybindingBadge(ctx, layout.shortcut);
     if (keybindingBadge) {
         const badgeSize = keybindingBadge._badgeSize ?? 18;
-        const badgeOffsetX = 3;  // Offset from right edge
-        const badgeOffsetY = 3;  // Offset from bottom edge
-        const badgeX = ctx._cardWidth - badgeSize - badgeOffsetX;
-        const badgeY = ctx._cardHeight - badgeSize - badgeOffsetY;
+        const badgeOffsetX = 3 * sf;
+        const badgeOffsetY = 3 * sf;
+        const badgeX = ctx._cardWidth * sf - badgeSize * sf - badgeOffsetX;
+        const badgeY = ctx._cardHeight * sf - badgeSize * sf - badgeOffsetY;
         keybindingBadge.set_position(badgeX, badgeY);
         cardWrapper.add_child(keybindingBadge);
     }

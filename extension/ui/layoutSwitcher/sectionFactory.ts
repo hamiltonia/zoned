@@ -472,8 +472,8 @@ export function createCustomLayoutGrid(
                 logger.debug(`[SPACER] Row ${rowNumber - 1}: Adding ${spacersNeeded} spacers (${cardsInRow} cards)`);
                 for (let i = 0; i < spacersNeeded; i++) {
                     const spacer = new St.Widget({
-                        width: ctx._cardWidth,
-                        height: ctx._cardHeight,
+                        width: ctx._cardWidth * ctx._scaleFactor,
+                        height: ctx._cardHeight * ctx._scaleFactor,
                         // Make visible in debug mode for troubleshooting
                         opacity: ctx._debugMode ? 128 : 0,
                         style: ctx._debugMode
