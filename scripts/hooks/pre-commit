@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Pre-commit hook: runs linter and unit tests before allowing a commit.
+# Install with: make setup-hooks
+
+set -euo pipefail
+
+printf "\033[36m[pre-commit]\033[0m Running lint (strict)...\n"
+
+if ! npx eslint extension/ --max-warnings 0 2>&1; then
+    printf "\033[31m[pre-commit] ✗ Lint failed — commit aborted.\033[0m\n"
+    printf "\033[33m  Fix lint issues or use --no-verify to skip.\033[0m\n"
+    exit 1
+fi
+
+printf "\033[32m[pre-commit] ✓ Lint passed.\033[0m\n"
+
+printf "\033[36m[pre-commit]\033[0m Running unit tests...\n"
+
+if ! npx vitest run --reporter=dot 2>&1; then
+    printf "\033[31m[pre-commit] ✗ Tests failed — commit aborted.\033[0m\n"
+    printf "\033[33m  Fix the failing tests or use --no-verify to skip.\033[0m\n"
+    exit 1
+fi
+
+printf "\033[32m[pre-commit] ✓ Tests passed.\033[0m\n"

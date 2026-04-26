@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "lint": "eslint extension/",
-    "lint:fix": "eslint extension/ --fix"
+    "lint:fix": "eslint extension/ --fix",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@bradygaster/squad-cli": "^0.9.1",
@@ -29,7 +31,8 @@
     "rollup": "^4.55.1",
     "rollup-plugin-cleanup": "^3.2.1",
     "tslib": "^2.8.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.5"
   },
   "repository": {
     "type": "git",
