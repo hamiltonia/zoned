@@ -26,6 +26,9 @@ jobs:
       - name: Run ESLint (strict mode)
         run: npm run lint -- --max-warnings 0
         
+      - name: Run unit tests
+        run: npm test
+        
       - name: Validate metadata.json structure
         run: |
           echo "Checking required metadata fields..."
