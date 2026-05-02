@@ -2,14 +2,15 @@
   "uuid": "zoned@hamiltonia.me",
   "name": "Zoned",
   "description": "Advanced window management for GNOME. Organize windows into customizable zones with keyboard-driven workflows.",
-  "version": 2,
-  "version-name": "0.9.1",
-  "version-display": "0.9.1 (Pre-release)",
+  "version": 3,
+  "version-name": "0.9.2",
+  "version-display": "0.9.2 (Pre-release)",
   "shell-version": [
     "46",
     "47",
     "48",
-    "49"
+    "49",
+    "50"
   ],
   "url": "https://github.com/hamiltonia/zoned",
   "settings-schema": "org.gnome.shell.extensions.zoned",
