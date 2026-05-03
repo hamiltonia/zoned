@@ -249,6 +249,8 @@ export class LayoutSettingsDialog {
     private _previewContainer: St.BoxLayout | null;
     private _confirmOverlay: St.Widget | null;
     private _confirmBox: St.BoxLayout | null;
+    private _gridTypeCard: (St.Button & {_normalStyle?: string; _selectedStyle?: string}) | null;
+    private _canvasTypeCard: (St.Button & {_normalStyle?: string; _selectedStyle?: string}) | null;
 
     private _modal: {close: () => void} | null;
     private _visible: boolean;
@@ -277,6 +279,7 @@ export class LayoutSettingsDialog {
 
         // Create working copy to avoid mutating input
         this._layout = layout ? JSON.parse(JSON.stringify(layout)) : {
+            type: 'grid',  // Default to grid layout for new layouts
             zones: [],
             padding: 0,  // Default: padding off (use 4 when enabled)
             name: this._generateDefaultName(),  // Always start with a default name
@@ -310,6 +313,8 @@ export class LayoutSettingsDialog {
         this._deleteButton = null;
         this._duplicateButton = null;
         this._previewContainer = null;
+        this._gridTypeCard = null;
+        this._canvasTypeCard = null;
 
         this._modal = null;
         this._visible = false;
@@ -508,6 +513,7 @@ export class LayoutSettingsDialog {
         this._clearDropdownReferences();
         this._clearButtonStyles();
         this._clearCheckboxReferences();
+        this._clearTypeCardReferences();
 
         // THEN: Destroy widgets in reverse order of creation
         const widgetNames = [
@@ -518,6 +524,8 @@ export class LayoutSettingsDialog {
             '_paddingCheckbox',
             '_paddingSpinner',
             '_shortcutDropdown',
+            '_gridTypeCard',
+            '_canvasTypeCard',
             '_previewContainer',
             '_dialogCard',
         ] as const;
@@ -585,6 +593,20 @@ export class LayoutSettingsDialog {
                 checkboxChild.destroy();
             }
             this._paddingCheckbox._checked = undefined;
+        }
+    }
+
+    /**
+     * Clear type card style references
+     * @private
+     */
+    _clearTypeCardReferences(): void {
+        const typeCards = [this._gridTypeCard, this._canvasTypeCard];
+        for (const card of typeCards) {
+            if (card) {
+                card._normalStyle = undefined;
+                card._selectedStyle = undefined;
+            }
         }
     }
 
@@ -841,6 +863,183 @@ export class LayoutSettingsDialog {
     }
 
     /**
+     * Build layout type selector row (Grid vs Canvas)
+     * Only shown during new layout creation
+     * @param {Object} colors - Theme colors
+     * @returns {St.BoxLayout} Type selector row widget
+     * @private
+     */
+    _buildTypeSelector(colors: ThemeColors): St.BoxLayout {
+        const selectorRow = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 12px; margin-bottom: 16px;',
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+
+        // Grid type card
+        this._gridTypeCard = this._createTypeCard(colors, 'grid', '⊞', 'Grid', 'Zones tile the screen');
+        selectorRow.add_child(this._gridTypeCard);
+
+        // Canvas type card
+        this._canvasTypeCard = this._createTypeCard(colors, 'canvas', '⊡', 'Canvas', 'Free-form overlapping');
+        selectorRow.add_child(this._canvasTypeCard);
+
+        // Set initial selection state
+        this._updateTypeCardStyles();
+
+        return selectorRow;
+    }
+
+    /**
+     * Create a single type selector card
+     * @param {Object} colors - Theme colors
+     * @param {string} type - Layout type ('grid' or 'canvas')
+     * @param {string} icon - Icon text
+     * @param {string} title - Card title
+     * @param {string} subtitle - Card subtitle
+     * @returns {St.Button} Type card button
+     * @private
+     */
+    _createTypeCard(
+        colors: ThemeColors,
+        type: 'grid' | 'canvas',
+        icon: string,
+        title: string,
+        subtitle: string,
+    ): St.Button & {_normalStyle?: string; _selectedStyle?: string} {
+        const isSelected = this._layout.type === type;
+
+        const normalStyle = `
+            width: 140px;
+            height: 90px;
+            background-color: ${colors.sectionBg};
+            border: 2px solid ${colors.sectionBorder};
+            border-radius: 8px;
+            padding: 12px;
+        `;
+
+        const selectedStyle = `
+            width: 140px;
+            height: 90px;
+            background-color: ${colors.sectionBg};
+            border: 2px solid ${colors.accentHex};
+            border-radius: 8px;
+            padding: 12px;
+        `;
+
+        const button: St.Button & {_normalStyle?: string; _selectedStyle?: string} = new St.Button({
+            style: isSelected ? selectedStyle : normalStyle,
+            reactive: true,
+            can_focus: true,
+        });
+
+        button._normalStyle = normalStyle;
+        button._selectedStyle = selectedStyle;
+
+        // Card content layout
+        const contentBox = new St.BoxLayout({
+            vertical: true,
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+
+        // Icon
+        const iconLabel = new St.Label({
+            text: icon,
+            style: `
+                font-size: 24pt;
+                color: ${colors.textPrimary};
+                margin-bottom: 4px;
+            `,
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+        contentBox.add_child(iconLabel);
+
+        // Title
+        const titleLabel = new St.Label({
+            text: title,
+            style: `
+                font-size: 11pt;
+                font-weight: bold;
+                color: ${colors.textPrimary};
+                margin-bottom: 2px;
+            `,
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+        contentBox.add_child(titleLabel);
+
+        // Subtitle
+        const subtitleLabel = new St.Label({
+            text: subtitle,
+            style: `
+                font-size: 8pt;
+                color: ${colors.textMuted};
+            `,
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+        contentBox.add_child(subtitleLabel);
+
+        button.set_child(contentBox);
+
+        // Click handler
+        if (this._signalTracker) {
+            this._signalTracker.connect(
+                button,
+                'clicked',
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (() => this._onTypeSelected(type, colors)) as (...args: any[]) => void,
+            );
+        }
+
+        return button;
+    }
+
+    /**
+     * Handle type selection
+     * @param {string} type - Selected layout type
+     * @param {Object} colors - Theme colors
+     * @private
+     */
+    _onTypeSelected(type: 'grid' | 'canvas', colors: ThemeColors): void {
+        if (this._layout.type === type) return;
+
+        logger.debug(`Layout type changed to: ${type}`);
+
+        // Update layout type
+        this._layout.type = type;
+
+        // Clear zones when switching to canvas (canvas editor handles adding first zone)
+        if (type === 'canvas') {
+            this._layout.zones = [];
+        }
+
+        // Update card styles
+        this._updateTypeCardStyles();
+
+        // Rebuild preview
+        this._buildLayoutPreview(colors);
+    }
+
+    /**
+     * Update type card styles based on current selection
+     * @private
+     */
+    _updateTypeCardStyles(): void {
+        const selectedType = this._layout.type || 'grid';
+
+        if (this._gridTypeCard) {
+            this._gridTypeCard.style = selectedType === 'grid' ?
+                this._gridTypeCard._selectedStyle || '' :
+                this._gridTypeCard._normalStyle || '';
+        }
+
+        if (this._canvasTypeCard) {
+            this._canvasTypeCard.style = selectedType === 'canvas' ?
+                this._canvasTypeCard._selectedStyle || '' :
+                this._canvasTypeCard._normalStyle || '';
+        }
+    }
+
+    /**
      * Build the dialog card UI
      * @param {Object} colors - Theme colors
      * @private
@@ -856,6 +1055,11 @@ export class LayoutSettingsDialog {
 
         // Header
         this._dialogCard.add_child(this._buildHeaderRow(colors));
+
+        // Type selector (only for new layouts)
+        if (this._isNewLayout) {
+            this._dialogCard.add_child(this._buildTypeSelector(colors));
+        }
 
         // Layout Preview with floating edit button
         this._previewContainer = new St.BoxLayout({
