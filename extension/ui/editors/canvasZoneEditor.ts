@@ -92,10 +92,11 @@ export class CanvasZoneEditor {
     private _zoneActors: St.Button[];
     private _handleActors: St.Widget[];
     private _snapGuides: St.Widget[];
-    private _controlPanel: St.BoxLayout | null;
+    private _headerBar: St.BoxLayout | null;
     private _zoneInfoLabel: St.Label | null;
     private _deleteButton: St.Button | null;
-    private _helpTextBox: St.BoxLayout | null;
+    private _instructionsOverlay: St.BoxLayout | null;
+    private _instructionsVisible: boolean;
     private _toolbar: St.BoxLayout | null;
     private _modalId: number | null;
     private _selectedZoneIndex: number;
@@ -140,10 +141,11 @@ export class CanvasZoneEditor {
         this._zoneActors = [];
         this._handleActors = [];
         this._snapGuides = [];
-        this._controlPanel = null;
+        this._headerBar = null;
         this._zoneInfoLabel = null;
         this._deleteButton = null;
-        this._helpTextBox = null;
+        this._instructionsOverlay = null;
+        this._instructionsVisible = this._settings.get_boolean('canvas-editor-show-instructions');
         this._toolbar = null;
         this._modalId = null;
         this._selectedZoneIndex = -1;
@@ -184,11 +186,11 @@ export class CanvasZoneEditor {
         });
         this._overlay.style = `background-color: ${colors.modalOverlay};`;
 
-        // Build UI layers (Z-order: zones → control panel → toolbar → help text)
+        // Build UI layers (Z-order: zones → header bar → toolbar → instructions)
         this._createZoneActors();
-        this._createControlPanel();
+        this._createHeaderBar();
         this._createToolbar();
-        this._createHelpText();
+        this._createInstructionsOverlay();
 
         Main.uiGroup.add_child(this._overlay);
 
@@ -386,7 +388,7 @@ export class CanvasZoneEditor {
     private _selectZone(index: number): void {
         this._selectedZoneIndex = index;
         this._refreshDisplay();
-        this._updateControlPanel();
+        this._updateHeaderBar();
     }
 
     // ─── Resize Handles ──────────────────────────────────────
@@ -715,6 +717,9 @@ export class CanvasZoneEditor {
             case Clutter.KEY_BackSpace:
                 this._deleteSelectedZone();
                 return true;
+            case Clutter.KEY_F1:
+                this._toggleInstructionsOverlay();
+                return true;
             case Clutter.KEY_bracketleft:
                 this._adjustZOrder(-1);
                 return true;
@@ -804,57 +809,111 @@ export class CanvasZoneEditor {
 
     // ─── UI Components ───────────────────────────────────────
 
-    private _createControlPanel(): void {
+    private _createHeaderBar(): void {
         if (!this._overlay) return;
 
+        const monitor = Main.layoutManager.currentMonitor;
         const themeContext = St.ThemeContext.get_for_stage(global.stage);
         const scaleFactor = themeContext.scale_factor;
         const colors = this._themeManager.getColors();
 
-        this._controlPanel = new St.BoxLayout({
+        this._headerBar = new St.BoxLayout({
             vertical: false,
-            style: `spacing: 12px; padding: 12px 16px; background-color: ${colors.toolbarBg}; border-radius: 8px;`,
+            style: `spacing: 12px; padding: 10px 20px; background-color: ${colors.toolbarBg}; border-radius: 8px;`,
         });
 
-        this._controlPanel.set_position(20 * scaleFactor, 80 * scaleFactor);
+        // Title
+        const title = new St.Label({
+            text: 'Canvas Editor',
+            y_align: Clutter.ActorAlign.CENTER,
+            style: `font-size: 12pt; font-weight: bold; color: ${colors.textPrimary}; margin-right: 8px;`,
+        });
+        this._headerBar.add_child(title);
+
+        // Separator
+        const sep1 = new St.Widget({
+            style: `width: 1px; background-color: ${colors.textMuted}; margin: 4px 4px;`,
+            y_align: Clutter.ActorAlign.FILL,
+        });
+        this._headerBar.add_child(sep1);
 
         // Add Zone button
         const addBtn = new St.Button({
-            label: '+ New Zone',
-            style: `padding: 8px 16px; background-color: ${colors.accentHex}; color: white; border-radius: 4px; font-weight: bold;`,
+            label: '+ Add Zone',
+            y_align: Clutter.ActorAlign.CENTER,
+            style: `padding: 6px 14px; background-color: ${colors.accentHex}; color: white; border-radius: 4px; font-weight: bold; font-size: 10pt;`,
         });
         this._signalTracker.connect(addBtn, 'clicked', () => this._addZone());
         this._signalTracker.connect(addBtn, 'enter-event', () => {
-            addBtn.style = `padding: 8px 16px; background-color: ${colors.accentHexHover}; color: white; border-radius: 4px; font-weight: bold;`;
+            addBtn.style = `padding: 6px 14px; background-color: ${colors.accentHexHover}; color: white; border-radius: 4px; font-weight: bold; font-size: 10pt;`;
             return Clutter.EVENT_PROPAGATE as unknown as boolean;
         });
         this._signalTracker.connect(addBtn, 'leave-event', () => {
-            addBtn.style = `padding: 8px 16px; background-color: ${colors.accentHex}; color: white; border-radius: 4px; font-weight: bold;`;
+            addBtn.style = `padding: 6px 14px; background-color: ${colors.accentHex}; color: white; border-radius: 4px; font-weight: bold; font-size: 10pt;`;
             return Clutter.EVENT_PROPAGATE as unknown as boolean;
         });
-        this._controlPanel.add_child(addBtn);
+        this._headerBar.add_child(addBtn);
+
+        // Delete Zone button
+        this._deleteButton = new St.Button({
+            label: '✕ Delete',
+            y_align: Clutter.ActorAlign.CENTER,
+            style: 'padding: 6px 14px; background-color: rgba(255, 50, 50, 0.9); color: white; border-radius: 4px; font-size: 10pt;',
+        });
+        this._signalTracker.connect(this._deleteButton, 'clicked', () => this._deleteSelectedZone());
+        this._deleteButton.reactive = this._selectedZoneIndex >= 0;
+        this._headerBar.add_child(this._deleteButton);
+
+        // Separator
+        const sep2 = new St.Widget({
+            style: `width: 1px; background-color: ${colors.textMuted}; margin: 4px 4px;`,
+            y_align: Clutter.ActorAlign.FILL,
+        });
+        this._headerBar.add_child(sep2);
 
         // Zone info label
         this._zoneInfoLabel = new St.Label({
             text: 'No selection',
-            style: `font-size: 10pt; color: ${colors.textSecondary}; padding: 8px;`,
+            y_align: Clutter.ActorAlign.CENTER,
+            style: `font-size: 10pt; color: ${colors.textSecondary};`,
         });
-        this._controlPanel.add_child(this._zoneInfoLabel);
+        this._headerBar.add_child(this._zoneInfoLabel);
 
-        // Delete button
-        this._deleteButton = new St.Button({
-            label: '✕ Delete',
-            style: 'padding: 8px 16px; background-color: rgba(255, 50, 50, 0.9); color: white; border-radius: 4px;',
+        // Separator
+        const sep3 = new St.Widget({
+            style: `width: 1px; background-color: ${colors.textMuted}; margin: 4px 4px;`,
+            y_align: Clutter.ActorAlign.FILL,
         });
-        this._signalTracker.connect(this._deleteButton, 'clicked', () => this._deleteSelectedZone());
-        this._deleteButton.reactive = this._selectedZoneIndex >= 0;
-        this._controlPanel.add_child(this._deleteButton);
+        this._headerBar.add_child(sep3);
 
-        this._overlay.add_child(this._controlPanel);
-        this._updateControlPanel();
+        // Help toggle button (ⓘ)
+        const helpToggle = new St.Button({
+            label: 'ⓘ',
+            y_align: Clutter.ActorAlign.CENTER,
+            style: `padding: 4px 10px; background-color: ${colors.buttonBg}; color: ${colors.textSecondary}; border-radius: 4px; font-size: 14pt;`,
+        });
+        this._signalTracker.connect(helpToggle, 'clicked', () => this._toggleInstructionsOverlay());
+        this._signalTracker.connect(helpToggle, 'enter-event', () => {
+            helpToggle.style = `padding: 4px 10px; background-color: ${colors.buttonBgHover}; color: ${colors.textPrimary}; border-radius: 4px; font-size: 14pt;`;
+            return Clutter.EVENT_PROPAGATE as unknown as boolean;
+        });
+        this._signalTracker.connect(helpToggle, 'leave-event', () => {
+            helpToggle.style = `padding: 4px 10px; background-color: ${colors.buttonBg}; color: ${colors.textSecondary}; border-radius: 4px; font-size: 14pt;`;
+            return Clutter.EVENT_PROPAGATE as unknown as boolean;
+        });
+        this._headerBar.add_child(helpToggle);
+
+        // Position: top-center
+        // Use idle callback to position after allocation
+        const headerWidth = 600 * scaleFactor;
+        this._headerBar.width = headerWidth;
+        this._headerBar.set_position((monitor.width - headerWidth) / 2, 20 * scaleFactor);
+
+        this._overlay.add_child(this._headerBar);
+        this._updateHeaderBar();
     }
 
-    private _updateControlPanel(): void {
+    private _updateHeaderBar(): void {
         if (this._zoneInfoLabel) {
             if (this._selectedZoneIndex >= 0) {
                 this._zoneInfoLabel.text = `Zone ${this._selectedZoneIndex + 1} of ${this._zones.length}`;
@@ -869,49 +928,59 @@ export class CanvasZoneEditor {
         }
     }
 
-    private _createHelpText(): void {
+    private _createInstructionsOverlay(): void {
         if (!this._overlay) return;
 
+        const monitor = Main.layoutManager.currentMonitor;
         const themeContext = St.ThemeContext.get_for_stage(global.stage);
         const scaleFactor = themeContext.scale_factor;
         const colors = this._themeManager.getColors();
 
-        this._helpTextBox = new St.BoxLayout({
+        this._instructionsOverlay = new St.BoxLayout({
             vertical: true,
-            style: `spacing: 8px; padding: 20px; background-color: ${colors.helpBoxBg}; border-radius: 8px;`,
+            style: `spacing: 6px; padding: 14px 20px; background-color: ${colors.helpBoxBg}; border-radius: 8px;`,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.START,
         });
 
-        const monitor = Main.layoutManager.currentMonitor;
-        const helpWidth = 800 * scaleFactor;
-        this._helpTextBox.set_position((monitor.width - helpWidth) / 2, 20);
-        this._helpTextBox.width = helpWidth;
-
-        const title = new St.Label({
-            text: 'Canvas Editor',
-            style: `font-size: 14pt; font-weight: bold; color: ${colors.textPrimary}; margin-bottom: 8px;`,
-        });
-        this._helpTextBox.add_child(title);
+        const overlayWidth = 700 * scaleFactor;
+        this._instructionsOverlay.width = overlayWidth;
+        // Position below header bar
+        this._instructionsOverlay.set_position((monitor.width - overlayWidth) / 2, 70 * scaleFactor);
 
         const instructions = [
             'Click zone to select  •  Drag to move  •  Drag handles to resize  •  N: New zone',
             'Delete: Remove zone  •  [ / ]: Adjust order  •  Shift+Arrow: Resize  •  Tab: Cycle',
-            'Esc: Deselect / Cancel  •  Enter: Save layout',
+            'Esc: Deselect / Cancel  •  Enter: Save layout  •  F1: Toggle help',
         ];
 
         instructions.forEach(text => {
             const label = new St.Label({
                 text,
-                style: `font-size: 11pt; color: ${colors.textSecondary};`,
+                style: `font-size: 10pt; color: ${colors.textSecondary};`,
             });
             label.clutter_text.line_wrap = true;
-            if (this._helpTextBox) {
-                this._helpTextBox.add_child(label);
+            if (this._instructionsOverlay) {
+                this._instructionsOverlay.add_child(label);
             }
         });
 
-        this._overlay.add_child(this._helpTextBox);
+        this._overlay.add_child(this._instructionsOverlay);
+
+        // Apply initial visibility from GSettings
+        this._instructionsOverlay.visible = this._instructionsVisible;
+    }
+
+    private _toggleInstructionsOverlay(): void {
+        if (!this._instructionsOverlay) return;
+
+        this._instructionsVisible = !this._instructionsVisible;
+        this._instructionsOverlay.visible = this._instructionsVisible;
+
+        // Persist to GSettings
+        this._settings.set_boolean('canvas-editor-show-instructions', this._instructionsVisible);
+
+        logger.debug(`Instructions overlay ${this._instructionsVisible ? 'shown' : 'hidden'}`);
     }
 
     private _createToolbar(): void {
@@ -923,16 +992,15 @@ export class CanvasZoneEditor {
         const colors = this._themeManager.getColors();
 
         this._toolbar = new St.BoxLayout({
-            style: `spacing: 12px; padding: 16px; background-color: ${colors.toolbarBg}; border-radius: 8px;`,
+            style: `spacing: 12px; padding: 12px 20px; background-color: ${colors.toolbarBg}; border-radius: 8px;`,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.END,
         });
 
         const toolbarWidth = 250 * scaleFactor;
-        const toolbarHeight = 80 * scaleFactor;
         this._toolbar.set_position(
             (monitor.width - toolbarWidth) / 2,
-            monitor.height - toolbarHeight,
+            monitor.height - 80 * scaleFactor,
         );
         this._toolbar.width = toolbarWidth;
 
@@ -996,17 +1064,17 @@ export class CanvasZoneEditor {
         this._createZoneActors();
 
         // Re-raise UI layers above zones
-        if (this._controlPanel?.get_parent() === this._overlay) {
-            this._overlay.remove_child(this._controlPanel);
-            this._overlay.add_child(this._controlPanel);
+        if (this._headerBar?.get_parent() === this._overlay) {
+            this._overlay.remove_child(this._headerBar);
+            this._overlay.add_child(this._headerBar);
         }
         if (this._toolbar?.get_parent() === this._overlay) {
             this._overlay.remove_child(this._toolbar);
             this._overlay.add_child(this._toolbar);
         }
-        if (this._helpTextBox?.get_parent() === this._overlay) {
-            this._overlay.remove_child(this._helpTextBox);
-            this._overlay.add_child(this._helpTextBox);
+        if (this._instructionsOverlay?.get_parent() === this._overlay) {
+            this._overlay.remove_child(this._instructionsOverlay);
+            this._overlay.add_child(this._instructionsOverlay);
         }
     }
 

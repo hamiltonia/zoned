@@ -392,6 +392,17 @@
       </description>
     </key>
     
+    <!-- Canvas Editor UI State -->
+    <key name="canvas-editor-show-instructions" type="b">
+      <default>true</default>
+      <summary>Show canvas editor instructions</summary>
+      <description>
+        Whether to show the instructions overlay in the canvas zone editor.
+        Defaults to true (shown on first launch). When the user collapses
+        the instructions, this is persisted as false.
+      </description>
+    </key>
+    
     <!-- Debug Settings -->
     <key name="debug-logging" type="b">
       <default>false</default>
