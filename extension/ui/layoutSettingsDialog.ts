@@ -1937,6 +1937,7 @@ export class LayoutSettingsDialog {
         const duplicatedLayout = {
             id: this._generateId(),  // New unique ID
             name: `${this._layout.name} Copy`,
+            type: this._layout.type || 'grid',
             zones: JSON.parse(JSON.stringify(this._layout.zones || [])),
             padding: this._layout.padding || 0,  // Preserve padding; default off
             shortcut: null,  // Don't copy shortcut to avoid conflicts
@@ -2472,6 +2473,7 @@ export class LayoutSettingsDialog {
         return {
             id: this._layout.id || this._generateId(),
             name: this._nameEntry.get_text().trim(),
+            type: this._layout.type || 'grid',
             zones: this._layout.zones,
             padding: this._collectPaddingValue(),
             shortcut: this._collectShortcutValue(),
