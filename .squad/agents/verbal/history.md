@@ -165,6 +165,27 @@ Implemented two-card type selector UI in LayoutSettingsDialog. Eric identified t
 - Grid and canvas editors should share the same zone visual language: neutral gray background (`rgba(68, 68, 68, 0.6)`), 2px accent border, 24pt zone numbers, and inline dimension labels — the canvas editor is the styling reference
 - When adding labels that use edge-derived variables (`left`/`right`/`top`/`bottom`) inside the `forEach` callback in `_createRegions()`, reuse the already-declared and null-checked variables rather than re-declaring them
 - Removing `USE_MAP_COLORS` multi-color mode in favor of unified neutral-gray styling — if diagnostic coloring is needed in the future, implement it as a separate debug overlay rather than baked into region actors
+- Clutter resets `visible` to `true` when an actor is re-added via `add_child()` — always re-apply visibility state after remove/re-add z-order operations in `_refreshDisplay()`
+- Instructions overlay close button uses `_hideInstructionsOverlay()` (explicit hide) vs `_toggleInstructionsOverlay()` (toggle) — separate methods for clarity
+- Right-justify header bar items using `St.Widget({ x_expand: true })` spacer before the target element — standard Clutter/St pattern for flexible layouts
+- Instructions panel Y offset: `82 * scaleFactor` provides ~12px visual gap below header bar at `20 * scaleFactor` — enough separation to read as distinct elements
+
+### 2026-05-04: Canvas Editor Instructions Panel UX Fixes (4 bugs)
+
+**Task:** Fix visual separation, add close button, right-justify help toggle, fix state management bug
+**Verdict:** SUCCESS
+
+**Fixes:**
+1. **Visual separation** — increased instructions overlay Y from `70 * scaleFactor` to `82 * scaleFactor` for ~12px gap below header bar
+2. **Close button** — added right-aligned ✕ button to instructions panel via `_hideInstructionsOverlay()`, with hover effects
+3. **Right-justified help toggle** — replaced sep3 separator with `St.Widget({ x_expand: true })` spacer to push ⓘ button to far right of header bar
+4. **State management** — `_refreshDisplay()` remove/re-add cycle was resetting `visible` to `true`; added `this._instructionsOverlay.visible = this._instructionsVisible` after re-add
+
+**Validation:**
+- Typecheck: ✓ passing
+- Lint (strict): ✓ zero warnings
+- Build: ✓ passing
+- Tests: ✓ 96 passing
 
 ### 2026-05-04: Canvas Editor Panel Consolidation (Decision 9)
 
@@ -198,4 +219,32 @@ Implemented Decision 9 — replaced the three-panel canvas editor UI (help text 
 - Progressive disclosure via GSettings persistence is a clean pattern for editor UI state — read boolean in constructor, write on toggle
 - Header bar with separators (`St.Widget` with 1px width) creates visual grouping without extra container nesting
 - Instructions overlay positioned at `70 * scaleFactor` Y offset sits cleanly below the header bar at `20 * scaleFactor`
+
+## 2026-05-03: Fixed 4 Instructions Panel UX Bugs
+
+**Task:** Fix visual separation, close button, right-justified help toggle, reopen-on-click state bug  
+**Mode:** background  
+**Verdict:** SUCCESS
+
+**Bugs Fixed:**
+
+1. **Visual Separation** — Increased Y offset from 70 to 82 (scaled) to add 12px gap between header bar and instructions panel
+2. **Close Button** — Added ✕ button directly on instructions panel calling `_hideInstructionsOverlay()`
+3. **Right-Justified Help Toggle** — Moved ⓘ button to right end of header bar using `x_expand: true` spacer
+4. **Reopen-on-Click Bug** — Fixed state management: Clutter resets `visible` to `true` when actor is reparented via `add_child()`. Solution: re-apply `_instructionsVisible` state after z-order re-raise in `_refreshDisplay()` using `Meta.later(Meta.LaterType.BEFORE_REDRAW, ...)`
+
+**Root Cause (Bug #4):** When removing a Clutter actor from one parent and adding it to another, the lifecycle events reset the `visible` property. This affected the instructions overlay z-order re-raise pattern — the overlay would reappear even when intended to stay hidden. Fixed by scheduling visibility restoration after the layout cycle completes.
+
+**Files Modified:**
+- `extension/ui/editors/canvasZoneEditor.ts`
+- `extension/stylesheet.css`
+
+**Validations:**
+- ESLint (strict): ✓ zero warnings
+- Typecheck: ✓ passing
+- Build: ✓ passing
+- GSettings schema: ✓ valid
+- All 4 bugs: ✓ visually verified closed
+
+**Key Pattern:** Any `remove_child()`→`add_child()` z-order pattern in Clutter must explicitly re-apply the intended `visible` state afterward using `Meta.later()`.
 
