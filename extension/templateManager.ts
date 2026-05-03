@@ -23,6 +23,7 @@ const BUILTIN_TEMPLATES: Record<string, BuiltinTemplate> = {
     split: {
         id: 'split',
         name: 'Split',
+        type: 'grid',
         icon: '⫿',
         description: '50/50 split - Left and Right',
         zones: [
@@ -33,6 +34,7 @@ const BUILTIN_TEMPLATES: Record<string, BuiltinTemplate> = {
     triple: {
         id: 'triple',
         name: 'Triple',
+        type: 'grid',
         icon: '⫴',
         description: '33/33/33 columns',
         zones: [
@@ -44,6 +46,7 @@ const BUILTIN_TEMPLATES: Record<string, BuiltinTemplate> = {
     wide: {
         id: 'wide',
         name: 'Wide',
+        type: 'grid',
         icon: '◧',
         description: '25/50/25 - Center-focused',
         zones: [
@@ -55,6 +58,7 @@ const BUILTIN_TEMPLATES: Record<string, BuiltinTemplate> = {
     quarters: {
         id: 'quarters',
         name: 'Quarters',
+        type: 'grid',
         icon: '⊞',
         description: '2×2 grid layout',
         zones: [
@@ -67,6 +71,7 @@ const BUILTIN_TEMPLATES: Record<string, BuiltinTemplate> = {
     triple_stack: {
         id: 'triple_stack',
         name: 'Triple Stack',
+        type: 'grid',
         icon: '⊡',
         description: 'Three columns with stacked right panel',
         zones: [
@@ -141,6 +146,7 @@ export class TemplateManager {
         const layout: Layout = {
             id: `template-${templateId}`,  // Stable ID for persistence across reloads
             name: template.name,
+            type: template.type || 'grid',
             zones: JSON.parse(JSON.stringify(template.zones)) as Zone[], // Deep copy
             editable: false, // Templates are not editable
         };

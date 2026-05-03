@@ -46,6 +46,7 @@ describe('TemplateManager', () => {
                 expect(t).toHaveProperty('name');
                 expect(t).toHaveProperty('zones');
                 expect(t).toHaveProperty('description');
+                expect(t).toHaveProperty('type', 'grid');
                 expect(t.zones.length).toBeGreaterThan(0);
             }
         });
@@ -100,6 +101,7 @@ describe('TemplateManager', () => {
             const layout = mgr.createLayoutFromTemplate('split');
             expect(layout.id).toBe('template-split');
             expect(layout.name).toBe('Split');
+            expect(layout.type).toBe('grid');
             expect(layout.editable).toBe(false);
         });
 

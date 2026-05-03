@@ -51,10 +51,12 @@ import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import {createLogger} from './utils/debug.js';
 import {TemplateManager} from './templateManager.js';
-import type {Layout, Zone} from './types/layout.js';
+import type {Layout, LayoutType, Zone} from './types/layout.js';
 import type {SpatialStateManager} from './spatialStateManager.js';
 
 const logger = createLogger('LayoutManager');
+
+const MIN_CANVAS_ZONE_SIZE = 0.05; // Minimum 5% of screen for canvas zones
 
 interface LayoutData {
     version: number;
@@ -213,8 +215,23 @@ export class LayoutManager {
             const jsonString = decoder.decode(contents);
             const data = JSON.parse(jsonString);
 
-            logger.info(`Loaded ${data.layouts.length} user layouts`);
-            return data.layouts;
+            // Migrate layouts without type field (backward compatibility)
+            let needsResave = false;
+            const layouts: Layout[] = data.layouts.map((layout: Layout) => {
+                if (!layout.type) {
+                    layout.type = 'grid';
+                    needsResave = true;
+                }
+                return layout;
+            });
+
+            if (needsResave) {
+                logger.info('Migrating layouts: adding type field to existing layouts');
+                this._saveUserLayouts(layouts, data.layout_order || []);
+            }
+
+            logger.info(`Loaded ${layouts.length} user layouts`);
+            return layouts;
         } catch (error) {
             logger.warn(`Error loading user layouts: ${error}`);
             return [];
@@ -323,6 +340,37 @@ export class LayoutManager {
 
             if (!this._validateZoneRanges(zone)) {
                 logger.warn(`Layout '${layout.id}' zone ${i} has out-of-range coordinates`);
+                return false;
+            }
+        }
+
+        // Type-specific validation
+        const layoutType = layout.type || 'grid';
+        if (layoutType === 'canvas') {
+            return this._validateCanvasConstraints(layout);
+        }
+
+        return true;
+    }
+
+    /**
+     * Validate canvas-specific constraints
+     * Canvas layouts allow overlaps and gaps, but enforce bounds and minimum size
+     * @private
+     */
+    private _validateCanvasConstraints(layout: Layout): boolean {
+        for (let i = 0; i < layout.zones.length; i++) {
+            const zone = layout.zones[i];
+
+            // Zones must not extend beyond screen bounds
+            if (zone.x + zone.w > 1.001 || zone.y + zone.h > 1.001) {
+                logger.warn(`Canvas layout '${layout.id}' zone ${i} extends beyond screen bounds`);
+                return false;
+            }
+
+            // Minimum zone size (5% of screen)
+            if (zone.w < MIN_CANVAS_ZONE_SIZE || zone.h < MIN_CANVAS_ZONE_SIZE) {
+                logger.warn(`Canvas layout '${layout.id}' zone ${i} is too small (min ${MIN_CANVAS_ZONE_SIZE * 100}%)`);
                 return false;
             }
         }
@@ -1177,6 +1225,7 @@ export class LayoutManager {
             const updatedLayout = {
                 id: this._currentLayout.id,
                 name: layout.name || this._currentLayout.name,
+                type: this._currentLayout.type || 'grid' as LayoutType,
                 zones: layout.zones,
             };
 

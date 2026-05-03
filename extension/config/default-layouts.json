@@ -4,6 +4,7 @@
     {
       "id": "split",
       "name": "Split",
+      "type": "grid",
       "zones": [
         {"name": "Left", "x": 0, "y": 0, "w": 0.5, "h": 1},
         {"name": "Right", "x": 0.5, "y": 0, "w": 0.5, "h": 1}
@@ -12,6 +13,7 @@
     {
       "id": "triple",
       "name": "Triple",
+      "type": "grid",
       "zones": [
         {"name": "Left", "x": 0, "y": 0, "w": 0.333, "h": 1},
         {"name": "Center", "x": 0.333, "y": 0, "w": 0.334, "h": 1},
@@ -21,6 +23,7 @@
     {
       "id": "wide",
       "name": "Wide",
+      "type": "grid",
       "zones": [
         {"name": "Left", "x": 0, "y": 0, "w": 0.25, "h": 1},
         {"name": "Center", "x": 0.25, "y": 0, "w": 0.5, "h": 1},
@@ -30,6 +33,7 @@
     {
       "id": "quarters",
       "name": "Quarters",
+      "type": "grid",
       "zones": [
         {"name": "Top-Left", "x": 0, "y": 0, "w": 0.5, "h": 0.5},
         {"name": "Top-Right", "x": 0.5, "y": 0, "w": 0.5, "h": 0.5},
@@ -40,6 +44,7 @@
     {
       "id": "triple_stack",
       "name": "Triple Stack",
+      "type": "grid",
       "zones": [
         {"name": "Left", "x": 0, "y": 0, "w": 0.333, "h": 1},
         {"name": "Center", "x": 0.333, "y": 0, "w": 0.334, "h": 1},
