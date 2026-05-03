@@ -1041,7 +1041,7 @@ export class CanvasZoneEditor {
 
         const instructions = [
             'Click zone to select  •  Drag to move  •  Drag handles to resize  •  N: New zone',
-            'Delete: Remove zone  •  [, ]: Adjust order  •  Shift+Arrow: Resize  •  Tab: Cycle',
+            'Delete: Remove zone  •  [ or ]: Adjust order  •  Shift+Arrow: Resize  •  Tab: Cycle',
             'Hold Shift to disable snapping  •  Esc: Deselect / Cancel  •  Enter: Save  •  F1: Help',
         ];
 
@@ -1068,8 +1068,9 @@ export class CanvasZoneEditor {
         this._instructionsVisible = !this._instructionsVisible;
         this._instructionsOverlay.visible = this._instructionsVisible;
 
-        // Persist to GSettings
+        // Persist to GSettings and flush to disk immediately
         this._settings.set_boolean('canvas-editor-show-instructions', this._instructionsVisible);
+        Gio.Settings.sync();
 
         logger.debug(`Instructions overlay ${this._instructionsVisible ? 'shown' : 'hidden'}`);
     }
@@ -1081,6 +1082,7 @@ export class CanvasZoneEditor {
         this._instructionsOverlay.visible = false;
 
         this._settings.set_boolean('canvas-editor-show-instructions', false);
+        Gio.Settings.sync();
 
         logger.debug('Instructions overlay hidden via close button');
     }
