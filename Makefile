@@ -1,6 +1,6 @@
 .PHONY: help install uninstall enable disable reload logs compile-schema test clean build \
         vm-install clean-install vm-clean-install lint lint-strict lint-fix dev reinstall dev-version test-release \
-        changelog changelog-since build-ts watch-ts clean-ts typecheck lint-ts setup-hooks
+        changelog changelog-since build-ts watch-ts clean-ts typecheck setup-hooks
 
 # Detect OS for sed compatibility
 UNAME_S := $(shell uname -s)
@@ -60,7 +60,6 @@ help:
 	@printf "  make build-ts       - Compile TypeScript to JavaScript\n"
 	@printf "  make watch-ts       - Watch TypeScript files for changes\n"
 	@printf "  make typecheck      - Type check without compilation\n"
-	@printf "  make lint-ts        - Lint TypeScript files\n"
 	@printf "  make clean-ts       - Clean TypeScript build artifacts\n"
 	@printf "\n"
 	@printf "$(COLOR_SUCCESS)Diagnostic/Deep Clean:$(COLOR_RESET)\n"
@@ -216,19 +215,6 @@ typecheck:
 		printf "$(COLOR_SUCCESS)✓ Type check passed$(COLOR_RESET)\n"; \
 	fi
 
-lint-ts:
-	@printf "$(COLOR_INFO)Linting TypeScript files...$(COLOR_RESET)\n"
-	@if [ ! -d "node_modules" ]; then \
-		printf "$(COLOR_WARN)Installing npm dependencies...$(COLOR_RESET)\n"; \
-		npm install --silent; \
-	fi
-	@if [ -z "$$(find extension -name '*.ts' 2>/dev/null)" ]; then \
-		printf "$(COLOR_WARN)⚠ No TypeScript files found - skipping lint$(COLOR_RESET)\n"; \
-	else \
-		npx eslint extension/**/*.ts; \
-		printf "$(COLOR_SUCCESS)✓ TypeScript lint passed$(COLOR_RESET)\n"; \
-	fi
-
 clean-ts:
 	@printf "$(COLOR_INFO)Cleaning TypeScript build artifacts...$(COLOR_RESET)\n"
 	@rm -rf build/typescript build/rollup
@@ -281,10 +267,7 @@ reinstall: lint uninstall install
 	@printf "$(COLOR_WARN)⚠ Remember to reload GNOME Shell to see changes$(COLOR_RESET)\n"
 
 # VM install target (no schema pre-compilation)
-# NOTE: Lint temporarily non-fatal during TypeScript migration (will re-enable after migration complete)
-vm-install: dev-version build-ts
-	@printf "$(COLOR_WARN)⚠ LINT TEMPORARILY DISABLED DURING TYPESCRIPT MIGRATION$(COLOR_RESET)\n"
-	@-$(MAKE) lint 2>/dev/null || printf "$(COLOR_WARN)  (Lint errors ignored during migration)$(COLOR_RESET)\n"
+vm-install: lint dev-version build-ts
 	@printf "$(COLOR_INFO)▶ Installing to VM...$(COLOR_RESET)\n"
 	@printf "$(COLOR_REMOTE)  (Remote operations shown in yellow)$(COLOR_RESET)\n"
 	@./scripts/user/vm-install
