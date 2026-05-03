@@ -18,8 +18,8 @@
  *
  * Settings Dialog UI Design:
  * - Header: "Edit layout" title with action icons (Duplicate, Delete)
- * - Layout Preview: Visual zone preview centered below header with floating edit button
- * - Floating Edit Button: Circular button centered over preview, opens zone editor
+ * - NEW LAYOUT FLOW: Two edit buttons (Grid/Canvas) that immediately launch zone editor
+ * - EXISTING LAYOUT FLOW: Layout Preview with floating edit button over preview
  * - Settings Section:
  *   - Name field (disabled for templates)
  *   - Show Space Around Zones: Checkbox + number input (padding)
@@ -249,8 +249,8 @@ export class LayoutSettingsDialog {
     private _previewContainer: St.BoxLayout | null;
     private _confirmOverlay: St.Widget | null;
     private _confirmBox: St.BoxLayout | null;
-    private _gridTypeCard: (St.Button & {_normalStyle?: string; _selectedStyle?: string}) | null;
-    private _canvasTypeCard: (St.Button & {_normalStyle?: string; _selectedStyle?: string}) | null;
+    private _gridTypeCard: (St.Button & {_normalStyle?: string; _hoverStyle?: string}) | null;
+    private _canvasTypeCard: (St.Button & {_normalStyle?: string; _hoverStyle?: string}) | null;
 
     private _modal: {close: () => void} | null;
     private _visible: boolean;
@@ -373,20 +373,23 @@ export class LayoutSettingsDialog {
         // Build the dialog card
         this._buildDialogCard(colors);
 
-        // Add dialog to container (but don't add to UI yet)
+        // Add dialog to container
         if (this._dialogCard) {
             this._container.add_child(this._dialogCard);
         }
 
-        // Position and show dialog after layout is complete
-        // This ensures the dialog appears centered without any visible repositioning
+        // Add container to stage now (dialog card starts with opacity 0, so invisible)
+        Main.uiGroup.add_child(this._container);
+
+        // Position and reveal dialog after stage allocation completes
         const positionSourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
             // Guard: verify dialog is still alive
             if (this._closing || !this._visible || !this._container || !this._dialogCard) {
                 return GLib.SOURCE_REMOVE;
             }
 
-            // Position the dialog before making it visible
+            // Now that the actor is in the stage, get_width/get_height return
+            // properly allocated dimensions in stage coordinates
             const actualHeight = this._dialogCard.get_height();
             const actualWidth = this._dialogCard.get_width();
             this._dialogCard.set_position(
@@ -396,9 +399,6 @@ export class LayoutSettingsDialog {
 
             // Make dialog visible
             this._dialogCard.opacity = 255;
-
-            // Now add to UI (dialog is already positioned)
-            Main.uiGroup.add_child(this._container);
 
             return GLib.SOURCE_REMOVE;
         });
@@ -605,7 +605,7 @@ export class LayoutSettingsDialog {
         for (const card of typeCards) {
             if (card) {
                 card._normalStyle = undefined;
-                card._selectedStyle = undefined;
+                card._hoverStyle = undefined;
             }
         }
     }
@@ -897,7 +897,7 @@ export class LayoutSettingsDialog {
 
     /**
      * Build layout type selector row (Grid vs Canvas)
-     * Only shown during new layout creation
+     * Only shown during new layout creation - buttons immediately launch zone editor
      * @param {Object} colors - Theme colors
      * @returns {St.BoxLayout} Type selector row widget
      * @private
@@ -905,69 +905,65 @@ export class LayoutSettingsDialog {
     _buildTypeSelector(colors: ThemeColors): St.BoxLayout {
         const selectorRow = new St.BoxLayout({
             vertical: false,
-            style: 'spacing: 12px; margin-bottom: 16px;',
+            style: 'spacing: 16px; margin-bottom: 16px;',
             x_align: Clutter.ActorAlign.CENTER,
         });
 
-        // Grid type card
-        this._gridTypeCard = this._createTypeCard(colors, 'grid', '⊞', 'Grid', 'Zones tile the screen');
+        // Grid type edit button
+        this._gridTypeCard = this._createTypeEditButton(colors, 'grid', '⊞', 'Edit Grid Layout', 'Zones tile the screen');
         selectorRow.add_child(this._gridTypeCard);
 
-        // Canvas type card
-        this._canvasTypeCard = this._createTypeCard(colors, 'canvas', '⊡', 'Canvas', 'Free-form overlapping');
+        // Canvas type edit button
+        this._canvasTypeCard = this._createTypeEditButton(colors, 'canvas', '⊡', 'Edit Canvas Layout', 'Free-form overlapping');
         selectorRow.add_child(this._canvasTypeCard);
-
-        // Set initial selection state
-        this._updateTypeCardStyles();
 
         return selectorRow;
     }
 
     /**
-     * Create a single type selector card
+     * Create a type edit button that immediately launches the zone editor
      * @param {Object} colors - Theme colors
      * @param {string} type - Layout type ('grid' or 'canvas')
-     * @param {string} icon - Icon text
-     * @param {string} title - Card title
-     * @param {string} subtitle - Card subtitle
-     * @returns {St.Button} Type card button
+     * @param {string} typeIcon - Layout type icon text
+     * @param {string} title - Button title
+     * @param {string} subtitle - Button subtitle
+     * @returns {St.Button} Type edit button
      * @private
      */
-    _createTypeCard(
+    _createTypeEditButton(
         colors: ThemeColors,
         type: 'grid' | 'canvas',
-        icon: string,
+        typeIcon: string,
         title: string,
         subtitle: string,
-    ): St.Button & {_normalStyle?: string; _selectedStyle?: string} {
-        const isSelected = this._layout.type === type;
-
+    ): St.Button & {_normalStyle?: string; _hoverStyle?: string} {
         const normalStyle = `
-            width: 140px;
-            height: 90px;
+            width: 160px;
+            height: 100px;
             background-color: ${colors.sectionBg};
             border: 2px solid ${colors.sectionBorder};
             border-radius: 8px;
             padding: 12px;
         `;
 
-        const selectedStyle = `
-            width: 140px;
-            height: 90px;
+        const hoverStyle = `
+            width: 160px;
+            height: 100px;
             background-color: ${colors.sectionBg};
             border: 2px solid ${colors.accentHex};
             border-radius: 8px;
             padding: 12px;
         `;
 
-        const button: St.Button & {_normalStyle?: string; _selectedStyle?: string} = new St.Button({
-            style: isSelected ? selectedStyle : normalStyle,
+        const button: St.Button & {_normalStyle?: string; _hoverStyle?: string} = new St.Button({
+            style: normalStyle,
             reactive: true,
             can_focus: true,
+            track_hover: true,
         });
 
         button._normalStyle = normalStyle;
-        button._selectedStyle = selectedStyle;
+        button._hoverStyle = hoverStyle;
 
         // Card content layout
         const contentBox = new St.BoxLayout({
@@ -975,30 +971,43 @@ export class LayoutSettingsDialog {
             x_align: Clutter.ActorAlign.CENTER,
         });
 
-        // Icon
+        // Type icon (prominent)
         const iconLabel = new St.Label({
-            text: icon,
+            text: typeIcon,
             style: `
-                font-size: 24pt;
+                font-size: 28pt;
                 color: ${colors.textPrimary};
-                margin-bottom: 4px;
+                margin-bottom: 6px;
             `,
             x_align: Clutter.ActorAlign.CENTER,
         });
         contentBox.add_child(iconLabel);
 
-        // Title
+        // Title with edit icon
+        const titleBox = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 6px;',
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+
+        const editIcon = new St.Icon({
+            icon_name: 'document-edit-symbolic',
+            icon_size: 14,
+            style: `color: ${colors.textSecondary};`,
+        });
+        titleBox.add_child(editIcon);
+
         const titleLabel = new St.Label({
             text: title,
             style: `
-                font-size: 11pt;
+                font-size: 10pt;
                 font-weight: bold;
                 color: ${colors.textPrimary};
-                margin-bottom: 2px;
             `,
-            x_align: Clutter.ActorAlign.CENTER,
         });
-        contentBox.add_child(titleLabel);
+        titleBox.add_child(titleLabel);
+
+        contentBox.add_child(titleBox);
 
         // Subtitle
         const subtitleLabel = new St.Label({
@@ -1006,6 +1015,7 @@ export class LayoutSettingsDialog {
             style: `
                 font-size: 8pt;
                 color: ${colors.textMuted};
+                margin-top: 2px;
             `,
             x_align: Clutter.ActorAlign.CENTER,
         });
@@ -1013,13 +1023,19 @@ export class LayoutSettingsDialog {
 
         button.set_child(contentBox);
 
-        // Click handler
+        // Hover effects
+        const boundEnter = handleWidgetHoverEnter.bind(null, button, hoverStyle);
+        const boundLeave = handleWidgetHoverLeave.bind(null, button, normalStyle);
+        button.connect('enter-event', boundEnter);
+        button.connect('leave-event', boundLeave);
+
+        // Click handler: set type and immediately launch editor
         if (this._signalTracker) {
             this._signalTracker.connect(
                 button,
                 'clicked',
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (() => this._onTypeSelected(type, colors)) as (...args: any[]) => void,
+                (() => this._onTypeEditButtonClicked(type)) as (...args: any[]) => void,
             );
         }
 
@@ -1027,49 +1043,21 @@ export class LayoutSettingsDialog {
     }
 
     /**
-     * Handle type selection
+     * Handle type edit button click - sets type and immediately launches editor
      * @param {string} type - Selected layout type
-     * @param {Object} colors - Theme colors
      * @private
      */
-    _onTypeSelected(type: 'grid' | 'canvas', colors: ThemeColors): void {
-        if (this._layout.type === type) return;
+    _onTypeEditButtonClicked(type: 'grid' | 'canvas'): void {
+        logger.debug(`Type edit button clicked: ${type}`);
 
-        logger.debug(`Layout type changed to: ${type}`);
-
-        // Update layout type
+        // Set layout type
         this._layout.type = type;
 
-        // Clear zones when switching to canvas (canvas editor handles adding first zone)
-        if (type === 'canvas') {
-            this._layout.zones = [];
-        }
+        // Clear zones (editor will handle creating initial zones)
+        this._layout.zones = [];
 
-        // Update card styles
-        this._updateTypeCardStyles();
-
-        // Rebuild preview
-        this._buildLayoutPreview(colors);
-    }
-
-    /**
-     * Update type card styles based on current selection
-     * @private
-     */
-    _updateTypeCardStyles(): void {
-        const selectedType = this._layout.type || 'grid';
-
-        if (this._gridTypeCard) {
-            this._gridTypeCard.style = selectedType === 'grid' ?
-                this._gridTypeCard._selectedStyle || '' :
-                this._gridTypeCard._normalStyle || '';
-        }
-
-        if (this._canvasTypeCard) {
-            this._canvasTypeCard.style = selectedType === 'canvas' ?
-                this._canvasTypeCard._selectedStyle || '' :
-                this._canvasTypeCard._normalStyle || '';
-        }
+        // Immediately launch zone editor
+        this._openZoneEditor();
     }
 
     /**
@@ -1089,22 +1077,24 @@ export class LayoutSettingsDialog {
         // Header
         this._dialogCard.add_child(this._buildHeaderRow(colors));
 
-        // Type selector (only for new layouts)
+        // Type selector (only for new layouts - buttons immediately launch zone editor)
         if (this._isNewLayout) {
             this._dialogCard.add_child(this._buildTypeSelector(colors));
         }
 
-        // Layout Preview with floating edit button
-        this._previewContainer = new St.BoxLayout({
-            vertical: true,
-            style: `background-color: ${colors.sectionBg}; border: 1px solid ${colors.sectionBorder}; ` +
-                   'border-radius: 12px; padding: 16px; margin-bottom: 16px;',
-            x_align: Clutter.ActorAlign.CENTER,
-        });
-        this._buildLayoutPreview(colors);
-        this._dialogCard.add_child(this._previewContainer);
+        // Layout Preview (with floating edit button only for existing layouts)
+        if (!this._isNewLayout) {
+            this._previewContainer = new St.BoxLayout({
+                vertical: true,
+                style: `background-color: ${colors.sectionBg}; border: 1px solid ${colors.sectionBorder}; ` +
+                       'border-radius: 12px; padding: 16px; margin-bottom: 16px;',
+                x_align: Clutter.ActorAlign.CENTER,
+            });
+            this._buildLayoutPreview(colors);
+            this._dialogCard.add_child(this._previewContainer);
+        }
 
-        // Settings Section (no hyperlink - floating button is on preview)
+        // Settings Section
         this._dialogCard.add_child(this._buildSettingsSection(colors));
 
         // Button Row

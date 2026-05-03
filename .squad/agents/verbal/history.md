@@ -1,5 +1,21 @@
 # History
 
+## 2026-05-03: Fixed LayoutSettingsDialog Horizontal Centering
+
+**Task:** Dialog not horizontally centered on screen when opened  
+**Verdict:** SUCCESS
+
+**Root Cause:**
+The dialog card's container was added to `Main.uiGroup` AFTER `get_width()`/`get_height()` were called in the idle callback. Without stage allocation, these methods returned incorrect dimensions, causing the centering math `(monitor.width - actualWidth) / 2` to compute the wrong x position.
+
+**Fix:**
+Moved `Main.uiGroup.add_child(this._container)` before the idle callback. The dialog card already starts with `opacity: 0` (set in CSS), so it remains invisible until positioned. The idle callback now reads properly allocated dimensions from a staged actor, then reveals the dialog.
+
+**Validation:**
+- Typecheck: ✓ passing
+- Lint (layoutSettingsDialog.ts): ✓ zero errors
+- Tests: ✓ 96 passing
+
 ## 2026-05-03: Simplified Layout Type Selection to 2 Edit Buttons
 
 **Task:** Replace 3-button layout creation flow (2 type cards + separate edit button) with 2 combined edit buttons  
@@ -135,3 +151,6 @@ Implemented two-card type selector UI in LayoutSettingsDialog. Eric identified t
 - Zone dimension display: percentage values (`Math.round(zone.w * 100)`) are more meaningful than pixel values across different monitor sizes — always display as "50% × 25%" format for width × height
 - Dynamic zone label updates: access child labels via `actor.get_child()` and `container.get_children()` — check container type with `instanceof St.BoxLayout` before accessing children to avoid type errors
 - Follow custom layouts section pattern for ScrollView configuration: `overlay_scrollbars: true`, appropriate expand flags, and add ScrollView as intermediate wrapper between section and content container
+- Grid and canvas editors should share the same zone visual language: neutral gray background (`rgba(68, 68, 68, 0.6)`), 2px accent border, 24pt zone numbers, and inline dimension labels — the canvas editor is the styling reference
+- When adding labels that use edge-derived variables (`left`/`right`/`top`/`bottom`) inside the `forEach` callback in `_createRegions()`, reuse the already-declared and null-checked variables rather than re-declaring them
+- Removing `USE_MAP_COLORS` multi-color mode in favor of unified neutral-gray styling — if diagnostic coloring is needed in the future, implement it as a separate debug overlay rather than baked into region actors
