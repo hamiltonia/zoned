@@ -1,5 +1,16 @@
 # History
 
+## Core Context
+
+### Grid/Canvas Decisions & Early Implementation
+- **Decision 1:** Layout type immutability — type ('grid'/'canvas') cannot change after creation (2026-05-02)
+- **Decision 4:** LayoutSettingsDialog as gateway for layout management (2026-05-02)
+- **UX Design Review (2026-05-02):** Full-screen overlay pattern for canvas editor, floating control panel (top-left), fixed toolbar (bottom-center)
+- **Type Selector Implementation (2026-05-03):** Added Grid/Canvas selector cards in LayoutSettingsDialog; refined to 2 edit buttons (2026-05-03)
+- **UI Pattern Learnings:** Module-level hover handlers prevent closure leaks; layout type label follows settings row pattern; new layouts skip preview container
+- **Canvas Styling Pattern:** Zone visual language — neutral gray background (rgba(68,68,68,0.6)), 2px accent border, 24pt zone numbers, inline dimension labels (% format preferred)
+- **Grid+Canvas Alignment:** Share same zone visual language; multi-color mode removed in favor of unified neutral styling
+
 ## 2026-05-03: Fixed LayoutSettingsDialog Horizontal Centering
 
 **Task:** Dialog not horizontally centered on screen when opened  
@@ -154,3 +165,37 @@ Implemented two-card type selector UI in LayoutSettingsDialog. Eric identified t
 - Grid and canvas editors should share the same zone visual language: neutral gray background (`rgba(68, 68, 68, 0.6)`), 2px accent border, 24pt zone numbers, and inline dimension labels — the canvas editor is the styling reference
 - When adding labels that use edge-derived variables (`left`/`right`/`top`/`bottom`) inside the `forEach` callback in `_createRegions()`, reuse the already-declared and null-checked variables rather than re-declaring them
 - Removing `USE_MAP_COLORS` multi-color mode in favor of unified neutral-gray styling — if diagnostic coloring is needed in the future, implement it as a separate debug overlay rather than baked into region actors
+
+### 2026-05-04: Canvas Editor Panel Consolidation (Decision 9)
+
+**Task:** Consolidate three panels (help text, control, toolbar) into two panels with collapsible instructions overlay  
+**Verdict:** SUCCESS
+
+**Summary:**
+Implemented Decision 9 — replaced the three-panel canvas editor UI (help text at top-center, control panel at top-left, toolbar at bottom) with a two-panel layout plus collapsible instructions overlay.
+
+**New Structure:**
+- **Header Bar** (`_createHeaderBar()`): Top-center, compact, contains title + Add Zone + Delete Zone + zone info label + ⓘ help toggle
+- **Bottom Toolbar** (`_createToolbar()`): Save Layout + Cancel buttons, 80px from bottom
+- **Instructions Overlay** (`_createInstructionsOverlay()`): Collapsible, positioned below header, visibility persisted via GSettings
+
+**Implementation Details:**
+- Removed `_createControlPanel()`, `_updateControlPanel()`, `_createHelpText()` — replaced with `_createHeaderBar()`, `_updateHeaderBar()`, `_createInstructionsOverlay()`, `_toggleInstructionsOverlay()`
+- New GSettings key: `canvas-editor-show-instructions` (boolean, default `true`) — persists collapsed state
+- F1 keyboard shortcut toggles instructions overlay
+- Delete button moved from separate control panel to header bar alongside Add Zone
+- Instructions include F1 shortcut hint in last line
+- Removed `_controlPanel` and `_helpTextBox` private fields, added `_headerBar`, `_instructionsOverlay`, `_instructionsVisible`
+
+**Validation:**
+- Typecheck: ✓ passing
+- Lint (strict): ✓ zero warnings
+- Schema compilation: ✓ passing
+- Build: ✓ passing
+- Tests: ✓ 96 passing
+
+**Key Learnings:**
+- Progressive disclosure via GSettings persistence is a clean pattern for editor UI state — read boolean in constructor, write on toggle
+- Header bar with separators (`St.Widget` with 1px width) creates visual grouping without extra container nesting
+- Instructions overlay positioned at `70 * scaleFactor` Y offset sits cleanly below the header bar at `20 * scaleFactor`
+

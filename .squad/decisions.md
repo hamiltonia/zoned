@@ -320,16 +320,16 @@ this._signalTracker.connect(this._overlay, 'button-release-event', () => {
 - Modify `_createToolbar()` to include Delete button
 - Add `_toggleInstructionsOverlay()` method
 
-**Open Questions:**
-1. Instructions default visibility (hidden by default? visible on first launch only? always visible?)
-2. Auto-dismiss timer behavior (10 seconds? longer? disabled?)
-3. Zone dimensions format ("640×480px (32×30%)" vs "32×30% (640×480px)"?)
-4. Delete button placement (toolbar or header with Add Zone?)
-5. Option preference (Option A two-panel vs Option B single unified header?)
-6. Instructions content sufficiency (3-4 lines adequate?)
-7. Accessibility (keyboard shortcut for help button? F1? Ctrl+??)
+**Resolved Questions (2026-05-03, Eric's input):**
+1. Instructions default visibility → Show on first launch, persist collapsed state via GSettings
+2. Auto-dismiss timer → None (skip it — let users toggle explicitly)
+3. Zone dimensions format → Already settled by Decision 10 (pixels first, percentages in parens)
+4. Delete button placement → Header bar with Add Zone (zone lifecycle actions together) + Delete key shortcut
+5. Option preference → Option A (two-panel)
+6. Instructions content → 3-4 lines sufficient
+7. Accessibility → F1 keyboard shortcut for help toggle
 
-**Status:** Design proposal, awaiting Eric's feedback (2026-05-03)
+**Status:** Approved — ready for implementation (2026-05-03)
 
 ---
 
