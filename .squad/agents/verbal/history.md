@@ -36,3 +36,26 @@ Analyzed existing grid editor UI architecture and designed comprehensive canvas 
 
 **Outcome:** Complete UX specification ready for implementation
 
+## 2026-05-03: Grid/Canvas Type Selector UI Implementation
+
+**Task:** Add UI to choose Grid vs Canvas when creating layouts  
+**Mode:** background  
+**Model:** claude-sonnet-4.5  
+**Verdict:** SUCCESS
+
+**Summary:**
+Implemented two-card type selector UI in LayoutSettingsDialog. Eric identified that users had no visual way to select between Grid and Canvas layout modes during new layout creation. Added clear, differentiated selector cards with visual indicators.
+
+**Implementation Details:**
+- Two-card selector: Grid (⊞) and Canvas (⊡)
+- Integrated into new layout creation flow in LayoutSettingsDialog
+- Maintains visual consistency with Zoned design language
+- Clear type differentiation through symbols and spacing
+
+**Validation:**
+- Typecheck: ✓ passing
+- Lint: ✓ passing  
+- Tests: ✓ 75 passing
+
+**Outcome:** Type selector UI now visible and functional. Users can clearly choose layout mode when creating new layouts.
+
