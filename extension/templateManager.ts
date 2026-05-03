@@ -81,6 +81,41 @@ const BUILTIN_TEMPLATES: Record<string, BuiltinTemplate> = {
             {name: 'Bottom-Right', x: 0.667, y: 0.5, w: 0.333, h: 0.5},
         ],
     },
+    ultrawide_focus: {
+        id: 'ultrawide_focus',
+        name: 'Ultrawide Focus',
+        type: 'canvas',
+        icon: '⊟',
+        description: 'Canvas: Left stacked + full-height + center + right',
+        zones: [
+            {name: 'Top-Left', x: 0.0, y: 0.0, w: 0.25, h: 0.5},
+            {name: 'Bottom-Left', x: 0.0, y: 0.5, w: 0.25, h: 0.5},
+            {name: 'Full-Left', x: 0.0, y: 0.0, w: 0.25, h: 1.0},
+            {name: 'Center', x: 0.25, y: 0.0, w: 0.5, h: 1.0},
+            {name: 'Right', x: 0.75, y: 0.0, w: 0.25, h: 1.0},
+        ],
+    },
+    picture_in_picture: {
+        id: 'picture_in_picture',
+        name: 'Picture in Picture',
+        type: 'canvas',
+        icon: '⊿',
+        description: 'Canvas: Full-screen main zone with small overlay',
+        zones: [
+            {name: 'Main', x: 0.0, y: 0.0, w: 1.0, h: 1.0},
+            {name: 'PiP', x: 0.7, y: 0.65, w: 0.28, h: 0.33},
+        ],
+    },
+    center_stage: {
+        id: 'center_stage',
+        name: 'Center Stage',
+        type: 'canvas',
+        icon: '◻',
+        description: 'Canvas: Centered zone with margins',
+        zones: [
+            {name: 'Center', x: 0.1, y: 0.05, w: 0.8, h: 0.9},
+        ],
+    },
 };
 
 /**
