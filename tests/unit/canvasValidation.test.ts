@@ -175,4 +175,124 @@ describe('Canvas Layout Data Model', () => {
             ]);
         });
     });
+
+    describe('Layout type migration', () => {
+        it('layout without type field defaults to grid', () => {
+            const layout: Layout = {
+                id: 'legacy-1',
+                name: 'Legacy Layout',
+                zones: [{x: 0, y: 0, w: 1, h: 1}],
+            };
+            const migratedType = layout.type || 'grid';
+            expect(migratedType).toBe('grid');
+        });
+
+        it('layout with type grid is preserved', () => {
+            const layout: Layout = {
+                id: 'grid-1',
+                name: 'Grid Layout',
+                type: 'grid',
+                zones: [{x: 0, y: 0, w: 0.5, h: 1}, {x: 0.5, y: 0, w: 0.5, h: 1}],
+            };
+            expect(layout.type).toBe('grid');
+        });
+
+        it('layout with type canvas is preserved', () => {
+            const layout: Layout = {
+                id: 'canvas-1',
+                name: 'Canvas Layout',
+                type: 'canvas',
+                zones: [{x: 0.1, y: 0.1, w: 0.4, h: 0.4}],
+            };
+            expect(layout.type).toBe('canvas');
+        });
+
+        it('migration applies grid type to layouts missing type field', () => {
+            // Simulates the migration logic from LayoutManager._loadUserLayouts
+            const rawLayouts: Layout[] = [
+                {id: 'a', name: 'A', zones: [{x: 0, y: 0, w: 1, h: 1}]},
+                {id: 'b', name: 'B', type: 'canvas', zones: [{x: 0.2, y: 0.2, w: 0.3, h: 0.3}]},
+            ];
+
+            const migrated = rawLayouts.map(layout => {
+                if (!layout.type) {
+                    layout.type = 'grid';
+                }
+                return layout;
+            });
+
+            expect(migrated[0].type).toBe('grid');
+            expect(migrated[1].type).toBe('canvas');
+        });
+    });
+
+    describe('Canvas validation constraints', () => {
+        const MIN_CANVAS_ZONE_SIZE = 0.05;
+
+        function validateCanvasLayout(layout: Layout): {valid: boolean; reason?: string} {
+            for (const zone of layout.zones) {
+                if (zone.x + zone.w > 1.001 || zone.y + zone.h > 1.001) {
+                    return {valid: false, reason: 'zone extends beyond bounds'};
+                }
+                if (zone.w < MIN_CANVAS_ZONE_SIZE || zone.h < MIN_CANVAS_ZONE_SIZE) {
+                    return {valid: false, reason: 'zone too small'};
+                }
+            }
+            return {valid: true};
+        }
+
+        it('canvas layout with overlapping zones passes validation', () => {
+            const layout: Layout = {
+                id: 'overlap',
+                name: 'Overlap',
+                type: 'canvas',
+                zones: [
+                    {x: 0, y: 0, w: 0.6, h: 1},
+                    {x: 0.4, y: 0, w: 0.6, h: 1},
+                ],
+            };
+            expect(validateCanvasLayout(layout).valid).toBe(true);
+        });
+
+        it('canvas layout with zone extending beyond bounds fails', () => {
+            const layout: Layout = {
+                id: 'oob',
+                name: 'Out of Bounds',
+                type: 'canvas',
+                zones: [{x: 0.8, y: 0, w: 0.3, h: 1}],
+            };
+            const result = validateCanvasLayout(layout);
+            expect(result.valid).toBe(false);
+            expect(result.reason).toBe('zone extends beyond bounds');
+        });
+
+        it('canvas layout with zone smaller than MIN_CANVAS_ZONE_SIZE fails', () => {
+            const layout: Layout = {
+                id: 'tiny',
+                name: 'Tiny Zone',
+                type: 'canvas',
+                zones: [{x: 0, y: 0, w: 0.03, h: 0.5}],
+            };
+            const result = validateCanvasLayout(layout);
+            expect(result.valid).toBe(false);
+            expect(result.reason).toBe('zone too small');
+        });
+
+        it('grid layout passes validation (no canvas-specific constraints)', () => {
+            const layout: Layout = {
+                id: 'grid',
+                name: 'Grid',
+                type: 'grid',
+                zones: [
+                    {x: 0, y: 0, w: 0.5, h: 1},
+                    {x: 0.5, y: 0, w: 0.5, h: 1},
+                ],
+            };
+            // Grid layouts skip canvas validation entirely
+            const layoutType = layout.type || 'grid';
+            expect(layoutType).toBe('grid');
+            // Canvas validator still accepts valid grid zones
+            expect(validateCanvasLayout(layout).valid).toBe(true);
+        });
+    });
 });

@@ -24,6 +24,7 @@ import {createLogger} from '../../utils/debug';
 import {ThemeManager} from '../../utils/theme';
 import {global} from '../../types/gjsGlobal';
 import {SignalTracker} from '../../utils/signalTracker';
+import {snapAxis, collectSnapPoints} from '../../utils/canvasSnapping';
 
 const logger = createLogger('CanvasZoneEditor');
 
@@ -595,39 +596,17 @@ export class CanvasZoneEditor {
     // ─── Magnetic Snapping ───────────────────────────────────
 
     private _applySnap(x: number, y: number, w: number, h: number, excludeIndex: number): {x: number; y: number} {
-        const xPoints: number[] = [0, 1];
-        const yPoints: number[] = [0, 1];
-
-        this._zones.forEach((zone, i) => {
-            if (i === excludeIndex) return;
-            xPoints.push(zone.x, zone.x + zone.w);
-            yPoints.push(zone.y, zone.y + zone.h);
-        });
+        const {xPoints, yPoints} = collectSnapPoints(this._zones, excludeIndex);
 
         this._clearSnapGuides();
 
-        const snappedX = this._snapAxis(x, w, xPoints, 'x');
-        const snappedY = this._snapAxis(y, h, yPoints, 'y');
+        const snapX = snapAxis(x, w, xPoints, SNAP_THRESHOLD);
+        const snapY = snapAxis(y, h, yPoints, SNAP_THRESHOLD);
 
-        return {x: snappedX, y: snappedY};
-    }
+        if (snapX.snapPoint !== null) this._showSnapGuide('x', snapX.snapPoint);
+        if (snapY.snapPoint !== null) this._showSnapGuide('y', snapY.snapPoint);
 
-    private _snapAxis(pos: number, size: number, points: number[], axis: 'x' | 'y'): number {
-        // Check leading edge
-        for (const p of points) {
-            if (Math.abs(pos - p) < SNAP_THRESHOLD) {
-                this._showSnapGuide(axis, p);
-                return p;
-            }
-        }
-        // Check trailing edge
-        for (const p of points) {
-            if (Math.abs(pos + size - p) < SNAP_THRESHOLD) {
-                this._showSnapGuide(axis, p);
-                return p - size;
-            }
-        }
-        return pos;
+        return {x: snapX.snapped, y: snapY.snapped};
     }
 
     private _showSnapGuide(axis: 'x' | 'y', position: number): void {

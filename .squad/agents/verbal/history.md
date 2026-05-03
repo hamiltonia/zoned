@@ -59,3 +59,9 @@ Implemented two-card type selector UI in LayoutSettingsDialog. Eric identified t
 
 **Outcome:** Type selector UI now visible and functional. Users can clearly choose layout mode when creating new layouts.
 
+## Learnings
+
+- `createZonePreview()` in cardFactory.ts is used by both card rendering and workspace thumbnails in topBar.ts — always check both callers when changing its signature
+- The local `BuiltinTemplate` interface in `layoutSwitcher/types.ts` is separate from the one in `types/layout.d.ts` — both need updating when adding fields like `type`
+- `workspaceLayout` in topBar.ts is typed as `unknown`, requiring `any` casts with eslint-disable comments (matches existing pattern for `zones` access)
+- Layout type label follows the existing settings row pattern: label with `textPrimary` + value with `textMuted`, both at 11pt

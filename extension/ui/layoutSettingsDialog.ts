@@ -696,6 +696,12 @@ export class LayoutSettingsDialog {
                    'border-radius: 12px; padding: 16px; margin-bottom: 16px;',
         });
 
+        // Type row (read-only, existing layouts only)
+        if (!this._isNewLayout) {
+            settingsSection.add_child(this._buildTypeRow(colors));
+            settingsSection.add_child(this._createDivider(colors));
+        }
+
         // Name row
         settingsSection.add_child(this._buildNameRow(colors));
         settingsSection.add_child(this._createDivider(colors));
@@ -708,6 +714,33 @@ export class LayoutSettingsDialog {
         settingsSection.add_child(this._buildShortcutRow(colors));
 
         return settingsSection;
+    }
+
+    /**
+     * Build read-only type display row
+     * @param {Object} colors - Theme colors
+     * @returns {St.BoxLayout} Type row widget
+     * @private
+     */
+    _buildTypeRow(colors: ThemeColors): St.BoxLayout {
+        const typeRow = new St.BoxLayout({vertical: false, style: 'margin-bottom: 16px;'});
+
+        const typeLabel = new St.Label({
+            text: 'Type',
+            style: `font-size: 11pt; color: ${colors.textPrimary}; min-width: 160px;`,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        typeRow.add_child(typeLabel);
+
+        const typeValue = this._layout.type === 'canvas' ? 'Canvas' : 'Grid';
+        const typeDisplay = new St.Label({
+            text: typeValue,
+            style: `font-size: 11pt; color: ${colors.textMuted};`,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        typeRow.add_child(typeDisplay);
+
+        return typeRow;
     }
 
     /**

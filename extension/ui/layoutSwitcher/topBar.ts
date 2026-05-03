@@ -611,7 +611,10 @@ function createWorkspaceThumbnail(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const zones = (workspaceLayout as any)?.zones || [];
 
-    const preview = createZonePreview(ctx, zones);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const layoutType = (workspaceLayout as any)?.type || 'grid';
+
+    const preview = createZonePreview(ctx, zones, layoutType);
     preview.set_size(thumbW * ctx._scaleFactor, thumbH * ctx._scaleFactor);
     previewContainer.set_child(preview);
     thumbContainer.add_child(previewContainer);
