@@ -383,6 +383,33 @@ this._signalTracker.connect(this._overlay, 'button-release-event', () => {
 
 ---
 
+### Decision 12: Canvas Editor Snapping Improvements
+
+**Decision:** Increase magnetic snap threshold from 2% to 5%, implement shift-key override, and add resize snapping.
+
+**Rationale:**
+- 2% threshold (~38px on 1920px monitor) feels too weak — users must be extremely precise
+- 5% threshold (~96px) provides stronger magnetic feel while remaining intentional
+- Shift key override enables precision placement when needed
+- Resize operations lacked snapping — only drag had it, creating inconsistent UX
+
+**Implementation:**
+1. `SNAP_THRESHOLD` in `canvasSnapping.ts`: `0.02` → `0.05`
+2. Shift detection during pointer motion: check `Clutter.ModifierType.SHIFT_MASK` in event state
+3. Clear snap guides when shift held; resume on release
+4. New `_applyResizeSnap()` method: decomposed into `_snapLeadingEdge()` / `_snapTrailingEdge()` for complexity
+5. Instructions updated: "Hold Shift to disable snapping • Esc: Deselect / Cancel • Enter: Save • F1: Help"
+
+**Impact:**
+- Snapping feel significantly improved — professional-grade canvas editor
+- Users can escape magnetic snapping for manual placement (shift modifier)
+- Resize and drag operations behave consistently
+- Instructions communicate new shift behavior
+
+**Status:** Implemented (2026-05-03)
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus

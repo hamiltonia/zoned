@@ -285,3 +285,49 @@ Added `type: this._layout.type || 'grid'` to both `_buildFinalLayout()` and `_on
 - Tests: ✓ 96 passing
 
 **Team Insight:** The `Layout` interface defines `type` as optional (`type?: LayoutType`), which allowed TypeScript to miss this at compile time. Consider making `type` required in the interface to prevent future similar issues.
+
+## 2026-05-03: Canvas Snapping Improvements — Threshold, Shift Override, Resize Snapping
+
+**Task:** Enhance canvas editor snapping feel with stronger threshold, keyboard override, and consistent resize snapping
+
+**Verdict:** SUCCESS
+
+**Summary:**
+Implemented three interconnected snapping improvements to professional-grade the canvas editor UX:
+1. Threshold increase (2% → 5%) for stronger magnetic feel
+2. Shift key override for precision placement
+3. Resize snapping (previously drag-only)
+
+**Implementation Details:**
+
+1. **Threshold Increase**
+   - `SNAP_THRESHOLD` in `canvasSnapping.ts`: `0.02` → `0.05`
+   - On 1920px monitor: ~38px → ~96px effective snap distance
+   - Applied to both drag and resize operations
+
+2. **Shift Key Override**
+   - Detect `Clutter.ModifierType.SHIFT_MASK` in pointer motion event state
+   - Clear snap guides when shift held; resume on release
+   - Enables precision manual placement when magnetic snapping would interfere
+
+3. **Resize Snapping**
+   - New `_applyResizeSnap()` method applies snapping during resize operations
+   - Decomposed into `_snapLeadingEdge()` / `_snapTrailingEdge()` for ESLint complexity compliance
+   - Only edges being manipulated snap; others remain untouched
+
+4. **Instructions Updated**
+   - Line 3 now reads: "Hold Shift to disable snapping • Esc: Deselect / Cancel • Enter: Save • F1: Help"
+   - Communicates new shift behavior to users at first glance
+
+**Files Modified:**
+- `extension/ui/editors/canvasZoneEditor.ts` — drag/resize handlers, shift detection, instructions
+- `extension/utils/canvasSnapping.ts` — `SNAP_THRESHOLD` constant
+- `extension/tests/canvasSnapping.test.ts` — threshold assertion updated
+
+**Validation:**
+- Typecheck: ✓ passing
+- Lint (strict): ✓ zero warnings
+- Build: ✓ passing
+- Tests: ✓ 122 passing
+
+**Outcome:** Snapping feel significantly improved. Combined threshold increase + shift override + consistent resize snapping provides professional-grade canvas editor interaction model.

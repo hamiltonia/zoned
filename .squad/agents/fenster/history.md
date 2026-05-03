@@ -43,3 +43,44 @@ Assessed canvas layout system feasibility in GNOME Shell with Clutter/GJS stack.
 
 **Outcome:** Feasibility confirmed at 90% confidence; implementation plan ready
 
+## Learnings
+
+### 2025-07-15: `/` Key Zone Ordering — Help Text Ambiguity Fix
+
+**Task:** Fix reported `/` key not working for zone ordering in canvas editor.
+
+**Finding:** The `/` key was never a keybinding. The help text `[ / ]: Adjust order` used `/` as a separator between the `[` and `]` keys, but read ambiguously as "the slash key." The `[` and `]` keys were already fully implemented via `_adjustZOrder()` (lines 722-726), swapping zones in the array and refreshing the display.
+
+**Fix:** Changed help text from `[ / ]:` to `[, ]:` — unambiguous notation that these are two separate bracket keys.
+
+**Key insight:** When documenting keybindings that use bracket characters, avoid `/` as a separator — it creates false bug reports.
+
+## 2026-05-03: Canvas Editor Zone Ordering Help Text — Bracket Notation Clarification
+
+**Task:** Investigate and fix zone ordering keybinding documentation in canvas editor
+
+**Verdict:** SUCCESS — Issue was formatting, not code
+
+**Summary:**
+Investigation of reported `/` key issue in canvas editor determined the problem was purely a help text notation ambiguity, not a keyboard handling bug. The help text format `[ / ]:` was confusing users who interpreted `/` as a key, when it was merely a separator between `[` and `]` keys.
+
+**Root Cause Analysis:**
+- Keyboard handler `_adjustZOrder()` correctly implements zone cycling via `[` and `]` keys (verified in code)
+- Help text notation used `/` as visual separator, creating false impression of a third keybinding
+- No GJS event handling issue — purely a documentation/UI communication problem
+
+**Resolution:**
+- Changed help text notation from `[ / ]` to `[, ]` — unambiguous comma separator
+- Improves readability: "Press [ or ] to adjust zone order" now reads clearly
+- No changes to keyboard event handling or event dispatch logic required
+
+**Files Modified:**
+- `extension/ui/editors/canvasZoneEditor.ts` — help text formatting only
+
+**Validation:**
+- Zone cycling via `[` and `]` keys: ✓ verified working
+- Keyboard event state handling: ✓ no issues found
+- Help text readability: ✓ improved with clearer notation
+
+**Outcome:** Investigation confirmed zone ordering functionality is correct. Help text clarified. Users will no longer misinterpret bracket notation as requiring a `/` key.
+
