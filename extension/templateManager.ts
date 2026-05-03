@@ -23,6 +23,7 @@ const BUILTIN_TEMPLATES: Record<string, BuiltinTemplate> = {
     split: {
         id: 'split',
         name: 'Split',
+        type: 'grid',
         icon: '⫿',
         description: '50/50 split - Left and Right',
         zones: [
@@ -33,6 +34,7 @@ const BUILTIN_TEMPLATES: Record<string, BuiltinTemplate> = {
     triple: {
         id: 'triple',
         name: 'Triple',
+        type: 'grid',
         icon: '⫴',
         description: '33/33/33 columns',
         zones: [
@@ -41,20 +43,10 @@ const BUILTIN_TEMPLATES: Record<string, BuiltinTemplate> = {
             {name: 'Right', x: 0.667, y: 0.0, w: 0.333, h: 1.0},
         ],
     },
-    wide: {
-        id: 'wide',
-        name: 'Wide',
-        icon: '◧',
-        description: '25/50/25 - Center-focused',
-        zones: [
-            {name: 'Left', x: 0.0, y: 0.0, w: 0.25, h: 1.0},
-            {name: 'Center', x: 0.25, y: 0.0, w: 0.5, h: 1.0},
-            {name: 'Right', x: 0.75, y: 0.0, w: 0.25, h: 1.0},
-        ],
-    },
     quarters: {
         id: 'quarters',
         name: 'Quarters',
+        type: 'grid',
         icon: '⊞',
         description: '2×2 grid layout',
         zones: [
@@ -67,6 +59,7 @@ const BUILTIN_TEMPLATES: Record<string, BuiltinTemplate> = {
     triple_stack: {
         id: 'triple_stack',
         name: 'Triple Stack',
+        type: 'grid',
         icon: '⊡',
         description: 'Three columns with stacked right panel',
         zones: [
@@ -74,6 +67,17 @@ const BUILTIN_TEMPLATES: Record<string, BuiltinTemplate> = {
             {name: 'Center', x: 0.333, y: 0.0, w: 0.334, h: 1.0},
             {name: 'Top-Right', x: 0.667, y: 0.0, w: 0.333, h: 0.5},
             {name: 'Bottom-Right', x: 0.667, y: 0.5, w: 0.333, h: 0.5},
+        ],
+    },
+    picture_in_picture: {
+        id: 'picture_in_picture',
+        name: 'Picture in Picture',
+        type: 'canvas',
+        icon: '⊿',
+        description: 'Canvas: Full-screen main zone with small overlay',
+        zones: [
+            {name: 'Main', x: 0.0, y: 0.0, w: 1.0, h: 1.0},
+            {name: 'PiP', x: 0.7, y: 0.65, w: 0.28, h: 0.33},
         ],
     },
 };
@@ -141,6 +145,7 @@ export class TemplateManager {
         const layout: Layout = {
             id: `template-${templateId}`,  // Stable ID for persistence across reloads
             name: template.name,
+            type: template.type || 'grid',
             zones: JSON.parse(JSON.stringify(template.zones)) as Zone[], // Deep copy
             editable: false, // Templates are not editable
         };

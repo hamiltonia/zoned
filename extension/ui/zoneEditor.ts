@@ -58,11 +58,6 @@ interface EdgeActor {
     edge: Edge;
 }
 
-interface ResolutionLabel {
-    label: St.Label;
-    regionIndex: number;
-}
-
 interface ZoneLayout {
     id?: string | null;
     name?: string;
@@ -102,11 +97,9 @@ export class ZoneEditor {
     private _currentHandle: unknown;
     private _helpTextBox: St.BoxLayout | null;
     private _toolbar: St.BoxLayout | null;
-    private _resolutionLabels: ResolutionLabel[];
     private _saveExecuted: boolean;
     private _cancelExecuted: boolean;
     public MIN_REGION_SIZE: number;
-    public USE_MAP_COLORS: boolean;
     private _boundHandleOverlayMotion: ((actor: Clutter.Actor, event: Clutter.Event) => boolean) | null;
     private _boundHandleOverlayButtonRelease: ((actor: Clutter.Actor, event: Clutter.Event) => boolean) | null;
     private _boundHandleKeyPress: ((actor: Clutter.Actor, event: Clutter.Event) => boolean) | null;
@@ -160,7 +153,6 @@ export class ZoneEditor {
         this._currentHandle = null;  // Currently visible handle
         this._helpTextBox = null;  // Store reference to help text for Z-order management
         this._toolbar = null;  // Store reference to toolbar for Z-order management
-        this._resolutionLabels = [];  // Resolution labels shown during edge resize
 
         // Prevent multiple save/cancel invocations
         this._saveExecuted = false;
@@ -168,11 +160,6 @@ export class ZoneEditor {
 
         // Minimum region size (10% of screen dimension)
         this.MIN_REGION_SIZE = 0.1;
-
-        // Visual settings
-        // TODO: Make this user-configurable in settings
-        // When false, uses single accent color; when true, uses 4-color map diagnostic
-        this.USE_MAP_COLORS = false;
 
         // Bind methods to avoid closure leaks
         this._boundHandleOverlayMotion = this._handleOverlayMotion.bind(this);
@@ -443,65 +430,51 @@ export class ZoneEditor {
                 height: (bottom.position - top.position) * monitor.height,
             });
 
-            // Choose color scheme based on setting
-            let colorScheme;
-            if (this.USE_MAP_COLORS) {
-                // 4-color map diagnostic - helps identify duplicate/overlapping regions visually
-                const colors = [
-                    {bg: 'rgba(28, 113, 216, 0.3)', border: 'rgb(28, 113, 216)', name: 'Blue'},
-                    {bg: 'rgba(38, 162, 105, 0.3)', border: 'rgb(38, 162, 105)', name: 'Green'},
-                    {bg: 'rgba(192, 97, 203, 0.3)', border: 'rgb(192, 97, 203)', name: 'Purple'},
-                    {bg: 'rgba(230, 97, 0, 0.3)', border: 'rgb(230, 97, 0)', name: 'Orange'},
-                ];
-                colorScheme = colors[index % colors.length];
-            } else {
-                // Single system accent color for all regions
-                // Use the theme's accent color (respects user's GNOME appearance settings)
-                const accentColor = this._getAccentColor();
-                colorScheme = {
-                    bg: `rgba(${Math.round(accentColor.red * 255)}, ${Math.round(accentColor.green * 255)}, ${Math.round(accentColor.blue * 255)}, 0.3)`,
-                    border: this._rgbToHex(accentColor.red, accentColor.green, accentColor.blue),
-                    name: 'Accent',
-                };
-            }
+            // Use accent color for border, neutral gray background (matches canvas editor)
+            const accentColor = this._getAccentColor();
+            const accentHex = this._rgbToHex(accentColor.red, accentColor.green, accentColor.blue);
 
-            actor.style = `
-                background-color: ${colorScheme.bg};
-                border: 3px solid ${colorScheme.border};
-                border-radius: 4px;
-            `;
+            actor.style = `background-color: rgba(68, 68, 68, 0.6); border: 2px solid ${accentHex}; border-radius: 4px;`;
 
-            // Region number label
-            const label = new St.Label({
-                text: `${index + 1}`,
-                style: 'font-size: 72pt; color: white; font-weight: bold;',
+            // Zone labels (number + dimensions) — matches canvas editor layout
+            const container = new St.BoxLayout({
+                vertical: true,
+                x_align: Clutter.ActorAlign.CENTER,
+                style: 'margin: 8px;',
             });
-            actor.set_child(label);
+
+            const numberLabel = new St.Label({
+                text: `${index + 1}`,
+                x_align: Clutter.ActorAlign.CENTER,
+                style: 'font-size: 24pt; color: white; font-weight: bold;',
+            });
+
+            const widthPx = Math.round((right.position - left.position) * monitor.width);
+            const heightPx = Math.round((bottom.position - top.position) * monitor.height);
+
+            const dimensionLabel = new St.Label({
+                text: `${widthPx} × ${heightPx}`,
+                x_align: Clutter.ActorAlign.CENTER,
+                style: 'font-size: 11pt; color: rgba(255, 255, 255, 0.8); margin-top: 2px;',
+            });
+
+            container.add_child(numberLabel);
+            container.add_child(dimensionLabel);
+            actor.set_child(container);
 
             // Click to split
             this._signalTracker.connect(actor, 'button-press-event', (_actor, event) => {
                 return this._onRegionClicked(index, event);
             });
 
-            // Hover effect - brighten the current color
+            // Hover effect
             this._signalTracker.connect(actor, 'enter-event', () => {
-                // Increase opacity for hover effect
-                const hoverBg = colorScheme.bg.replace('0.3', '0.5');
-                actor.style = `
-                    background-color: ${hoverBg};
-                    border: 3px solid ${colorScheme.border};
-                    border-radius: 4px;
-                `;
+                actor.style = `background-color: rgba(68, 68, 68, 0.7); border: 2px solid ${accentHex}; border-radius: 4px;`;
                 return Clutter.EVENT_PROPAGATE as unknown as boolean;
             });
 
             this._signalTracker.connect(actor, 'leave-event', () => {
-                // Return to original opacity
-                actor.style = `
-                    background-color: ${colorScheme.bg};
-                    border: 3px solid ${colorScheme.border};
-                    border-radius: 4px;
-                `;
+                actor.style = `background-color: rgba(68, 68, 68, 0.6); border: 2px solid ${accentHex}; border-radius: 4px;`;
                 return Clutter.EVENT_PROPAGATE as unknown as boolean;
             });
 
@@ -614,132 +587,8 @@ export class ZoneEditor {
 
         logger.debug(`Started dragging edge ${edge.id} at position ${edge.position.toFixed(3)}, affects ${affectedRegions.length} regions`);
 
-        // Create initial resolution labels
-        this._createResolutionLabels();
     }
 
-    /**
-     * Create resolution labels for affected regions during edge drag
-     * @private
-     */
-    _createResolutionLabels(): void {
-        // Remove any existing labels first
-        this._removeResolutionLabels();
-
-        if (!this._draggingEdge || !this._overlay) {
-            logger.debug('Cannot create resolution labels: missing dragging edge or overlay');
-            return;
-        }
-
-        const monitor = Main.layoutManager.currentMonitor;
-        const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
-        const overlay = this._overlay; // Store reference for TypeScript
-
-        // Create labels for each affected region
-        this._draggingEdge.affectedRegionIndices.forEach(regionIndex => {
-            const region = this._edgeLayout.regions[regionIndex];
-            if (!region) return;
-
-            const left = edgeMap.get(region.left);
-            const right = edgeMap.get(region.right);
-            const top = edgeMap.get(region.top);
-            const bottom = edgeMap.get(region.bottom);
-
-            if (!left || !right || !top || !bottom) return;
-
-            // Calculate pixel dimensions
-            const widthPx = Math.round((right.position - left.position) * monitor.width);
-            const heightPx = Math.round((bottom.position - top.position) * monitor.height);
-
-            // Create label with resolution text
-            const label = new St.Label({
-                text: `${widthPx}×${heightPx}`,
-                style: `font-size: 16pt; font-weight: bold; color: white; 
-                        background-color: rgba(0, 0, 0, 0.7); 
-                        padding: 8px 12px; border-radius: 4px;`,
-            });
-
-            // Calculate position below region number (which is centered with 72pt font)
-            const regionX = left.position * monitor.width;
-            const regionY = top.position * monitor.height;
-            const regionW = (right.position - left.position) * monitor.width;
-            const regionH = (bottom.position - top.position) * monitor.height;
-
-            // Position below the region number
-            // Region number is ~90px tall at 72pt, so offset downward from center
-            const labelWidth = 120; // Approximate width
-            const numberOffset = 60; // Offset below center to clear the region number
-
-            label.set_position(
-                regionX + (regionW - labelWidth) / 2,
-                regionY + (regionH / 2) + numberOffset,
-            );
-
-            overlay.add_child(label);
-            this._resolutionLabels.push({label, regionIndex});
-        });
-
-        logger.debug(`Created ${this._resolutionLabels.length} resolution labels`);
-    }
-
-    /**
-     * Update resolution labels during drag
-     * @private
-     */
-    _updateResolutionLabels(): void {
-        if (!this._draggingEdge || !this._overlay) return;
-
-        const monitor = Main.layoutManager.currentMonitor;
-        const edgeMap = new Map(this._edgeLayout.edges.map(e => [e.id, e]));
-
-        this._resolutionLabels.forEach(({label, regionIndex}) => {
-            const region = this._edgeLayout.regions[regionIndex];
-            if (!region) return;
-
-            const left = edgeMap.get(region.left);
-            const right = edgeMap.get(region.right);
-            const top = edgeMap.get(region.top);
-            const bottom = edgeMap.get(region.bottom);
-
-            if (!left || !right || !top || !bottom) return;
-
-            // Calculate pixel dimensions
-            const widthPx = Math.round((right.position - left.position) * monitor.width);
-            const heightPx = Math.round((bottom.position - top.position) * monitor.height);
-
-            // Update label text
-            label.text = `${widthPx}×${heightPx}`;
-
-            // Recalculate position below region number
-            const regionX = left.position * monitor.width;
-            const regionY = top.position * monitor.height;
-            const regionW = (right.position - left.position) * monitor.width;
-            const regionH = (bottom.position - top.position) * monitor.height;
-
-            // Get actual label size for centering horizontally
-            const labelWidth = label.width || 120;
-            const numberOffset = 60; // Offset below center to clear the region number
-
-            label.set_position(
-                regionX + (regionW - labelWidth) / 2,
-                regionY + (regionH / 2) + numberOffset,
-            );
-        });
-    }
-
-    /**
-     * Remove resolution labels
-     * @private
-     */
-    _removeResolutionLabels(): void {
-        this._resolutionLabels.forEach(({label}) => {
-            if (label && this._overlay && label.get_parent() === this._overlay) {
-                this._overlay.remove_child(label);
-                label.destroy();
-            }
-        });
-        this._resolutionLabels = [];
-    }
 
     /**
      * Handle edge drag motion
@@ -822,8 +671,7 @@ export class ZoneEditor {
         // Refresh display with updated bounds
         this._refreshDisplay();
 
-        // Update resolution labels (must be after refresh since regions are recreated)
-        this._updateResolutionLabels();
+
     }
 
     /**
@@ -881,8 +729,6 @@ export class ZoneEditor {
 
         logger.debug(`Ended dragging edge ${this._draggingEdge.edge.id}`);
 
-        // Remove resolution labels before clearing drag state
-        this._removeResolutionLabels();
 
         // Recalculate edge bounds after drag completes
         // This ensures perpendicular edges update their start/length to match new region extents

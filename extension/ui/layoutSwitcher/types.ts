@@ -9,7 +9,7 @@ import type St from '@girs/st-14';
 import type {TemplateManager} from '../../templateManager';
 import type {ThemeManager} from '../../utils/theme';
 import type {LayoutPreviewBackground} from '../layoutPreviewBackground';
-import type {Layout} from '../../types/layout';
+import type {Layout, LayoutType} from '../../types/layout';
 import type {Zone} from '../../types/zone';
 import type {DialogDimensions} from './tierConfig';
 
@@ -19,6 +19,7 @@ import type {DialogDimensions} from './tierConfig';
 export interface BuiltinTemplate {
     name: string;
     id: string;
+    type?: LayoutType;
     zones?: Zone[];
     shortcut?: string | number | null;
 }

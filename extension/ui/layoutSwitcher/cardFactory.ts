@@ -27,7 +27,7 @@ import St from '@girs/st-14';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type CairoContext = any;
 import {createLogger} from '../../utils/debug';
-import type {Layout, Zone} from '../../types/layout';
+import type {Layout, LayoutType, Zone} from '../../types/layout';
 import type {BuiltinTemplate, LayoutSwitcherContext} from './types';
 
 const logger = createLogger('CardFactory');
@@ -128,8 +128,9 @@ function handleEditButtonClick(
  * @param canvas - The canvas being repainted
  * @param zones - Array of zone definitions
  * @param colors - Theme colors
+ * @param layoutType - Layout type for rendering style
  */
-function handleCanvasRepaint(canvas: St.DrawingArea, zones: Zone[], colors: ThemeColors): void {
+function handleCanvasRepaint(canvas: St.DrawingArea, zones: Zone[], colors: ThemeColors, layoutType: LayoutType): void {
     try {
         const cr = canvas.get_context() as CairoContext;
         const [w, h] = canvas.get_surface_size();
@@ -157,9 +158,9 @@ function handleCanvasRepaint(canvas: St.DrawingArea, zones: Zone[], colors: Them
             const zw = zoneW - (gap * 2);
             const zh = zoneH - (gap * 2);
 
-            // 1. Flat zone fill (single solid color)
+            // 1. Flat zone fill — semi-transparent for canvas to show overlaps
             const fillGrey = colors.isDark ? 0.45 : 0.55;
-            const fillAlpha = colors.isDark ? 0.9 : 0.85;
+            const fillAlpha = layoutType === 'canvas' ? 0.6 : (colors.isDark ? 0.9 : 0.85);
             cr.setSourceRGBA(fillGrey, fillGrey, fillGrey, fillAlpha);
             roundedRect(cr, zx, zy, zw, zh, cornerRadius);
             cr.fill();
@@ -393,7 +394,7 @@ export function createTemplateCard(
     });
 
     // Zone preview canvas — set_size uses physical/stage pixels
-    const preview = createZonePreview(ctx, template.zones ?? []);
+    const preview = createZonePreview(ctx, template.zones ?? [], template.type ?? 'grid');
     preview.set_size(previewWidth * sf, previewHeight * sf);
     previewContainer.set_child(preview);
 
@@ -517,7 +518,7 @@ export function createCustomLayoutCard(
     });
 
     // Zone preview canvas — set_size uses physical/stage pixels
-    const preview = createZonePreview(ctx, layout.zones);
+    const preview = createZonePreview(ctx, layout.zones, layout.type ?? 'grid');
     preview.set_size(previewWidth * sf, previewHeight * sf);
     previewContainer.set_child(preview);
 
@@ -632,9 +633,10 @@ function roundedRect(cr: CairoContext, x: number, y: number, w: number, h: numbe
  * Zones are inset to create visible gaps where card background shows through
  * @param ctx - Parent LayoutSwitcher instance
  * @param zones - Array of zone definitions
+ * @param layoutType - Layout type for rendering style ('grid' or 'canvas')
  * @returns The preview canvas widget
  */
-export function createZonePreview(ctx: LayoutSwitcherContext, zones: Zone[]): ZoneCanvas {
+export function createZonePreview(ctx: LayoutSwitcherContext, zones: Zone[], layoutType: LayoutType = 'grid'): ZoneCanvas {
     const colors = ctx._themeManager.getColors();
 
     // Canvas background is transparent so card accent color shows through on hover/selection
@@ -645,7 +647,7 @@ export function createZonePreview(ctx: LayoutSwitcherContext, zones: Zone[]): Zo
     }) as ZoneCanvas;
 
     // Use bound method with captured parameters to avoid closure leak
-    const boundRepaint = handleCanvasRepaint.bind(null, canvas, zones, colors);
+    const boundRepaint = handleCanvasRepaint.bind(null, canvas, zones, colors, layoutType);
     canvas.connect('repaint', boundRepaint);
 
     // Store bound handler for potential cleanup

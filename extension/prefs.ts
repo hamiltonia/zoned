@@ -1491,6 +1491,8 @@ export default class ZonedPreferences extends ExtensionPreferences {
             'developer-mode-revealed',
             // Conflict count
             'keybinding-conflict-count',
+            // Canvas editor UI state
+            'canvas-editor-show-instructions',
         ];
 
         for (const key of keysToReset) {

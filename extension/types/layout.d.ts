@@ -15,11 +15,19 @@ export interface Zone {
 }
 
 /**
+ * Layout type discriminator
+ * - 'grid': Zones tile the screen with 100% coverage, no overlaps (default)
+ * - 'canvas': Free-form zones that can overlap, leave gaps, or cover partial screen
+ */
+export type LayoutType = 'grid' | 'canvas';
+
+/**
  * Layout definition - collection of zones for window placement
  */
 export interface Layout {
     id: string;
     name: string;
+    type?: LayoutType;     // Layout type ('grid' or 'canvas', defaults to 'grid')
     zones: Zone[];
     editable?: boolean;
     isTemplate?: boolean;
@@ -39,6 +47,7 @@ export interface Layout {
 export interface BuiltinTemplate {
     id: string;              // Template identifier
     name: string;            // Template display name
+    type?: LayoutType;       // Layout type ('grid' or 'canvas', defaults to 'grid')
     icon?: string;           // Optional icon character
     description: string;     // Human-readable description
     zones: Zone[];           // Template zone configuration

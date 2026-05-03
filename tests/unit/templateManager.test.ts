@@ -46,6 +46,8 @@ describe('TemplateManager', () => {
                 expect(t).toHaveProperty('name');
                 expect(t).toHaveProperty('zones');
                 expect(t).toHaveProperty('description');
+                expect(t).toHaveProperty('type');
+                expect(['grid', 'canvas']).toContain(t.type);
                 expect(t.zones.length).toBeGreaterThan(0);
             }
         });
@@ -79,9 +81,9 @@ describe('TemplateManager', () => {
         it('returns true for known templates', () => {
             expect(mgr.hasTemplate('split')).toBe(true);
             expect(mgr.hasTemplate('triple')).toBe(true);
-            expect(mgr.hasTemplate('wide')).toBe(true);
             expect(mgr.hasTemplate('quarters')).toBe(true);
             expect(mgr.hasTemplate('triple_stack')).toBe(true);
+            expect(mgr.hasTemplate('picture_in_picture')).toBe(true);
         });
 
         it('returns false for unknown templates', () => {
@@ -100,6 +102,7 @@ describe('TemplateManager', () => {
             const layout = mgr.createLayoutFromTemplate('split');
             expect(layout.id).toBe('template-split');
             expect(layout.name).toBe('Split');
+            expect(layout.type).toBe('grid');
             expect(layout.editable).toBe(false);
         });
 
@@ -156,6 +159,22 @@ describe('TemplateManager', () => {
             expect(rightZones).toHaveLength(2);
             expect(rightZones[0].h).toBeCloseTo(0.5);
             expect(rightZones[1].h).toBeCloseTo(0.5);
+        });
+
+        it('canvas templates have type canvas', () => {
+            const canvasIds = ['picture_in_picture'];
+            for (const id of canvasIds) {
+                const t = mgr.getTemplate(id)!;
+                expect(t.type).toBe('canvas');
+            }
+        });
+
+        it('picture_in_picture has overlapping main and pip zones', () => {
+            const t = mgr.getTemplate('picture_in_picture')!;
+            expect(t.zones).toHaveLength(2);
+            expect(t.zones[0].w).toBe(1.0);
+            expect(t.zones[0].h).toBe(1.0);
+            expect(t.zones[1].w).toBeLessThan(0.5);
         });
     });
 });
