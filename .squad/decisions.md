@@ -259,6 +259,130 @@ this._signalTracker.connect(this._overlay, 'button-release-event', () => {
 
 ---
 
+### Decision 8: Type Selection Immediately Launches Zone Editor
+
+**Decision:** New layout creation flow uses combined type-edit buttons that immediately launch the appropriate zone editor, eliminating a separate "Edit zones" button.
+
+**Rationale:**
+- Reduces cognitive load: one decision → one action
+- Eliminates redundant UI: every new layout needs zone editing, so merge type selection and editor launch
+- Faster flow: "I want to create a [grid/canvas] layout" → editor opens immediately
+- Visual clarity: edit icon makes the immediate action explicit
+- Larger buttons (160×100px) provide better touch target
+
+**Implementation:**
+- LayoutSettingsDialog: replaced `_createTypeCard()` with `_createTypeEditButton()`
+- Each button shows layout type icon + pencil indicator
+- Click button sets `layout.type` and opens appropriate editor immediately
+- Existing layout edit flow unchanged (preview + separate edit button)
+
+**Impact:**
+- NEW LAYOUT: User sees 2 buttons → clicks Grid or Canvas → zone editor opens with type pre-set
+- EXISTING LAYOUT: User sees layout preview with floating edit button (unchanged)
+- Simplifies the most common flow without compromising UX
+
+**Status:** Implemented (2026-05-03)
+
+---
+
+### Decision 9: Canvas Editor Panel Consolidation with Progressive Disclosure
+
+**Decision:** Canvas editor consolidates three separate panels (help text, control, toolbar) into two panels with collapsible instructions overlay.
+
+**Recommended Layout (Option A):**
+
+**Header Bar (top-center, persistent)**
+- Title, Add Zone button, Zone info label, Help toggle button
+- Height: ~50-60px (vs current 120px)
+- Recovers 4-6% vertical screen space for editing
+
+**Bottom Toolbar (top-center, persistent)**
+- Delete Zone, Save Layout, Cancel buttons
+- Position: 80px from bottom edge
+- Consistent with Grid Editor pattern
+
+**Instructions Overlay (collapsible)**
+- Hidden by default (progressive disclosure)
+- Toggle visible with "ⓘ" button in header
+- Auto-dismiss after 10 seconds of inactivity (optional)
+- Semi-transparent overlay panel (top-center, below header)
+
+**Rationale:**
+- Clearer visual hierarchy: header (context) vs toolbar (finality)
+- Progressive disclosure: experienced users reclaim vertical space
+- Logical action grouping: zone management (header) vs modal actions (toolbar)
+- Consistent with Grid Editor two-panel pattern
+- Leaves room for zone dimensions display in zone info label
+
+**Implementation Notes (TBD):**
+- Remove `_createHelpText()` always-on rendering
+- Add `_createHeaderBar()` with help toggle
+- Modify `_createToolbar()` to include Delete button
+- Add `_toggleInstructionsOverlay()` method
+
+**Open Questions:**
+1. Instructions default visibility (hidden by default? visible on first launch only? always visible?)
+2. Auto-dismiss timer behavior (10 seconds? longer? disabled?)
+3. Zone dimensions format ("640×480px (32×30%)" vs "32×30% (640×480px)"?)
+4. Delete button placement (toolbar or header with Add Zone?)
+5. Option preference (Option A two-panel vs Option B single unified header?)
+6. Instructions content sufficiency (3-4 lines adequate?)
+7. Accessibility (keyboard shortcut for help button? F1? Ctrl+??)
+
+**Status:** Design proposal, awaiting Eric's feedback (2026-05-03)
+
+---
+
+### Decision 10: Zone Dimensions Display in Canvas Editor
+
+**Decision:** Canvas editor displays zone dimensions (pixel and percentage) in the zone info label when a zone is selected.
+
+**Format:**
+- Before selection: "Zone 1 of 5"
+- After selection: "Zone 1 of 5 • 640×480px (32×30%)"
+- Pixel dimensions first (what users see)
+- Percentage dimensions in parentheses (normalized coordinates)
+- Subtle text color to avoid clutter
+
+**Rationale:**
+- Enables users to verify exact zone positioning while editing
+- Supports both coordinate systems: screen pixels and normalized percentages
+- Integrates cleanly into header bar zone info label
+- Real-time feedback during drag/resize operations (future enhancement)
+
+**Implementation:**
+- Canvas editor maintains `_selectedZoneIndex` state
+- Zone info label auto-expands to accommodate dimensions
+- Header bar width is fluid, not fixed (adapts to label width)
+
+**Impact:**
+- Complements zone dimensions feedback during drag/resize (future tooltip feature)
+- Supports both grid-based and free-form layout design workflows
+
+**Status:** Implemented (2026-05-03)
+
+---
+
+### Decision 11: Template Overflow Fix in Layout Settings
+
+**Decision:** Layout template section uses ScrollView with fixed height to prevent overflow when displaying many built-in templates.
+
+**Implementation:**
+- sectionFactory.ts: Wrap template container in ScrollView
+- Fixed height: max-height: 400px (configurable per theme)
+- Native scrollbar with kinetic scrolling
+- Accessible (standard GNOME scrolling behavior)
+
+**Rationale:**
+- Prevents layout dialog content clipping with 20+ templates
+- Maintains responsive dialog appearance
+- Enables future template management features without UI degradation
+- Standard GNOME pattern (ScrollView for overflow containers)
+
+**Status:** Implemented (2026-05-03)
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus
