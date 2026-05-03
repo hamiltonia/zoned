@@ -19,3 +19,24 @@ Fixed four UX issues with the canvas editor instructions panel:
 **Files Changed:**
 - `extension/ui/editors/canvasZoneEditor.ts`
 - `extension/stylesheet.css`
+
+### Canvas Layout Type Persistence Bug
+
+**Author:** verbal  
+**Status:** Implemented  
+**Date:** 2026-05-04
+
+Fixed data persistence bug where canvas layouts lost their `type: 'canvas'` field when saved or duplicated via LayoutSettingsDialog, reverting to grid layouts on next load.
+
+**Root Cause:** Two methods in `layoutSettingsDialog.ts` constructed Layout objects without the required `type` field:
+- `_buildFinalLayout()` — called on Save button
+- `_onDuplicate()` — called on Duplicate button
+
+The zone editor flow correctly preserved the type, so the bug only manifested when updating layout metadata without re-opening the zone editor.
+
+**Fix:** Added `type: this._layout.type || 'grid'` to both methods.
+
+**Files Changed:**
+- `extension/ui/layoutSettingsDialog.ts`
+
+**Team Relevance:** The `Layout` interface defines `type` as optional, which allowed TypeScript to miss this at compile time. Consider making `type` required in the interface to prevent similar issues in the future.

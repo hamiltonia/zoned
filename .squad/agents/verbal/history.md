@@ -128,6 +128,7 @@ Implemented two-card type selector UI in LayoutSettingsDialog. Eric identified t
 - Type selector buttons in LayoutSettingsDialog should immediately launch the zone editor rather than requiring a separate edit button — combines type selection with immediate action for cleaner UX flow
 - Module-level hover handlers (`handleWidgetHoverEnter`, `handleWidgetHoverLeave`) prevent closure leaks and follow established pattern — use these instead of inline arrow functions
 - New layout creation flow skips the preview container entirely since type edit buttons immediately launch the zone editor — preview is only needed for existing layouts
+- Every method that constructs a Layout object literal must include the `type` field — `_buildFinalLayout()`, `_onDuplicate()`, `_buildLayoutFromEditorResult()` all need it. Missing `type` silently defaults to `'grid'` on reload via backward-compat migration.
 
 
 ### 2026-05-03: Canvas Editor Panel Consolidation UX Review
@@ -248,3 +249,27 @@ Implemented Decision 9 — replaced the three-panel canvas editor UI (help text 
 
 **Key Pattern:** Any `remove_child()`→`add_child()` z-order pattern in Clutter must explicitly re-apply the intended `visible` state afterward using `Meta.later()`.
 
+## 2026-05-04: Fixed Canvas Layout Type Lost on Save/Duplicate
+
+**Task:** Canvas layouts opened in grid editor when editing existing canvas layout  
+**Verdict:** SUCCESS
+
+**Root Cause:**
+Two methods in `layoutSettingsDialog.ts` constructed layout objects without the `type` field:
+- `_buildFinalLayout()` (line ~2472) — used by the Save button in the settings dialog
+- `_onDuplicate()` (line ~1937) — used by the Duplicate button
+
+When a canvas layout was saved via the settings dialog, the persisted JSON lacked `type: 'canvas'`. On next load, `_loadUserLayouts()` migrated it back to `type: 'grid'` (backward compat default). The edit button's dispatch logic (`_openZoneEditor()`) then correctly read `type: 'grid'` and opened the grid editor.
+
+**Fix:**
+Added `type: this._layout.type || 'grid'` to both `_buildFinalLayout()` and `_onDuplicate()` layout object literals.
+
+**Note:** The dispatch logic in `_openZoneEditor()` and `_buildLayoutFromEditorResult()` were already correct — they properly checked `state.layoutData.type`. The bug was purely a data persistence issue in two other code paths.
+
+**Validation:**
+- Typecheck: ✓ passing
+- Lint (strict): ✓ zero warnings
+- Build: ✓ passing
+- Tests: ✓ 96 passing
+
+**Team Insight:** The `Layout` interface defines `type` as optional (`type?: LayoutType`), which allowed TypeScript to miss this at compile time. Consider making `type` required in the interface to prevent future similar issues.
