@@ -41,6 +41,7 @@ import {createLogger} from '../utils/debug';
 import {SignalTracker} from '../utils/signalTracker';
 import {ThemeManager} from '../utils/theme';
 import {ZoneEditor} from './zoneEditor';
+import {CanvasZoneEditor} from './editors/canvasZoneEditor';
 import {TemplateManager} from '../templateManager.js';
 import type {Layout} from '../types/layout';
 
@@ -1579,6 +1580,7 @@ export class LayoutSettingsDialog {
         return {
             id: state.layoutData.id || `layout-${Date.now()}`,
             name: state.name,
+            type: state.layoutData.type || 'grid',
             zones: editedLayout.zones,
             padding: state.paddingEnabled ? (parseInt(String(state.padding)) || 4) : 0,
             shortcut: state.shortcut,
@@ -1619,45 +1621,66 @@ export class LayoutSettingsDialog {
         let saveExecuted = false;
         let cancelExecuted = false;
 
-        const editor = new ZoneEditor(
-            // eslint-disable-next-line max-len
-            layoutForEditor as {id?: string | null; name?: string; zones: Array<{name: string; x: number; y: number; w: number; h: number}>} | null,
-            layoutManager,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            this._settings as any,
-            ((editedLayout: Layout) => {
-                if (saveExecuted) return;
-                saveExecuted = true;
+        const onEditorSave = ((editedLayout: Layout) => {
+            if (saveExecuted) return;
+            saveExecuted = true;
 
-                logger.info(`ZoneEditor save: ${editedLayout.zones.length} zones`);
+            logger.info(`ZoneEditor save: ${editedLayout.zones.length} zones`);
 
-                const finalLayout = this._buildLayoutFromEditorResult(editedLayout, state);
-                const success = layoutManager.saveLayout(finalLayout);
+            const finalLayout = this._buildLayoutFromEditorResult(editedLayout, state);
+            const success = layoutManager.saveLayout(finalLayout);
 
-                logger.info(success ? `Layout saved: ${finalLayout.name}` : `Save failed: ${finalLayout.name}`);
+            logger.info(success ? `Layout saved: ${finalLayout.name}` : `Save failed: ${finalLayout.name}`);
 
-                if (savedOnZoneEditorClose) {
-                    savedOnZoneEditorClose(finalLayout);
-                }
-                if (savedOnSave) {
-                    savedOnSave(finalLayout);
-                }
-            // eslint-disable-next-line max-len
-            }) as (layout: {id?: string | null; name?: string; zones: Array<{name: string; x: number; y: number; w: number; h: number}>}) => void,
-            () => {
-                if (cancelExecuted) return;
-                cancelExecuted = true;
+            if (savedOnZoneEditorClose) {
+                savedOnZoneEditorClose(finalLayout);
+            }
+            if (savedOnSave) {
+                savedOnSave(finalLayout);
+            }
+        // eslint-disable-next-line max-len
+        }) as (layout: {id?: string | null; name?: string; zones: Array<{name: string; x: number; y: number; w: number; h: number}>}) => void;
 
-                logger.info('ZoneEditor canceled');
+        const onEditorCancel = () => {
+            if (cancelExecuted) return;
+            cancelExecuted = true;
 
-                if (savedOnZoneEditorClose) {
-                    savedOnZoneEditorClose(state.layoutData);
-                }
-                if (savedOnCancel) {
-                    savedOnCancel();
-                }
-            },
-        );
+            logger.info('ZoneEditor canceled');
+
+            if (savedOnZoneEditorClose) {
+                savedOnZoneEditorClose(state.layoutData);
+            }
+            if (savedOnCancel) {
+                savedOnCancel();
+            }
+        };
+
+        // Dispatch to correct editor based on layout type
+        const layoutType = state.layoutData.type || 'grid';
+        // eslint-disable-next-line max-len
+        const editorLayout = layoutForEditor as {id?: string | null; name?: string; zones: Array<{name: string; x: number; y: number; w: number; h: number}>} | null;
+
+        let editor: ZoneEditor | CanvasZoneEditor;
+        if (layoutType === 'canvas') {
+            logger.info('Dispatching to CanvasZoneEditor');
+            editor = new CanvasZoneEditor(
+                editorLayout,
+                layoutManager,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                this._settings as any,
+                onEditorSave,
+                onEditorCancel,
+            );
+        } else {
+            editor = new ZoneEditor(
+                editorLayout,
+                layoutManager,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                this._settings as any,
+                onEditorSave,
+                onEditorCancel,
+            );
+        }
 
         if (this._onZoneEditorOpenCallback) {
             this._onZoneEditorOpenCallback();
