@@ -14,7 +14,7 @@ vi.mock('../../extension/utils/debug.js', () => ({
 
 import {snapAxis, collectSnapPoints} from '../../extension/utils/canvasSnapping';
 
-const THRESHOLD = 0.02;
+const THRESHOLD = 0.05;
 
 describe('snapAxis', () => {
     it('snaps leading edge to screen left boundary (x=0)', () => {
@@ -79,15 +79,15 @@ describe('snapAxis', () => {
 
     it('uses exact threshold boundary (just inside)', () => {
         // exactly at threshold - 0.001
-        const result = snapAxis(0.019, 0.3, [0, 1], THRESHOLD);
+        const result = snapAxis(0.049, 0.3, [0, 1], THRESHOLD);
         expect(result.snapped).toBe(0);
         expect(result.snapPoint).toBe(0);
     });
 
     it('does not snap at exactly the threshold distance', () => {
-        // Math.abs(0.02 - 0) = 0.02, which is NOT < 0.02
-        const result = snapAxis(0.02, 0.3, [0, 1], THRESHOLD);
-        expect(result.snapped).toBe(0.02);
+        // Math.abs(0.05 - 0) = 0.05, which is NOT < 0.05
+        const result = snapAxis(0.05, 0.3, [0, 1], THRESHOLD);
+        expect(result.snapped).toBe(0.05);
         expect(result.snapPoint).toBeNull();
     });
 });

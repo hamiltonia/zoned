@@ -29,7 +29,7 @@ import {snapAxis, collectSnapPoints} from '../../utils/canvasSnapping';
 const logger = createLogger('CanvasZoneEditor');
 
 const MIN_ZONE_SIZE = 0.05;
-const SNAP_THRESHOLD = 0.02;
+const SNAP_THRESHOLD = 0.05;
 const MOVE_INCREMENT = 0.01;
 const HANDLE_SIZE = 16;
 const DEFAULT_ZONE_SIZE = 0.4;
@@ -82,7 +82,6 @@ export class CanvasZoneEditor {
     private _zones: ZoneData[];
     // @ts-expect-error - Used in constructor, needed for reference
     private _layoutManager: unknown;
-    // @ts-expect-error - Used in constructor, needed for reference
     private _settings: Gio.Settings;
     private _onSaveCallback: ((layout: ZoneLayout) => void) | null;
     private _onCancelCallback: (() => void) | null;
@@ -504,10 +503,17 @@ export class CanvasZoneEditor {
         newX = Math.max(0, Math.min(1 - zone.w, newX));
         newY = Math.max(0, Math.min(1 - zone.h, newY));
 
-        // Apply snapping
-        const snapped = this._applySnap(newX, newY, zone.w, zone.h, this._dragging.zoneIndex);
-        zone.x = snapped.x;
-        zone.y = snapped.y;
+        // Apply snapping (Shift disables snapping for fine control)
+        const shiftHeld = (event.get_state() & Clutter.ModifierType.SHIFT_MASK) !== 0;
+        if (shiftHeld) {
+            this._clearSnapGuides();
+            zone.x = newX;
+            zone.y = newY;
+        } else {
+            const snapped = this._applySnap(newX, newY, zone.w, zone.h, this._dragging.zoneIndex);
+            zone.x = snapped.x;
+            zone.y = snapped.y;
+        }
 
         this._updateZoneActor(this._dragging.zoneIndex);
         this._updateHandlePositions();
@@ -554,10 +560,21 @@ export class CanvasZoneEditor {
 
         const resized = this._computeResize(sz, this._resizing.handle, dx, dy);
 
-        zone.x = resized.x;
-        zone.y = resized.y;
-        zone.w = resized.w;
-        zone.h = resized.h;
+        // Apply snapping to resized edges (Shift disables snapping)
+        const shiftHeld = (event.get_state() & Clutter.ModifierType.SHIFT_MASK) !== 0;
+        if (shiftHeld) {
+            this._clearSnapGuides();
+            zone.x = resized.x;
+            zone.y = resized.y;
+            zone.w = resized.w;
+            zone.h = resized.h;
+        } else {
+            const snapped = this._applyResizeSnap(resized, this._resizing.handle, this._resizing.zoneIndex);
+            zone.x = snapped.x;
+            zone.y = snapped.y;
+            zone.w = snapped.w;
+            zone.h = snapped.h;
+        }
 
         this._updateZoneActor(this._resizing.zoneIndex);
         this._updateHandlePositions();
@@ -639,6 +656,59 @@ export class CanvasZoneEditor {
         if (snapY.snapPoint !== null) this._showSnapGuide('y', snapY.snapPoint);
 
         return {x: snapX.snapped, y: snapY.snapped};
+    }
+
+    private _applyResizeSnap(
+        rect: {x: number; y: number; w: number; h: number},
+        handle: string,
+        excludeIndex: number,
+    ): {x: number; y: number; w: number; h: number} {
+        const {xPoints, yPoints} = collectSnapPoints(this._zones, excludeIndex);
+        this._clearSnapGuides();
+
+        let {x, y, w, h} = rect;
+
+        // Snap leading edges (left/top move the origin, expanding the zone)
+        if (handle.includes('w')) {
+            ({pos: x, size: w} = this._snapLeadingEdge(x, w, xPoints, 'x'));
+        }
+        if (handle.includes('n')) {
+            ({pos: y, size: h} = this._snapLeadingEdge(y, h, yPoints, 'y'));
+        }
+
+        // Snap trailing edges (right/bottom extend the zone)
+        if (handle.includes('e')) {
+            w = this._snapTrailingEdge(x, w, xPoints, 'x');
+        }
+        if (handle.includes('s')) {
+            h = this._snapTrailingEdge(y, h, yPoints, 'y');
+        }
+
+        // Enforce minimum size after snapping
+        if (w < MIN_ZONE_SIZE) w = MIN_ZONE_SIZE;
+        if (h < MIN_ZONE_SIZE) h = MIN_ZONE_SIZE;
+
+        return {x, y, w, h};
+    }
+
+    private _snapLeadingEdge(pos: number, size: number, points: number[], axis: 'x' | 'y'): {pos: number; size: number} {
+        const snap = snapAxis(pos, 0, points, SNAP_THRESHOLD);
+        if (snap.snapPoint !== null) {
+            size += pos - snap.snapped;
+            pos = snap.snapped;
+            this._showSnapGuide(axis, snap.snapPoint);
+        }
+        return {pos, size};
+    }
+
+    private _snapTrailingEdge(pos: number, size: number, points: number[], axis: 'x' | 'y'): number {
+        const trailing = pos + size;
+        const snap = snapAxis(trailing, 0, points, SNAP_THRESHOLD);
+        if (snap.snapPoint !== null) {
+            size = snap.snapped - pos;
+            this._showSnapGuide(axis, snap.snapPoint);
+        }
+        return size;
     }
 
     private _showSnapGuide(axis: 'x' | 'y', position: number): void {
@@ -879,14 +949,13 @@ export class CanvasZoneEditor {
         });
         this._headerBar.add_child(this._zoneInfoLabel);
 
-        // Separator
-        const sep3 = new St.Widget({
-            style: `width: 1px; background-color: ${colors.textMuted}; margin: 4px 4px;`,
-            y_align: Clutter.ActorAlign.FILL,
+        // Flexible spacer to push help toggle to the right
+        const spacer = new St.Widget({
+            x_expand: true,
         });
-        this._headerBar.add_child(sep3);
+        this._headerBar.add_child(spacer);
 
-        // Help toggle button (ⓘ)
+        // Help toggle button (ⓘ) — right-justified
         const helpToggle = new St.Button({
             label: 'ⓘ',
             y_align: Clutter.ActorAlign.CENTER,
@@ -945,13 +1014,35 @@ export class CanvasZoneEditor {
 
         const overlayWidth = 700 * scaleFactor;
         this._instructionsOverlay.width = overlayWidth;
-        // Position below header bar
-        this._instructionsOverlay.set_position((monitor.width - overlayWidth) / 2, 70 * scaleFactor);
+        // Position below header bar with 12px visual gap
+        this._instructionsOverlay.set_position((monitor.width - overlayWidth) / 2, 82 * scaleFactor);
+
+        // Close button row (right-aligned ✕)
+        const closeRow = new St.BoxLayout({
+            vertical: false,
+            x_align: Clutter.ActorAlign.END,
+            x_expand: true,
+        });
+        const closeBtn = new St.Button({
+            label: '✕',
+            style: `padding: 2px 8px; background-color: transparent; color: ${colors.textMuted}; border-radius: 4px; font-size: 10pt;`,
+        });
+        this._signalTracker.connect(closeBtn, 'clicked', () => this._hideInstructionsOverlay());
+        this._signalTracker.connect(closeBtn, 'enter-event', () => {
+            closeBtn.style = `padding: 2px 8px; background-color: ${colors.buttonBgHover}; color: ${colors.textPrimary}; border-radius: 4px; font-size: 10pt;`;
+            return Clutter.EVENT_PROPAGATE as unknown as boolean;
+        });
+        this._signalTracker.connect(closeBtn, 'leave-event', () => {
+            closeBtn.style = `padding: 2px 8px; background-color: transparent; color: ${colors.textMuted}; border-radius: 4px; font-size: 10pt;`;
+            return Clutter.EVENT_PROPAGATE as unknown as boolean;
+        });
+        closeRow.add_child(closeBtn);
+        this._instructionsOverlay.add_child(closeRow);
 
         const instructions = [
             'Click zone to select  •  Drag to move  •  Drag handles to resize  •  N: New zone',
-            'Delete: Remove zone  •  [ / ]: Adjust order  •  Shift+Arrow: Resize  •  Tab: Cycle',
-            'Esc: Deselect / Cancel  •  Enter: Save layout  •  F1: Toggle help',
+            'Delete: Remove zone  •  [, ]: Adjust order  •  Shift+Arrow: Resize  •  Tab: Cycle',
+            'Hold Shift to disable snapping  •  Esc: Deselect / Cancel  •  Enter: Save  •  F1: Help',
         ];
 
         instructions.forEach(text => {
@@ -981,6 +1072,17 @@ export class CanvasZoneEditor {
         this._settings.set_boolean('canvas-editor-show-instructions', this._instructionsVisible);
 
         logger.debug(`Instructions overlay ${this._instructionsVisible ? 'shown' : 'hidden'}`);
+    }
+
+    private _hideInstructionsOverlay(): void {
+        if (!this._instructionsOverlay) return;
+
+        this._instructionsVisible = false;
+        this._instructionsOverlay.visible = false;
+
+        this._settings.set_boolean('canvas-editor-show-instructions', false);
+
+        logger.debug('Instructions overlay hidden via close button');
     }
 
     private _createToolbar(): void {
@@ -1075,6 +1177,8 @@ export class CanvasZoneEditor {
         if (this._instructionsOverlay?.get_parent() === this._overlay) {
             this._overlay.remove_child(this._instructionsOverlay);
             this._overlay.add_child(this._instructionsOverlay);
+            // Re-apply visibility — Clutter resets visible to true on add_child
+            this._instructionsOverlay.visible = this._instructionsVisible;
         }
     }
 

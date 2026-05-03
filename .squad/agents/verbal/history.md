@@ -178,6 +178,10 @@ Implemented two-card type selector UI in LayoutSettingsDialog. Eric identified t
 - Instructions overlay close button uses `_hideInstructionsOverlay()` (explicit hide) vs `_toggleInstructionsOverlay()` (toggle) — separate methods for clarity
 - Right-justify header bar items using `St.Widget({ x_expand: true })` spacer before the target element — standard Clutter/St pattern for flexible layouts
 - Instructions panel Y offset: `82 * scaleFactor` provides ~12px visual gap below header bar at `20 * scaleFactor` — enough separation to read as distinct elements
+- Canvas snapping threshold: `SNAP_THRESHOLD = 0.05` (5% of screen) gives a strong magnetic feel; previously 0.02 felt too weak
+- Resize operations now snap edges to other zone edges and screen boundaries via `_applyResizeSnap()` — previously only drag had snapping
+- `Clutter.ModifierType.SHIFT_MASK` from `event.get_state()` is the standard way to detect modifier keys during Clutter motion events
+- Complex per-edge snapping logic should be decomposed into `_snapLeadingEdge()` / `_snapTrailingEdge()` helpers to stay under ESLint complexity limit of 10
 
 ### 2026-05-04: Canvas Editor Instructions Panel UX Fixes (4 bugs)
 
