@@ -11,6 +11,14 @@
 - **Canvas Styling Pattern:** Zone visual language — neutral gray background (rgba(68,68,68,0.6)), 2px accent border, 24pt zone numbers, inline dimension labels (% format preferred)
 - **Grid+Canvas Alignment:** Share same zone visual language; multi-color mode removed in favor of unified neutral styling
 
+### Canvas Editor UI & Data Persistence (2026-05-04)
+- **Panel Consolidation:** Three-panel layout (help + control + toolbar) consolidated to two panels + collapsible instructions overlay (2026-05-03→2026-05-04)
+- **Clutter Visibility Bug:** `add_child()` resets `visible` property; always re-apply visibility state after remove/re-add z-order patterns using `Meta.later()`
+- **Instructions Overlay:** Collapsible help text, toggled via ⓘ button or F1; visibility persisted to GSettings (`canvas-editor-show-instructions`)
+- **Header Bar Pattern:** Compact header with title + zone controls + info label + help toggle; uses `x_expand: true` spacer for right-justification
+- **Critical Data Bug:** Layout object literals in `_buildFinalLayout()` and `_onDuplicate()` must include `type` field; `Layout` interface has optional type (no TS catch), defaults silently to 'grid' (2026-05-04)
+  - **Mitigation:** Consider making `type` required in Layout interface or add object construction helper with type validation
+
 ## 2026-05-03: Fixed LayoutSettingsDialog Horizontal Centering
 
 **Task:** Dialog not horizontally centered on screen when opened  
