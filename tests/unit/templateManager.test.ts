@@ -35,9 +35,9 @@ describe('TemplateManager', () => {
     });
 
     describe('getBuiltinTemplates', () => {
-        it('returns 8 built-in templates', () => {
+        it('returns 5 built-in templates', () => {
             const templates = mgr.getBuiltinTemplates();
-            expect(templates).toHaveLength(8);
+            expect(templates).toHaveLength(5);
         });
 
         it('each template has required properties', () => {
@@ -81,12 +81,9 @@ describe('TemplateManager', () => {
         it('returns true for known templates', () => {
             expect(mgr.hasTemplate('split')).toBe(true);
             expect(mgr.hasTemplate('triple')).toBe(true);
-            expect(mgr.hasTemplate('wide')).toBe(true);
             expect(mgr.hasTemplate('quarters')).toBe(true);
             expect(mgr.hasTemplate('triple_stack')).toBe(true);
-            expect(mgr.hasTemplate('ultrawide_focus')).toBe(true);
             expect(mgr.hasTemplate('picture_in_picture')).toBe(true);
-            expect(mgr.hasTemplate('center_stage')).toBe(true);
         });
 
         it('returns false for unknown templates', () => {
@@ -95,8 +92,8 @@ describe('TemplateManager', () => {
     });
 
     describe('getTemplateCount', () => {
-        it('returns 8', () => {
-            expect(mgr.getTemplateCount()).toBe(8);
+        it('returns 5', () => {
+            expect(mgr.getTemplateCount()).toBe(5);
         });
     });
 
@@ -165,18 +162,11 @@ describe('TemplateManager', () => {
         });
 
         it('canvas templates have type canvas', () => {
-            const canvasIds = ['ultrawide_focus', 'picture_in_picture', 'center_stage'];
+            const canvasIds = ['picture_in_picture'];
             for (const id of canvasIds) {
                 const t = mgr.getTemplate(id)!;
                 expect(t.type).toBe('canvas');
             }
-        });
-
-        it('ultrawide_focus has overlapping zones', () => {
-            const t = mgr.getTemplate('ultrawide_focus')!;
-            expect(t.zones).toHaveLength(5);
-            // Top-Left and Full-Left share the same x position
-            expect(t.zones[0].x).toBe(t.zones[2].x);
         });
 
         it('picture_in_picture has overlapping main and pip zones', () => {
@@ -185,13 +175,6 @@ describe('TemplateManager', () => {
             expect(t.zones[0].w).toBe(1.0);
             expect(t.zones[0].h).toBe(1.0);
             expect(t.zones[1].w).toBeLessThan(0.5);
-        });
-
-        it('center_stage has partial screen coverage', () => {
-            const t = mgr.getTemplate('center_stage')!;
-            expect(t.zones).toHaveLength(1);
-            expect(t.zones[0].x).toBeGreaterThan(0);
-            expect(t.zones[0].w).toBeLessThan(1);
         });
     });
 });

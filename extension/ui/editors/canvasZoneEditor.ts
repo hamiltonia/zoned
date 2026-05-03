@@ -321,12 +321,30 @@ export class CanvasZoneEditor {
                 ? `background-color: rgba(${this._accentRgbStr(accentColor)}, 0.4); border: 4px solid ${accentHex}; border-radius: 4px;`
                 : `background-color: rgba(68, 68, 68, 0.6); border: 2px solid ${accentHex}; border-radius: 4px;`;
 
-            // Zone number label (top-left, 24pt)
-            const label = new St.Label({
-                text: `${index + 1}`,
-                style: 'font-size: 24pt; color: white; font-weight: bold; margin: 8px;',
+            // Zone labels (number + dimensions)
+            const container = new St.BoxLayout({
+                vertical: true,
+                x_align: Clutter.ActorAlign.CENTER,
+                style: 'margin: 8px;',
             });
-            actor.set_child(label);
+
+            const numberLabel = new St.Label({
+                text: `${index + 1}`,
+                x_align: Clutter.ActorAlign.CENTER,
+                style: 'font-size: 24pt; color: white; font-weight: bold;',
+            });
+
+            const widthPx = Math.round(zone.w * monitor.width);
+            const heightPx = Math.round(zone.h * monitor.height);
+            const dimensionLabel = new St.Label({
+                text: `${widthPx} × ${heightPx}`,
+                x_align: Clutter.ActorAlign.CENTER,
+                style: 'font-size: 11pt; color: rgba(255, 255, 255, 0.8); margin-top: 2px;',
+            });
+
+            container.add_child(numberLabel);
+            container.add_child(dimensionLabel);
+            actor.set_child(container);
 
             // Click to select + start drag
             this._signalTracker.connect(actor, 'button-press-event', (_a: unknown, event: Clutter.Event) => {
@@ -583,6 +601,18 @@ export class CanvasZoneEditor {
         const monitor = Main.layoutManager.currentMonitor;
         actor.set_position(zone.x * monitor.width, zone.y * monitor.height);
         actor.set_size(zone.w * monitor.width, zone.h * monitor.height);
+
+        // Update dimension label
+        const container = actor.get_child();
+        if (container && container instanceof St.BoxLayout) {
+            const children = container.get_children();
+            if (children.length >= 2) {
+                const dimensionLabel = children[1] as St.Label;
+                const widthPx = Math.round(zone.w * monitor.width);
+                const heightPx = Math.round(zone.h * monitor.height);
+                dimensionLabel.set_text(`${widthPx} × ${heightPx}`);
+            }
+        }
     }
 
     private _updateHandlePositions(): void {

@@ -378,7 +378,7 @@ export class LayoutSettingsDialog {
             this._container.add_child(this._dialogCard);
         }
 
-        // Add container to stage now (dialog card starts with opacity 0, so invisible)
+        // Add container to stage now (dialog card starts hidden, shown after positioning)
         Main.uiGroup.add_child(this._container);
 
         // Position and reveal dialog after stage allocation completes
@@ -397,8 +397,8 @@ export class LayoutSettingsDialog {
                 Math.floor((monitor.height - actualHeight) / 2),
             );
 
-            // Make dialog visible
-            this._dialogCard.opacity = 255;
+            // Make dialog visible now that it's centered
+            this._dialogCard.visible = true;
 
             return GLib.SOURCE_REMOVE;
         });
@@ -1069,9 +1069,9 @@ export class LayoutSettingsDialog {
         this._dialogCard = new St.BoxLayout({
             vertical: true,
             reactive: true,
+            visible: false,  // Hidden until positioned in idle callback
             style: `background-color: ${colors.containerBg}; border-radius: 16px; ` +
-                   'padding: 24px; min-width: 420px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); ' +
-                   'opacity: 0;',  // Start invisible, will be shown after positioning
+                   'padding: 24px; min-width: 420px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);',
         });
 
         // Header
