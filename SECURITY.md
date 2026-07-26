@@ -24,13 +24,7 @@ If you discover a security vulnerability in Zoned, please report it privately us
 3. Fill out the form with details about the vulnerability
 4. Submit the report
 
-This method allows us to collaborate privately on a fix before public disclosure.
-
-### Alternative: Direct Email
-
-If you cannot use GitHub Security Advisories, you can email security reports to:
-
-**[Your email will be added here during repository setup]**
+This method allows us to collaborate privately on a fix before public disclosure. This is the only supported private reporting channel for this project.
 
 ### What to Include
 
