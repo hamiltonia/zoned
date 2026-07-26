@@ -28,9 +28,9 @@ This method allows us to collaborate privately on a fix before public disclosure
 
 ### Alternative: Direct Email
 
-If you cannot use GitHub Security Advisories, you can email security reports to:
+If you cannot use GitHub Security Advisories, you can email security reports to the maintainer. To avoid automated scraping, the address is written in obfuscated form — remove the spaces and replace the bracketed words:
 
-**eric@hamiltonia.me**
+**eric [at] hamiltonia [dot] me**
 
 ### What to Include
 
