@@ -64,22 +64,22 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed instructions.
 
 #### Code Style
 
-**JavaScript:**
+**TypeScript:**
 - Use 4 spaces for indentation
-- Use ES6+ features where appropriate
+- Strict mode enabled; avoid `any` where possible
 - Follow existing code patterns
-- Add JSDoc comments for public APIs
+- Add TSDoc comments for public APIs
 - Use meaningful variable names
 
 **Example:**
-```javascript
+```typescript
 /**
  * Move window to specified zone
- * @param {Meta.Window} window - The window to move
- * @param {Object} zone - Zone definition with x, y, w, h
- * @returns {boolean} True if successful
+ * @param window - The window to move
+ * @param zone - Zone definition with x, y, w, h
+ * @returns True if successful
  */
-moveWindowToZone(window, zone) {
+moveWindowToZone(window: Meta.Window, zone: Zone): boolean {
     // Implementation
 }
 ```
@@ -152,8 +152,8 @@ For significant code changes, maintainers will run VM-based integration tests be
 
 **If you want to run integration tests yourself** (optional but appreciated):
 - See [docs/vm-setup-guide.md](docs/vm-setup-guide.md) for VM configuration
-- Run: `make vm-test-func PRESET=quick` for functional tests
-- Run: `make vm-test-mem PRESET=quick` for memory leak checks
+- Run: `./scripts/run-tests func --preset quick` for functional tests
+- Run: `./scripts/run-tests mem --preset quick` for memory leak checks
 - Include test results in your PR description
 
 ##### What to Test Manually
@@ -347,11 +347,11 @@ When modifying components:
 
 ```
 zoned/
-├── extension/          # Extension source code
-│   ├── extension.js
-│   ├── layoutManager.js
-│   ├── windowManager.js
-│   ├── keybindingManager.js
+├── extension/          # Extension source code (TypeScript)
+│   ├── extension.ts
+│   ├── layoutManager.ts
+│   ├── windowManager.ts
+│   ├── keybindingManager.ts
 │   ├── ui/
 │   ├── schemas/
 │   └── config/
@@ -389,7 +389,7 @@ zoned/
 3. Create git tag: `git tag v0.1.0`
 4. Push tag: `git push origin v0.1.0`
 5. Create GitHub release
-6. Build extension zip: `make zip`
+6. Build extension zip: `make build`
 7. Upload to extensions.gnome.org (when ready)
 
 ## Questions?

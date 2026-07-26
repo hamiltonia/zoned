@@ -1,6 +1,6 @@
 {
   "name": "zoned",
-  "version": "1.0.0",
+  "version": "0.9.2",
   "description": "GNOME Shell extension for window zone management",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "@bradygaster/squad-cli": "^0.9.1",
+    "@bradygaster/squad-cli": "^0.11.0",
     "@eslint/js": "^9.16.0",
     "@girs/adw-1": "^1.9.0-4.0.0-beta.38",
     "@girs/clutter-14": "^14.0.0-4.0.0-beta.38",
@@ -26,7 +26,7 @@
     "@tsconfig/recommended": "^1.0.13",
     "@typescript-eslint/eslint-plugin": "^8.52.0",
     "@typescript-eslint/parser": "^8.52.0",
-    "eslint": "^9.16.0",
+    "eslint": "^10.8.0",
     "globals": "^15.13.0",
     "rollup": "^4.55.1",
     "rollup-plugin-cleanup": "^3.2.1",

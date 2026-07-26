@@ -36,8 +36,8 @@ Relates to #
 - [ ] Tested on GNOME Shell version(s): 
 - [ ] Tested on Wayland / X11 (specify):
 - [ ] Ran `make lint-strict` (no errors)
-- [ ] Ran VM functional tests `make vm-test-func` (if applicable)
-- [ ] Ran VM memory tests `make vm-test-mem` (if applicable)
+- [ ] Ran VM functional tests `./scripts/run-tests func --preset quick` (if applicable)
+- [ ] Ran VM memory tests `./scripts/run-tests mem --preset quick` (if applicable)
 - [ ] Manual testing performed (describe below)
 
 ### Manual Testing Details

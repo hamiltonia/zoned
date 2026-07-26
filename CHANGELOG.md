@@ -35,6 +35,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated all documentation to remove unnecessary FancyZones references
 - Standardized AI agent references in development guides
 
+## [0.9.1] - 2025-12-27
+
+### Added
+- Release infrastructure: `test-release` Makefile target and GitHub Actions release workflow
+- Tag recreation support in the version management script
+
+### Fixed
+- GitHub Actions workflow: added missing `contents: write` permission
+- GitHub Actions workflow: use string comparison for the pre-release check
+
 ## [0.9.0] - 2025-12-27
 
 ### Added
@@ -91,4 +101,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-*Note: This project is in active development. Version 0.1.0 has not been released yet.*
+*Note: This project is in active pre-1.0 development. See [Releases](https://github.com/hamiltonia/zoned/releases) for the latest published version.*

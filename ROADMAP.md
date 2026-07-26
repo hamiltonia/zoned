@@ -1,7 +1,7 @@
 # Zoned Development Roadmap
 
-**Current Status:** Pre-release (v1.0 development)  
-**Branch:** `initial_dev`
+**Current Status:** Active development (post-0.9 stabilization toward v1.0)
+**Branch:** `main`
 
 ## v1.0 Release
 

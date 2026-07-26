@@ -31,8 +31,8 @@ This document provides guidance for Zoned project maintainers on managing releas
 
 2. **Testing** (for significant changes)
    - Deploy to VM test environment
-   - Run integration tests: `make vm-test-func PRESET=quick`
-   - Run memory tests if applicable: `make vm-test-mem PRESET=quick`
+   - Run integration tests: `./scripts/run-tests func --preset quick`
+   - Run memory tests if applicable: `./scripts/run-tests mem --preset quick`
    - Test on both X11 and Wayland if relevant
 
 3. **Approval & Merge**
@@ -118,7 +118,7 @@ Follow Semantic Versioning (SemVer):
 
 6. **Build Distribution**
    ```bash
-   make zip
+   make build
    # Creates zoned@hamiltonia.me.zip
    ```
 
@@ -190,12 +190,12 @@ make vm-init
 make vm-setup
 
 # Run tests before releases
-make vm-test-func PRESET=full        # Full functional test suite
-make vm-test-mem PRESET=full         # Full memory leak tests
+./scripts/run-tests func --preset full        # Full functional test suite
+./scripts/run-tests mem --preset full          # Full memory leak tests
 
 # Quick tests for PR review
-make vm-test-func PRESET=quick       # Core functionality only
-make vm-test-mem PRESET=quick        # Basic memory checks
+./scripts/run-tests func --preset quick       # Core functionality only
+./scripts/run-tests mem --preset quick         # Basic memory checks
 ```
 
 **Test Coverage Goals:**
@@ -350,7 +350,7 @@ ssh vm-user@vm-ip 'DISPLAY=:0 dbus-send --type=method_call --dest=org.gnome.Shel
 ssh vm-user@vm-ip 'journalctl -f -o cat /usr/bin/gnome-shell | grep -i zoned'
 
 # Check for memory leaks in VM
-make vm-test-mem PRESET=full
+./scripts/run-tests mem --preset full
 ```
 
 ### External Resources
